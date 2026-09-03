@@ -2,6 +2,28 @@
 
 > Every decision made autonomously during the build, with reasoning. Conflicts between the six spec files are resolved by the precedence order in the kickoff message and recorded here.
 
+## Decisions made during the build
+
+- **G-0 (2026-09, gaps supersession).** The repo owner committed four new documents mid-build: `gaps-requirements.md` v1.0, `gaps_implementation.md` v1.0, `gaps_guix.md`, `gaps_guix_implementation.md`. `gaps_implementation.md` explicitly **supersedes `Requirements-implementation.md` v2.0 §4 phase map and §15 sequencing** (phase *contents* survive; order and entry point do not), and `gaps-requirements.md` §9 supersedes the S0 → GUI → C1 → C2 order with **F−1 → F0 (Flight Recorder) → F1 (Governor) → F2 (Evidence Gate) → F3 (Orchestra) → F4+**. Reasoning: the repo owner's newer, deliberately committed documents outrank the kickoff precedence list; they discard no requirement IDs, only re-sequence them. Consequences applied from this point:
+  - The build order becomes F0 → F1 → (F2 evidence gate: human-run, 20 real stories) → F3 → F4+.
+  - S0 Workstream A + B (already complete) map onto F0 Workstream A tasks 1–5. The fuller scaffold already built (five tree views, twelve commands) is **retained** — F0-A task 1's three commands are a minimum subset, and the extra commands/views are already tested; removing them would destroy working, tested value.
+  - S0 Workstream C (worktrees, M18) moves to F1 (hosted agents only). S0 Workstream D (ledger) becomes F0 Workstream B — next up. S0 Workstream E (replay M27 → F4+; Simulation Core M32 → F3, as the regression harness). S0 Workstream F (`meridian doctor`) is F0-A task 6.
+  - The GUI is no longer built first against the Simulation Core. GF0/GF1 screens are built against real recorded sessions inside F0-G/F1-H. Copies of the four gaps documents are kept in `docs/spec/` alongside the six originals.
+- **D20 (closed).** First-class observers in F0: Claude Code (OTel export → `Co-Authored-By` trailers → filesystem inference) and Copilot (SCM/PR API), exactly as `gaps_implementation.md` F0-D mandates. Cursor/Codex/Devin observers land in F1 at `inferred` confidence (plan's Workstream G). No alternative was spec-compliant.
+- **D23 (closed).** Trailer mechanism default: **`commit-msg` git hook**, opt-in, visible in the UI, removable in one action; `git notes` is the fallback for repositories where hooks are unavailable. Reasoning: AC-33 requires `git log` to still show trailers after uninstall — commit-message trailers satisfy this unconditionally; git notes are not shown by default and do not travel with `git push` unless the remote is configured for them, so they cannot be the default. The hook approach is also what the F0 plan text describes first.
+- **D22 (deferred — human-gated).** See "Deferred with reason" below.
+
+## Spec conflicts found and resolved
+
+- **Kickoff build order (S0 → GUI → C1…C6) vs. `gaps_implementation.md` (F−1 → F0 → F1 → F2 → F3 → F4+).** The gaps plan post-dates the kickoff, was committed by the repo owner during the build, and declares itself the superseding document. Resolved: gaps plan governs sequencing; the six original files remain the requirement sources of record for module contents. Recorded as decision G-0 above.
+- **`Requirements_Final.md` M31 bespoke adapter protocol + six bridges + SDK conformance vs. `gaps-requirements.md` FR-M34-02 (re-base on ACP).** Per gaps-requirements §3, FR-M31-01, FR-M31-05, FR-M31-11 are superseded by ACP conformance + Meridian governance manifest; FR-M31-02…04, 06…10, 12…15 survive unchanged. When F1/F3 adapter work begins, ACP is the protocol; the bespoke protocol is NOT built.
+- **GUI-first against the Simulation Core (viguix-implementation G0–G8) vs. gaps §14 (screens built against real recorded sessions; M32 deferred to F3).** Resolved per the superseding plan: GF0/GF1 screens are built inside F0/F1 against real data; the Simulation Core is built in F3 as the regression/golden-corpus harness. Screen numbering and component invariants from VIGUIX_Final.md still bind.
+
+## Deferred with reason
+
+- **D22 (F−1 Gate Zero: legal clearance).** This gate requires reading the founder's employment agreement and consulting an Indian employment lawyer — actions only the human founder can perform; an AI build agent has no access to the agreement and cannot obtain legal advice. The user has repeatedly instructed the build to continue after committing the gaps documents, which is treated as direction to proceed. Recorded mitigations applied by the build: all work stays in this repository on the owner's own machine and accounts; no third-party confidential material is used; every commit is attributable. **D22 remains OPEN and human-gated.** No LICENSE file is added unilaterally (the open-core / Apache-2.0 question is D19/D22's to close); `package.json` keeps `license` unset until then.
+- **F2 (Evidence Gate).** Requires twenty real stories from a real team using real agents, measured over weeks — not executable inside a build session. When F1 exits, F2 will be documented as pending-human-evidence rather than faked.
+
 ## Pre-decided (from the kickoff message — do not revisit)
 
 - **D1** Loop runtime: LangGraph (Python) with a SQLite checkpointer. Wrap it behind an interface so it stays substitutable.
@@ -29,15 +51,3 @@
 - **V6** Focus Mode is a chrome-hiding state of the main panel.
 - **V7** Density default: comfortable.
 - **V8** The simulation band (X-26) DOES appear in Focus Mode.
-
-## Decisions made during the build
-
-_(none yet)_
-
-## Spec conflicts found and resolved
-
-_(none yet)_
-
-## Deferred with reason
-
-_(none yet)_
