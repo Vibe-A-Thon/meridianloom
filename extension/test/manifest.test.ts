@@ -63,4 +63,21 @@ describe('extension manifest', () => {
     // Code and manifest share one source of truth.
     expect(COMMANDS.map((c) => c.id)).toEqual(contributed);
   });
+
+  it('is bundled by esbuild into dist/extension.js (FR-M1-10)', () => {
+    expect(manifest.main).toBe('./dist/extension.js');
+    expect(manifest.scripts['vscode:prepublish']).toBe('npm run build');
+    expect(manifest.scripts.build).toContain('esbuild');
+    expect(manifest.scripts.build).toContain('--external:vscode');
+  });
+
+  it('excludes sources, tests and dev assets via .vscodeignore (FR-M1-10)', () => {
+    const ignore = readFileSync(
+      path.resolve(__dirname, '..', '.vscodeignore'),
+      'utf8',
+    ).split(/\r?\n/);
+    for (const pattern of ['src/**', 'test/**', '**/*.ts', '**/*.map']) {
+      expect(ignore).toContain(pattern);
+    }
+  });
 });
