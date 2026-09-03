@@ -13,6 +13,8 @@ export interface ManagedClient extends SidecarClient {
   on(event: 'spawnError', listener: (error: Error) => void): unknown;
 }
 
+export type SupervisorState = 'stopped' | 'ready' | 'restarting' | 'failed';
+
 export interface SupervisorDeps {
   clientFactory: () => ManagedClient;
   /** Kills the whole process tree; defaults to taskkill /T on Windows. */
@@ -21,9 +23,17 @@ export interface SupervisorDeps {
   shutdownTimeoutMs?: number;
   /** ms to wait after SIGTERM before the tree kill. */
   termGraceMs?: number;
+  /** FR-M3-06 heartbeat period; default 5_000. */
+  heartbeatIntervalMs?: number;
+  /** ms a heartbeat ping may take before the sidecar counts as dead. */
+  pingTimeoutMs?: number;
+  /** FR-M3-06 restart budget: max attempts inside the window. */
+  maxRestarts?: number;
+  /** FR-M3-06 restart window; default 300_000 (5 minutes). */
+  restartWindowMs?: number;
   /** Actionable errors for the user (FR-M3-04); defaults to a no-op. */
   onError?: (message: string) => void;
-  onStderr?: (line: string) => void;
+  onStateChange?: (state: SupervisorState) => void;
 }
 
 /**
@@ -37,16 +47,29 @@ export interface SupervisorDeps {
  * FR-M3-02 also requires teardown on webview disposal when the webview is
  * the last consumer; the webview lands with the GUI workstreams and will
  * hold a reference counted against this supervisor.
+ *
+ * FR-M3-06: while running, a heartbeat pings the sidecar every
+ * heartbeatIntervalMs (5 s). A dead or unresponsive sidecar is restarted
+ * with exponential backoff, at most maxRestarts (3) times in
+ * restartWindowMs (5 min); beyond that the supervisor enters the failed
+ * state and requires user action.
  */
 export class SidecarSupervisor {
   private client: ManagedClient | undefined;
   private stopping = false;
-  private running = false;
+  private state: SupervisorState = 'stopped';
+  private heartbeat: NodeJS.Timeout | undefined;
+  private restartTimer: NodeJS.Timeout | undefined;
+  private restartTimestamps: number[] = [];
 
   constructor(private readonly deps: SupervisorDeps) {}
 
+  get currentState(): SupervisorState {
+    return this.state;
+  }
+
   get isRunning(): boolean {
-    return this.running;
+    return this.state === 'ready';
   }
 
   /** Exposed for tests and the health/restart policy (FR-M3-06). */
@@ -58,20 +81,18 @@ export class SidecarSupervisor {
     if (this.client) {
       throw new Error('supervisor already started');
     }
+    await this.spawnClient();
+  }
+
+  private async spawnClient(): Promise<void> {
     const client = this.deps.clientFactory();
     this.client = client;
     client.on('spawnError', (error: Error) => {
       this.deps.onError?.(error.message);
     });
     client.on('exit', (code, signal) => {
-      this.running = false;
       if (!this.stopping) {
-        // Unexpected death. Restart policy lands with FR-M3-06; until then,
-        // surface it so the failure is never silent.
-        this.deps.onError?.(
-          `Meridian Core sidecar stopped unexpectedly (code=${code} signal=${signal}). ` +
-            'Run "Meridian Loom: Doctor" for diagnostics.',
-        );
+        this.handleUnexpectedExit(code, signal);
       }
     });
     try {
@@ -81,7 +102,8 @@ export class SidecarSupervisor {
       this.deps.onError?.(error instanceof Error ? error.message : String(error));
       throw error;
     }
-    this.running = true;
+    this.setState('ready');
+    this.startHeartbeat();
   }
 
   /**
@@ -89,12 +111,19 @@ export class SidecarSupervisor {
    * throw out of deactivate().
    */
   async stop(): Promise<void> {
+    this.stopHeartbeat();
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = undefined;
+    }
     const client = this.client;
     this.client = undefined;
+    this.stopping = true;
+    this.setState('stopped');
     if (!client) {
+      this.stopping = false;
       return;
     }
-    this.stopping = true;
     try {
       const exited = this.waitForExit(client);
       // Stage 1: polite shutdown request. Fire-and-forget: a wedged sidecar
@@ -118,8 +147,87 @@ export class SidecarSupervisor {
       await exited.within(2_000);
     } finally {
       this.stopping = false;
-      this.running = false;
     }
+  }
+
+  // -- FR-M3-06: heartbeat --------------------------------------------------
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    const interval = this.deps.heartbeatIntervalMs ?? 5_000;
+    this.heartbeat = setInterval(() => {
+      void this.beat();
+    }, interval);
+    this.heartbeat.unref?.();
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeat) {
+      clearInterval(this.heartbeat);
+      this.heartbeat = undefined;
+    }
+  }
+
+  private async beat(): Promise<void> {
+    const client = this.client;
+    if (!client || this.stopping || this.state !== 'ready') {
+      return;
+    }
+    const timeoutMs = this.deps.pingTimeoutMs ?? 3_000;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      await client.request('ping', {}, controller.signal);
+    } catch {
+      // Unresponsive: treat as dead and run the restart policy.
+      client.kill();
+      this.handleUnexpectedExit(null, 'heartbeat-timeout');
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  // -- FR-M3-06: bounded restart --------------------------------------------
+
+  private handleUnexpectedExit(code: number | null, signal: string | null): void {
+    this.stopHeartbeat();
+    const now = Date.now();
+    const windowMs = this.deps.restartWindowMs ?? 300_000;
+    const maxRestarts = this.deps.maxRestarts ?? 3;
+    this.restartTimestamps = this.restartTimestamps.filter((t) => now - t < windowMs);
+    if (this.restartTimestamps.length >= maxRestarts) {
+      this.client = undefined;
+      this.setState('failed');
+      this.deps.onError?.(
+        `Meridian Core sidecar failed ${maxRestarts + 1} times within ` +
+          `${Math.round(windowMs / 60_000)} minutes (last exit: code=${code} ` +
+          `signal=${signal}) and will not restart again. Check the Meridian ` +
+          'Loom output channel, then reload the window to retry.',
+      );
+      return;
+    }
+    this.restartTimestamps.push(now);
+    const attempt = this.restartTimestamps.length;
+    const backoffMs = 1_000 * 2 ** (attempt - 1);
+    this.setState('restarting');
+    this.deps.onError?.(
+      `Meridian Core sidecar stopped unexpectedly (code=${code} signal=${signal}). ` +
+        `Restarting (attempt ${attempt} of ${maxRestarts})…`,
+    );
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = undefined;
+      void this.spawnClient().catch(() => {
+        // spawnClient already reported; run the budget check again so a
+        // failing spawn consumes restart budget like a crash does.
+        this.handleUnexpectedExit(null, 'spawn-failed');
+      });
+    }, backoffMs);
+    this.restartTimer.unref?.();
+  }
+
+  private setState(state: SupervisorState): void {
+    this.state = state;
+    this.deps.onStateChange?.(state);
   }
 
   private waitForExit(client: ManagedClient): { within(ms: number): Promise<boolean> } {

@@ -161,10 +161,13 @@ describe('StdioSidecarClient (FR-M3-01)', () => {
         return fake;
       },
     });
-    await expect(legacy.start()).rejects.toMatchObject({
+    const failure = await legacy.start().catch((error: unknown) => error);
+    expect(failure).toMatchObject({
       name: 'SidecarSpawnError',
       code: 'PROTOCOL_MISMATCH',
     });
+    // FR-M3-08: the refusal tells the user to reinstall, not to retry.
+    expect((failure as Error).message).toMatch(/[Rr]einstall/);
   });
 
   it('aborting a request rejects it and sends $/cancel (FR-M1-09)', async () => {
