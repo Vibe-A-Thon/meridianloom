@@ -23,7 +23,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Statement lists (not executescript blobs) so each migration runs inside
 # one explicit transaction with its schema_migrations row.
@@ -135,12 +135,28 @@ _V1_STATEMENTS = [
     "CREATE INDEX idx_ledger_entry_ts ON ledger_entry (ts_utc)",
 ]
 
+_V2_STATEMENTS = [
+    "ALTER TABLE ledger_entry ADD COLUMN run_id TEXT",
+    (
+        "ALTER TABLE ledger_entry ADD COLUMN origin TEXT"
+        " CHECK (origin IN"
+        " ('ui', 'command', 'omnibar', 'chat', 'editor', 'file', 'connector', 'api'))"
+    ),
+]
+
 MIGRATIONS: list[tuple[int, str, list[str]]] = [
     (
         1,
         "FR-M10-01: §7.2 ledger_entry + tree_head, append-only triggers, "
         "v2.1 fields, vendor/observation_confidence/external_session_id, simulated",
         _V1_STATEMENTS,
+    ),
+    (
+        2,
+        "FR-M40-02 amendment to FR-M10-01: run_id and origin columns so "
+        "every story traces to how the run started (gaps_initiation.md §5); "
+        "origin is written with the run's first entry",
+        _V2_STATEMENTS,
     ),
 ]
 

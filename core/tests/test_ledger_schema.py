@@ -73,6 +73,8 @@ class TestNormativeSchema:
             "vendor", "observation_confidence", "external_session_id",
             # FR-M32-02 simulation marker
             "simulated",
+            # FR-M40-02 amendment to FR-M10-01 (gaps_initiation.md §5)
+            "run_id", "origin",
         ]
 
     def test_tree_head_columns_match_vision_ddl(self, conn):
@@ -140,16 +142,54 @@ class TestAppendOnlyTriggers:
 class TestMigrations:
     def test_migration_is_recorded(self, conn):
         newly = apply_migrations(conn)
-        assert newly == [1]
+        assert newly == [1, 2]
         rows = conn.execute(
             "SELECT version, description FROM schema_migrations"
         ).fetchall()
-        assert [row[0] for row in rows] == [SCHEMA_VERSION]
+        assert [row[0] for row in rows] == [1, SCHEMA_VERSION]
         assert "FR-M10-01" in rows[0][1]
+        assert "FR-M40-02" in rows[1][1]
 
     def test_reapply_is_a_noop(self, conn):
         apply_migrations(conn)
         assert apply_migrations(conn) == []
+
+    def test_v1_database_is_upgraded(self, tmp_path):
+        """A ledger created at v1 gains run_id/origin via the v2 migration."""
+        db = tmp_path / "ledger.db"
+        old = connect(db)
+        old.execute(
+            "CREATE TABLE schema_migrations ("
+            " version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL,"
+            " description TEXT NOT NULL)"
+        )
+        old.execute(
+            "INSERT INTO schema_migrations VALUES (1, 't', 'FR-M10-01: v1')"
+        )
+        for statement in [
+            "CREATE TABLE ledger_entry (seq INTEGER PRIMARY KEY, ts_utc TEXT)",
+        ]:
+            old.execute(statement)
+        old.commit()
+        old.close()
+
+        upgraded = connect(db)
+        assert apply_migrations(upgraded) == [2]
+        cols = _columns(upgraded, "ledger_entry")
+        assert "run_id" in cols and "origin" in cols
+        upgraded.close()
+
+    def test_origin_is_constrained(self, conn):
+        apply_migrations(conn)
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO ledger_entry (seq, ts_utc, prev_hash, entry_hash,"
+                " story_id, phase, loop_id, loop_iteration, actor_id,"
+                " actor_version, actor_kind, policy_version, action_type,"
+                " origin)"
+                " VALUES (1, 't', x'00', x'00', 's', 'p', 'l', 0, 'a', 'v',"
+                " 'role', 'pol', 'diff', 'telepathy')"
+            )
 
     def test_migrations_survive_reopen(self, tmp_path):
         db = tmp_path / "ledger.db"
