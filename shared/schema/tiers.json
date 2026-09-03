@@ -21,8 +21,8 @@
       {
         "id": "recorder.ledger",
         "tier": "flight-recorder",
-        "description": "Append-only provenance ledger and queries (FR-M10-01, FR-M10-12; F0 Workstream B).",
-        "rpcMethods": ["ledger.append", "ledger.query"]
+        "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).",
+        "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]
       },
       {
         "id": "governor.gates",

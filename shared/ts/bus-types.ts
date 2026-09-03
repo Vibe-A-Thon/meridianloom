@@ -167,8 +167,17 @@ export interface TreeHead {
 }
 
 export interface LedgerQueryParams {
+  "storyId"?: string;
+  /** Agent id filter. */
+  "actorId"?: string;
+  "vendor"?: string;
+  "actionType"?: string;
   "fromSequence"?: number;
   "toSequence"?: number;
+  /** ISO 8601 UTC lower bound (inclusive). */
+  "fromTimestamp"?: string;
+  /** ISO 8601 UTC upper bound (inclusive). */
+  "toTimestamp"?: string;
   /** Default 100, clamped to 1000. */
   "limit"?: number;
 }
@@ -218,6 +227,189 @@ export interface LedgerEntry {
 
 export interface LedgerQueryResult {
   "entries": LedgerEntry[];
+}
+
+export interface LedgerGetEntryParams {
+  "sequence": number;
+}
+
+/** FR-M11-03 detail. input/output carry the decrypted blob text when the sidecar holds the subject key; *Available flags say whether decryption succeeded (false when the key was crypto-shredded). */
+export interface LedgerGetEntryResult {
+  "sequence": number;
+  "timestamp": string;
+  "storyId": string;
+  "phase": string;
+  "loopId": string;
+  "loopIteration": number;
+  "actorId": string;
+  "actorVersion": string;
+  "actorKind": string;
+  "policyVersion": string;
+  "skillId"?: string;
+  "skillVersion"?: string;
+  "modelId"?: string;
+  "modelVersion"?: string;
+  "actionType": string;
+  "toolCalls"?: Record<string, unknown>[];
+  "confidence"?: number;
+  "decision"?: string;
+  "humanActor"?: string;
+  "humanRole"?: string;
+  "reworkReason"?: string;
+  "tokensIn"?: number;
+  "tokensOut"?: number;
+  "costUsd"?: number;
+  "latencyMs"?: number;
+  "worktreeRef"?: string;
+  "repoId"?: string;
+  "replayOf"?: number;
+  "vendor": string;
+  "observationConfidence": string;
+  "externalSessionId"?: string;
+  "runId"?: string;
+  "origin"?: string;
+  "simulated": boolean;
+  "entryHash": string;
+  "previousHash": string;
+  "inputDigest"?: string;
+  "inputRef"?: string;
+  "outputDigest"?: string;
+  "outputRef"?: string;
+  "blobKeyId"?: string;
+  "input"?: string;
+  "output"?: string;
+  "inputAvailable": boolean;
+  "outputAvailable": boolean;
+}
+
+export interface LedgerVerifyParams {
+  /** Verify a prefix only; absent verifies the whole chain. */
+  "upTo"?: number;
+}
+
+/** FR-M11-01 integrity banner payload. */
+export interface LedgerVerifyResult {
+  "ok": boolean;
+  "entriesChecked": number;
+  "firstDivergentSequence": number | null;
+  "detail": string;
+  "verifiedAt": string;
+}
+
+/** RFC 6962 audit path for one leaf; hex-encoded hashes, leaf-upwards order (verifier: RFC 9162 §2.1.3.2). */
+export interface LedgerInclusionProof {
+  "treeSize": number;
+  "leafIndex": number;
+  "leafHash": string;
+  "rootHash": string;
+  "path": string[];
+}
+
+/** RFC 6962/9162 consistency proof between two tree sizes; hex-encoded hashes (verifier: RFC 9162 §2.1.4.2). */
+export interface LedgerConsistencyProof {
+  "fromSize": number;
+  "toSize": number;
+  "fromRootHash": string;
+  "toRootHash": string;
+  "path": string[];
+}
+
+export interface LedgerProofParams {
+  /** Inclusion proof for this entry (1-based). */
+  "sequence"?: number;
+  /** Consistency proof: the earlier tree size. */
+  "fromSize"?: number;
+  /** Consistency proof: the later tree size. */
+  "toSize"?: number;
+}
+
+export interface LedgerProofResult {
+  "inclusion"?: LedgerInclusionProof;
+  "consistency"?: LedgerConsistencyProof;
+}
+
+export interface LedgerExportBundleParams {
+  /** Default 1. */
+  "fromSequence"?: number;
+  /** Default the ledger tip. */
+  "toSequence"?: number;
+  /** Optional filter within the range. */
+  "storyId"?: string;
+  /** Optional filter within the range. */
+  "agentId"?: string;
+}
+
+/** One entry in an audit bundle: the FR-M11-02 stream shape plus ciphertext refs and digests, so a third-party verifier can check the chain segment without any key. */
+export interface LedgerBundleEntry {
+  "sequence": number;
+  "timestamp": string;
+  "storyId": string;
+  "phase": string;
+  "loopId": string;
+  "loopIteration"?: number;
+  "actorId": string;
+  "actorVersion": string;
+  "actorKind": string;
+  "policyVersion"?: string;
+  "skillId"?: string;
+  "skillVersion"?: string;
+  "modelId"?: string;
+  "modelVersion"?: string;
+  "actionType": string;
+  "decision"?: string;
+  "confidence"?: number;
+  "humanActor"?: string;
+  "humanRole"?: string;
+  "reworkReason"?: string;
+  "tokensIn"?: number;
+  "tokensOut"?: number;
+  "costUsd"?: number;
+  "latencyMs"?: number;
+  "worktreeRef"?: string;
+  "repoId"?: string;
+  "replayOf"?: number;
+  "runId"?: string;
+  "origin"?: string;
+  "vendor": string;
+  "observationConfidence": string;
+  "externalSessionId"?: string;
+  "simulated": boolean;
+  "entryHash": string;
+  "previousHash": string;
+  "hasInputBlob"?: boolean;
+  "hasOutputBlob"?: boolean;
+  "inputDigest"?: string;
+  "inputRef"?: string;
+  "outputDigest"?: string;
+  "outputRef"?: string;
+}
+
+export interface LedgerBundleSigner {
+  "algorithm": "Ed25519";
+  /** Base64 raw public key; signature verification needs no trust in Meridian servers (SEC-29). */
+  "publicKey": string;
+}
+
+export interface LedgerRange {
+  "fromSequence": number;
+  "toSequence": number;
+}
+
+export interface LedgerBundleFilter {
+  "storyId"?: string;
+  "agentId"?: string;
+}
+
+export interface LedgerExportBundleResult {
+  /** Bundle format v1; the open ledger spec (FR-M36-06) will pin this. */
+  "formatVersion": number;
+  "generatedAt": string;
+  "signer": LedgerBundleSigner;
+  /** Signed head covering at least the range end; absent only when the ledger has no head yet (task 25 anchors this into the full SSDF bundle). */
+  "treeHead"?: TreeHead;
+  "range": LedgerRange;
+  "filter": LedgerBundleFilter;
+  "entries": LedgerBundleEntry[];
 }
 
 /** The six canonical loops (FR-M4-03). */
@@ -286,7 +478,7 @@ export interface TierSetParams {
 }
 
 /** Every request/response method on the bus. */
-export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "doctor/run" | "ledger.append" | "ledger.query" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "steer.send" | "trust.summary";
+export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "steer.send" | "trust.summary";
 
 /** Every notification method on the bus. */
 export type NotificationName = "tiers/set" | "$/cancel";
@@ -342,7 +534,7 @@ export const TIERS = ["flight-recorder","governor","orchestra"] as const;
 export const DEFAULT_ENABLED_TIERS: readonly TierName[] = ["flight-recorder"];
 
 /** FR-M36-05: capability registry; every capability is owned by exactly one tier. */
-export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger and queries (FR-M10-01, FR-M10-12; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.","rpcMethods":["gate.evaluate"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
+export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.","rpcMethods":["gate.evaluate"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
 
 /** Params/result pairing for every request method. */
 export interface MethodMap {
@@ -353,6 +545,10 @@ export interface MethodMap {
   "doctor/run": { params: DoctorRunParams; result: DoctorRunResult };
   "ledger.append": { params: LedgerAppendParams; result: LedgerAppendResult };
   "ledger.query": { params: LedgerQueryParams; result: LedgerQueryResult };
+  "ledger.getEntry": { params: LedgerGetEntryParams; result: LedgerGetEntryResult };
+  "ledger.verify": { params: LedgerVerifyParams; result: LedgerVerifyResult };
+  "ledger.proof": { params: LedgerProofParams; result: LedgerProofResult };
+  "ledger.exportBundle": { params: LedgerExportBundleParams; result: LedgerExportBundleResult };
   "loop.start": { params: LoopStartParams; result: LoopStatusResult };
   "loop.stop": { params: LoopStopParams; result: LoopStatusResult };
   "loop.status": { params: LoopStatusParams; result: LoopStatusResult };
@@ -363,7 +559,7 @@ export interface MethodMap {
 export type RequestMethod = keyof MethodMap;
 
 /** Runtime list of every request method (for tier/ownership checks). */
-export const REQUEST_METHODS = ["handshake","ping","shutdown","health","doctor/run","ledger.append","ledger.query","loop.start","loop.stop","loop.status","gate.evaluate","steer.send","trust.summary"] as const;
+export const REQUEST_METHODS = ["handshake","ping","shutdown","health","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","loop.start","loop.stop","loop.status","gate.evaluate","steer.send","trust.summary"] as const;
 
 /** Runtime list of every notification method. */
 export const NOTIFICATION_METHODS = ["tiers/set","$/cancel"] as const;

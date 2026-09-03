@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import dataclasses
 import logging
 import os
 import platform
@@ -67,6 +68,10 @@ class SidecarServer:
             "doctor/run": SidecarServer._handle_doctor_run,
             "ledger.append": SidecarServer._handle_ledger_append,
             "ledger.query": SidecarServer._handle_ledger_query,
+            "ledger.getEntry": SidecarServer._handle_ledger_get_entry,
+            "ledger.verify": SidecarServer._handle_ledger_verify,
+            "ledger.proof": SidecarServer._handle_ledger_proof,
+            "ledger.exportBundle": SidecarServer._handle_ledger_export_bundle,
             "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
             "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
@@ -293,9 +298,17 @@ class SidecarServer:
         self, params: bus_types.DoctorRunParams
     ) -> bus_types.DoctorRunResult:
         # FR-M30-01. The context wires in the subsystems that exist; the
-        # not-yet-built ones (ledger, observers) take the registry's
-        # not-installed path with remediation instead of failing.
+        # not-yet-built ones (observers) take the registry's not-installed
+        # path with remediation instead of failing.
         context = doctor.DoctorContext(started_at=self._started_at)
+        if self._ledger is not None:
+            # FR-M10-04/FR-M10-09: real probes once the ledger is open.
+            ledger = self._ledger
+            context = dataclasses.replace(
+                context,
+                signing_key_present=lambda: self._signing_seed is not None,
+                ledger_verifier=lambda: self._verify_for_doctor(ledger),
+            )
         try:
             return doctor.run_doctor(params, context)
         except doctor.UnknownCheckError as error:
@@ -304,6 +317,13 @@ class SidecarServer:
                 str(error),
                 data={"validChecks": doctor.check_ids()},
             ) from error
+
+    @staticmethod
+    def _verify_for_doctor(ledger: ledger_core.Ledger) -> tuple[bool, str]:
+        # Prefer the verdict from ledger open (FR-M10-09 runs there); run
+        # on demand only when the ledger changed since.
+        result = ledger.last_verify or ledger.verify()
+        return result.ok, result.detail
 
     def _not_implemented(self, method: str, lands_with: str) -> None:
         raise _RpcError(
@@ -340,11 +360,148 @@ class SidecarServer:
     ) -> bus_types.LedgerQueryResult:
         ledger = self._ensure_ledger()
         rows = ledger.query(
+            story_id=(params or {}).get("storyId"),
+            actor_id=(params or {}).get("actorId"),
+            vendor=(params or {}).get("vendor"),
+            action_type=(params or {}).get("actionType"),
             from_sequence=(params or {}).get("fromSequence"),
             to_sequence=(params or {}).get("toSequence"),
+            from_timestamp=(params or {}).get("fromTimestamp"),
+            to_timestamp=(params or {}).get("toTimestamp"),
             limit=(params or {}).get("limit") or 100,
         )
         return {"entries": [ledger_wire.row_to_wire(row) for row in rows]}
+
+    def _handle_ledger_get_entry(
+        self, params: bus_types.LedgerGetEntryParams
+    ) -> bus_types.LedgerGetEntryResult:
+        ledger = self._ensure_ledger()
+        sequence = (params or {}).get("sequence")
+        row = ledger.get_entry(sequence)
+        if row is None:
+            raise _RpcError(
+                protocol.INVALID_PARAMS, f"no ledger entry at sequence {sequence}"
+            )
+        return ledger_wire.row_to_detail(row, ledger.read_blob)
+
+    def _handle_ledger_verify(
+        self, params: bus_types.LedgerVerifyParams
+    ) -> bus_types.LedgerVerifyResult:
+        ledger = self._ensure_ledger()
+        result = ledger.verify(up_to=(params or {}).get("upTo"))
+        return {
+            "ok": result.ok,
+            "entriesChecked": result.entries_checked,
+            "firstDivergentSequence": result.first_divergent_sequence,
+            "detail": result.detail,
+            "verifiedAt": ledger_core.utc_now(),
+        }
+
+    def _handle_ledger_proof(
+        self, params: bus_types.LedgerProofParams
+    ) -> bus_types.LedgerProofResult:
+        from .ledger import merkle as ledger_merkle
+
+        ledger = self._ensure_ledger()
+        sequence = (params or {}).get("sequence")
+        from_size = (params or {}).get("fromSize")
+        to_size = (params or {}).get("toSize")
+        if sequence is not None and (from_size is not None or to_size is not None):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "pass either sequence (inclusion) or fromSize+toSize"
+                " (consistency), not both",
+            )
+        if sequence is not None:
+            row = ledger.get_entry(sequence)
+            if row is None:
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    f"no ledger entry at sequence {sequence}",
+                )
+            leaves = ledger.leaf_hashes()
+            path = ledger_merkle.inclusion_proof(leaves, sequence - 1)
+            return {
+                "inclusion": {
+                    "treeSize": len(leaves),
+                    "leafIndex": sequence - 1,
+                    "leafHash": row["entry_hash"].hex(),
+                    "rootHash": ledger.root_hash().hex(),
+                    "path": [node.hex() for node in path],
+                }
+            }
+        if from_size is None or to_size is None:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "ledger.proof needs sequence, or both fromSize and toSize",
+            )
+        last = ledger.last_sequence
+        if not 1 <= from_size <= to_size <= max(last, 1):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"need 1 <= fromSize <= toSize <= {last},"
+                f" got fromSize={from_size}, toSize={to_size}",
+            )
+        leaves = ledger.leaf_hashes()
+        to_leaves = leaves[:to_size]
+        path = ledger_merkle.consistency_proof(to_leaves, from_size)
+        return {
+            "consistency": {
+                "fromSize": from_size,
+                "toSize": to_size,
+                "fromRootHash": ledger_merkle.root(leaves[:from_size]).hex(),
+                "toRootHash": ledger_merkle.root(to_leaves).hex(),
+                "path": [node.hex() for node in path],
+            }
+        }
+
+    def _handle_ledger_export_bundle(
+        self, params: bus_types.LedgerExportBundleParams
+    ) -> bus_types.LedgerExportBundleResult:
+        import base64 as b64
+
+        ledger = self._ensure_ledger()
+        from_seq = (params or {}).get("fromSequence") or 1
+        to_seq = min(
+            (params or {}).get("toSequence") or ledger.last_sequence,
+            ledger.last_sequence,
+        )
+        rows = []
+        if to_seq >= from_seq and to_seq > 0:
+            rows = ledger.query(
+                story_id=(params or {}).get("storyId"),
+                actor_id=(params or {}).get("agentId"),
+                from_sequence=from_seq,
+                to_sequence=to_seq,
+                limit=1000,
+            )
+        # A signed head must cover the range end; emit one at the tip if
+        # the cadence has not produced one yet (FR-M10-04).
+        head_row = ledger.latest_tree_head()
+        head_wire = None
+        if ledger.last_sequence and (head_row is None or head_row["seq"] < to_seq):
+            head_wire = ledger.emit_tree_head_now()  # already wire shape
+        elif head_row is not None:
+            head_wire = ledger_wire.tree_head_to_wire(head_row)
+        return {
+            "formatVersion": 1,
+            "generatedAt": ledger_core.utc_now(),
+            "signer": {
+                "algorithm": "Ed25519",
+                "publicKey": b64.b64encode(ledger.signing_public_key).decode(),
+            },
+            **({"treeHead": head_wire} if head_wire is not None else {}),
+            "range": {"fromSequence": from_seq, "toSequence": to_seq},
+            "filter": {
+                key: value
+                for key, value in (
+                    ("storyId", (params or {}).get("storyId")),
+                    ("agentId", (params or {}).get("agentId")),
+                )
+                if value is not None
+            },
+            "entries": [ledger_wire.row_to_bundle_entry(row) for row in rows],
+        }
 
 
 class _RpcError(Exception):

@@ -34,9 +34,29 @@
       "result": { "$ref": "#/$defs/LedgerAppendResult" }
     },
     "ledger.query": {
-      "description": "Read back ledger entries (FR-M10-12, FR-M11-02 stream shape).",
+      "description": "Filterable entry stream (FR-M10-12, FR-M11-02): story, agent (actor), vendor, action type, sequence range, time range.",
       "params": { "$ref": "#/$defs/LedgerQueryParams" },
       "result": { "$ref": "#/$defs/LedgerQueryResult" }
+    },
+    "ledger.getEntry": {
+      "description": "FR-M11-03 entry detail: full prompt/context and output (decrypted when the caller's sidecar holds the subject key), tool calls, confidence, cost, chain hashes.",
+      "params": { "$ref": "#/$defs/LedgerGetEntryParams" },
+      "result": { "$ref": "#/$defs/LedgerGetEntryResult" }
+    },
+    "ledger.verify": {
+      "description": "FR-M11-01 chain integrity verdict: verified through sequence N, or a tamper indication naming the first divergent sequence (FR-M10-09).",
+      "params": { "$ref": "#/$defs/LedgerVerifyParams" },
+      "result": { "$ref": "#/$defs/LedgerVerifyResult" }
+    },
+    "ledger.proof": {
+      "description": "FR-M11-04 proof inspection: an inclusion proof for one entry, or a consistency proof between two tree sizes (RFC 6962/9162 shapes).",
+      "params": { "$ref": "#/$defs/LedgerProofParams" },
+      "result": { "$ref": "#/$defs/LedgerProofResult" }
+    },
+    "ledger.exportBundle": {
+      "description": "FR-M11-05 audit bundle for a range: signed tree head + chained entries (ciphertext refs + digests). Data assembly and signing land here; the full NIST SSDF AI-provenance / ISO 42001 mapping is F0-E task 25 (FR-M36-04).",
+      "params": { "$ref": "#/$defs/LedgerExportBundleParams" },
+      "result": { "$ref": "#/$defs/LedgerExportBundleResult" }
     },
     "loop.start": {
       "description": "Start one of the six canonical loops (FR-M4-03).",
@@ -286,8 +306,14 @@
     "LedgerQueryParams": {
       "type": "object",
       "properties": {
+        "storyId": { "type": "string" },
+        "actorId": { "type": "string", "description": "Agent id filter." },
+        "vendor": { "type": "string" },
+        "actionType": { "type": "string" },
         "fromSequence": { "type": "integer" },
         "toSequence": { "type": "integer" },
+        "fromTimestamp": { "type": "string", "description": "ISO 8601 UTC lower bound (inclusive)." },
+        "toTimestamp": { "type": "string", "description": "ISO 8601 UTC upper bound (inclusive)." },
         "limit": { "type": "integer", "description": "Default 100, clamped to 1000." }
       },
       "additionalProperties": false
@@ -343,6 +369,229 @@
       "required": ["entries"],
       "properties": {
         "entries": { "type": "array", "items": { "$ref": "#/$defs/LedgerEntry" } }
+      },
+      "additionalProperties": false
+    },
+    "LedgerGetEntryParams": {
+      "type": "object",
+      "required": ["sequence"],
+      "properties": {
+        "sequence": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "LedgerGetEntryResult": {
+      "description": "FR-M11-03 detail. input/output carry the decrypted blob text when the sidecar holds the subject key; *Available flags say whether decryption succeeded (false when the key was crypto-shredded).",
+      "type": "object",
+      "required": ["sequence", "timestamp", "storyId", "phase", "loopId", "loopIteration", "actorId", "actorVersion", "actorKind", "policyVersion", "actionType", "vendor", "observationConfidence", "simulated", "entryHash", "previousHash", "inputAvailable", "outputAvailable"],
+      "properties": {
+        "sequence": { "type": "integer" },
+        "timestamp": { "type": "string" },
+        "storyId": { "type": "string" },
+        "phase": { "type": "string" },
+        "loopId": { "type": "string" },
+        "loopIteration": { "type": "integer" },
+        "actorId": { "type": "string" },
+        "actorVersion": { "type": "string" },
+        "actorKind": { "type": "string" },
+        "policyVersion": { "type": "string" },
+        "skillId": { "type": "string" },
+        "skillVersion": { "type": "string" },
+        "modelId": { "type": "string" },
+        "modelVersion": { "type": "string" },
+        "actionType": { "type": "string" },
+        "toolCalls": { "type": "array", "items": { "type": "object" } },
+        "confidence": { "type": "number" },
+        "decision": { "type": "string" },
+        "humanActor": { "type": "string" },
+        "humanRole": { "type": "string" },
+        "reworkReason": { "type": "string" },
+        "tokensIn": { "type": "integer" },
+        "tokensOut": { "type": "integer" },
+        "costUsd": { "type": "number" },
+        "latencyMs": { "type": "integer" },
+        "worktreeRef": { "type": "string" },
+        "repoId": { "type": "string" },
+        "replayOf": { "type": "integer" },
+        "vendor": { "type": "string" },
+        "observationConfidence": { "type": "string" },
+        "externalSessionId": { "type": "string" },
+        "runId": { "type": "string" },
+        "origin": { "type": "string" },
+        "simulated": { "type": "boolean" },
+        "entryHash": { "type": "string" },
+        "previousHash": { "type": "string" },
+        "inputDigest": { "type": "string" },
+        "inputRef": { "type": "string" },
+        "outputDigest": { "type": "string" },
+        "outputRef": { "type": "string" },
+        "blobKeyId": { "type": "string" },
+        "input": { "type": "string" },
+        "output": { "type": "string" },
+        "inputAvailable": { "type": "boolean" },
+        "outputAvailable": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "LedgerVerifyParams": {
+      "type": "object",
+      "properties": {
+        "upTo": { "type": "integer", "description": "Verify a prefix only; absent verifies the whole chain." }
+      },
+      "additionalProperties": false
+    },
+    "LedgerVerifyResult": {
+      "description": "FR-M11-01 integrity banner payload.",
+      "type": "object",
+      "required": ["ok", "entriesChecked", "firstDivergentSequence", "detail", "verifiedAt"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "entriesChecked": { "type": "integer" },
+        "firstDivergentSequence": { "type": ["integer", "null"] },
+        "detail": { "type": "string" },
+        "verifiedAt": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "LedgerInclusionProof": {
+      "description": "RFC 6962 audit path for one leaf; hex-encoded hashes, leaf-upwards order (verifier: RFC 9162 §2.1.3.2).",
+      "type": "object",
+      "required": ["treeSize", "leafIndex", "leafHash", "rootHash", "path"],
+      "properties": {
+        "treeSize": { "type": "integer" },
+        "leafIndex": { "type": "integer" },
+        "leafHash": { "type": "string" },
+        "rootHash": { "type": "string" },
+        "path": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "LedgerConsistencyProof": {
+      "description": "RFC 6962/9162 consistency proof between two tree sizes; hex-encoded hashes (verifier: RFC 9162 §2.1.4.2).",
+      "type": "object",
+      "required": ["fromSize", "toSize", "fromRootHash", "toRootHash", "path"],
+      "properties": {
+        "fromSize": { "type": "integer" },
+        "toSize": { "type": "integer" },
+        "fromRootHash": { "type": "string" },
+        "toRootHash": { "type": "string" },
+        "path": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "LedgerProofParams": {
+      "type": "object",
+      "properties": {
+        "sequence": { "type": "integer", "description": "Inclusion proof for this entry (1-based)." },
+        "fromSize": { "type": "integer", "description": "Consistency proof: the earlier tree size." },
+        "toSize": { "type": "integer", "description": "Consistency proof: the later tree size." }
+      },
+      "additionalProperties": false
+    },
+    "LedgerProofResult": {
+      "type": "object",
+      "properties": {
+        "inclusion": { "$ref": "#/$defs/LedgerInclusionProof" },
+        "consistency": { "$ref": "#/$defs/LedgerConsistencyProof" }
+      },
+      "additionalProperties": false
+    },
+    "LedgerExportBundleParams": {
+      "type": "object",
+      "properties": {
+        "fromSequence": { "type": "integer", "description": "Default 1." },
+        "toSequence": { "type": "integer", "description": "Default the ledger tip." },
+        "storyId": { "type": "string", "description": "Optional filter within the range." },
+        "agentId": { "type": "string", "description": "Optional filter within the range." }
+      },
+      "additionalProperties": false
+    },
+    "LedgerBundleEntry": {
+      "description": "One entry in an audit bundle: the FR-M11-02 stream shape plus ciphertext refs and digests, so a third-party verifier can check the chain segment without any key.",
+      "type": "object",
+      "required": ["sequence", "timestamp", "storyId", "phase", "loopId", "actorId", "actorVersion", "actorKind", "actionType", "vendor", "observationConfidence", "simulated", "entryHash", "previousHash"],
+      "properties": {
+        "sequence": { "type": "integer" },
+        "timestamp": { "type": "string" },
+        "storyId": { "type": "string" },
+        "phase": { "type": "string" },
+        "loopId": { "type": "string" },
+        "loopIteration": { "type": "integer" },
+        "actorId": { "type": "string" },
+        "actorVersion": { "type": "string" },
+        "actorKind": { "type": "string" },
+        "policyVersion": { "type": "string" },
+        "skillId": { "type": "string" },
+        "skillVersion": { "type": "string" },
+        "modelId": { "type": "string" },
+        "modelVersion": { "type": "string" },
+        "actionType": { "type": "string" },
+        "decision": { "type": "string" },
+        "confidence": { "type": "number" },
+        "humanActor": { "type": "string" },
+        "humanRole": { "type": "string" },
+        "reworkReason": { "type": "string" },
+        "tokensIn": { "type": "integer" },
+        "tokensOut": { "type": "integer" },
+        "costUsd": { "type": "number" },
+        "latencyMs": { "type": "integer" },
+        "worktreeRef": { "type": "string" },
+        "repoId": { "type": "string" },
+        "replayOf": { "type": "integer" },
+        "runId": { "type": "string" },
+        "origin": { "type": "string" },
+        "vendor": { "type": "string" },
+        "observationConfidence": { "type": "string" },
+        "externalSessionId": { "type": "string" },
+        "simulated": { "type": "boolean" },
+        "entryHash": { "type": "string" },
+        "previousHash": { "type": "string" },
+        "hasInputBlob": { "type": "boolean" },
+        "hasOutputBlob": { "type": "boolean" },
+        "inputDigest": { "type": "string" },
+        "inputRef": { "type": "string" },
+        "outputDigest": { "type": "string" },
+        "outputRef": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "LedgerBundleSigner": {
+      "type": "object",
+      "required": ["algorithm", "publicKey"],
+      "properties": {
+        "algorithm": { "const": "Ed25519" },
+        "publicKey": { "type": "string", "description": "Base64 raw public key; signature verification needs no trust in Meridian servers (SEC-29)." }
+      },
+      "additionalProperties": false
+    },
+    "LedgerRange": {
+      "type": "object",
+      "required": ["fromSequence", "toSequence"],
+      "properties": {
+        "fromSequence": { "type": "integer" },
+        "toSequence": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "LedgerBundleFilter": {
+      "type": "object",
+      "properties": {
+        "storyId": { "type": "string" },
+        "agentId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "LedgerExportBundleResult": {
+      "type": "object",
+      "required": ["formatVersion", "generatedAt", "signer", "range", "filter", "entries"],
+      "properties": {
+        "formatVersion": { "type": "integer", "description": "Bundle format v1; the open ledger spec (FR-M36-06) will pin this." },
+        "generatedAt": { "type": "string" },
+        "signer": { "$ref": "#/$defs/LedgerBundleSigner" },
+        "treeHead": { "$ref": "#/$defs/TreeHead", "description": "Signed head covering at least the range end; absent only when the ledger has no head yet (task 25 anchors this into the full SSDF bundle)." },
+        "range": { "$ref": "#/$defs/LedgerRange" },
+        "filter": { "$ref": "#/$defs/LedgerBundleFilter" },
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/LedgerBundleEntry" } }
       },
       "additionalProperties": false
     },

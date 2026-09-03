@@ -227,26 +227,26 @@ class TestSignedTreeHeads:
             assert verify_tree_head(
                 public_key,
                 head["seq"],
-                bytes.fromhex(head["root_hash"]),
-                head["signed_at"],
+                bytes.fromhex(head["rootHash"]),
+                head["signedAt"],
                 bytes.fromhex(head["signature"]),
             )
             # Wrong seq, wrong key, wrong root all fail.
             assert not verify_tree_head(
                 public_key, head["seq"] + 1,
-                bytes.fromhex(head["root_hash"]), head["signed_at"],
+                bytes.fromhex(head["rootHash"]), head["signedAt"],
                 bytes.fromhex(head["signature"]),
             )
             assert not verify_tree_head(
                 EphemeralSigningKeyProvider().private_key().public_key()
                 .public_bytes_raw(),  # noqa: SLF001 - test only
                 head["seq"],
-                bytes.fromhex(head["root_hash"]), head["signed_at"],
+                bytes.fromhex(head["rootHash"]), head["signedAt"],
                 bytes.fromhex(head["signature"]),
             )
             assert not verify_tree_head(
                 public_key, head["seq"],
-                b"\x00" * 32, head["signed_at"],
+                b"\x00" * 32, head["signedAt"],
                 bytes.fromhex(head["signature"]),
             )
 

@@ -154,9 +154,10 @@ def _check_signing_key(
             "signing-key",
             "warn",
             "ledger signing key not provisioned — the ledger is not initialised yet",
-            "The key is created in the OS keychain when the ledger initialises "
-            "(F0 Workstream B, FR-M10-04). The keychain itself is probed "
-            "host-side by the extension's doctor run (FR-M1-07).",
+            "The extension host provisions the 32-byte Ed25519 seed from "
+            "SecretStorage over the stdio handshake (FR-M10-04, SEC-06); the "
+            "ledger opens on the first ledger RPC once the handshake carries "
+            "workspaceDir.",
         )
     if context.signing_key_present():
         return _check("signing-key", "pass", "ledger signing key present in the OS keychain")
@@ -178,9 +179,10 @@ def _check_ledger(
             "ledger",
             "warn",
             "ledger not initialised — hash-chain verification is not available yet",
-            "The ledger lands with F0 Workstream B (FR-M10-01); doctor will "
-            "verify the chain here and name the first divergent sequence "
-            "(FR-M10-09). Nothing to fix.",
+            "The ledger opens on the first ledger RPC once the handshake "
+            "carries workspaceDir (FR-M10-01); doctor verifies the chain "
+            "here and names the first divergent sequence (FR-M10-09). "
+            "Nothing to fix.",
         )
     ok, detail = context.ledger_verifier()
     if ok:

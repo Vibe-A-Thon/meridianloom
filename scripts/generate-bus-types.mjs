@@ -110,6 +110,8 @@ function tsType(schema, currentFile) {
       return 'number';
     case 'boolean':
       return 'boolean';
+    case 'null':
+      return 'null';
     case 'array':
       return `${tsType(schema.items ?? {}, currentFile)}[]`;
     case 'object': {
@@ -153,6 +155,8 @@ function pyType(schema, currentFile) {
       return 'float';
     case 'boolean':
       return 'bool';
+    case 'null':
+      return 'None';
     case 'array':
       return `list[${pyType(schema.items ?? {}, currentFile)}]`;
     case 'object': {

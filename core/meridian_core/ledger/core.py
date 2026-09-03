@@ -15,6 +15,7 @@ FR-M11-01..05) and hang off this class.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sqlite3
@@ -238,7 +239,8 @@ class Ledger:
                         False,
                         checked,
                         seq,
-                        "prev_hash does not match the previous entry_hash",
+                        f"prev_hash of sequence {seq} does not match the"
+                        " previous entry_hash",
                     )
                 recomputed = hasher(expected_prev, values)
                 if recomputed != values[index_hash]:
@@ -246,7 +248,8 @@ class Ledger:
                         False,
                         checked,
                         seq,
-                        "entry_hash does not match the recomputed canonical hash",
+                        f"entry_hash of sequence {seq} does not match the"
+                        " recomputed canonical hash",
                     )
                 expected_prev = recomputed
                 expected_seq += 1
@@ -293,14 +296,16 @@ class Ledger:
                     False,
                     checked,
                     lo,
-                    "prev_hash does not match the previous entry_hash",
+                    f"prev_hash of sequence {lo} does not match the"
+                    " previous entry_hash",
                 )
             if not ok:
                 return VerifyResult(
                     False,
                     checked + max(0, (divergent or lo) - lo),
                     divergent,
-                    "entry_hash does not match the recomputed canonical hash",
+                    f"entry_hash of sequence {divergent} does not match the"
+                    " recomputed canonical hash",
                 )
             checked += count
             expected_prev = last_computed
@@ -451,6 +456,15 @@ class Ledger:
         row = cursor.fetchone()
         return dict(zip(columns, row)) if row is not None else None
 
+    def leaf_hashes(self) -> list[bytes]:
+        """All entry hashes in sequence order — Merkle leaves (FR-M10-03)."""
+        return [
+            row[0]
+            for row in self.conn.execute(
+                "SELECT entry_hash FROM ledger_entry ORDER BY seq"
+            )
+        ]
+
     def _prepare_row(self, entry: dict[str, Any]) -> dict[str, Any]:
         unknown = set(entry) - set(self._columns) - {"ts_utc"}
         if unknown:
@@ -465,6 +479,10 @@ class Ledger:
             value = entry.get(column, DEFAULTS.get(column))
             if column == "simulated" and isinstance(value, bool):
                 value = int(value)
+            if column == "tool_calls" and value is not None and not isinstance(
+                value, str
+            ):
+                value = json.dumps(value, ensure_ascii=False)
             row[column] = value
         if row["observation_confidence"] not in ("direct", "telemetry", "inferred"):
             raise ValueError("observation_confidence must be direct|telemetry|inferred")
@@ -474,15 +492,25 @@ class Ledger:
             raise ValueError("origin must be one of the FR-M40-02 doors or null")
         return row
 
-    # -- signed tree heads (FR-M10-04) --------------------------------------
+    # -- tree heads (FR-M10-04) ----------------------------------------------
 
-    def _maybe_emit_tree_head(self) -> dict[str, Any] | None:
-        age = time.monotonic() - self._head_opened_monotonic
-        due = (
-            self._last_seq - self._last_head_seq >= self._tree_head_interval
-            or age >= self._tree_head_max_age_s
+    def latest_tree_head(self) -> dict[str, Any] | None:
+        """The most recent signed tree head, as a column dict, or None."""
+        cursor = self.conn.execute(
+            "SELECT seq, root_hash, signed_at, signature, anchor_ref"
+            " FROM tree_head ORDER BY seq DESC LIMIT 1"
         )
-        if not due:
+        columns = [d[0] for d in cursor.description]
+        row = cursor.fetchone()
+        return dict(zip(columns, row)) if row is not None else None
+
+    def emit_tree_head_now(self) -> dict[str, Any] | None:
+        """Sign and store a head at the current tip (idempotent per seq).
+
+        Used by the tree-head cadence and by ledger.exportBundle, which
+        needs a head covering the exported range.
+        """
+        if self._last_seq == 0 or self._last_head_seq == self._last_seq:
             return None
         signed_at = utc_now()
         root = self._frontier.root()
@@ -499,10 +527,20 @@ class Ledger:
         self._head_opened_monotonic = time.monotonic()
         return {
             "seq": self._last_seq,
-            "root_hash": root.hex(),
-            "signed_at": signed_at,
+            "rootHash": root.hex(),
+            "signedAt": signed_at,
             "signature": signature.hex(),
         }
+
+    def _maybe_emit_tree_head(self) -> dict[str, Any] | None:
+        age = time.monotonic() - self._head_opened_monotonic
+        due = (
+            self._last_seq - self._last_head_seq >= self._tree_head_interval
+            or age >= self._tree_head_max_age_s
+        )
+        if not due:
+            return None
+        return self.emit_tree_head_now()
 
     def tree_heads(self) -> list[sqlite3.Row | Any]:
         return self.conn.execute(

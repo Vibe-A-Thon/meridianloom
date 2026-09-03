@@ -132,8 +132,14 @@ class TreeHead(TypedDict):
     anchorRef: NotRequired[str]
 
 class LedgerQueryParams(TypedDict):
+    storyId: NotRequired[str]
+    actorId: NotRequired[str]  # Agent id filter.
+    vendor: NotRequired[str]
+    actionType: NotRequired[str]
     fromSequence: NotRequired[int]
     toSequence: NotRequired[int]
+    fromTimestamp: NotRequired[str]  # ISO 8601 UTC lower bound (inclusive).
+    toTimestamp: NotRequired[str]  # ISO 8601 UTC upper bound (inclusive).
     limit: NotRequired[int]  # Default 100, clamped to 1000.
 
 # FR-M11-02 stream shape: one ledger entry with chain hashes; blob payloads are referenced by digest/ref, not inlined.
@@ -179,6 +185,164 @@ class LedgerEntry(TypedDict):
 
 class LedgerQueryResult(TypedDict):
     entries: list[LedgerEntry]
+
+class LedgerGetEntryParams(TypedDict):
+    sequence: int
+
+# FR-M11-03 detail. input/output carry the decrypted blob text when the sidecar holds the subject key; *Available flags say whether decryption succeeded (false when the key was crypto-shredded).
+class LedgerGetEntryResult(TypedDict):
+    sequence: int
+    timestamp: str
+    storyId: str
+    phase: str
+    loopId: str
+    loopIteration: int
+    actorId: str
+    actorVersion: str
+    actorKind: str
+    policyVersion: str
+    skillId: NotRequired[str]
+    skillVersion: NotRequired[str]
+    modelId: NotRequired[str]
+    modelVersion: NotRequired[str]
+    actionType: str
+    toolCalls: NotRequired[list[dict[str, Any]]]
+    confidence: NotRequired[float]
+    decision: NotRequired[str]
+    humanActor: NotRequired[str]
+    humanRole: NotRequired[str]
+    reworkReason: NotRequired[str]
+    tokensIn: NotRequired[int]
+    tokensOut: NotRequired[int]
+    costUsd: NotRequired[float]
+    latencyMs: NotRequired[int]
+    worktreeRef: NotRequired[str]
+    repoId: NotRequired[str]
+    replayOf: NotRequired[int]
+    vendor: str
+    observationConfidence: str
+    externalSessionId: NotRequired[str]
+    runId: NotRequired[str]
+    origin: NotRequired[str]
+    simulated: bool
+    entryHash: str
+    previousHash: str
+    inputDigest: NotRequired[str]
+    inputRef: NotRequired[str]
+    outputDigest: NotRequired[str]
+    outputRef: NotRequired[str]
+    blobKeyId: NotRequired[str]
+    input: NotRequired[str]
+    output: NotRequired[str]
+    inputAvailable: bool
+    outputAvailable: bool
+
+class LedgerVerifyParams(TypedDict):
+    upTo: NotRequired[int]  # Verify a prefix only; absent verifies the whole chain.
+
+# FR-M11-01 integrity banner payload.
+class LedgerVerifyResult(TypedDict):
+    ok: bool
+    entriesChecked: int
+    firstDivergentSequence: int | None
+    detail: str
+    verifiedAt: str
+
+# RFC 6962 audit path for one leaf; hex-encoded hashes, leaf-upwards order (verifier: RFC 9162 §2.1.3.2).
+class LedgerInclusionProof(TypedDict):
+    treeSize: int
+    leafIndex: int
+    leafHash: str
+    rootHash: str
+    path: list[str]
+
+# RFC 6962/9162 consistency proof between two tree sizes; hex-encoded hashes (verifier: RFC 9162 §2.1.4.2).
+class LedgerConsistencyProof(TypedDict):
+    fromSize: int
+    toSize: int
+    fromRootHash: str
+    toRootHash: str
+    path: list[str]
+
+class LedgerProofParams(TypedDict):
+    sequence: NotRequired[int]  # Inclusion proof for this entry (1-based).
+    fromSize: NotRequired[int]  # Consistency proof: the earlier tree size.
+    toSize: NotRequired[int]  # Consistency proof: the later tree size.
+
+class LedgerProofResult(TypedDict):
+    inclusion: NotRequired[LedgerInclusionProof]
+    consistency: NotRequired[LedgerConsistencyProof]
+
+class LedgerExportBundleParams(TypedDict):
+    fromSequence: NotRequired[int]  # Default 1.
+    toSequence: NotRequired[int]  # Default the ledger tip.
+    storyId: NotRequired[str]  # Optional filter within the range.
+    agentId: NotRequired[str]  # Optional filter within the range.
+
+# One entry in an audit bundle: the FR-M11-02 stream shape plus ciphertext refs and digests, so a third-party verifier can check the chain segment without any key.
+class LedgerBundleEntry(TypedDict):
+    sequence: int
+    timestamp: str
+    storyId: str
+    phase: str
+    loopId: str
+    loopIteration: NotRequired[int]
+    actorId: str
+    actorVersion: str
+    actorKind: str
+    policyVersion: NotRequired[str]
+    skillId: NotRequired[str]
+    skillVersion: NotRequired[str]
+    modelId: NotRequired[str]
+    modelVersion: NotRequired[str]
+    actionType: str
+    decision: NotRequired[str]
+    confidence: NotRequired[float]
+    humanActor: NotRequired[str]
+    humanRole: NotRequired[str]
+    reworkReason: NotRequired[str]
+    tokensIn: NotRequired[int]
+    tokensOut: NotRequired[int]
+    costUsd: NotRequired[float]
+    latencyMs: NotRequired[int]
+    worktreeRef: NotRequired[str]
+    repoId: NotRequired[str]
+    replayOf: NotRequired[int]
+    runId: NotRequired[str]
+    origin: NotRequired[str]
+    vendor: str
+    observationConfidence: str
+    externalSessionId: NotRequired[str]
+    simulated: bool
+    entryHash: str
+    previousHash: str
+    hasInputBlob: NotRequired[bool]
+    hasOutputBlob: NotRequired[bool]
+    inputDigest: NotRequired[str]
+    inputRef: NotRequired[str]
+    outputDigest: NotRequired[str]
+    outputRef: NotRequired[str]
+
+class LedgerBundleSigner(TypedDict):
+    algorithm: Literal["Ed25519"]
+    publicKey: str  # Base64 raw public key; signature verification needs no trust in Meridian servers (SEC-29).
+
+class LedgerRange(TypedDict):
+    fromSequence: int
+    toSequence: int
+
+class LedgerBundleFilter(TypedDict):
+    storyId: NotRequired[str]
+    agentId: NotRequired[str]
+
+class LedgerExportBundleResult(TypedDict):
+    formatVersion: int  # Bundle format v1; the open ledger spec (FR-M36-06) will pin this.
+    generatedAt: str
+    signer: LedgerBundleSigner
+    treeHead: NotRequired[TreeHead]  # Signed head covering at least the range end; absent only when the ledger has no head yet (task 25 anchors this into the full SSDF bundle).
+    range: LedgerRange
+    filter: LedgerBundleFilter
+    entries: list[LedgerBundleEntry]
 
 # The six canonical loops (FR-M4-03).
 LoopKind = Literal["L1-micro", "L2-task", "L3-phase", "L4-delivery", "L5-learning", "L6-organisation"]
@@ -232,7 +396,7 @@ class TierSetParams(TypedDict):
     tiers: list[TierName]
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "doctor/run", "ledger.append", "ledger.query", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary"]
 
 # Every notification method on the bus.
 NotificationName = Literal["tiers/set", "$/cancel"]
@@ -286,14 +450,14 @@ DEFAULT_ENABLED_TIERS: tuple[str, ...] = ("flight-recorder",)
 CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.lifecycle", "tier": "flight-recorder", "description": "Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.", "rpcMethods": ["handshake", "ping", "shutdown", "health"]},
     {"id": "recorder.doctor", "tier": "flight-recorder", "description": "Self-diagnostic check registry (FR-M30-01).", "rpcMethods": ["doctor/run"]},
-    {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger and queries (FR-M10-01, FR-M10-12; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query"]},
+    {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]},
     {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.", "rpcMethods": ["gate.evaluate"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.", "rpcMethods": ["steer.send"]},
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "doctor/run", "ledger.append", "ledger.query", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary")
 NOTIFICATION_METHODS: tuple[str, ...] = ("tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -305,6 +469,10 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "doctor/run": {"params": DoctorRunParams, "result": DoctorRunResult},
     "ledger.append": {"params": LedgerAppendParams, "result": LedgerAppendResult},
     "ledger.query": {"params": LedgerQueryParams, "result": LedgerQueryResult},
+    "ledger.getEntry": {"params": LedgerGetEntryParams, "result": LedgerGetEntryResult},
+    "ledger.verify": {"params": LedgerVerifyParams, "result": LedgerVerifyResult},
+    "ledger.proof": {"params": LedgerProofParams, "result": LedgerProofResult},
+    "ledger.exportBundle": {"params": LedgerExportBundleParams, "result": LedgerExportBundleResult},
     "loop.start": {"params": LoopStartParams, "result": LoopStatusResult},
     "loop.stop": {"params": LoopStopParams, "result": LoopStatusResult},
     "loop.status": {"params": LoopStatusParams, "result": LoopStatusResult},

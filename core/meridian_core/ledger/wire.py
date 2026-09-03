@@ -9,7 +9,10 @@ import time against both.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
+
+from .blobs import BlobError
 
 #: ledger.append params (camelCase) -> ledger_entry columns (snake_case).
 APPEND_PARAM_TO_COLUMN: dict[str, str] = {
@@ -112,4 +115,56 @@ def row_to_wire(row: dict[str, Any]) -> dict[str, Any]:
         "previousHash": _hex(row["prev_hash"]),
         "hasInputBlob": row.get("input_ref") is not None,
         "hasOutputBlob": row.get("output_ref") is not None,
+    }
+
+
+def row_to_detail(
+    row: dict[str, Any], decrypt: Callable[[str, str], bytes]
+) -> dict[str, Any]:
+    """FR-M11-03 entry detail: the stream shape plus digests, tool calls
+    and decrypted payloads. `decrypt(ref, key_id)` raises BlobError when
+    the key is shredded — reported as *Available False, never an error."""
+    detail = row_to_wire(row)
+    tool_calls = row.get("tool_calls")
+    detail["toolCalls"] = json.loads(tool_calls) if tool_calls else None
+    detail["inputDigest"] = _hex(row.get("input_digest"))
+    detail["inputRef"] = row.get("input_ref")
+    detail["outputDigest"] = _hex(row.get("output_digest"))
+    detail["outputRef"] = row.get("output_ref")
+    detail["blobKeyId"] = row.get("blob_key_id")
+    for prefix in ("input", "output"):
+        ref = row.get(f"{prefix}_ref")
+        key_id = row.get("blob_key_id")
+        if ref is None or key_id is None:
+            detail[prefix] = None
+            detail[f"{prefix}Available"] = False
+            continue
+        try:
+            detail[prefix] = decrypt(ref, key_id).decode("utf-8", errors="replace")
+            detail[f"{prefix}Available"] = True
+        except BlobError:
+            detail[prefix] = None
+            detail[f"{prefix}Available"] = False
+    return detail
+
+
+def row_to_bundle_entry(row: dict[str, Any]) -> dict[str, Any]:
+    """One entry inside an audit bundle (FR-M11-05): stream shape plus
+    ciphertext refs/digests — a third party checks the chain without keys."""
+    bundle = row_to_wire(row)
+    bundle["inputDigest"] = _hex(row.get("input_digest"))
+    bundle["inputRef"] = row.get("input_ref")
+    bundle["outputDigest"] = _hex(row.get("output_digest"))
+    bundle["outputRef"] = row.get("output_ref")
+    bundle.pop("toolCallsSummary", None)
+    return bundle
+
+
+def tree_head_to_wire(head: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "seq": head["seq"],
+        "rootHash": head["root_hash"].hex(),
+        "signedAt": head["signed_at"],
+        "signature": head["signature"].hex(),
+        **({"anchorRef": head["anchor_ref"]} if head.get("anchor_ref") else {}),
     }
