@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** F0 — Flight Recorder
-- **Current workstream:** B — Ledger core
-- **Current task:** 9 — hash chain + Merkle tree + signed tree heads (FR-M10-02..04) — in progress (schema+triggers done in b1a7c05; WIP modules canonical/keys/merkle in working tree)
-- **Last commit:** 4059975 — feat(f0): tiering scaffold (FR-M36-05, X-28) — F0 Workstream A complete (tasks 1–7; doctor via 5730d66)
+- **Current workstream:** C — Deterministic attribution (no model calls)
+- **Current task:** 13 — diff and blame engine (git-native)
+- **Last commit:** e25a530 — feat(f0): ledger query API + Chain Viewer backend (FR-M10-12, FR-M11-01..05) — Workstream B complete (8–12; 100k verify 3.2s < 5s FR-M10-09; kill-9 durability FR-M10-08 proven)
 - **Updated:** _(see git log)_
 
 ## Mapping of completed S0 work onto the new plan
@@ -46,8 +46,8 @@
 | Workstream | Tasks | Status |
 |---|---|---|
 | A — Shell and sidecar, minimum viable | 1–7 | **done** (4059975; doctor 5730d66; tiers e2e prove G5) |
-| B — Ledger core | 8–12 | in progress |
-| C — Deterministic attribution (no model calls) | 13–16 | not started |
+| B — Ledger core | 8–12 | **done** (e25a530; 631f86f run_id/origin v2 migration per gaps_initiation §5) |
+| C — Deterministic attribution (no model calls) | 13–16 | in progress |
 | D — Observers | 17–22 | not started |
 | E — Portable provenance | 23–27 | not started |
 | F — Rejection measurement, minimum | 28–30 | not started |
