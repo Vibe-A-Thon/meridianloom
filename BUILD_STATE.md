@@ -3,9 +3,9 @@
 > Resumption state. Updated after every completed task. If the session is interrupted, read this file and DECISIONS.md first, then continue from the recorded task.
 
 - **Current phase:** S0 — Simulation Core & Contracts
-- **Current workstream:** A — Extension host and lifecycle
-- **Current task:** 1 — Extension scaffold (FR-M1-01..03)
-- **Last commit:** _(pending — initial layout commit)_
+- **Current workstream:** B — Sidecar and IPC
+- **Current task:** 6 — Spawn and framed JSON-RPC over stdio (FR-M3-01, FR-M3-09)
+- **Last commit:** c0df98d — build(s0): esbuild bundling and vsce packaging (FR-M1-10) — S0 Workstream A complete (tasks 1–5, 25 tests green, dist/meridian-loom-0.0.1.vsix)
 - **Updated:** _(see git log)_
 
 ## Phase S0 exit criteria (from Requirements-implementation.md §S0)
@@ -29,8 +29,8 @@
 
 | Workstream | Tasks | Status |
 |---|---|---|
-| A — Extension host and lifecycle | 1–5 | in progress |
-| B — Sidecar and IPC | 6–11 | not started |
+| A — Extension host and lifecycle | 1–5 | **done** (c0df98d) |
+| B — Sidecar and IPC | 6–11 | in progress |
 | C — Workspace isolation | 12 | not started |
 | D — Ledger substrate | 13–16a | not started |
 | E — Replay and Simulation Core | 17–24 | not started |
