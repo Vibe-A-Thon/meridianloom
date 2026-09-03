@@ -20,6 +20,7 @@ from typing import Any, Callable
 
 from . import fsprobe
 from .manager import ObserverManager
+from .pipeline import ObservationPipeline
 from .processes import ProcessInfo, list_processes, match_vendor
 
 # X-29: detection (and disappearance) within 2 seconds; poll at 0.5 s.
@@ -112,12 +113,19 @@ class SessionMonitor:
         interval_seconds: float = POLL_INTERVAL_SECONDS,
         processes_factory: Callable[[], list[ProcessInfo]] = list_processes,
         write_probe: Callable[..., fsprobe.WriteBurst | None] = fsprobe.recent_writes,
+        write_pipeline: ObservationPipeline | None = None,
     ) -> None:
         self._manager = manager
         self._workspace = Path(workspace)
         self._interval = interval_seconds
         self._list_processes = processes_factory
         self._write_probe = write_probe
+        self._pipeline = write_pipeline
+        if self._pipeline is not None:
+            # Write-hook batches are consumed by the single pipeline writer
+            # and only read by ticks — no shared mutable state, no locks.
+            self._pipeline.set_handler(self._consume_write_batch)
+        self._recent_writes: list[tuple[float, str]] = []
         self._stop = threading.Event()
         self._lock = threading.Lock()
         self._cache: dict[str, Any] = {
@@ -128,11 +136,25 @@ class SessionMonitor:
         self._thread: threading.Thread | None = None
         self._ticks = 0
 
+    # -- write hooks (NFR-29: non-blocking, debounced, single-writer) --------
+
+    def notify_write(self, path: str) -> None:
+        """Hook for editor/host file-write notifications.
+
+        Enqueues only — the calling thread (which may be acting on behalf
+        of the observed agent) is never delayed by observation work.
+        """
+        if self._pipeline is None:
+            return
+        self._pipeline.submit(path)
+
     # -- lifecycle ------------------------------------------------------------
 
     def start(self) -> None:
         if self._thread is not None:
             return
+        if self._pipeline is not None:
+            self._pipeline.start()
         self._thread = threading.Thread(
             target=self._run,
             name="meridian-session-monitor",
@@ -142,6 +164,8 @@ class SessionMonitor:
 
     def stop(self, timeout: float = 5.0) -> None:
         self._stop.set()
+        if self._pipeline is not None:
+            self._pipeline.stop(timeout=timeout)
         if self._thread is not None:
             self._thread.join(timeout=timeout)
             self._thread = None
@@ -168,6 +192,17 @@ class SessionMonitor:
                         ],
                     }
             self._stop.wait(self._interval)
+
+    def _consume_write_batch(self, batch: list) -> None:
+        # Runs on the pipeline's single writer thread; ticks read this
+        # list. Bounded so a runaway agent cannot grow it without limit.
+        from time import monotonic
+
+        self._recent_writes.extend((monotonic(), str(path)) for path in batch)
+        del self._recent_writes[:-200]
+
+    def recent_write_count(self) -> int:
+        return len(self._recent_writes)
 
     # -- one detection pass (synchronous; directly testable) ---------------------
 
