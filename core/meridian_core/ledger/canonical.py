@@ -14,13 +14,18 @@ be re-pointed without changing the digest.
 The open ledger specification (FR-M36-06, F0-E task 27) must describe
 this exact construction; float serialisation follows Python's
 `json.dumps` shortest-repr rule, which the spec will need to pin down.
+
+Performance (FR-M10-09): `make_verify_hasher` precompiles the payload
+projection for a fixed column list so a 100k-entry verify re-encodes
+each row with the C JSON encoder and no per-row key sorting. It must
+produce byte-identical digests to `entry_hash` — asserted in tests.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from typing import Any, Callable
 
 # Columns excluded from the hashed payload (§7.2). Everything else —
 # including seq — is bound into the entry hash.
@@ -64,3 +69,60 @@ def entry_hash(prev_hash: bytes, row: dict[str, Any]) -> bytes:
     digest.update(prev_hash)
     digest.update(canonical_json(hashable_payload(row)))
     return digest.digest()
+
+
+def make_verify_hasher(
+    columns: list[str],
+) -> Callable[[bytes, tuple[Any, ...]], bytes]:
+    """Precompiled row hasher for the verification fast path.
+
+    `columns` is the SELECT column order; `values` the fetched tuple.
+    Emits exactly what entry_hash(prev_hash, dict(zip(columns, values)))
+    would emit, without per-row key sorting or isinstance dispatch: the
+    payload dict is built in canonical (sorted) order straight from the
+    tuple, and only the known BLOB columns are hex-projected.
+    """
+    from operator import itemgetter
+
+    blob_columns = {"input_digest", "output_digest", "signature"}
+    hashed = [
+        (column, index)
+        for index, column in enumerate(columns)
+        if column not in HASH_EXCLUDED_COLUMNS
+    ]
+    hashed.sort(key=lambda pair: pair[0])
+    names = [column for column, _index in hashed]
+    indices = [index for _column, index in hashed]
+    pick = itemgetter(*indices)
+    bytes_positions = [
+        position
+        for position, name in enumerate(names)
+        if name in blob_columns
+    ]
+    # Byte-identical to canonical_json (names are pre-sorted; separators
+    # and ensure_ascii match) with the pure-overhead flags off: no
+    # re-sorting, no circular-reference tracking. This is the FR-M10-09
+    # fast path; byte-identity is asserted in tests.
+    dumps = json.dumps
+
+    def hasher(prev_hash: bytes, values: tuple[Any, ...]) -> bytes:
+        picked = pick(values)
+        payload = dict(zip(names, picked))
+        for position in bytes_positions:
+            value = picked[position]
+            if value is not None:
+                payload[names[position]] = value.hex()
+        digest = hashlib.sha256()
+        digest.update(prev_hash)
+        digest.update(
+            dumps(
+                payload,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                allow_nan=False,
+                check_circular=False,
+            ).encode("utf-8")
+        )
+        return digest.digest()
+
+    return hasher

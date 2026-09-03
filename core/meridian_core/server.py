@@ -17,6 +17,7 @@ import binascii
 import logging
 import os
 import platform
+import sqlite3
 import threading
 import time
 from collections.abc import Callable
@@ -28,6 +29,7 @@ import bus_types
 from . import doctor, protocol, tiers
 from .ledger import core as ledger_core
 from .ledger import keys as ledger_keys
+from .ledger import wire as ledger_wire
 from .rpc import (
     FramedReader,
     FramedWriter,
@@ -63,8 +65,8 @@ class SidecarServer:
             "shutdown": SidecarServer._handle_shutdown,
             "health": SidecarServer._handle_health,
             "doctor/run": SidecarServer._handle_doctor_run,
-            "ledger.append": lambda self, params: self._not_implemented("ledger.append", "Workstream D"),
-            "ledger.query": lambda self, params: self._not_implemented("ledger.query", "Workstream D"),
+            "ledger.append": SidecarServer._handle_ledger_append,
+            "ledger.query": SidecarServer._handle_ledger_query,
             "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
             "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
@@ -308,6 +310,41 @@ class SidecarServer:
             protocol.ERROR_NOT_IMPLEMENTED,
             f"{method} is contracted but not implemented yet (lands with {lands_with})",
         )
+
+    # -- ledger (FR-M10-01/02/07/08/12) -------------------------------------
+
+    def _handle_ledger_append(
+        self, params: bus_types.LedgerAppendParams
+    ) -> bus_types.LedgerAppendResult:
+        # FR-M10-08: Ledger.append commits (WAL, synchronous=FULL) before
+        # returning, and this response goes out only after that — an acked
+        # append survives a kill -9 (tested in test_ledger_verify.py).
+        ledger = self._ensure_ledger()
+        entry = ledger_wire.append_params_to_entry(params or {})
+        try:
+            result = ledger.append(entry)
+        except ValueError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        except sqlite3.IntegrityError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        return {
+            "sequence": result.sequence,
+            "hash": result.entry_hash.hex(),
+            "previousHash": result.prev_hash.hex(),
+            "timestamp": result.ts_utc,
+            **({"treeHead": result.tree_head} if result.tree_head else {}),
+        }
+
+    def _handle_ledger_query(
+        self, params: bus_types.LedgerQueryParams
+    ) -> bus_types.LedgerQueryResult:
+        ledger = self._ensure_ledger()
+        rows = ledger.query(
+            from_sequence=(params or {}).get("fromSequence"),
+            to_sequence=(params or {}).get("toSequence"),
+            limit=(params or {}).get("limit") or 100,
+        )
+        return {"entries": [ledger_wire.row_to_wire(row) for row in rows]}
 
 
 class _RpcError(Exception):

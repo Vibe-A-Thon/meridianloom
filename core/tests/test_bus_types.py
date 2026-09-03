@@ -58,8 +58,6 @@ def test_placeholder_methods_answer_not_implemented():
         }
     )
     for method in (
-        "ledger.append",
-        "ledger.query",
         "loop.start",
         "loop.stop",
         "loop.status",
@@ -70,6 +68,17 @@ def test_placeholder_methods_answer_not_implemented():
         response = server.handle_message({"jsonrpc": "2.0", "id": 1, "method": method})
         assert response is not None
         assert response["error"]["code"] == bus_types.NOT_IMPLEMENTED, method
+
+
+def test_ledger_methods_are_implemented_but_need_a_workspace():
+    # FR-M10-01: real handlers, answering LEDGER_UNAVAILABLE until the
+    # handshake carries workspaceDir (see test_ledger_durability.py).
+    server = SidecarServer()
+    for method in ("ledger.append", "ledger.query"):
+        response = server.handle_message(
+            {"jsonrpc": "2.0", "id": 1, "method": method}
+        )
+        assert response["error"]["code"] == bus_types.LEDGER_UNAVAILABLE, method
 
 
 def test_health_reports_process_state():

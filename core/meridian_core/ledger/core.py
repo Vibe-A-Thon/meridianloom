@@ -15,12 +15,16 @@ FR-M11-01..05) and hang off this class.
 
 from __future__ import annotations
 
+import logging
+import os
 import sqlite3
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("meridian_core.ledger")
 
 from . import canonical, keys, merkle, schema
 from .blobs import BlobStore
@@ -56,6 +60,9 @@ DEFAULTS: dict[str, Any] = {
 TREE_HEAD_INTERVAL_ENTRIES = 100
 TREE_HEAD_MAX_AGE_S = 600
 
+#: Ledgers at or above this size verify across worker processes (FR-M10-09).
+_PARALLEL_VERIFY_MIN = 20_000
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace(
@@ -72,6 +79,17 @@ class AppendResult:
     tree_head: dict[str, Any] | None
 
 
+@dataclass(frozen=True)
+class VerifyResult:
+    """FR-M10-09 verdict. `first_divergent_sequence` names the first
+    sequence number where the chain stops matching the stored rows."""
+
+    ok: bool
+    entries_checked: int
+    first_divergent_sequence: int | None
+    detail: str
+
+
 class Ledger:
     """An open ledger database. Not thread-safe; the sidecar serialises."""
 
@@ -83,6 +101,7 @@ class Ledger:
         tree_head_interval: int = TREE_HEAD_INTERVAL_ENTRIES,
         tree_head_max_age_s: float = TREE_HEAD_MAX_AGE_S,
         blob_key_store: BlobKeyStore | None = None,
+        verify_on_open: bool = True,
     ) -> None:
         self.dir = Path(ledger_dir)
         self.dir.mkdir(parents=True, exist_ok=True)
@@ -127,6 +146,17 @@ class Ledger:
         self._last_head_seq: int = head[0] if head else 0
         self._head_opened_monotonic = time.monotonic()
 
+        # FR-M10-09: verification runs when the ledger opens (sidecar
+        # start) and on demand; a failure is logged, never fatal.
+        self.last_verify: VerifyResult | None = None
+        if verify_on_open and self._last_seq:
+            self.last_verify = self.verify()
+            if not self.last_verify.ok:
+                logger.error(
+                    "ledger chain verification failed at open: %s",
+                    self.last_verify.detail,
+                )
+
     # -- state -------------------------------------------------------------
 
     def close(self) -> None:
@@ -148,6 +178,135 @@ class Ledger:
 
     def root_hash(self) -> bytes:
         return self._frontier.root()
+
+    # -- verification (FR-M10-09) -------------------------------------------
+
+    def verify(
+        self, up_to: int | None = None, workers: int | None = None
+    ) -> VerifyResult:
+        """Recompute the chain from genesis; name the first divergence.
+
+        Large ledgers verify in parallel: worker processes each check a
+        contiguous range against the stored chain over their own
+        read-only connection (no row data crosses process boundaries),
+        and this process checks the boundary linkage. Runs on the main
+        connection when `workers` is 1 or the ledger is small.
+        """
+        ceiling = up_to if up_to is not None else self._last_seq
+        if ceiling <= 0:
+            return VerifyResult(True, 0, None, "chain verified through sequence 0")
+        cpu = os.cpu_count() or 1
+        worker_count = 1 if workers is None else max(1, workers)
+        if workers is None:
+            worker_count = min(4, cpu) if ceiling >= _PARALLEL_VERIFY_MIN else 1
+        if worker_count <= 1:
+            return self._verify_inline(up_to)
+        return self._verify_parallel(ceiling, worker_count)
+
+    def _verify_inline(self, up_to: int | None) -> VerifyResult:
+        if up_to is None:
+            cursor = self.conn.execute("SELECT * FROM ledger_entry ORDER BY seq")
+        else:
+            cursor = self.conn.execute(
+                "SELECT * FROM ledger_entry WHERE seq <= ? ORDER BY seq", (up_to,)
+            )
+        cursor.arraysize = 10000
+        columns = [d[0] for d in cursor.description]
+        hasher = canonical.make_verify_hasher(columns)
+        index_seq = columns.index("seq")
+        index_prev = columns.index("prev_hash")
+        index_hash = columns.index("entry_hash")
+
+        expected_seq = 1
+        expected_prev = canonical.GENESIS_HASH
+        checked = 0
+        while True:
+            batch = cursor.fetchmany(10000)
+            if not batch:
+                break
+            for values in batch:
+                seq = values[index_seq]
+                if seq != expected_seq:
+                    return VerifyResult(
+                        False,
+                        checked,
+                        expected_seq,
+                        f"sequence gap: expected {expected_seq}, found {seq}",
+                    )
+                if values[index_prev] != expected_prev:
+                    return VerifyResult(
+                        False,
+                        checked,
+                        seq,
+                        "prev_hash does not match the previous entry_hash",
+                    )
+                recomputed = hasher(expected_prev, values)
+                if recomputed != values[index_hash]:
+                    return VerifyResult(
+                        False,
+                        checked,
+                        seq,
+                        "entry_hash does not match the recomputed canonical hash",
+                    )
+                expected_prev = recomputed
+                expected_seq += 1
+                checked += 1
+        return VerifyResult(
+            True, checked, None, f"chain verified through sequence {checked}"
+        )
+
+    def _verify_parallel(self, ceiling: int, worker_count: int) -> VerifyResult:
+        from concurrent.futures import ProcessPoolExecutor
+
+        from .range_verify import verify_range
+
+        # Contiguous, gap-free ranges over 1..ceiling.
+        per = ceiling // worker_count
+        ranges: list[tuple[int, int]] = []
+        lo = 1
+        for _ in range(worker_count):
+            hi = lo + per - 1 if len(ranges) < worker_count - 1 else ceiling
+            ranges.append((lo, hi))
+            lo = hi + 1
+        db_path = str(self.conn.execute("PRAGMA database_list").fetchone()[2])
+
+        results: list[tuple[bool, int | None, int, bytes]] = []
+        with ProcessPoolExecutor(max_workers=worker_count) as pool:
+            for result in pool.map(
+                verify_range, [(db_path, lo, hi) for lo, hi in ranges]
+            ):
+                results.append(result)
+
+        expected_prev = canonical.GENESIS_HASH
+        checked = 0
+        for (lo, hi), (ok, divergent, count, last_computed) in zip(ranges, results):
+            # Boundary: the range's link-in must be where our chain is.
+            link = self.conn.execute(
+                "SELECT prev_hash FROM ledger_entry WHERE seq = ?", (lo,)
+            ).fetchone()
+            if link is None:
+                return VerifyResult(
+                    False, checked, lo, f"sequence gap at range start {lo}"
+                )
+            if link[0] != expected_prev:
+                return VerifyResult(
+                    False,
+                    checked,
+                    lo,
+                    "prev_hash does not match the previous entry_hash",
+                )
+            if not ok:
+                return VerifyResult(
+                    False,
+                    checked + max(0, (divergent or lo) - lo),
+                    divergent,
+                    "entry_hash does not match the recomputed canonical hash",
+                )
+            checked += count
+            expected_prev = last_computed
+        return VerifyResult(
+            True, checked, None, f"chain verified through sequence {checked}"
+        )
 
     # -- append (FR-M10-02/07/08) -------------------------------------------
 
@@ -234,6 +393,63 @@ class Ledger:
         with the full crypto-shredding flow in F4.
         """
         return self._blob_keys.destroy(key_id_for(subject_id))
+
+    # -- query (FR-M10-12) ---------------------------------------------------
+
+    def query(
+        self,
+        *,
+        story_id: str | None = None,
+        actor_id: str | None = None,
+        vendor: str | None = None,
+        action_type: str | None = None,
+        from_sequence: int | None = None,
+        to_sequence: int | None = None,
+        from_timestamp: str | None = None,
+        to_timestamp: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Filtered entry stream, ascending by sequence (FR-M11-02)."""
+        clauses: list[str] = []
+        arguments: list[Any] = []
+        for column, value in (
+            ("story_id", story_id),
+            ("actor_id", actor_id),
+            ("vendor", vendor),
+            ("action_type", action_type),
+        ):
+            if value is not None:
+                clauses.append(f"{column} = ?")
+                arguments.append(value)
+        if from_sequence is not None:
+            clauses.append("seq >= ?")
+            arguments.append(from_sequence)
+        if to_sequence is not None:
+            clauses.append("seq <= ?")
+            arguments.append(to_sequence)
+        if from_timestamp is not None:
+            clauses.append("ts_utc >= ?")
+            arguments.append(from_timestamp)
+        if to_timestamp is not None:
+            clauses.append("ts_utc <= ?")
+            arguments.append(to_timestamp)
+        sql = "SELECT * FROM ledger_entry"
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
+        sql += " ORDER BY seq LIMIT ?"
+        arguments.append(min(max(limit, 1), 1000))
+        cursor = self.conn.execute(sql, arguments)
+        columns = [d[0] for d in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def get_entry(self, sequence: int) -> dict[str, Any] | None:
+        """One full row, or None when the sequence does not exist."""
+        cursor = self.conn.execute(
+            "SELECT * FROM ledger_entry WHERE seq = ?", (sequence,)
+        )
+        columns = [d[0] for d in cursor.description]
+        row = cursor.fetchone()
+        return dict(zip(columns, row)) if row is not None else None
 
     def _prepare_row(self, entry: dict[str, Any]) -> dict[str, Any]:
         unknown = set(entry) - set(self._columns) - {"ts_utc"}

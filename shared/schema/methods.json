@@ -29,12 +29,12 @@
       "result": { "$ref": "#/$defs/DoctorRunResult" }
     },
     "ledger.append": {
-      "description": "Append an entry to the hash-chained ledger (FR-M10-01/02). Simulation Core writes entries marked simulated (FR-M32-02).",
+      "description": "Append one entry to the hash-chained ledger (FR-M10-01/02). The RPC acknowledges only after the entry and chain update are durably committed (FR-M10-08). Inputs/outputs are SEC-07-redacted and stored encrypted in the blob store (FR-M10-07); the entry references their ciphertext digests. Simulation Core entries set simulated (FR-M32-02).",
       "params": { "$ref": "#/$defs/LedgerAppendParams" },
       "result": { "$ref": "#/$defs/LedgerAppendResult" }
     },
     "ledger.query": {
-      "description": "Read back ledger entries (FR-M10-12).",
+      "description": "Read back ledger entries (FR-M10-12, FR-M11-02 stream shape).",
       "params": { "$ref": "#/$defs/LedgerQueryParams" },
       "result": { "$ref": "#/$defs/LedgerQueryResult" }
     },
@@ -215,47 +215,126 @@
       "additionalProperties": false
     },
     "LedgerAppendParams": {
+      "description": "One ledger entry, §7.2 columns in camelCase. input/output are redacted (SEC-07), encrypted and content-addressed (FR-M10-07); blob_subject selects the per-subject key (FR-M10-14).",
       "type": "object",
-      "required": ["entryType", "payload"],
+      "required": ["storyId", "phase", "loopId", "loopIteration", "actorId", "actorVersion", "actorKind", "policyVersion", "actionType"],
       "properties": {
-        "entryType": { "type": "string" },
-        "payload": { "type": "object" },
-        "simulated": {
-          "type": "boolean",
-          "description": "Simulation Core marker (FR-M32-02); absent means false."
-        }
+        "storyId": { "type": "string" },
+        "phase": { "type": "string" },
+        "loopId": { "type": "string" },
+        "loopIteration": { "type": "integer" },
+        "actorId": { "type": "string" },
+        "actorVersion": { "type": "string" },
+        "actorKind": { "type": "string", "description": "orchestrator|role|stack|sub|xai|meta|external" },
+        "policyVersion": { "type": "string" },
+        "skillId": { "type": "string" },
+        "skillVersion": { "type": "string" },
+        "modelId": { "type": "string" },
+        "modelVersion": { "type": "string" },
+        "actionType": { "type": "string", "description": "plan|prompt|tool_call|diff|test_run|review|scan|gate|approval|policy_update|export" },
+        "input": { "type": "string", "description": "Full prompt/context; redacted + encrypted into the blob store." },
+        "output": { "type": "string", "description": "Resulting output; redacted + encrypted into the blob store." },
+        "toolCalls": { "type": "array", "items": { "type": "object" } },
+        "confidence": { "type": "number" },
+        "decision": { "enum": ["proposed", "approved", "rejected", "reworked"] },
+        "humanActor": { "type": "string" },
+        "humanRole": { "type": "string" },
+        "reworkReason": { "type": "string" },
+        "tokensIn": { "type": "integer" },
+        "tokensOut": { "type": "integer" },
+        "costUsd": { "type": "number" },
+        "latencyMs": { "type": "integer" },
+        "worktreeRef": { "type": "string" },
+        "repoId": { "type": "string" },
+        "replayOf": { "type": "integer" },
+        "vendor": { "type": "string", "description": "Default 'meridian'; external agents carry their vendor (FR-M35-03)." },
+        "observationConfidence": { "enum": ["direct", "telemetry", "inferred"], "description": "FR-M35-02 observation confidence; default 'direct'." },
+        "externalSessionId": { "type": "string" },
+        "runId": { "type": "string" },
+        "origin": { "enum": ["ui", "command", "omnibar", "chat", "editor", "file", "connector", "api"], "description": "FR-M40-02: written with the run's first entry." },
+        "simulated": { "type": "boolean", "description": "FR-M32-02 simulation marker; absent means false." },
+        "timestamp": { "type": "string", "description": "ISO 8601 UTC override (replay/golden corpus); absent = now." },
+        "blobSubject": { "type": "string", "description": "Subject for the per-subject blob key; default 'default'." }
       },
       "additionalProperties": false
     },
     "LedgerAppendResult": {
       "type": "object",
-      "required": ["sequence", "hash"],
+      "required": ["sequence", "hash", "previousHash", "timestamp"],
       "properties": {
         "sequence": { "type": "integer" },
-        "hash": { "type": "string", "description": "Hash of this entry, chained from the previous (FR-M10-02)." }
+        "hash": { "type": "string", "description": "entry_hash hex, chained from the previous (FR-M10-02)." },
+        "previousHash": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "treeHead": { "$ref": "#/$defs/TreeHead", "description": "Present when this append emitted a signed tree head (FR-M10-04)." }
+      },
+      "additionalProperties": false
+    },
+    "TreeHead": {
+      "description": "FR-M10-04 signed tree head: the Merkle root over entries 1..seq, Ed25519-signed; hex-encoded.",
+      "type": "object",
+      "required": ["seq", "rootHash", "signedAt", "signature"],
+      "properties": {
+        "seq": { "type": "integer" },
+        "rootHash": { "type": "string" },
+        "signedAt": { "type": "string" },
+        "signature": { "type": "string" },
+        "anchorRef": { "type": "string" }
       },
       "additionalProperties": false
     },
     "LedgerQueryParams": {
       "type": "object",
       "properties": {
-        "entryType": { "type": "string" },
         "fromSequence": { "type": "integer" },
-        "limit": { "type": "integer" }
+        "toSequence": { "type": "integer" },
+        "limit": { "type": "integer", "description": "Default 100, clamped to 1000." }
       },
       "additionalProperties": false
     },
     "LedgerEntry": {
+      "description": "FR-M11-02 stream shape: one ledger entry with chain hashes; blob payloads are referenced by digest/ref, not inlined.",
       "type": "object",
-      "required": ["sequence", "entryType", "hash", "previousHash", "timestamp", "simulated", "payload"],
+      "required": ["sequence", "timestamp", "storyId", "phase", "loopId", "loopIteration", "actorId", "actorVersion", "actorKind", "policyVersion", "actionType", "vendor", "observationConfidence", "simulated", "entryHash", "previousHash", "hasInputBlob", "hasOutputBlob"],
       "properties": {
         "sequence": { "type": "integer" },
-        "entryType": { "type": "string" },
-        "hash": { "type": "string" },
-        "previousHash": { "type": "string" },
-        "timestamp": { "type": "string", "description": "ISO 8601 UTC." },
+        "timestamp": { "type": "string" },
+        "storyId": { "type": "string" },
+        "phase": { "type": "string" },
+        "loopId": { "type": "string" },
+        "loopIteration": { "type": "integer" },
+        "actorId": { "type": "string" },
+        "actorVersion": { "type": "string" },
+        "actorKind": { "type": "string" },
+        "policyVersion": { "type": "string" },
+        "skillId": { "type": "string" },
+        "skillVersion": { "type": "string" },
+        "modelId": { "type": "string" },
+        "modelVersion": { "type": "string" },
+        "actionType": { "type": "string" },
+        "toolCallsSummary": { "type": "integer", "description": "Count of tool calls; the array itself is in the entry detail (FR-M11-03)." },
+        "confidence": { "type": "number" },
+        "decision": { "type": "string" },
+        "humanActor": { "type": "string" },
+        "humanRole": { "type": "string" },
+        "reworkReason": { "type": "string" },
+        "tokensIn": { "type": "integer" },
+        "tokensOut": { "type": "integer" },
+        "costUsd": { "type": "number" },
+        "latencyMs": { "type": "integer" },
+        "worktreeRef": { "type": "string" },
+        "repoId": { "type": "string" },
+        "replayOf": { "type": "integer" },
+        "vendor": { "type": "string" },
+        "observationConfidence": { "type": "string" },
+        "externalSessionId": { "type": "string" },
+        "runId": { "type": "string" },
+        "origin": { "type": "string" },
         "simulated": { "type": "boolean" },
-        "payload": { "type": "object" }
+        "entryHash": { "type": "string" },
+        "previousHash": { "type": "string" },
+        "hasInputBlob": { "type": "boolean" },
+        "hasOutputBlob": { "type": "boolean" }
       },
       "additionalProperties": false
     },

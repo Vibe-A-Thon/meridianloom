@@ -72,9 +72,10 @@ class TestTierGate:
         assert "result" in call(self.server, "ping")
         assert "result" in call(self.server, "health")
         assert "result" in call(self.server, "doctor/run")
-        # Contracted but not yet implemented is NOT a tier refusal.
+        # The ledger is implemented (FR-M10-01) but needs workspaceDir:
+        # a structured LEDGER_UNAVAILABLE, NOT a tier refusal.
         assert call(self.server, "ledger.append")["error"]["code"] == (
-            protocol.ERROR_NOT_IMPLEMENTED
+            protocol.ERROR_LEDGER_UNAVAILABLE
         )
 
     def test_governor_and_orchestra_methods_are_refused_by_default(self):

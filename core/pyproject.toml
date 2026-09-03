@@ -26,3 +26,6 @@ testpaths = ["tests"]
 # `cd core && python -m pytest -q`: pytest resolves this file as rootdir
 # config and puts core/ (and the generated bus types) on sys.path.
 pythonpath = [".", "../shared/py"]
+markers = [
+    "perf: performance assertions (still run in CI; generous floors, measured rates reported)",
+]

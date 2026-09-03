@@ -77,28 +77,105 @@ class DoctorRunResult(TypedDict):
     status: DoctorCheckStatus  # Worst status across all checks: fail > warn > pass.
     checks: list[DoctorCheck]
 
+# One ledger entry, §7.2 columns in camelCase. input/output are redacted (SEC-07), encrypted and content-addressed (FR-M10-07); blob_subject selects the per-subject key (FR-M10-14).
 class LedgerAppendParams(TypedDict):
-    entryType: str
-    payload: dict[str, Any]
-    simulated: NotRequired[bool]  # Simulation Core marker (FR-M32-02); absent means false.
+    storyId: str
+    phase: str
+    loopId: str
+    loopIteration: int
+    actorId: str
+    actorVersion: str
+    actorKind: str  # orchestrator|role|stack|sub|xai|meta|external
+    policyVersion: str
+    skillId: NotRequired[str]
+    skillVersion: NotRequired[str]
+    modelId: NotRequired[str]
+    modelVersion: NotRequired[str]
+    actionType: str  # plan|prompt|tool_call|diff|test_run|review|scan|gate|approval|policy_update|export
+    input: NotRequired[str]  # Full prompt/context; redacted + encrypted into the blob store.
+    output: NotRequired[str]  # Resulting output; redacted + encrypted into the blob store.
+    toolCalls: NotRequired[list[dict[str, Any]]]
+    confidence: NotRequired[float]
+    decision: NotRequired[Literal["proposed", "approved", "rejected", "reworked"]]
+    humanActor: NotRequired[str]
+    humanRole: NotRequired[str]
+    reworkReason: NotRequired[str]
+    tokensIn: NotRequired[int]
+    tokensOut: NotRequired[int]
+    costUsd: NotRequired[float]
+    latencyMs: NotRequired[int]
+    worktreeRef: NotRequired[str]
+    repoId: NotRequired[str]
+    replayOf: NotRequired[int]
+    vendor: NotRequired[str]  # Default 'meridian'; external agents carry their vendor (FR-M35-03).
+    observationConfidence: NotRequired[Literal["direct", "telemetry", "inferred"]]  # FR-M35-02 observation confidence; default 'direct'.
+    externalSessionId: NotRequired[str]
+    runId: NotRequired[str]
+    origin: NotRequired[Literal["ui", "command", "omnibar", "chat", "editor", "file", "connector", "api"]]  # FR-M40-02: written with the run's first entry.
+    simulated: NotRequired[bool]  # FR-M32-02 simulation marker; absent means false.
+    timestamp: NotRequired[str]  # ISO 8601 UTC override (replay/golden corpus); absent = now.
+    blobSubject: NotRequired[str]  # Subject for the per-subject blob key; default 'default'.
 
 class LedgerAppendResult(TypedDict):
     sequence: int
-    hash: str  # Hash of this entry, chained from the previous (FR-M10-02).
+    hash: str  # entry_hash hex, chained from the previous (FR-M10-02).
+    previousHash: str
+    timestamp: str
+    treeHead: NotRequired[TreeHead]  # Present when this append emitted a signed tree head (FR-M10-04).
+
+# FR-M10-04 signed tree head: the Merkle root over entries 1..seq, Ed25519-signed; hex-encoded.
+class TreeHead(TypedDict):
+    seq: int
+    rootHash: str
+    signedAt: str
+    signature: str
+    anchorRef: NotRequired[str]
 
 class LedgerQueryParams(TypedDict):
-    entryType: NotRequired[str]
     fromSequence: NotRequired[int]
-    limit: NotRequired[int]
+    toSequence: NotRequired[int]
+    limit: NotRequired[int]  # Default 100, clamped to 1000.
 
+# FR-M11-02 stream shape: one ledger entry with chain hashes; blob payloads are referenced by digest/ref, not inlined.
 class LedgerEntry(TypedDict):
     sequence: int
-    entryType: str
-    hash: str
-    previousHash: str
-    timestamp: str  # ISO 8601 UTC.
+    timestamp: str
+    storyId: str
+    phase: str
+    loopId: str
+    loopIteration: int
+    actorId: str
+    actorVersion: str
+    actorKind: str
+    policyVersion: str
+    skillId: NotRequired[str]
+    skillVersion: NotRequired[str]
+    modelId: NotRequired[str]
+    modelVersion: NotRequired[str]
+    actionType: str
+    toolCallsSummary: NotRequired[int]  # Count of tool calls; the array itself is in the entry detail (FR-M11-03).
+    confidence: NotRequired[float]
+    decision: NotRequired[str]
+    humanActor: NotRequired[str]
+    humanRole: NotRequired[str]
+    reworkReason: NotRequired[str]
+    tokensIn: NotRequired[int]
+    tokensOut: NotRequired[int]
+    costUsd: NotRequired[float]
+    latencyMs: NotRequired[int]
+    worktreeRef: NotRequired[str]
+    repoId: NotRequired[str]
+    replayOf: NotRequired[int]
+    vendor: str
+    observationConfidence: str
+    externalSessionId: NotRequired[str]
+    runId: NotRequired[str]
+    origin: NotRequired[str]
     simulated: bool
-    payload: dict[str, Any]
+    entryHash: str
+    previousHash: str
+    hasInputBlob: bool
+    hasOutputBlob: bool
 
 class LedgerQueryResult(TypedDict):
     entries: list[LedgerEntry]

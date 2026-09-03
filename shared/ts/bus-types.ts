@@ -97,34 +97,123 @@ export interface DoctorRunResult {
   "checks": DoctorCheck[];
 }
 
+/** One ledger entry, §7.2 columns in camelCase. input/output are redacted (SEC-07), encrypted and content-addressed (FR-M10-07); blob_subject selects the per-subject key (FR-M10-14). */
 export interface LedgerAppendParams {
-  "entryType": string;
-  "payload": Record<string, unknown>;
-  /** Simulation Core marker (FR-M32-02); absent means false. */
+  "storyId": string;
+  "phase": string;
+  "loopId": string;
+  "loopIteration": number;
+  "actorId": string;
+  "actorVersion": string;
+  /** orchestrator|role|stack|sub|xai|meta|external */
+  "actorKind": string;
+  "policyVersion": string;
+  "skillId"?: string;
+  "skillVersion"?: string;
+  "modelId"?: string;
+  "modelVersion"?: string;
+  /** plan|prompt|tool_call|diff|test_run|review|scan|gate|approval|policy_update|export */
+  "actionType": string;
+  /** Full prompt/context; redacted + encrypted into the blob store. */
+  "input"?: string;
+  /** Resulting output; redacted + encrypted into the blob store. */
+  "output"?: string;
+  "toolCalls"?: Record<string, unknown>[];
+  "confidence"?: number;
+  "decision"?: "proposed" | "approved" | "rejected" | "reworked";
+  "humanActor"?: string;
+  "humanRole"?: string;
+  "reworkReason"?: string;
+  "tokensIn"?: number;
+  "tokensOut"?: number;
+  "costUsd"?: number;
+  "latencyMs"?: number;
+  "worktreeRef"?: string;
+  "repoId"?: string;
+  "replayOf"?: number;
+  /** Default 'meridian'; external agents carry their vendor (FR-M35-03). */
+  "vendor"?: string;
+  /** FR-M35-02 observation confidence; default 'direct'. */
+  "observationConfidence"?: "direct" | "telemetry" | "inferred";
+  "externalSessionId"?: string;
+  "runId"?: string;
+  /** FR-M40-02: written with the run's first entry. */
+  "origin"?: "ui" | "command" | "omnibar" | "chat" | "editor" | "file" | "connector" | "api";
+  /** FR-M32-02 simulation marker; absent means false. */
   "simulated"?: boolean;
+  /** ISO 8601 UTC override (replay/golden corpus); absent = now. */
+  "timestamp"?: string;
+  /** Subject for the per-subject blob key; default 'default'. */
+  "blobSubject"?: string;
 }
 
 export interface LedgerAppendResult {
   "sequence": number;
-  /** Hash of this entry, chained from the previous (FR-M10-02). */
+  /** entry_hash hex, chained from the previous (FR-M10-02). */
   "hash": string;
+  "previousHash": string;
+  "timestamp": string;
+  /** Present when this append emitted a signed tree head (FR-M10-04). */
+  "treeHead"?: TreeHead;
+}
+
+/** FR-M10-04 signed tree head: the Merkle root over entries 1..seq, Ed25519-signed; hex-encoded. */
+export interface TreeHead {
+  "seq": number;
+  "rootHash": string;
+  "signedAt": string;
+  "signature": string;
+  "anchorRef"?: string;
 }
 
 export interface LedgerQueryParams {
-  "entryType"?: string;
   "fromSequence"?: number;
+  "toSequence"?: number;
+  /** Default 100, clamped to 1000. */
   "limit"?: number;
 }
 
+/** FR-M11-02 stream shape: one ledger entry with chain hashes; blob payloads are referenced by digest/ref, not inlined. */
 export interface LedgerEntry {
   "sequence": number;
-  "entryType": string;
-  "hash": string;
-  "previousHash": string;
-  /** ISO 8601 UTC. */
   "timestamp": string;
+  "storyId": string;
+  "phase": string;
+  "loopId": string;
+  "loopIteration": number;
+  "actorId": string;
+  "actorVersion": string;
+  "actorKind": string;
+  "policyVersion": string;
+  "skillId"?: string;
+  "skillVersion"?: string;
+  "modelId"?: string;
+  "modelVersion"?: string;
+  "actionType": string;
+  /** Count of tool calls; the array itself is in the entry detail (FR-M11-03). */
+  "toolCallsSummary"?: number;
+  "confidence"?: number;
+  "decision"?: string;
+  "humanActor"?: string;
+  "humanRole"?: string;
+  "reworkReason"?: string;
+  "tokensIn"?: number;
+  "tokensOut"?: number;
+  "costUsd"?: number;
+  "latencyMs"?: number;
+  "worktreeRef"?: string;
+  "repoId"?: string;
+  "replayOf"?: number;
+  "vendor": string;
+  "observationConfidence": string;
+  "externalSessionId"?: string;
+  "runId"?: string;
+  "origin"?: string;
   "simulated": boolean;
-  "payload": Record<string, unknown>;
+  "entryHash": string;
+  "previousHash": string;
+  "hasInputBlob": boolean;
+  "hasOutputBlob": boolean;
 }
 
 export interface LedgerQueryResult {
