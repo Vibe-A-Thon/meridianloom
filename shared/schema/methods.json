@@ -33,6 +33,11 @@
       "params": { "$ref": "#/$defs/AttribDiffParams" },
       "result": { "$ref": "#/$defs/AttribDiffResult" }
     },
+    "attrib/symbol": {
+      "description": "FR-M33-02 subset (F0 Workstream C task 14): tree-sitter line→symbol mapping — the qualified enclosing function/class of a line (e.g. \"PaymentController.submit\"). Unregistered languages degrade to symbol/language null, never a crash; only a missing file is an error. Zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/AttribSymbolParams" },
+      "result": { "$ref": "#/$defs/AttribSymbolResult" }
+    },
     "doctor/run": {
       "description": "FR-M30-01: run the self-diagnostic check registry (interpreter, sidecar, keychain/signing key, ledger integrity, git hooks, observer health). Subsystems that are not built yet report a clear not-installed status with remediation instead of failing.",
       "params": { "$ref": "#/$defs/DoctorRunParams" },
@@ -343,6 +348,27 @@
         "compare": { "type": ["string", "null"] },
         "staged": { "type": "boolean" },
         "files": { "type": "array", "items": { "$ref": "#/$defs/AttribFileDiff" } }
+      },
+      "additionalProperties": false
+    },
+    "AttribSymbolParams": {
+      "type": "object",
+      "required": ["repoPath", "path", "line"],
+      "properties": {
+        "repoPath": { "type": "string", "description": "Absolute path of the git repository (any directory inside it is accepted and resolved to the toplevel)." },
+        "path": { "type": "string", "description": "Worktree-relative file path." },
+        "line": { "type": "integer", "description": "1-based line number." }
+      },
+      "additionalProperties": false
+    },
+    "AttribSymbolResult": {
+      "type": "object",
+      "required": ["path", "line", "language", "symbol"],
+      "properties": {
+        "path": { "type": "string" },
+        "line": { "type": "integer" },
+        "language": { "type": ["string", "null"], "description": "Registered language id; null when the extension is not registered." },
+        "symbol": { "type": ["string", "null"], "description": "Qualified enclosing definition, e.g. PaymentController.submit; null when none or degraded." }
       },
       "additionalProperties": false
     },

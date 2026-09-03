@@ -12,6 +12,13 @@ dependencies = [
     # signing (FR-M10-04) and AES-GCM blob encryption (FR-M10-07). Python's
     # stdlib has neither. NEVER use this (or anything else) for model calls.
     "cryptography==49.0.0",
+    # Approved pinned dependency for structural parsing (FR-M33-02 subset,
+    # F0 Workstream C task 14): tree-sitter line→symbol mapping so a
+    # provenance answer names the enclosing function/class. Deterministic
+    # parsing only — NEVER used for model calls (FR-M36-07).
+    "tree-sitter==0.25.1",
+    "tree-sitter-java==0.23.5",
+    "tree-sitter-python==0.25.0",
 ]
 
 [project.optional-dependencies]

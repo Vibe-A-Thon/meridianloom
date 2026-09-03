@@ -29,7 +29,9 @@ import bus_types
 
 from . import doctor, protocol, tiers
 from .attribution import blame, diff as attribution_diff, wire as attribution_wire
+from .attribution import symbols as symbols_mod
 from .attribution import AttributionError
+from .attribution._git import normalise_repo_path as attribution_normalise
 from .ledger import core as ledger_core
 from .ledger import keys as ledger_keys
 from .ledger import wire as ledger_wire
@@ -70,6 +72,7 @@ class SidecarServer:
             "doctor/run": SidecarServer._handle_doctor_run,
             "attrib/blame": SidecarServer._handle_attrib_blame,
             "attrib/diff": SidecarServer._handle_attrib_diff,
+            "attrib/symbol": SidecarServer._handle_attrib_symbol,
             "ledger.append": SidecarServer._handle_ledger_append,
             "ledger.query": SidecarServer._handle_ledger_query,
             "ledger.getEntry": SidecarServer._handle_ledger_get_entry,
@@ -392,6 +395,40 @@ class SidecarServer:
             "staged": staged,
             "files": attribution_wire.file_diffs_to_wire(files),
         }
+
+    def _handle_attrib_symbol(
+        self, params: bus_types.AttribSymbolParams
+    ) -> bus_types.AttribSymbolResult:
+        params = params or {}
+        line = params.get("line")
+        if not isinstance(line, int) or isinstance(line, bool) or line < 1:
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "line must be a positive integer"
+            )
+        raw_path = params.get("path")
+        if not isinstance(raw_path, str) or not raw_path:
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "path must be a worktree-relative file"
+            )
+        try:
+            repo = self._ensure_attrib_repo(params)
+            rel = attribution_normalise(repo, raw_path)
+            result = symbols_mod.symbol_at(repo / rel, line)
+        except AttributionError as error:
+            raise self._attrib_error(error) from error
+        except symbols_mod.SymbolsError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        return {
+            "path": rel,
+            "line": line,
+            "language": result.language,
+            "symbol": result.symbol,
+        }
+
+    def _ensure_attrib_repo(self, params: dict[str, Any]) -> Path:
+        from .attribution._git import ensure_repo
+
+        return ensure_repo(Path(self._attrib_repo_path(params)))
 
     # -- ledger (FR-M10-01/02/07/08/12) -------------------------------------
 
