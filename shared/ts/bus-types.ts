@@ -202,6 +202,51 @@ export interface AttribSymbolResult {
   "symbol": string | null;
 }
 
+/** An externally observed agent session (Workstream D supplies these; the heuristic only consumes them). Its presence covering an edit window raises the agent attribution weight and lifts the label to telemetry. */
+export interface AttribObservedSession {
+  "sessionId": string;
+  "vendor": string;
+  "agentId"?: string;
+  /** ISO 8601 or epoch seconds; absent means currently active. A file edited before this time is not covered. */
+  "startedAt"?: string;
+}
+
+export interface AttribClassifyParams {
+  "repoPath": string;
+  "base"?: string;
+  "compare"?: string;
+  "staged"?: boolean;
+  "paths"?: string[];
+  "observedSessions"?: AttribObservedSession[];
+}
+
+/** agent | human | mixed | unknown. unknown is a first-class honest answer when no signal fires (G3). */
+export type AttribAttribution = "agent" | "human" | "mixed" | "unknown";
+
+export interface AttribFileClassification {
+  "path": string;
+  "linesAdded": number;
+  "linesRemoved": number;
+  /** Lines added in the same timestamp sweep / commit as this file's edits. */
+  "burstLines": number;
+  /** Fraction of insertion hunks adding >=5 lines at once. */
+  "multiLineInsertRate": number;
+  /** Filesystem mtime of the edited file, ISO 8601 UTC; null for deletes. */
+  "editTimestamp": string | null;
+  "attribution": AttribAttribution;
+  /** 0.0 human .. 1.0 agent; 0.5 means no evidence. */
+  "agentWeight": number;
+  /** FR-M35-02; heuristic output is never better than telemetry and the floor is inferred. */
+  "observationConfidence": "direct" | "telemetry" | "inferred";
+  /** Human-readable signals behind the weight, for UI disclosure. */
+  "rationale": string[];
+}
+
+export interface AttribClassifyResult {
+  "repoPath": string;
+  "files": AttribFileClassification[];
+}
+
 /** One ledger entry, §7.2 columns in camelCase. input/output are redacted (SEC-07), encrypted and content-addressed (FR-M10-07); blob_subject selects the per-subject key (FR-M10-14). */
 export interface LedgerAppendParams {
   "storyId": string;
@@ -583,7 +628,7 @@ export interface TierSetParams {
 }
 
 /** Every request/response method on the bus. */
-export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "steer.send" | "trust.summary";
+export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "steer.send" | "trust.summary";
 
 /** Every notification method on the bus. */
 export type NotificationName = "tiers/set" | "$/cancel";
@@ -639,7 +684,7 @@ export const TIERS = ["flight-recorder","governor","orchestra"] as const;
 export const DEFAULT_ENABLED_TIERS: readonly TierName[] = ["flight-recorder"];
 
 /** FR-M36-05: capability registry; every capability is owned by exactly one tier. */
-export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming (FR-M33-02 subset; F0 Workstream C tasks 13–14). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff","attrib/symbol"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.","rpcMethods":["gate.evaluate"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
+export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff","attrib/symbol","attrib/classify"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.","rpcMethods":["gate.evaluate"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
 
 /** Params/result pairing for every request method. */
 export interface MethodMap {
@@ -650,6 +695,7 @@ export interface MethodMap {
   "attrib/blame": { params: AttribBlameParams; result: AttribBlameResult };
   "attrib/diff": { params: AttribDiffParams; result: AttribDiffResult };
   "attrib/symbol": { params: AttribSymbolParams; result: AttribSymbolResult };
+  "attrib/classify": { params: AttribClassifyParams; result: AttribClassifyResult };
   "doctor/run": { params: DoctorRunParams; result: DoctorRunResult };
   "ledger.append": { params: LedgerAppendParams; result: LedgerAppendResult };
   "ledger.query": { params: LedgerQueryParams; result: LedgerQueryResult };
@@ -667,7 +713,7 @@ export interface MethodMap {
 export type RequestMethod = keyof MethodMap;
 
 /** Runtime list of every request method (for tier/ownership checks). */
-export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","loop.start","loop.stop","loop.status","gate.evaluate","steer.send","trust.summary"] as const;
+export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","loop.start","loop.stop","loop.status","gate.evaluate","steer.send","trust.summary"] as const;
 
 /** Runtime list of every notification method. */
 export const NOTIFICATION_METHODS = ["tiers/set","$/cancel"] as const;

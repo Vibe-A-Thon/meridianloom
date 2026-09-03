@@ -38,6 +38,11 @@
       "params": { "$ref": "#/$defs/AttribSymbolParams" },
       "result": { "$ref": "#/$defs/AttribSymbolResult" }
     },
+    "attrib/classify": {
+      "description": "FR-M35-02 attribution aid (F0 Workstream C task 15; gaps G3): deterministic human-vs-agent heuristics over working-tree/staged/range changes — burst size, multi-line insertion rate, new-file size, observed-session cross-reference. Keystroke cadence is unavailable for agents acting via file writes and is not a signal; fs/git timestamps only. Every file is labelled observationConfidence telemetry|inferred (inferred is the floor, never presented as fact) with an auditable rationale. Zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/AttribClassifyParams" },
+      "result": { "$ref": "#/$defs/AttribClassifyResult" }
+    },
     "doctor/run": {
       "description": "FR-M30-01: run the self-diagnostic check registry (interpreter, sidecar, keychain/signing key, ledger integrity, git hooks, observer health). Subsystems that are not built yet report a clear not-installed status with remediation instead of failing.",
       "params": { "$ref": "#/$defs/DoctorRunParams" },
@@ -369,6 +374,61 @@
         "line": { "type": "integer" },
         "language": { "type": ["string", "null"], "description": "Registered language id; null when the extension is not registered." },
         "symbol": { "type": ["string", "null"], "description": "Qualified enclosing definition, e.g. PaymentController.submit; null when none or degraded." }
+      },
+      "additionalProperties": false
+    },
+    "AttribObservedSession": {
+      "description": "An externally observed agent session (Workstream D supplies these; the heuristic only consumes them). Its presence covering an edit window raises the agent attribution weight and lifts the label to telemetry.",
+      "type": "object",
+      "required": ["sessionId", "vendor"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "vendor": { "type": "string" },
+        "agentId": { "type": "string" },
+        "startedAt": { "type": "string", "description": "ISO 8601 or epoch seconds; absent means currently active. A file edited before this time is not covered." }
+      },
+      "additionalProperties": false
+    },
+    "AttribClassifyParams": {
+      "type": "object",
+      "required": ["repoPath"],
+      "properties": {
+        "repoPath": { "type": "string" },
+        "base": { "type": "string" },
+        "compare": { "type": "string" },
+        "staged": { "type": "boolean" },
+        "paths": { "type": "array", "items": { "type": "string" } },
+        "observedSessions": { "type": "array", "items": { "$ref": "#/$defs/AttribObservedSession" } }
+      },
+      "additionalProperties": false
+    },
+    "AttribAttribution": {
+      "description": "agent | human | mixed | unknown. unknown is a first-class honest answer when no signal fires (G3).",
+      "enum": ["agent", "human", "mixed", "unknown"]
+    },
+    "AttribFileClassification": {
+      "type": "object",
+      "required": ["path", "linesAdded", "linesRemoved", "burstLines", "multiLineInsertRate", "editTimestamp", "attribution", "agentWeight", "observationConfidence", "rationale"],
+      "properties": {
+        "path": { "type": "string" },
+        "linesAdded": { "type": "integer" },
+        "linesRemoved": { "type": "integer" },
+        "burstLines": { "type": "integer", "description": "Lines added in the same timestamp sweep / commit as this file's edits." },
+        "multiLineInsertRate": { "type": "number", "description": "Fraction of insertion hunks adding >=5 lines at once." },
+        "editTimestamp": { "type": ["string", "null"], "description": "Filesystem mtime of the edited file, ISO 8601 UTC; null for deletes." },
+        "attribution": { "$ref": "#/$defs/AttribAttribution" },
+        "agentWeight": { "type": "number", "description": "0.0 human .. 1.0 agent; 0.5 means no evidence." },
+        "observationConfidence": { "enum": ["direct", "telemetry", "inferred"], "description": "FR-M35-02; heuristic output is never better than telemetry and the floor is inferred." },
+        "rationale": { "type": "array", "items": { "type": "string" }, "description": "Human-readable signals behind the weight, for UI disclosure." }
+      },
+      "additionalProperties": false
+    },
+    "AttribClassifyResult": {
+      "type": "object",
+      "required": ["repoPath", "files"],
+      "properties": {
+        "repoPath": { "type": "string" },
+        "files": { "type": "array", "items": { "$ref": "#/$defs/AttribFileClassification" } }
       },
       "additionalProperties": false
     },

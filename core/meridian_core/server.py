@@ -30,6 +30,7 @@ import bus_types
 from . import doctor, protocol, tiers
 from .attribution import blame, diff as attribution_diff, wire as attribution_wire
 from .attribution import symbols as symbols_mod
+from .attribution import heuristics
 from .attribution import AttributionError
 from .attribution._git import normalise_repo_path as attribution_normalise
 from .ledger import core as ledger_core
@@ -73,6 +74,7 @@ class SidecarServer:
             "attrib/blame": SidecarServer._handle_attrib_blame,
             "attrib/diff": SidecarServer._handle_attrib_diff,
             "attrib/symbol": SidecarServer._handle_attrib_symbol,
+            "attrib/classify": SidecarServer._handle_attrib_classify,
             "ledger.append": SidecarServer._handle_ledger_append,
             "ledger.query": SidecarServer._handle_ledger_query,
             "ledger.getEntry": SidecarServer._handle_ledger_get_entry,
@@ -429,6 +431,40 @@ class SidecarServer:
         from .attribution._git import ensure_repo
 
         return ensure_repo(Path(self._attrib_repo_path(params)))
+
+    def _handle_attrib_classify(
+        self, params: bus_types.AttribClassifyParams
+    ) -> bus_types.AttribClassifyResult:
+        params = params or {}
+        try:
+            repo, result = heuristics.classify_with_repo(
+                self._attrib_repo_path(params),
+                base=params.get("base"),
+                compare=params.get("compare"),
+                staged=bool(params.get("staged")),
+                paths=params.get("paths"),
+                observed_sessions=params.get("observedSessions"),
+            )
+        except AttributionError as error:
+            raise self._attrib_error(error) from error
+        return {
+            "repoPath": str(repo),
+            "files": [
+                {
+                    "path": file.path,
+                    "linesAdded": file.lines_added,
+                    "linesRemoved": file.lines_removed,
+                    "burstLines": file.burst_lines,
+                    "multiLineInsertRate": file.multi_line_insert_rate,
+                    "editTimestamp": file.edit_timestamp,
+                    "attribution": file.attribution,
+                    "agentWeight": file.agent_weight,
+                    "observationConfidence": file.observation_confidence,
+                    "rationale": file.rationale,
+                }
+                for file in result.files
+            ],
+        }
 
     # -- ledger (FR-M10-01/02/07/08/12) -------------------------------------
 

@@ -148,6 +148,40 @@ class AttribSymbolResult(TypedDict):
     language: str | None  # Registered language id; null when the extension is not registered.
     symbol: str | None  # Qualified enclosing definition, e.g. PaymentController.submit; null when none or degraded.
 
+# An externally observed agent session (Workstream D supplies these; the heuristic only consumes them). Its presence covering an edit window raises the agent attribution weight and lifts the label to telemetry.
+class AttribObservedSession(TypedDict):
+    sessionId: str
+    vendor: str
+    agentId: NotRequired[str]
+    startedAt: NotRequired[str]  # ISO 8601 or epoch seconds; absent means currently active. A file edited before this time is not covered.
+
+class AttribClassifyParams(TypedDict):
+    repoPath: str
+    base: NotRequired[str]
+    compare: NotRequired[str]
+    staged: NotRequired[bool]
+    paths: NotRequired[list[str]]
+    observedSessions: NotRequired[list[AttribObservedSession]]
+
+# agent | human | mixed | unknown. unknown is a first-class honest answer when no signal fires (G3).
+AttribAttribution = Literal["agent", "human", "mixed", "unknown"]
+
+class AttribFileClassification(TypedDict):
+    path: str
+    linesAdded: int
+    linesRemoved: int
+    burstLines: int  # Lines added in the same timestamp sweep / commit as this file's edits.
+    multiLineInsertRate: float  # Fraction of insertion hunks adding >=5 lines at once.
+    editTimestamp: str | None  # Filesystem mtime of the edited file, ISO 8601 UTC; null for deletes.
+    attribution: AttribAttribution
+    agentWeight: float  # 0.0 human .. 1.0 agent; 0.5 means no evidence.
+    observationConfidence: Literal["direct", "telemetry", "inferred"]  # FR-M35-02; heuristic output is never better than telemetry and the floor is inferred.
+    rationale: list[str]  # Human-readable signals behind the weight, for UI disclosure.
+
+class AttribClassifyResult(TypedDict):
+    repoPath: str
+    files: list[AttribFileClassification]
+
 # One ledger entry, §7.2 columns in camelCase. input/output are redacted (SEC-07), encrypted and content-addressed (FR-M10-07); blob_subject selects the per-subject key (FR-M10-14).
 class LedgerAppendParams(TypedDict):
     storyId: str
@@ -467,7 +501,7 @@ class TierSetParams(TypedDict):
     tiers: list[TierName]
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary"]
 
 # Every notification method on the bus.
 NotificationName = Literal["tiers/set", "$/cancel"]
@@ -521,7 +555,7 @@ DEFAULT_ENABLED_TIERS: tuple[str, ...] = ("flight-recorder",)
 CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.lifecycle", "tier": "flight-recorder", "description": "Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.", "rpcMethods": ["handshake", "ping", "shutdown", "health"]},
     {"id": "recorder.doctor", "tier": "flight-recorder", "description": "Self-diagnostic check registry (FR-M30-01).", "rpcMethods": ["doctor/run"]},
-    {"id": "recorder.attribution", "tier": "flight-recorder", "description": "Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming (FR-M33-02 subset; F0 Workstream C tasks 13–14). Zero model calls (FR-M36-07).", "rpcMethods": ["attrib/blame", "attrib/diff", "attrib/symbol"]},
+    {"id": "recorder.attribution", "tier": "flight-recorder", "description": "Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).", "rpcMethods": ["attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify"]},
     {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]},
     {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.", "rpcMethods": ["gate.evaluate"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.", "rpcMethods": ["steer.send"]},
@@ -529,7 +563,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary")
 NOTIFICATION_METHODS: tuple[str, ...] = ("tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -541,6 +575,7 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "attrib/blame": {"params": AttribBlameParams, "result": AttribBlameResult},
     "attrib/diff": {"params": AttribDiffParams, "result": AttribDiffResult},
     "attrib/symbol": {"params": AttribSymbolParams, "result": AttribSymbolResult},
+    "attrib/classify": {"params": AttribClassifyParams, "result": AttribClassifyResult},
     "doctor/run": {"params": DoctorRunParams, "result": DoctorRunResult},
     "ledger.append": {"params": LedgerAppendParams, "result": LedgerAppendResult},
     "ledger.query": {"params": LedgerQueryParams, "result": LedgerQueryResult},

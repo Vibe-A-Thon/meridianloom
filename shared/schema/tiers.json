@@ -21,8 +21,8 @@
       {
         "id": "recorder.attribution",
         "tier": "flight-recorder",
-        "description": "Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming (FR-M33-02 subset; F0 Workstream C tasks 13–14). Zero model calls (FR-M36-07).",
-        "rpcMethods": ["attrib/blame", "attrib/diff", "attrib/symbol"]
+        "description": "Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).",
+        "rpcMethods": ["attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify"]
       },
       {
         "id": "recorder.ledger",
