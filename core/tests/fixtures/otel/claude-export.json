@@ -1,0 +1,92 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "claude-code" } },
+          { "key": "service.version", "value": { "stringValue": "1.0.80" } },
+          { "key": "telemetry.sdk.name", "value": { "stringValue": "opentelemetry" } },
+          { "key": "telemetry.sdk.language", "value": { "stringValue": "python" } },
+          { "key": "telemetry.sdk.version", "value": { "stringValue": "1.31.1" } }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": { "name": "claude-code-agent", "version": "" },
+          "spans": [
+            {
+              "traceId": "5b1ce43ad533e00cf194e57d8e0369d2",
+              "spanId": "a1b2c3d4e5f60718",
+              "name": "chat",
+              "kind": 3,
+              "startTimeUnixNano": "1758369600000000000",
+              "endTimeUnixNano": "1758369605000000000",
+              "attributes": [
+                { "key": "session.id", "value": { "stringValue": "session-abc-123" } },
+                { "key": "gen_ai.system", "value": { "stringValue": "claude" } },
+                { "key": "gen_ai.request.model", "value": { "stringValue": "claude-sonnet-4-5" } }
+              ],
+              "status": { "code": 1 }
+            },
+            {
+              "traceId": "5b1ce43ad533e00cf194e57d8e0369d2",
+              "spanId": "b2c3d4e5f6071829",
+              "name": "tool",
+              "kind": 3,
+              "startTimeUnixNano": "1758369601000000000",
+              "endTimeUnixNano": "1758369601200000000",
+              "attributes": [
+                { "key": "session.id", "value": { "stringValue": "session-abc-123" } },
+                { "key": "tool.name", "value": { "stringValue": "Read" } }
+              ],
+              "status": { "code": 1 }
+            }
+          ]
+        },
+        {
+          "scope": { "name": "claude-code-agent", "version": "" },
+          "spans": [
+            {
+              "traceId": "6c2df54be644f11df2a5f68e9f1470e3",
+              "spanId": "c3d4e5f60718293a",
+              "name": "chat",
+              "kind": 3,
+              "startTimeUnixNano": "1758363000000000000",
+              "endTimeUnixNano": "1758363002000000000",
+              "attributes": [
+                { "key": "session.id", "value": { "stringValue": "session-old-000" } }
+              ],
+              "status": { "code": 1 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "unrelated-user-service" } }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": { "name": "manual-instrumentation" },
+          "spans": [
+            {
+              "traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "spanId": "dddddddddddddddd",
+              "name": "http.request",
+              "kind": 3,
+              "startTimeUnixNano": "1758369600000000000",
+              "endTimeUnixNano": "1758369600010000000",
+              "attributes": [
+                { "key": "http.method", "value": { "stringValue": "GET" } }
+              ],
+              "status": { "code": 1 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
