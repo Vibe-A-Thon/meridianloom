@@ -17,3 +17,7 @@ include = ["meridian_core*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Makes `python -m pytest core/tests` from the repo root work as well as
+# `cd core && python -m pytest -q`: pytest resolves this file as rootdir
+# config and puts core/ (and the generated bus types) on sys.path.
+pythonpath = [".", "../shared/py"]

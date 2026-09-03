@@ -1,24 +1,25 @@
-"""Protocol constants shared with the extension host.
+"""Protocol constants for the sidecar, sourced from the generated bus types.
 
-Workstream B task 11 (FR-M32-09) replaces the hand-maintained copies with
-generated types from ``shared/schema``; until then these are the Python-side
-source of truth and the generated output must match them exactly.
+FR-M32-09: the wire contract lives in shared/schema/ and is generated into
+shared/py/bus_types.py. This module re-exports those constants so existing
+imports keep working, and owns only the one thing the schema does not model:
+this build's version string, reported in the handshake for diagnostics.
 """
 
-# Version of the JSON-RPC contract spoken on the wire. The extension refuses
-# to proceed on mismatch (FR-M3-08); bump together with shared/schema.
-PROTOCOL_VERSION = 1
+from __future__ import annotations
+
+import bus_types
+
+# Wire contract (generated — do not edit here; edit shared/schema/).
+PROTOCOL_VERSION = bus_types.PROTOCOL_VERSION
+
+PARSE_ERROR = bus_types.PARSE_ERROR
+INVALID_REQUEST = bus_types.INVALID_REQUEST
+METHOD_NOT_FOUND = bus_types.METHOD_NOT_FOUND
+INVALID_PARAMS = bus_types.INVALID_PARAMS
+INTERNAL_ERROR = bus_types.INTERNAL_ERROR
+ERROR_NOT_IMPLEMENTED = bus_types.NOT_IMPLEMENTED
+ERROR_PROTOCOL_MISMATCH = bus_types.PROTOCOL_MISMATCH
 
 # Version of this sidecar build, reported in the handshake for diagnostics.
 CORE_VERSION = "0.0.1"
-
-# JSON-RPC 2.0 standard error codes.
-PARSE_ERROR = -32700
-INVALID_REQUEST = -32600
-METHOD_NOT_FOUND = -32601
-INVALID_PARAMS = -32602
-INTERNAL_ERROR = -32603
-
-# Meridian-specific error codes (server-defined range -32000..-32099).
-ERROR_NOT_IMPLEMENTED = -32001
-ERROR_PROTOCOL_MISMATCH = -32002

@@ -1,10 +1,19 @@
 import { EventEmitter } from 'node:events';
+import {
+  PROTOCOL_VERSION,
+  type ErrorObject,
+  type HandshakeResult,
+  type MethodMap,
+  type RequestMethod,
+} from '../../shared/ts/bus-types';
 import { createFrameDecoder, encodeFrame } from './framing';
 import type { ChildProcessLike, ProcessSpawner, SpawnOptions } from './process';
 import { defaultSpawner } from './process';
 import type { SidecarClient } from './sidecar';
 
-export const PROTOCOL_VERSION = 1;
+// FR-M32-09: the protocol version comes from the generated bus types, which
+// shared/schema/ drives; both halves of the wire read the same constant.
+export { PROTOCOL_VERSION };
 
 export interface StdioSidecarOptions {
   /** Interpreter command (already resolved; FR-M3-05). */
@@ -156,7 +165,7 @@ export class StdioSidecarClient extends EventEmitter implements SidecarClient {
           protocolVersion: PROTOCOL_VERSION,
           client: 'meridian-loom-extension',
         }).then((result) => {
-          const handshake = result as { protocolVersion?: unknown };
+          const handshake = result as HandshakeResult;
           if (handshake.protocolVersion !== PROTOCOL_VERSION) {
             throw new SidecarSpawnError(
               `sidecar protocol version ${String(handshake.protocolVersion)} ` +
@@ -202,6 +211,18 @@ export class StdioSidecarClient extends EventEmitter implements SidecarClient {
     return this.requestInternal(method, params, signal) as Promise<TResponse>;
   }
 
+  /**
+   * Schema-typed request (FR-M32-09): params and result are paired by the
+   * generated MethodMap, so a contract change is a compile error here.
+   */
+  call<M extends RequestMethod>(
+    method: M,
+    params: MethodMap[M]['params'],
+    signal: AbortSignal,
+  ): Promise<MethodMap[M]['result']> {
+    return this.request(method, params, signal);
+  }
+
   private requestInternal(
     method: string,
     params: unknown,
@@ -236,7 +257,7 @@ export class StdioSidecarClient extends EventEmitter implements SidecarClient {
     const frame = message as {
       id?: number;
       result?: unknown;
-      error?: { code: number; message: string; data?: unknown };
+      error?: ErrorObject;
       method?: string;
       params?: unknown;
     };

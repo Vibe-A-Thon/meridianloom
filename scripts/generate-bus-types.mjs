@@ -263,13 +263,17 @@ function emitPy() {
 
   for (const [file, schema] of schemas) {
     for (const [name, def] of Object.entries(schema.$defs ?? {})) {
-      if (def.type === 'object' && def.properties && Object.keys(def.properties).length > 0) {
+      const isClosedEmptyObject =
+        def.type === 'object' &&
+        def.additionalProperties === false &&
+        (!def.properties || Object.keys(def.properties).length === 0);
+      if ((def.type === 'object' && def.properties && Object.keys(def.properties).length > 0) || isClosedEmptyObject) {
         if (def.description) {
           lines.push(`# ${def.description}`);
         }
         lines.push(`class ${name}(TypedDict):`);
         const required = def.required ?? [];
-        const entries = Object.entries(def.properties);
+        const entries = Object.entries(def.properties ?? {});
         if (entries.length === 0) {
           lines.push('    pass');
         }

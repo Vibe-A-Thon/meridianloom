@@ -21,6 +21,12 @@ cpSync(path.join(root, 'core', 'meridian_core'), path.join(sidecarDir, 'meridian
   filter: (source) => !source.includes('__pycache__'),
 });
 cpSync(path.join(root, 'core', 'pyproject.toml'), path.join(sidecarDir, 'pyproject.toml'));
+// The generated bus types ship beside the sidecar sources; meridian_core's
+// sys.path shim finds them at <sidecar>/shared/py (FR-M32-09).
+cpSync(path.join(root, 'shared', 'py'), path.join(sidecarDir, 'shared', 'py'), {
+  recursive: true,
+  filter: (source) => !source.includes('__pycache__'),
+});
 
 try {
   // --no-dependencies: every dependency is a devDependency (the bundle is

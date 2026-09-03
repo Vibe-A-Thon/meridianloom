@@ -3,16 +3,24 @@
 The server is a plain object so tests can drive it without real stdio:
 ``handle_message`` maps one decoded frame to zero or one response frame.
 ``serve`` is the production loop over stdin/stdout.
+
+FR-M32-09: handler signatures are typed with the generated bus types
+(shared/py/bus_types.py, from shared/schema/). Lifecycle methods are real;
+ledger and loop methods are registered placeholders that answer with the
+contracted NOT_IMPLEMENTED error until Workstreams D/E fill them in.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import platform
 import threading
 import time
 from collections.abc import Callable
 from typing import Any
+
+import bus_types
 
 from . import protocol
 from .rpc import (
@@ -39,7 +47,19 @@ class SidecarServer:
             "handshake": SidecarServer._handle_handshake,
             "ping": SidecarServer._handle_ping,
             "shutdown": SidecarServer._handle_shutdown,
+            "health": SidecarServer._handle_health,
+            "ledger.append": lambda self, params: self._not_implemented("ledger.append", "Workstream D"),
+            "ledger.query": lambda self, params: self._not_implemented("ledger.query", "Workstream D"),
+            "loop.start": lambda self, params: self._not_implemented("loop.start", "Workstream E"),
+            "loop.stop": lambda self, params: self._not_implemented("loop.stop", "Workstream E"),
+            "loop.status": lambda self, params: self._not_implemented("loop.status", "Workstream E"),
         }
+        # The registry must exactly cover the contracted request methods.
+        assert set(self._handlers) == set(bus_types.REQUEST_METHODS), (
+            f"handler registry drifted from the schema: "
+            f"missing={set(bus_types.REQUEST_METHODS) - set(self._handlers)}, "
+            f"extra={set(self._handlers) - set(bus_types.REQUEST_METHODS)}"
+        )
 
     @property
     def shutdown_requested(self) -> threading.Event:
@@ -61,9 +81,10 @@ class SidecarServer:
             )
         request_id = message.get("id")
         if request_id is None:
-            # Notification: currently the sidecar has none to consume; the
-            # extension only sends requests plus $/cancel (handled in task 10).
-            logger.debug("ignoring notification %s", method)
+            # Notification: $/cancel is accepted (the cancelled request will
+            # simply be dropped when loops exist); anything else is ignored.
+            if method != "$/cancel":
+                logger.debug("ignoring unknown notification %s", method)
             return None
         handler = self._handlers.get(method)
         if handler is None:
@@ -108,7 +129,9 @@ class SidecarServer:
 
     # -- methods ------------------------------------------------------------
 
-    def _handle_handshake(self, params: Any) -> dict[str, Any]:
+    def _handle_handshake(
+        self, params: bus_types.HandshakeParams
+    ) -> bus_types.HandshakeResult:
         client_version = (params or {}).get("protocolVersion")
         if client_version != protocol.PROTOCOL_VERSION:
             # FR-M3-08: refuse on mismatch; the extension surfaces this as
@@ -132,7 +155,7 @@ class SidecarServer:
             },
         }
 
-    def _handle_ping(self, params: Any) -> dict[str, Any]:
+    def _handle_ping(self, params: bus_types.PingParams) -> bus_types.PingResult:
         self._ping_seq += 1
         return {
             "pong": True,
@@ -140,10 +163,26 @@ class SidecarServer:
             "uptimeSeconds": round(time.monotonic() - self._started_at, 3),
         }
 
-    def _handle_shutdown(self, params: Any) -> dict[str, Any]:
+    def _handle_shutdown(
+        self, params: bus_types.ShutdownParams
+    ) -> bus_types.ShutdownResult:
         logger.info("shutdown requested: %s", (params or {}).get("reason", "no reason"))
         self._shutdown_requested.set()
         return {"ok": True}
+
+    def _handle_health(self, params: bus_types.HealthParams) -> bus_types.HealthResult:
+        return {
+            "status": "shutting-down" if self._shutdown_requested.is_set() else "ok",
+            "uptimeSeconds": round(time.monotonic() - self._started_at, 3),
+            "pid": os.getpid(),
+            "activeLoops": 0,  # loops land in Workstream E
+        }
+
+    def _not_implemented(self, method: str, lands_with: str) -> None:
+        raise _RpcError(
+            protocol.ERROR_NOT_IMPLEMENTED,
+            f"{method} is contracted but not implemented yet (lands with {lands_with})",
+        )
 
 
 class _RpcError(Exception):

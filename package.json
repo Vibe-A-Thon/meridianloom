@@ -6,7 +6,8 @@
   ],
   "scripts": {
     "test": "node scripts/run-tests.mjs",
-    "build": "npm run build --workspace=extension",
+    "build": "node scripts/generate-bus-types.mjs && npm run build --workspace=extension",
+    "check:contracts": "node scripts/generate-bus-types.mjs --check",
     "package": "node scripts/package-extension.mjs"
   }
 }

@@ -18,6 +18,16 @@ function run(args) {
   return result.status ?? 1;
 }
 
+// FR-M32-09 (schema half): generated bus types must be fresh vs the schema
+// before any test runs — a stale contract fails the suite, not CI later.
+const contracts = spawnSync(process.execPath, ['scripts/generate-bus-types.mjs', '--check'], {
+  cwd: root,
+  stdio: 'inherit',
+});
+if (contracts.status !== 0) {
+  process.exit(contracts.status ?? 1);
+}
+
 let status = run(['test', '--workspace=extension']);
 if (status !== 0) {
   process.exit(status);
