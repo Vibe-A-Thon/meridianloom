@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** F0 — Flight Recorder
-- **Current workstream:** A — Shell and sidecar, minimum viable
-- **Current task:** 6 — `meridian doctor` (FR-M30-01), then 7 — tiering scaffold (FR-M36-05)
-- **Last commit:** 1527530 — feat(s0): generated message-bus types shared by extension, sidecar and simulation (FR-M32-09)
+- **Current workstream:** B — Ledger core
+- **Current task:** 8 — Append-only SQLite with §7.2 schema + v2.1 fields + vendor/observation_confidence/external_session_id (FR-M10-01)
+- **Last commit:** 4059975 — feat(f0): tiering scaffold (FR-M36-05, X-28) — F0 Workstream A complete (tasks 1–7; doctor via 5730d66)
 - **Updated:** _(see git log)_
 
 ## Mapping of completed S0 work onto the new plan
@@ -45,8 +45,8 @@
 
 | Workstream | Tasks | Status |
 |---|---|---|
-| A — Shell and sidecar, minimum viable | 1–7 | tasks 1–5 done (via S0 mapping); 6–7 next |
-| B — Ledger core | 8–12 | not started |
+| A — Shell and sidecar, minimum viable | 1–7 | **done** (4059975; doctor 5730d66; tiers e2e prove G5) |
+| B — Ledger core | 8–12 | in progress |
 | C — Deterministic attribution (no model calls) | 13–16 | not started |
 | D — Observers | 17–22 | not started |
 | E — Portable provenance | 23–27 | not started |
