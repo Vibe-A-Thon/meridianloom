@@ -97,6 +97,93 @@ export interface DoctorRunResult {
   "checks": DoctorCheck[];
 }
 
+export interface AttribBlameParams {
+  /** Absolute path of the git repository (any directory inside it is accepted and resolved to the toplevel). */
+  "repoPath": string;
+  /** Commit-ish to blame; default HEAD. */
+  "ref"?: string;
+  /** Worktree-relative file filter; absent blames every tracked file. */
+  "paths"?: string[];
+}
+
+export interface AttribBlameLine {
+  "path": string;
+  /** 1-based line number in the ref's version of the file. */
+  "line": number;
+  /** Full hex sha of the introducing commit; never a merge commit. */
+  "commit": string;
+  "authorName": string;
+  "authorEmail": string;
+  /** Author timestamp, ISO 8601 UTC. */
+  "authorTime": string;
+  /** Line content without the terminator (CRLF tolerated). */
+  "content": string;
+}
+
+export interface AttribBlameResult {
+  /** Resolved repository toplevel. */
+  "repoPath": string;
+  "ref": string;
+  "lines": AttribBlameLine[];
+}
+
+export interface AttribDiffParams {
+  /** Absolute path of the git repository (any directory inside it is accepted and resolved to the toplevel). */
+  "repoPath": string;
+  /** Range start (commit-ish). With compare: base..compare; alone: base vs worktree. */
+  "base"?: string;
+  /** Range end (commit-ish); added lines are blame-annotated at this ref. */
+  "compare"?: string;
+  /** Diff the index against HEAD (base optionally overrides HEAD). */
+  "staged"?: boolean;
+  /** Worktree-relative path filter. */
+  "paths"?: string[];
+}
+
+export type AttribDiffLineKind = "added" | "removed" | "context";
+
+export interface AttribDiffLine {
+  "kind": AttribDiffLineKind;
+  /** 1-based in the base version; null for pure additions. */
+  "oldLine": number | null;
+  /** 1-based in the compare version; null for removals. */
+  "newLine": number | null;
+  "content": string;
+  /** Introducing commit for range-diff added lines (blame at compare); null for worktree/index changes. */
+  "commit"?: string | null;
+  "authorName"?: string | null;
+  "authorEmail"?: string | null;
+  "authorTime"?: string | null;
+}
+
+export interface AttribHunk {
+  "oldStart": number;
+  "oldCount": number;
+  "newStart": number;
+  "newCount": number;
+  "lines": AttribDiffLine[];
+}
+
+export type AttribFileStatus = "added" | "modified" | "deleted" | "renamed";
+
+export interface AttribFileDiff {
+  /** Compare-side path. */
+  "path": string;
+  /** Set for renames. */
+  "oldPath": string | null;
+  "status": AttribFileStatus;
+  "hunks": AttribHunk[];
+}
+
+export interface AttribDiffResult {
+  /** Resolved repository toplevel. */
+  "repoPath": string;
+  "base": string | null;
+  "compare": string | null;
+  "staged": boolean;
+  "files": AttribFileDiff[];
+}
+
 /** One ledger entry, §7.2 columns in camelCase. input/output are redacted (SEC-07), encrypted and content-addressed (FR-M10-07); blob_subject selects the per-subject key (FR-M10-14). */
 export interface LedgerAppendParams {
   "storyId": string;
@@ -478,7 +565,7 @@ export interface TierSetParams {
 }
 
 /** Every request/response method on the bus. */
-export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "steer.send" | "trust.summary";
+export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "steer.send" | "trust.summary";
 
 /** Every notification method on the bus. */
 export type NotificationName = "tiers/set" | "$/cancel";
@@ -534,7 +621,7 @@ export const TIERS = ["flight-recorder","governor","orchestra"] as const;
 export const DEFAULT_ENABLED_TIERS: readonly TierName[] = ["flight-recorder"];
 
 /** FR-M36-05: capability registry; every capability is owned by exactly one tier. */
-export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.","rpcMethods":["gate.evaluate"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
+export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges (FR-M33-02 subset; F0 Workstream C task 13). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.","rpcMethods":["gate.evaluate"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
 
 /** Params/result pairing for every request method. */
 export interface MethodMap {
@@ -542,6 +629,8 @@ export interface MethodMap {
   "ping": { params: PingParams; result: PingResult };
   "shutdown": { params: ShutdownParams; result: ShutdownResult };
   "health": { params: HealthParams; result: HealthResult };
+  "attrib/blame": { params: AttribBlameParams; result: AttribBlameResult };
+  "attrib/diff": { params: AttribDiffParams; result: AttribDiffResult };
   "doctor/run": { params: DoctorRunParams; result: DoctorRunResult };
   "ledger.append": { params: LedgerAppendParams; result: LedgerAppendResult };
   "ledger.query": { params: LedgerQueryParams; result: LedgerQueryResult };
@@ -559,7 +648,7 @@ export interface MethodMap {
 export type RequestMethod = keyof MethodMap;
 
 /** Runtime list of every request method (for tier/ownership checks). */
-export const REQUEST_METHODS = ["handshake","ping","shutdown","health","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","loop.start","loop.stop","loop.status","gate.evaluate","steer.send","trust.summary"] as const;
+export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","loop.start","loop.stop","loop.status","gate.evaluate","steer.send","trust.summary"] as const;
 
 /** Runtime list of every notification method. */
 export const NOTIFICATION_METHODS = ["tiers/set","$/cancel"] as const;

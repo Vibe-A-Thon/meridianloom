@@ -77,6 +77,66 @@ class DoctorRunResult(TypedDict):
     status: DoctorCheckStatus  # Worst status across all checks: fail > warn > pass.
     checks: list[DoctorCheck]
 
+class AttribBlameParams(TypedDict):
+    repoPath: str  # Absolute path of the git repository (any directory inside it is accepted and resolved to the toplevel).
+    ref: NotRequired[str]  # Commit-ish to blame; default HEAD.
+    paths: NotRequired[list[str]]  # Worktree-relative file filter; absent blames every tracked file.
+
+class AttribBlameLine(TypedDict):
+    path: str
+    line: int  # 1-based line number in the ref's version of the file.
+    commit: str  # Full hex sha of the introducing commit; never a merge commit.
+    authorName: str
+    authorEmail: str
+    authorTime: str  # Author timestamp, ISO 8601 UTC.
+    content: str  # Line content without the terminator (CRLF tolerated).
+
+class AttribBlameResult(TypedDict):
+    repoPath: str  # Resolved repository toplevel.
+    ref: str
+    lines: list[AttribBlameLine]
+
+class AttribDiffParams(TypedDict):
+    repoPath: str  # Absolute path of the git repository (any directory inside it is accepted and resolved to the toplevel).
+    base: NotRequired[str]  # Range start (commit-ish). With compare: base..compare; alone: base vs worktree.
+    compare: NotRequired[str]  # Range end (commit-ish); added lines are blame-annotated at this ref.
+    staged: NotRequired[bool]  # Diff the index against HEAD (base optionally overrides HEAD).
+    paths: NotRequired[list[str]]  # Worktree-relative path filter.
+
+AttribDiffLineKind = Literal["added", "removed", "context"]
+
+class AttribDiffLine(TypedDict):
+    kind: AttribDiffLineKind
+    oldLine: int | None  # 1-based in the base version; null for pure additions.
+    newLine: int | None  # 1-based in the compare version; null for removals.
+    content: str
+    commit: NotRequired[str | None]  # Introducing commit for range-diff added lines (blame at compare); null for worktree/index changes.
+    authorName: NotRequired[str | None]
+    authorEmail: NotRequired[str | None]
+    authorTime: NotRequired[str | None]
+
+class AttribHunk(TypedDict):
+    oldStart: int
+    oldCount: int
+    newStart: int
+    newCount: int
+    lines: list[AttribDiffLine]
+
+AttribFileStatus = Literal["added", "modified", "deleted", "renamed"]
+
+class AttribFileDiff(TypedDict):
+    path: str  # Compare-side path.
+    oldPath: str | None  # Set for renames.
+    status: AttribFileStatus
+    hunks: list[AttribHunk]
+
+class AttribDiffResult(TypedDict):
+    repoPath: str  # Resolved repository toplevel.
+    base: str | None
+    compare: str | None
+    staged: bool
+    files: list[AttribFileDiff]
+
 # One ledger entry, §7.2 columns in camelCase. input/output are redacted (SEC-07), encrypted and content-addressed (FR-M10-07); blob_subject selects the per-subject key (FR-M10-14).
 class LedgerAppendParams(TypedDict):
     storyId: str
@@ -396,7 +456,7 @@ class TierSetParams(TypedDict):
     tiers: list[TierName]
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary"]
 
 # Every notification method on the bus.
 NotificationName = Literal["tiers/set", "$/cancel"]
@@ -450,6 +510,7 @@ DEFAULT_ENABLED_TIERS: tuple[str, ...] = ("flight-recorder",)
 CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.lifecycle", "tier": "flight-recorder", "description": "Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.", "rpcMethods": ["handshake", "ping", "shutdown", "health"]},
     {"id": "recorder.doctor", "tier": "flight-recorder", "description": "Self-diagnostic check registry (FR-M30-01).", "rpcMethods": ["doctor/run"]},
+    {"id": "recorder.attribution", "tier": "flight-recorder", "description": "Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges (FR-M33-02 subset; F0 Workstream C task 13). Zero model calls (FR-M36-07).", "rpcMethods": ["attrib/blame", "attrib/diff"]},
     {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]},
     {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.", "rpcMethods": ["gate.evaluate"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.", "rpcMethods": ["steer.send"]},
@@ -457,7 +518,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary")
 NOTIFICATION_METHODS: tuple[str, ...] = ("tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -466,6 +527,8 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "ping": {"params": PingParams, "result": PingResult},
     "shutdown": {"params": ShutdownParams, "result": ShutdownResult},
     "health": {"params": HealthParams, "result": HealthResult},
+    "attrib/blame": {"params": AttribBlameParams, "result": AttribBlameResult},
+    "attrib/diff": {"params": AttribDiffParams, "result": AttribDiffResult},
     "doctor/run": {"params": DoctorRunParams, "result": DoctorRunResult},
     "ledger.append": {"params": LedgerAppendParams, "result": LedgerAppendResult},
     "ledger.query": {"params": LedgerQueryParams, "result": LedgerQueryResult},

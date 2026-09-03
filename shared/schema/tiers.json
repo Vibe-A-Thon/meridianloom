@@ -19,6 +19,12 @@
         "rpcMethods": ["doctor/run"]
       },
       {
+        "id": "recorder.attribution",
+        "tier": "flight-recorder",
+        "description": "Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges (FR-M33-02 subset; F0 Workstream C task 13). Zero model calls (FR-M36-07).",
+        "rpcMethods": ["attrib/blame", "attrib/diff"]
+      },
+      {
         "id": "recorder.ledger",
         "tier": "flight-recorder",
         "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).",

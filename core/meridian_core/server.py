@@ -28,6 +28,8 @@ from typing import Any
 import bus_types
 
 from . import doctor, protocol, tiers
+from .attribution import blame, diff as attribution_diff, wire as attribution_wire
+from .attribution import AttributionError
 from .ledger import core as ledger_core
 from .ledger import keys as ledger_keys
 from .ledger import wire as ledger_wire
@@ -66,6 +68,8 @@ class SidecarServer:
             "shutdown": SidecarServer._handle_shutdown,
             "health": SidecarServer._handle_health,
             "doctor/run": SidecarServer._handle_doctor_run,
+            "attrib/blame": SidecarServer._handle_attrib_blame,
+            "attrib/diff": SidecarServer._handle_attrib_diff,
             "ledger.append": SidecarServer._handle_ledger_append,
             "ledger.query": SidecarServer._handle_ledger_query,
             "ledger.getEntry": SidecarServer._handle_ledger_get_entry,
@@ -330,6 +334,64 @@ class SidecarServer:
             protocol.ERROR_NOT_IMPLEMENTED,
             f"{method} is contracted but not implemented yet (lands with {lands_with})",
         )
+
+    # -- attribution (FR-M33-02 subset, F0 Workstream C) ----------------------
+
+    def _attrib_repo_path(self, params: dict[str, Any]) -> str:
+        repo_path = (params or {}).get("repoPath") or self._workspace_dir
+        if not repo_path:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "attrib methods need repoPath (or a workspaceDir handshake)",
+            )
+        return repo_path
+
+    @staticmethod
+    def _attrib_error(error: AttributionError) -> _RpcError:
+        return _RpcError(protocol.INVALID_PARAMS, str(error))
+
+    def _handle_attrib_blame(
+        self, params: bus_types.AttribBlameParams
+    ) -> bus_types.AttribBlameResult:
+        params = params or {}
+        try:
+            repo, lines = blame.blame_with_repo(
+                self._attrib_repo_path(params),
+                ref=params.get("ref") or "HEAD",
+                paths=params.get("paths"),
+            )
+        except AttributionError as error:
+            raise self._attrib_error(error) from error
+        return {
+            "repoPath": str(repo),
+            "ref": params.get("ref") or "HEAD",
+            "lines": attribution_wire.blame_lines_to_wire(lines),
+        }
+
+    def _handle_attrib_diff(
+        self, params: bus_types.AttribDiffParams
+    ) -> bus_types.AttribDiffResult:
+        params = params or {}
+        base = params.get("base")
+        compare = params.get("compare")
+        staged = bool(params.get("staged"))
+        try:
+            repo, files = attribution_diff.diff_with_repo(
+                self._attrib_repo_path(params),
+                base=base,
+                compare=compare,
+                staged=staged,
+                paths=params.get("paths"),
+            )
+        except AttributionError as error:
+            raise self._attrib_error(error) from error
+        return {
+            "repoPath": str(repo),
+            "base": base,
+            "compare": compare,
+            "staged": staged,
+            "files": attribution_wire.file_diffs_to_wire(files),
+        }
 
     # -- ledger (FR-M10-01/02/07/08/12) -------------------------------------
 

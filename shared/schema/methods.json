@@ -23,6 +23,16 @@
       "params": { "$ref": "#/$defs/HealthParams" },
       "result": { "$ref": "#/$defs/HealthResult" }
     },
+    "attrib/blame": {
+      "description": "FR-M33-02 subset (F0 Workstream C): git-native line attribution. Every line of the given paths (or all tracked files) at ref (default HEAD) mapped to (commit, author name/email, timestamp, content). Blame never lands on merge commits; renames are followed. Zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/AttribBlameParams" },
+      "result": { "$ref": "#/$defs/AttribBlameResult" }
+    },
+    "attrib/diff": {
+      "description": "FR-M33-02 subset (F0 Workstream C): unified-diff attribution for the working tree (default), the index (staged), or a commit range (base..compare, added lines annotated with blame attribution at compare). Renames detected; untracked files reported as added. Working-tree added lines carry commit null — there is no commit yet.",
+      "params": { "$ref": "#/$defs/AttribDiffParams" },
+      "result": { "$ref": "#/$defs/AttribDiffResult" }
+    },
     "doctor/run": {
       "description": "FR-M30-01: run the self-diagnostic check registry (interpreter, sidecar, keychain/signing key, ledger integrity, git hooks, observer health). Subsystems that are not built yet report a clear not-installed status with remediation instead of failing.",
       "params": { "$ref": "#/$defs/DoctorRunParams" },
@@ -231,6 +241,108 @@
           "description": "Worst status across all checks: fail > warn > pass."
         },
         "checks": { "type": "array", "items": { "$ref": "#/$defs/DoctorCheck" } }
+      },
+      "additionalProperties": false
+    },
+    "AttribBlameParams": {
+      "type": "object",
+      "required": ["repoPath"],
+      "properties": {
+        "repoPath": { "type": "string", "description": "Absolute path of the git repository (any directory inside it is accepted and resolved to the toplevel)." },
+        "ref": { "type": "string", "description": "Commit-ish to blame; default HEAD." },
+        "paths": { "type": "array", "items": { "type": "string" }, "description": "Worktree-relative file filter; absent blames every tracked file." }
+      },
+      "additionalProperties": false
+    },
+    "AttribBlameLine": {
+      "type": "object",
+      "required": ["path", "line", "commit", "authorName", "authorEmail", "authorTime", "content"],
+      "properties": {
+        "path": { "type": "string" },
+        "line": { "type": "integer", "description": "1-based line number in the ref's version of the file." },
+        "commit": { "type": "string", "description": "Full hex sha of the introducing commit; never a merge commit." },
+        "authorName": { "type": "string" },
+        "authorEmail": { "type": "string" },
+        "authorTime": { "type": "string", "description": "Author timestamp, ISO 8601 UTC." },
+        "content": { "type": "string", "description": "Line content without the terminator (CRLF tolerated)." }
+      },
+      "additionalProperties": false
+    },
+    "AttribBlameResult": {
+      "type": "object",
+      "required": ["repoPath", "ref", "lines"],
+      "properties": {
+        "repoPath": { "type": "string", "description": "Resolved repository toplevel." },
+        "ref": { "type": "string" },
+        "lines": { "type": "array", "items": { "$ref": "#/$defs/AttribBlameLine" } }
+      },
+      "additionalProperties": false
+    },
+    "AttribDiffParams": {
+      "type": "object",
+      "required": ["repoPath"],
+      "properties": {
+        "repoPath": { "type": "string", "description": "Absolute path of the git repository (any directory inside it is accepted and resolved to the toplevel)." },
+        "base": { "type": "string", "description": "Range start (commit-ish). With compare: base..compare; alone: base vs worktree." },
+        "compare": { "type": "string", "description": "Range end (commit-ish); added lines are blame-annotated at this ref." },
+        "staged": { "type": "boolean", "description": "Diff the index against HEAD (base optionally overrides HEAD)." },
+        "paths": { "type": "array", "items": { "type": "string" }, "description": "Worktree-relative path filter." }
+      },
+      "additionalProperties": false
+    },
+    "AttribDiffLineKind": {
+      "enum": ["added", "removed", "context"]
+    },
+    "AttribDiffLine": {
+      "type": "object",
+      "required": ["kind", "oldLine", "newLine", "content"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/AttribDiffLineKind" },
+        "oldLine": { "type": ["integer", "null"], "description": "1-based in the base version; null for pure additions." },
+        "newLine": { "type": ["integer", "null"], "description": "1-based in the compare version; null for removals." },
+        "content": { "type": "string" },
+        "commit": { "type": ["string", "null"], "description": "Introducing commit for range-diff added lines (blame at compare); null for worktree/index changes." },
+        "authorName": { "type": ["string", "null"] },
+        "authorEmail": { "type": ["string", "null"] },
+        "authorTime": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "AttribHunk": {
+      "type": "object",
+      "required": ["oldStart", "oldCount", "newStart", "newCount", "lines"],
+      "properties": {
+        "oldStart": { "type": "integer" },
+        "oldCount": { "type": "integer" },
+        "newStart": { "type": "integer" },
+        "newCount": { "type": "integer" },
+        "lines": { "type": "array", "items": { "$ref": "#/$defs/AttribDiffLine" } }
+      },
+      "additionalProperties": false
+    },
+    "AttribFileStatus": {
+      "enum": ["added", "modified", "deleted", "renamed"]
+    },
+    "AttribFileDiff": {
+      "type": "object",
+      "required": ["path", "oldPath", "status", "hunks"],
+      "properties": {
+        "path": { "type": "string", "description": "Compare-side path." },
+        "oldPath": { "type": ["string", "null"], "description": "Set for renames." },
+        "status": { "$ref": "#/$defs/AttribFileStatus" },
+        "hunks": { "type": "array", "items": { "$ref": "#/$defs/AttribHunk" } }
+      },
+      "additionalProperties": false
+    },
+    "AttribDiffResult": {
+      "type": "object",
+      "required": ["repoPath", "base", "compare", "staged", "files"],
+      "properties": {
+        "repoPath": { "type": "string", "description": "Resolved repository toplevel." },
+        "base": { "type": ["string", "null"] },
+        "compare": { "type": ["string", "null"] },
+        "staged": { "type": "boolean" },
+        "files": { "type": "array", "items": { "$ref": "#/$defs/AttribFileDiff" } }
       },
       "additionalProperties": false
     },
