@@ -41,6 +41,12 @@ class ObserverManager:
     def register(self, observer: Observer) -> None:
         self._observers[observer.vendor] = observer
 
+    def warn(self, vendor: str, message: str) -> None:
+        """Record a sticky degradation warning directly (never silent)."""
+        retained = self._warnings.setdefault(vendor, [])
+        if message not in retained:
+            retained.append(message)
+
     @property
     def vendors(self) -> list[str]:
         return sorted(self._observers)

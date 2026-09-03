@@ -497,11 +497,51 @@ class TrustSummaryParams(TypedDict):
 class TrustSummaryResult(TypedDict):
     entries: list[dict[str, Any]]
 
+# FR-M35-02 observation confidence: direct (the agent's own telemetry/ACP session), telemetry (evidence the agent left behind: git trailers, SCM/PR API, OS process listing), inferred (filesystem/git inference — the floor, never silence).
+ObservationConfidence = Literal["direct", "telemetry", "inferred"]
+
+# SEC-27: observer-facing APIs accept NO credential parameters — the observation surface is one-way. Empty params; additionalProperties false keeps it that way.
+class ObserveSessionsParams(TypedDict):
+    pass
+
+# X-29: one external agent session as shown in the Crown — vendor tag (FR-M35-03) + observation confidence (FR-M35-02), never indistinguishable from a Meridian-native pass.
+class ObserveSession(TypedDict):
+    sessionId: str
+    vendor: str  # claude-code | copilot | cursor | codex | devin | gemini
+    confidence: ObservationConfidence
+    source: str  # process | otel | git-trailers | scm-api | filesystem
+    detail: str
+    pid: NotRequired[int | None]  # OS pid when detected by process inspection (X-29).
+    startedAt: NotRequired[str | None]  # ISO 8601 UTC; null when unknown (process sessions).
+    lastActivityAt: NotRequired[str | None]
+    agentId: NotRequired[str | None]
+
+class ObserveSessionsResult(TypedDict):
+    sessions: list[ObserveSession]
+    warnings: list[str]  # Sticky NFR-32 degradation warnings visible in the UI.
+
+class ObserveHealthParams(TypedDict):
+    pass
+
+# FR-M35-08: one observer adapter's health — versioned against the vendor release.
+class ObserverHealth(TypedDict):
+    name: str
+    vendor: NotRequired[str]
+    status: Literal["ok", "degraded"]  # degraded means an NFR-32 downgrade warning is active — observation continues at lower confidence, never silence.
+    detail: str
+    vendorRelease: NotRequired[str]
+    adapterVersion: NotRequired[str]
+    warnings: list[str]
+
+class ObserveHealthResult(TypedDict):
+    observers: list[ObserverHealth]
+    monitorRunning: bool  # True once the X-29 session monitor thread is polling.
+
 class TierSetParams(TypedDict):
     tiers: list[TierName]
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary"]
 
 # Every notification method on the bus.
 NotificationName = Literal["tiers/set", "$/cancel"]
@@ -557,13 +597,14 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.doctor", "tier": "flight-recorder", "description": "Self-diagnostic check registry (FR-M30-01).", "rpcMethods": ["doctor/run"]},
     {"id": "recorder.attribution", "tier": "flight-recorder", "description": "Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).", "rpcMethods": ["attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify"]},
     {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]},
+    {"id": "recorder.observers", "tier": "flight-recorder", "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).", "rpcMethods": ["observe/sessions", "observe/health"]},
     {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.", "rpcMethods": ["gate.evaluate"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.", "rpcMethods": ["steer.send"]},
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary")
 NOTIFICATION_METHODS: tuple[str, ...] = ("tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -576,6 +617,8 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "attrib/diff": {"params": AttribDiffParams, "result": AttribDiffResult},
     "attrib/symbol": {"params": AttribSymbolParams, "result": AttribSymbolResult},
     "attrib/classify": {"params": AttribClassifyParams, "result": AttribClassifyResult},
+    "observe/sessions": {"params": ObserveSessionsParams, "result": ObserveSessionsResult},
+    "observe/health": {"params": ObserveHealthParams, "result": ObserveHealthResult},
     "doctor/run": {"params": DoctorRunParams, "result": DoctorRunResult},
     "ledger.append": {"params": LedgerAppendParams, "result": LedgerAppendResult},
     "ledger.query": {"params": LedgerQueryParams, "result": LedgerQueryResult},

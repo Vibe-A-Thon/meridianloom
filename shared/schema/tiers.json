@@ -31,6 +31,12 @@
         "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]
       },
       {
+        "id": "recorder.observers",
+        "tier": "flight-recorder",
+        "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).",
+        "rpcMethods": ["observe/sessions", "observe/health"]
+      },
+      {
         "id": "governor.gates",
         "tier": "governor",
         "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.",

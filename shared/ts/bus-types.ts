@@ -623,12 +623,61 @@ export interface TrustSummaryResult {
   "entries": Record<string, unknown>[];
 }
 
+/** FR-M35-02 observation confidence: direct (the agent's own telemetry/ACP session), telemetry (evidence the agent left behind: git trailers, SCM/PR API, OS process listing), inferred (filesystem/git inference — the floor, never silence). */
+export type ObservationConfidence = "direct" | "telemetry" | "inferred";
+
+/** SEC-27: observer-facing APIs accept NO credential parameters — the observation surface is one-way. Empty params; additionalProperties false keeps it that way. */
+export type ObserveSessionsParams = Record<string, never>;
+
+/** X-29: one external agent session as shown in the Crown — vendor tag (FR-M35-03) + observation confidence (FR-M35-02), never indistinguishable from a Meridian-native pass. */
+export interface ObserveSession {
+  "sessionId": string;
+  /** claude-code | copilot | cursor | codex | devin | gemini */
+  "vendor": string;
+  "confidence": ObservationConfidence;
+  /** process | otel | git-trailers | scm-api | filesystem */
+  "source": string;
+  "detail": string;
+  /** OS pid when detected by process inspection (X-29). */
+  "pid"?: number | null;
+  /** ISO 8601 UTC; null when unknown (process sessions). */
+  "startedAt"?: string | null;
+  "lastActivityAt"?: string | null;
+  "agentId"?: string | null;
+}
+
+export interface ObserveSessionsResult {
+  "sessions": ObserveSession[];
+  /** Sticky NFR-32 degradation warnings visible in the UI. */
+  "warnings": string[];
+}
+
+export type ObserveHealthParams = Record<string, never>;
+
+/** FR-M35-08: one observer adapter's health — versioned against the vendor release. */
+export interface ObserverHealth {
+  "name": string;
+  "vendor"?: string;
+  /** degraded means an NFR-32 downgrade warning is active — observation continues at lower confidence, never silence. */
+  "status": "ok" | "degraded";
+  "detail": string;
+  "vendorRelease"?: string;
+  "adapterVersion"?: string;
+  "warnings": string[];
+}
+
+export interface ObserveHealthResult {
+  "observers": ObserverHealth[];
+  /** True once the X-29 session monitor thread is polling. */
+  "monitorRunning": boolean;
+}
+
 export interface TierSetParams {
   "tiers": TierName[];
 }
 
 /** Every request/response method on the bus. */
-export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "steer.send" | "trust.summary";
+export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "observe/sessions" | "observe/health" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "steer.send" | "trust.summary";
 
 /** Every notification method on the bus. */
 export type NotificationName = "tiers/set" | "$/cancel";
@@ -684,7 +733,7 @@ export const TIERS = ["flight-recorder","governor","orchestra"] as const;
 export const DEFAULT_ENABLED_TIERS: readonly TierName[] = ["flight-recorder"];
 
 /** FR-M36-05: capability registry; every capability is owned by exactly one tier. */
-export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff","attrib/symbol","attrib/classify"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.","rpcMethods":["gate.evaluate"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
+export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff","attrib/symbol","attrib/classify"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"recorder.observers","tier":"flight-recorder","description":"External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).","rpcMethods":["observe/sessions","observe/health"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.","rpcMethods":["gate.evaluate"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
 
 /** Params/result pairing for every request method. */
 export interface MethodMap {
@@ -696,6 +745,8 @@ export interface MethodMap {
   "attrib/diff": { params: AttribDiffParams; result: AttribDiffResult };
   "attrib/symbol": { params: AttribSymbolParams; result: AttribSymbolResult };
   "attrib/classify": { params: AttribClassifyParams; result: AttribClassifyResult };
+  "observe/sessions": { params: ObserveSessionsParams; result: ObserveSessionsResult };
+  "observe/health": { params: ObserveHealthParams; result: ObserveHealthResult };
   "doctor/run": { params: DoctorRunParams; result: DoctorRunResult };
   "ledger.append": { params: LedgerAppendParams; result: LedgerAppendResult };
   "ledger.query": { params: LedgerQueryParams; result: LedgerQueryResult };
@@ -713,7 +764,7 @@ export interface MethodMap {
 export type RequestMethod = keyof MethodMap;
 
 /** Runtime list of every request method (for tier/ownership checks). */
-export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","loop.start","loop.stop","loop.status","gate.evaluate","steer.send","trust.summary"] as const;
+export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","observe/sessions","observe/health","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","loop.start","loop.stop","loop.status","gate.evaluate","steer.send","trust.summary"] as const;
 
 /** Runtime list of every notification method. */
 export const NOTIFICATION_METHODS = ["tiers/set","$/cancel"] as const;

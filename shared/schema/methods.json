@@ -43,6 +43,16 @@
       "params": { "$ref": "#/$defs/AttribClassifyParams" },
       "result": { "$ref": "#/$defs/AttribClassifyResult" }
     },
+    "observe/sessions": {
+      "description": "FR-M35-03, X-29 (F0 Workstream D tasks 18-20): the external-agent session list behind the Crown. Sessions are detected by process inspection (vendor agent process names) and the observer framework fallback chain (OTel export, git trailers, SCM/PR API, filesystem inference), each carrying a vendor tag and observation confidence (FR-M35-02: direct/telemetry/inferred). Reads a cache refreshed by the session-monitor thread — this RPC NEVER waits on observer IO (NFR-29).",
+      "params": { "$ref": "#/$defs/ObserveSessionsParams" },
+      "result": { "$ref": "#/$defs/ObserveSessionsResult" }
+    },
+    "observe/health": {
+      "description": "FR-M35-08 (F0 Workstream D task 17): per-observer health for the External Agents screen and doctor — status ok|degraded, vendor release and adapter version (versioned observer adapters), and the sticky NFR-32 degradation warnings (format change -> visible warning, never silence).",
+      "params": { "$ref": "#/$defs/ObserveHealthParams" },
+      "result": { "$ref": "#/$defs/ObserveHealthResult" }
+    },
     "doctor/run": {
       "description": "FR-M30-01: run the self-diagnostic check registry (interpreter, sidecar, keychain/signing key, ledger integrity, git hooks, observer health). Subsystems that are not built yet report a clear not-installed status with remediation instead of failing.",
       "params": { "$ref": "#/$defs/DoctorRunParams" },
@@ -894,6 +904,71 @@
       "required": ["entries"],
       "properties": {
         "entries": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "ObservationConfidence": {
+      "description": "FR-M35-02 observation confidence: direct (the agent's own telemetry/ACP session), telemetry (evidence the agent left behind: git trailers, SCM/PR API, OS process listing), inferred (filesystem/git inference — the floor, never silence).",
+      "enum": ["direct", "telemetry", "inferred"]
+    },
+    "ObserveSessionsParams": {
+      "description": "SEC-27: observer-facing APIs accept NO credential parameters — the observation surface is one-way. Empty params; additionalProperties false keeps it that way.",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "ObserveSession": {
+      "description": "X-29: one external agent session as shown in the Crown — vendor tag (FR-M35-03) + observation confidence (FR-M35-02), never indistinguishable from a Meridian-native pass.",
+      "type": "object",
+      "required": ["sessionId", "vendor", "confidence", "source", "detail"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "vendor": { "type": "string", "description": "claude-code | copilot | cursor | codex | devin | gemini" },
+        "confidence": { "$ref": "#/$defs/ObservationConfidence" },
+        "source": { "type": "string", "description": "process | otel | git-trailers | scm-api | filesystem" },
+        "detail": { "type": "string" },
+        "pid": { "type": ["integer", "null"], "description": "OS pid when detected by process inspection (X-29)." },
+        "startedAt": { "type": ["string", "null"], "description": "ISO 8601 UTC; null when unknown (process sessions)." },
+        "lastActivityAt": { "type": ["string", "null"] },
+        "agentId": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "ObserveSessionsResult": {
+      "type": "object",
+      "required": ["sessions", "warnings"],
+      "properties": {
+        "sessions": { "type": "array", "items": { "$ref": "#/$defs/ObserveSession" } },
+        "warnings": { "type": "array", "items": { "type": "string" }, "description": "Sticky NFR-32 degradation warnings visible in the UI." }
+      },
+      "additionalProperties": false
+    },
+    "ObserveHealthParams": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "ObserverHealth": {
+      "description": "FR-M35-08: one observer adapter's health — versioned against the vendor release.",
+      "type": "object",
+      "required": ["name", "status", "detail", "warnings"],
+      "properties": {
+        "name": { "type": "string" },
+        "vendor": { "type": "string" },
+        "status": { "enum": ["ok", "degraded"], "description": "degraded means an NFR-32 downgrade warning is active — observation continues at lower confidence, never silence." },
+        "detail": { "type": "string" },
+        "vendorRelease": { "type": "string" },
+        "adapterVersion": { "type": "string" },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "ObserveHealthResult": {
+      "type": "object",
+      "required": ["observers", "monitorRunning"],
+      "properties": {
+        "observers": { "type": "array", "items": { "$ref": "#/$defs/ObserverHealth" } },
+        "monitorRunning": { "type": "boolean", "description": "True once the X-29 session monitor thread is polling." }
       },
       "additionalProperties": false
     },

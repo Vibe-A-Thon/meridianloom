@@ -48,13 +48,18 @@ run('doctor/run against the real Python sidecar (FR-M30-01)', () => {
           'observers',
         ]);
         // The live interpreter must pass; the not-yet-built subsystems must
-        // warn with remediation, never crash.
+        // warn with remediation, never crash. Observers are built (F0
+        // Workstream D): they pass when healthy and warn when degraded.
         const byId = new Map(report.checks.map((c) => [c.id, c]));
         expect(byId.get('interpreter')?.status).toBe('pass');
         expect(byId.get('sidecar')?.status).toBe('pass');
-        for (const id of ['signing-key', 'ledger', 'git-hooks', 'observers']) {
+        for (const id of ['signing-key', 'ledger', 'git-hooks']) {
           expect(byId.get(id)?.status).toBe('warn');
           expect(byId.get(id)?.remediation).toBeTruthy();
+        }
+        expect(['pass', 'warn']).toContain(byId.get('observers')?.status);
+        if (byId.get('observers')?.status === 'warn') {
+          expect(byId.get('observers')?.remediation).toBeTruthy();
         }
       } finally {
         client.kill();

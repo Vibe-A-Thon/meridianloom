@@ -5,9 +5,10 @@ The server is a plain object so tests can drive it without real stdio:
 ``serve`` is the production loop over stdin/stdout.
 
 FR-M32-09: handler signatures are typed with the generated bus types
-(shared/py/bus_types.py, from shared/schema/). Lifecycle methods are real;
-ledger and loop methods are registered placeholders that answer with the
-contracted NOT_IMPLEMENTED error until Workstreams D/E fill them in.
+(shared/py/bus_types.py, from shared/schema/). Lifecycle and observer
+methods are real; loop and gate methods are registered placeholders that
+answer with the contracted NOT_IMPLEMENTED error until later phases fill
+them in.
 """
 
 from __future__ import annotations
@@ -36,6 +37,10 @@ from .attribution._git import normalise_repo_path as attribution_normalise
 from .ledger import core as ledger_core
 from .ledger import keys as ledger_keys
 from .ledger import wire as ledger_wire
+from .observers import claude as observer_claude
+from .observers import copilot as observer_copilot
+from .observers import manager as observer_manager
+from .observers import sessions as observer_sessions
 from .rpc import (
     FramedReader,
     FramedWriter,
@@ -65,12 +70,25 @@ class SidecarServer:
         self._ledger = ledger
         self._workspace_dir: str | None = None
         self._signing_seed: bytes | None = None
+        # FR-M35-08/X-29: the observer manager exists from boot (cheap,
+        # credential-free constructors); the session monitor thread starts
+        # once the handshake carries a workspace. Observer IO happens only
+        # on the monitor thread — observe/* RPCs read its cache (NFR-29).
+        self._observers = observer_manager.ObserverManager(
+            [
+                observer_claude.ClaudeCodeObserver(),
+                observer_copilot.CopilotObserver(),
+            ]
+        )
+        self._session_monitor: observer_sessions.SessionMonitor | None = None
         self._handlers: dict[str, Handler] = {
             "handshake": SidecarServer._handle_handshake,
             "ping": SidecarServer._handle_ping,
             "shutdown": SidecarServer._handle_shutdown,
             "health": SidecarServer._handle_health,
             "doctor/run": SidecarServer._handle_doctor_run,
+            "observe/sessions": SidecarServer._handle_observe_sessions,
+            "observe/health": SidecarServer._handle_observe_health,
             "attrib/blame": SidecarServer._handle_attrib_blame,
             "attrib/diff": SidecarServer._handle_attrib_diff,
             "attrib/symbol": SidecarServer._handle_attrib_symbol,
@@ -245,10 +263,12 @@ class SidecarServer:
         # FR-M36-05: adopt the workspace's enabled tiers (clamped to known
         # tiers plus the always-on base tier).
         self._enabled_tiers = tiers.normalise_enabled_tiers((params or {}).get("tiers"))
-        # FR-M10-01: the workspace path locates the ledger.
+        # FR-M10-01: the workspace path locates the ledger and feeds the
+        # X-29 session monitor.
         workspace_dir = (params or {}).get("workspaceDir")
         if isinstance(workspace_dir, str) and workspace_dir:
             self._workspace_dir = workspace_dir
+            self._ensure_session_monitor()
         # FR-M10-04/SEC-06: signing-key material arrives from the OS-keychain
         # (host-side SecretStorage) as a base64 32-byte seed. Decoded here
         # once, held in memory only, and rejected if malformed rather than
@@ -292,6 +312,8 @@ class SidecarServer:
         self, params: bus_types.ShutdownParams
     ) -> bus_types.ShutdownResult:
         logger.info("shutdown requested: %s", (params or {}).get("reason", "no reason"))
+        if self._session_monitor is not None:
+            self._session_monitor.stop()
         self._shutdown_requested.set()
         return {"ok": True}
 
@@ -307,9 +329,13 @@ class SidecarServer:
         self, params: bus_types.DoctorRunParams
     ) -> bus_types.DoctorRunResult:
         # FR-M30-01. The context wires in the subsystems that exist; the
-        # not-yet-built ones (observers) take the registry's not-installed
-        # path with remediation instead of failing.
-        context = doctor.DoctorContext(started_at=self._started_at)
+        # not-yet-built ones (trailer hook installer) take the registry's
+        # not-installed path with remediation instead of failing.
+        context = doctor.DoctorContext(
+            started_at=self._started_at,
+            # FR-M35-08: the real observer manager, not a stub.
+            observer_health=self._observers.health,
+        )
         if self._ledger is not None:
             # FR-M10-04/FR-M10-09: real probes once the ledger is open.
             ledger = self._ledger
@@ -326,6 +352,47 @@ class SidecarServer:
                 str(error),
                 data={"validChecks": doctor.check_ids()},
             ) from error
+
+    def _ensure_session_monitor(self) -> observer_sessions.SessionMonitor:
+        """Start the X-29 session monitor once a workspace is known.
+
+        All observer IO runs on the monitor thread; RPC handlers only ever
+        read its cache (NFR-29 — observation never blocks the caller).
+        """
+        if self._session_monitor is None:
+            assert self._workspace_dir is not None
+            self._session_monitor = observer_sessions.SessionMonitor(
+                self._observers, self._workspace_dir
+            )
+            self._session_monitor.start()
+        return self._session_monitor
+
+    def _handle_observe_sessions(
+        self, params: bus_types.ObserveSessionsParams
+    ) -> bus_types.ObserveSessionsResult:
+        # X-29: served from the monitor's cache — never blocks on observer
+        # IO (a slow gh probe or OTLP parse cannot delay this response).
+        monitor = self._session_monitor
+        if monitor is None or not monitor.running:
+            return {
+                "sessions": [],
+                "warnings": [
+                    "session observation not started — no workspaceDir handshake yet"
+                ],
+            }
+        snapshot = monitor.snapshot()
+        return {"sessions": snapshot["sessions"], "warnings": snapshot["warnings"]}
+
+    def _handle_observe_health(
+        self, params: bus_types.ObserveHealthParams
+    ) -> bus_types.ObserveHealthResult:
+        # FR-M35-08: pure in-memory health records; safe to compute inline.
+        return {
+            "observers": self._observers.health(),
+            "monitorRunning": bool(
+                self._session_monitor and self._session_monitor.running
+            ),
+        }
 
     @staticmethod
     def _verify_for_doctor(ledger: ledger_core.Ledger) -> tuple[bool, str]:
