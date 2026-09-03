@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import type { DoctorRunResult } from '../../shared/ts/bus-types';
+import { renderDoctorReport } from './doctor';
 
 /**
  * FR-M1-03: exactly these twelve commands. Ids here are the single source
@@ -21,9 +23,18 @@ export const COMMANDS = [
 
 export type CommandId = (typeof COMMANDS)[number]['id'];
 
-export function registerCommands(): vscode.Disposable[] {
+export interface CommandDeps {
+  /**
+   * FR-M30-01: runs the full doctor (host + sidecar checks) and returns the
+   * structured report. The extension always supplies it; tests may omit it
+   * to prove the not-wired path reports instead of silently succeeding.
+   */
+  runDoctor?: () => Promise<DoctorRunResult>;
+}
+
+export function registerCommands(deps: CommandDeps = {}): vscode.Disposable[] {
   return COMMANDS.map(({ id }) =>
-    vscode.commands.registerCommand(id, () => runCommand(id)),
+    vscode.commands.registerCommand(id, () => runCommand(id, deps)),
   );
 }
 
@@ -31,8 +42,57 @@ export function registerCommands(): vscode.Disposable[] {
  * All real work is delegated to the sidecar (Workstream B). Until a client
  * is connected, a command reports instead of silently succeeding.
  */
-async function runCommand(id: CommandId): Promise<void> {
+async function runCommand(id: CommandId, deps: CommandDeps): Promise<void> {
+  if (id === 'meridian.doctor') {
+    await runDoctorCommand(deps);
+    return;
+  }
   await vscode.window.showWarningMessage(
     `Meridian Loom: '${id}' needs the sidecar, which is not connected yet.`,
   );
+}
+
+let doctorChannel: vscode.OutputChannel | undefined;
+
+/**
+ * FR-M30-01: render the structured report into a dedicated output channel
+ * and summarise via a notification. The command never throws — doctor is the
+ * diagnostic surface, so its own failure is reported, not propagated.
+ */
+async function runDoctorCommand(deps: CommandDeps): Promise<void> {
+  if (!deps.runDoctor) {
+    await vscode.window.showWarningMessage(
+      "Meridian Loom: 'meridian.doctor' needs the extension runtime, which is not started yet.",
+    );
+    return;
+  }
+  doctorChannel ??= vscode.window.createOutputChannel('Meridian Loom Doctor');
+  doctorChannel.appendLine(`meridian doctor — ${new Date().toISOString()}`);
+  try {
+    const report = await deps.runDoctor();
+    for (const line of renderDoctorReport(report)) {
+      doctorChannel.appendLine(line);
+    }
+    doctorChannel.appendLine('');
+    doctorChannel.show();
+    if (report.status === 'fail') {
+      await vscode.window.showErrorMessage(
+        'Meridian doctor found failing checks — details in the "Meridian Loom Doctor" output channel.',
+      );
+    } else if (report.status === 'warn') {
+      await vscode.window.showWarningMessage(
+        'Meridian doctor passed with warnings — details in the "Meridian Loom Doctor" output channel.',
+      );
+    } else {
+      await vscode.window.showInformationMessage('Meridian doctor: all checks passed.');
+    }
+  } catch (error) {
+    doctorChannel.appendLine(
+      `doctor itself failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    doctorChannel.show();
+    await vscode.window.showErrorMessage(
+      'Meridian doctor failed to run — details in the "Meridian Loom Doctor" output channel.',
+    );
+  }
 }

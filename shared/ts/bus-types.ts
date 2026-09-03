@@ -61,6 +61,34 @@ export interface HealthResult {
   "activeLoops": number;
 }
 
+/** Outcome of one doctor check. warn means usable but degraded or not yet installed; fail means broken and actionable. */
+export type DoctorCheckStatus = "pass" | "warn" | "fail";
+
+export interface DoctorCheck {
+  /** Stable machine id, e.g. interpreter, sidecar, ledger. */
+  "id": string;
+  /** Human-readable check name. */
+  "name": string;
+  "status": DoctorCheckStatus;
+  /** What was found, in one line. */
+  "detail": string;
+  /** Actionable fix; always present on warn and fail. */
+  "remediation"?: string;
+}
+
+export interface DoctorRunParams {
+  /** Subset of check ids to run; absent runs the whole registry. */
+  "checks"?: string[];
+  /** Absolute path of the workspace folder; the git-hooks check needs it. */
+  "workspaceDir"?: string;
+}
+
+export interface DoctorRunResult {
+  /** Worst status across all checks: fail > warn > pass. */
+  "status": DoctorCheckStatus;
+  "checks": DoctorCheck[];
+}
+
 export interface LedgerAppendParams {
   "entryType": string;
   "payload": Record<string, unknown>;
@@ -129,7 +157,7 @@ export interface CancelParams {
 }
 
 /** Every request/response method on the bus. */
-export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "ledger.append" | "ledger.query" | "loop.start" | "loop.stop" | "loop.status";
+export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "doctor/run" | "ledger.append" | "ledger.query" | "loop.start" | "loop.stop" | "loop.status";
 
 /** Every notification method on the bus. */
 export type NotificationName = "$/cancel";
@@ -173,6 +201,7 @@ export interface MethodMap {
   "ping": { params: PingParams; result: PingResult };
   "shutdown": { params: ShutdownParams; result: ShutdownResult };
   "health": { params: HealthParams; result: HealthResult };
+  "doctor/run": { params: DoctorRunParams; result: DoctorRunResult };
   "ledger.append": { params: LedgerAppendParams; result: LedgerAppendResult };
   "ledger.query": { params: LedgerQueryParams; result: LedgerQueryResult };
   "loop.start": { params: LoopStartParams; result: LoopStatusResult };

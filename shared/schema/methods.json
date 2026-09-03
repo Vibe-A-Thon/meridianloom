@@ -23,6 +23,11 @@
       "params": { "$ref": "#/$defs/HealthParams" },
       "result": { "$ref": "#/$defs/HealthResult" }
     },
+    "doctor/run": {
+      "description": "FR-M30-01: run the self-diagnostic check registry (interpreter, sidecar, keychain/signing key, ledger integrity, git hooks, observer health). Subsystems that are not built yet report a clear not-installed status with remediation instead of failing.",
+      "params": { "$ref": "#/$defs/DoctorRunParams" },
+      "result": { "$ref": "#/$defs/DoctorRunResult" }
+    },
     "ledger.append": {
       "description": "Append an entry to the hash-chained ledger (FR-M10-01/02). Simulation Core writes entries marked simulated (FR-M32-02).",
       "params": { "$ref": "#/$defs/LedgerAppendParams" },
@@ -130,6 +135,49 @@
         "uptimeSeconds": { "type": "number" },
         "pid": { "type": "integer" },
         "activeLoops": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "DoctorCheckStatus": {
+      "description": "Outcome of one doctor check. warn means usable but degraded or not yet installed; fail means broken and actionable.",
+      "enum": ["pass", "warn", "fail"]
+    },
+    "DoctorCheck": {
+      "type": "object",
+      "required": ["id", "name", "status", "detail"],
+      "properties": {
+        "id": { "type": "string", "description": "Stable machine id, e.g. interpreter, sidecar, ledger." },
+        "name": { "type": "string", "description": "Human-readable check name." },
+        "status": { "$ref": "#/$defs/DoctorCheckStatus" },
+        "detail": { "type": "string", "description": "What was found, in one line." },
+        "remediation": { "type": "string", "description": "Actionable fix; always present on warn and fail." }
+      },
+      "additionalProperties": false
+    },
+    "DoctorRunParams": {
+      "type": "object",
+      "properties": {
+        "checks": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Subset of check ids to run; absent runs the whole registry."
+        },
+        "workspaceDir": {
+          "type": "string",
+          "description": "Absolute path of the workspace folder; the git-hooks check needs it."
+        }
+      },
+      "additionalProperties": false
+    },
+    "DoctorRunResult": {
+      "type": "object",
+      "required": ["status", "checks"],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/DoctorCheckStatus",
+          "description": "Worst status across all checks: fail > warn > pass."
+        },
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/DoctorCheck" } }
       },
       "additionalProperties": false
     },

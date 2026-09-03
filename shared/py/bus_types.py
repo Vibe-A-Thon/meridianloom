@@ -54,6 +54,24 @@ class HealthResult(TypedDict):
     pid: int
     activeLoops: int
 
+# Outcome of one doctor check. warn means usable but degraded or not yet installed; fail means broken and actionable.
+DoctorCheckStatus = Literal["pass", "warn", "fail"]
+
+class DoctorCheck(TypedDict):
+    id: str  # Stable machine id, e.g. interpreter, sidecar, ledger.
+    name: str  # Human-readable check name.
+    status: DoctorCheckStatus
+    detail: str  # What was found, in one line.
+    remediation: NotRequired[str]  # Actionable fix; always present on warn and fail.
+
+class DoctorRunParams(TypedDict):
+    checks: NotRequired[list[str]]  # Subset of check ids to run; absent runs the whole registry.
+    workspaceDir: NotRequired[str]  # Absolute path of the workspace folder; the git-hooks check needs it.
+
+class DoctorRunResult(TypedDict):
+    status: DoctorCheckStatus  # Worst status across all checks: fail > warn > pass.
+    checks: list[DoctorCheck]
+
 class LedgerAppendParams(TypedDict):
     entryType: str
     payload: dict[str, Any]
@@ -108,7 +126,7 @@ class CancelParams(TypedDict):
     id: RequestId
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "ledger.append", "ledger.query", "loop.start", "loop.stop", "loop.status"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "doctor/run", "ledger.append", "ledger.query", "loop.start", "loop.stop", "loop.status"]
 
 # Every notification method on the bus.
 NotificationName = Literal["$/cancel"]
@@ -142,7 +160,7 @@ class NotificationEnvelope(TypedDict):
     method: NotificationName
     params: NotRequired[Any]
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "ledger.append", "ledger.query", "loop.start", "loop.stop", "loop.status",)
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "doctor/run", "ledger.append", "ledger.query", "loop.start", "loop.stop", "loop.status",)
 NOTIFICATION_METHODS: tuple[str, ...] = ("$/cancel",)
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -151,6 +169,7 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "ping": {"params": PingParams, "result": PingResult},
     "shutdown": {"params": ShutdownParams, "result": ShutdownResult},
     "health": {"params": HealthParams, "result": HealthResult},
+    "doctor/run": {"params": DoctorRunParams, "result": DoctorRunResult},
     "ledger.append": {"params": LedgerAppendParams, "result": LedgerAppendResult},
     "ledger.query": {"params": LedgerQueryParams, "result": LedgerQueryResult},
     "loop.start": {"params": LoopStartParams, "result": LoopStatusResult},

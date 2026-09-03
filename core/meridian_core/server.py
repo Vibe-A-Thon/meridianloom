@@ -22,7 +22,7 @@ from typing import Any
 
 import bus_types
 
-from . import protocol
+from . import doctor, protocol
 from .rpc import (
     FramedReader,
     FramedWriter,
@@ -48,6 +48,7 @@ class SidecarServer:
             "ping": SidecarServer._handle_ping,
             "shutdown": SidecarServer._handle_shutdown,
             "health": SidecarServer._handle_health,
+            "doctor/run": SidecarServer._handle_doctor_run,
             "ledger.append": lambda self, params: self._not_implemented("ledger.append", "Workstream D"),
             "ledger.query": lambda self, params: self._not_implemented("ledger.query", "Workstream D"),
             "loop.start": lambda self, params: self._not_implemented("loop.start", "Workstream E"),
@@ -177,6 +178,22 @@ class SidecarServer:
             "pid": os.getpid(),
             "activeLoops": 0,  # loops land in Workstream E
         }
+
+    def _handle_doctor_run(
+        self, params: bus_types.DoctorRunParams
+    ) -> bus_types.DoctorRunResult:
+        # FR-M30-01. The context wires in the subsystems that exist; the
+        # not-yet-built ones (ledger, observers) take the registry's
+        # not-installed path with remediation instead of failing.
+        context = doctor.DoctorContext(started_at=self._started_at)
+        try:
+            return doctor.run_doctor(params, context)
+        except doctor.UnknownCheckError as error:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                str(error),
+                data={"validChecks": doctor.check_ids()},
+            ) from error
 
     def _not_implemented(self, method: str, lands_with: str) -> None:
         raise _RpcError(

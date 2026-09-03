@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { registerCommands } from './commands';
+import { runDoctor } from './doctor';
 import { resolveInterpreter } from './interpreter';
 import { resolveCoreDir } from './layout';
 import { SecretStorageUnavailableError, SecretStore } from './secrets';
@@ -16,7 +17,27 @@ let supervisor: SidecarSupervisor | undefined;
  * stack so the extension host thread is never blocked.
  */
 export function activate(context: vscode.ExtensionContext): void {
-  context.subscriptions.push(...registerViews(), ...registerCommands());
+  context.subscriptions.push(
+    ...registerViews(),
+    ...registerCommands({
+      // FR-M30-01: doctor is wired at activation; the sidecar leg resolves
+      // lazily at run time so it works whenever a sidecar is up.
+      runDoctor: () =>
+        runDoctor({
+          verifySecrets: () => SecretStore.verifyAvailable(context.secrets),
+          runSidecarDoctor: supervisor?.currentClient
+            ? (params, signal) => {
+                const client = supervisor?.currentClient;
+                if (!client) {
+                  return Promise.reject(new Error('sidecar went away'));
+                }
+                return client.request('doctor/run', params, signal);
+              }
+            : undefined,
+          workspaceDir: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+        }),
+    }),
+  );
   context.subscriptions.push({
     dispose: () => {
       // FR-M3-02: any deactivation path — window close, reload, disable —

@@ -112,6 +112,11 @@ export const __progressCalls: ProgressOptions[] = [];
 export const __statusBarItems: Array<{ text: string; tooltip: unknown; shown: boolean }> = [];
 export const __configuration = new Map<string, unknown>();
 export const __extensions = new Map<string, unknown>();
+export const __outputChannels = new Map<
+  string,
+  { lines: string[]; shown: boolean; disposed: boolean }
+>();
+export const __workspaceFolders: Array<{ uri: Uri; name: string }> = [];
 
 let __lastProgressToken: ManualCancellationToken | undefined;
 
@@ -132,6 +137,8 @@ export function __reset(): void {
   __statusBarItems.length = 0;
   __configuration.clear();
   __extensions.clear();
+  __outputChannels.clear();
+  __workspaceFolders.length = 0;
   __lastProgressToken = undefined;
 }
 
@@ -200,7 +207,43 @@ export const window = {
     __statusBarItems.push(item);
     return item;
   },
+
+  createOutputChannel(name: string): OutputChannel {
+    let record = __outputChannels.get(name);
+    if (!record) {
+      record = { lines: [], shown: false, disposed: false };
+      __outputChannels.set(name, record);
+    }
+    const channel: OutputChannel = {
+      name,
+      appendLine(line: string) {
+        record.lines.push(line);
+      },
+      append(text: string) {
+        record.lines.push(text);
+      },
+      show() {
+        record.shown = true;
+      },
+      hide() {
+        record.shown = false;
+      },
+      dispose() {
+        record.disposed = true;
+      },
+    };
+    return channel;
+  },
 };
+
+export interface OutputChannel {
+  readonly name: string;
+  appendLine(line: string): void;
+  append(text: string): void;
+  show(): void;
+  hide(): void;
+  dispose(): void;
+}
 
 export enum StatusBarAlignment {
   Left = 1,
@@ -216,6 +259,10 @@ export interface StatusBarItem {
 }
 
 export const workspace = {
+  get workspaceFolders(): Array<{ uri: Uri; name: string }> | undefined {
+    return __workspaceFolders.length > 0 ? [...__workspaceFolders] : undefined;
+  },
+
   getConfiguration(section?: string) {
     const prefix = section ? `${section}.` : '';
     return {
