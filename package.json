@@ -1,0 +1,12 @@
+{
+  "name": "meridian-loom-root",
+  "private": true,
+  "workspaces": [
+    "extension"
+  ],
+  "scripts": {
+    "test": "node scripts/run-tests.mjs",
+    "build": "npm run build --workspace=extension",
+    "package": "npm run package --workspace=extension"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "name": "meridian-loom",
+  "displayName": "Meridian Loom",
+  "description": "A governed organisation of AI agents inside VS Code.",
+  "version": "0.0.1",
+  "publisher": "meridianloom",
+  "private": true,
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:meridianLoom.agents",
+    "onView:meridianLoom.stories",
+    "onView:meridianLoom.loops",
+    "onView:meridianLoom.skills",
+    "onView:meridianLoom.ledger"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "meridian-loom",
+          "title": "Meridian Loom",
+          "icon": "media/meridian.svg"
+        }
+      ]
+    },
+    "views": {
+      "meridian-loom": [
+        { "id": "meridianLoom.agents", "name": "Agents" },
+        { "id": "meridianLoom.stories", "name": "Stories" },
+        { "id": "meridianLoom.loops", "name": "Loops" },
+        { "id": "meridianLoom.skills", "name": "Skills" },
+        { "id": "meridianLoom.ledger", "name": "Ledger" }
+      ]
+    },
+    "commands": [
+      { "command": "meridian.ingestStory", "title": "Ingest Story", "category": "Meridian Loom" },
+      { "command": "meridian.openDashboard", "title": "Open Dashboard", "category": "Meridian Loom" },
+      { "command": "meridian.installSkill", "title": "Install Skill", "category": "Meridian Loom" },
+      { "command": "meridian.onboardAgent", "title": "Onboard Agent", "category": "Meridian Loom" },
+      { "command": "meridian.exportAgent", "title": "Export Agent", "category": "Meridian Loom" },
+      { "command": "meridian.importAgent", "title": "Import Agent", "category": "Meridian Loom" },
+      { "command": "meridian.verifyChain", "title": "Verify Chain", "category": "Meridian Loom" },
+      { "command": "meridian.haltAll", "title": "Halt All", "category": "Meridian Loom" },
+      { "command": "meridian.steer", "title": "Steer", "category": "Meridian Loom" },
+      { "command": "meridian.dryRun", "title": "Dry Run", "category": "Meridian Loom" },
+      { "command": "meridian.abortStory", "title": "Abort Story", "category": "Meridian Loom" },
+      { "command": "meridian.doctor", "title": "Doctor", "category": "Meridian Loom" }
+    ]
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node22 --external:vscode --sourcemap --outfile=dist/extension.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run && npm run typecheck",
+    "vscode:prepublish": "npm run build",
+    "package": "npm run build && vsce package --out ../../dist/"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/vscode": "1.95.0",
+    "@vscode/vsce": "3.2.2",
+    "esbuild": "0.24.2",
+    "typescript": "5.6.3",
+    "vitest": "2.1.9"
+  }
+}
