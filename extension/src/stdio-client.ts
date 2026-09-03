@@ -45,6 +45,14 @@ interface PendingRequest {
  * `$/cancel` notification so the sidecar can drop the work (FR-M1-09).
  * The client emits 'exit' (code, signal) when the child dies — the
  * supervisor owns restart policy on top of that signal.
+ *
+ * Remote (FR-M3-11): this client holds no local-machine assumptions. Under
+ * VS Code Remote (SSH, WSL, Dev Containers, Codespaces) the extension host
+ * runs on the remote host where the repository lives — the extension is
+ * `extensionKind: workspace` — so child_process spawn, process.env and the
+ * resolved interpreter path are all the remote ones, and stdio framing is
+ * identical. There is deliberately no TCP transport to port-forward
+ * (FR-M3-10).
  */
 export class StdioSidecarClient extends EventEmitter implements SidecarClient {
   private child: ChildProcessLike | undefined;

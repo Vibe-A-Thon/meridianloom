@@ -34,7 +34,9 @@ export type ProcessSpawner = (options: SpawnOptions) => ChildProcessLike;
  * Default spawner. Never uses a shell: a shell wrapper would put an extra
  * process between us and the interpreter, breaking signal delivery and the
  * teardown contract (FR-M3-02/03). Spawning directly also keeps behaviour
- * identical on the remote extension host (FR-M3-11).
+ * identical on the remote extension host (FR-M3-11): whatever `command` the
+ * FR-M3-05 chain resolved on the *remote* host is spawned there with the
+ * remote environment inherited from the extension host process.
  */
 export const defaultSpawner: ProcessSpawner = (options) =>
   spawn(options.command, options.args, {
