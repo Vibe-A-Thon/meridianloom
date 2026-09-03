@@ -17,11 +17,14 @@ INTERNAL_ERROR: int = -32603
 NOT_IMPLEMENTED: int = -32001
 PROTOCOL_MISMATCH: int = -32002
 TIER_DISABLED: int = -32003
+LEDGER_UNAVAILABLE: int = -32004
 
 class HandshakeParams(TypedDict):
     protocolVersion: int  # Must equal PROTOCOL_VERSION or the sidecar refuses with PROTOCOL_MISMATCH.
     client: str  # e.g. meridian-loom-extension
     tiers: NotRequired[list[TierName]]  # FR-M36-05: tiers enabled in this workspace (from the meridian.tiers setting). Absent means the sidecar default: flight-recorder only. The base tier is always enabled regardless.
+    workspaceDir: NotRequired[str]  # Absolute workspace path. The ledger lives at <workspaceDir>/.meridian/ledger (FR-M10-01). Absent: ledger RPCs answer LEDGER_UNAVAILABLE until configured.
+    ledgerSigningKey: NotRequired[str]  # Base64-encoded 32-byte Ed25519 seed (FR-M10-04), sourced from the extension host's OS-keychain-backed SecretStorage (SEC-06) and provisioned over this handshake. Held in memory only; never persisted to disk or written into the ledger. Absent: the sidecar signs tree heads with an ephemeral key and doctor reports the missing keychain key.
 
 class Capabilities(TypedDict):
     methods: list[str]

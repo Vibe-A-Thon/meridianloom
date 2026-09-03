@@ -116,6 +116,13 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
     // FR-M3-05: the interpreter comes from the resolution chain; the
     // resolved path is shown in the status bar.
     const interpreter = await resolveInterpreter();
+    // FR-M10-04/SEC-06: the ledger signing seed lives in the OS keychain
+    // (SecretStorage); it is provisioned to the sidecar over the handshake
+    // and held in memory there only.
+    const ledgerSigningKey = await SecretStore.getOrCreateLedgerSigningKey(
+      context.secrets,
+    );
+    const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     supervisor = new SidecarSupervisor({
       clientFactory: () =>
         new StdioSidecarClient({
@@ -124,6 +131,8 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
           // FR-M36-05: read at spawn time so a supervisor restart picks up a
           // tier change even if the tiers/set notification was missed.
           tiers: readEnabledTiers(),
+          ...(workspaceDir ? { workspaceDir } : {}),
+          ledgerSigningKey,
           onStderr: (line) => console.debug('[sidecar]', line),
         }),
       onError: (message) => {

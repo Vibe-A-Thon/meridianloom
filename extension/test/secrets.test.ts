@@ -94,3 +94,28 @@ describe('SecretStore (FR-M1-06)', () => {
     expect(probeStarted).toBe(true);
   });
 });
+
+describe('ledger signing key provisioning (FR-M10-04, SEC-06)', () => {
+  beforeEach(() => {
+    (vscode as unknown as { __reset(): void }).__reset();
+  });
+
+  it('creates a fresh 32-byte base64 seed and persists it', async () => {
+    const secrets = new vscode.MemorySecretStorage();
+    const seed = await SecretStore.getOrCreateLedgerSigningKey(secrets);
+    expect(Buffer.from(seed, 'base64')).toHaveLength(32);
+    // Persisted: a second call over the same backing sees it.
+    const again = await SecretStore.getOrCreateLedgerSigningKey(secrets);
+    expect(again).toBe(seed);
+  });
+
+  it('separate keychains get separate seeds', async () => {
+    const a = await SecretStore.getOrCreateLedgerSigningKey(
+      new vscode.MemorySecretStorage(),
+    );
+    const b = await SecretStore.getOrCreateLedgerSigningKey(
+      new vscode.MemorySecretStorage(),
+    );
+    expect(a).not.toBe(b);
+  });
+});

@@ -30,6 +30,11 @@ export interface StdioSidecarOptions {
   handshakeTimeoutMs?: number;
   /** FR-M36-05: enabled tiers, sent with the handshake; absent = sidecar default. */
   tiers?: readonly TierName[];
+  /** FR-M10-01: the workspace whose ledger this sidecar serves. */
+  workspaceDir?: string;
+  /** FR-M10-04/SEC-06: base64 Ed25519 seed from SecretStorage, provisioned
+   * to the sidecar in-memory only (never persisted by it). */
+  ledgerSigningKey?: string;
 }
 
 export class SidecarSpawnError extends Error {
@@ -170,6 +175,13 @@ export class StdioSidecarClient extends EventEmitter implements SidecarClient {
           // FR-M36-05: the workspace's enabled tiers ride the handshake so
           // the sidecar's tier gate is correct from the first request.
           ...(this.options.tiers ? { tiers: [...this.options.tiers] } : {}),
+          // FR-M10-01/FR-M10-04: locate the ledger and provision the
+          // signing key (OS keychain -> SecretStorage -> handshake; the
+          // sidecar keeps both in memory only).
+          ...(this.options.workspaceDir ? { workspaceDir: this.options.workspaceDir } : {}),
+          ...(this.options.ledgerSigningKey
+            ? { ledgerSigningKey: this.options.ledgerSigningKey }
+            : {}),
         }).then((result) => {
           const handshake = result as HandshakeResult;
           if (handshake.protocolVersion !== PROTOCOL_VERSION) {

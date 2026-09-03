@@ -7,7 +7,12 @@ name = "meridian-core"
 version = "0.0.1"
 description = "Meridian Loom sidecar: framed JSON-RPC 2.0 over stdio (FR-M3-01)."
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    # Approved pinned dependency for ledger cryptography: Ed25519 tree-head
+    # signing (FR-M10-04) and AES-GCM blob encryption (FR-M10-07). Python's
+    # stdlib has neither. NEVER use this (or anything else) for model calls.
+    "cryptography==49.0.0",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

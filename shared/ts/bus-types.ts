@@ -14,6 +14,7 @@ export const ErrorCode = {
   NOT_IMPLEMENTED: -32001,
   PROTOCOL_MISMATCH: -32002,
   TIER_DISABLED: -32003,
+  LEDGER_UNAVAILABLE: -32004,
 } as const;
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
 
@@ -24,6 +25,10 @@ export interface HandshakeParams {
   "client": string;
   /** FR-M36-05: tiers enabled in this workspace (from the meridian.tiers setting). Absent means the sidecar default: flight-recorder only. The base tier is always enabled regardless. */
   "tiers"?: TierName[];
+  /** Absolute workspace path. The ledger lives at <workspaceDir>/.meridian/ledger (FR-M10-01). Absent: ledger RPCs answer LEDGER_UNAVAILABLE until configured. */
+  "workspaceDir"?: string;
+  /** Base64-encoded 32-byte Ed25519 seed (FR-M10-04), sourced from the extension host's OS-keychain-backed SecretStorage (SEC-06) and provisioned over this handshake. Held in memory only; never persisted to disk or written into the ledger. Absent: the sidecar signs tree heads with an ephemeral key and doctor reports the missing keychain key. */
+  "ledgerSigningKey"?: string;
 }
 
 export interface Capabilities {

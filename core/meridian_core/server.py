@@ -12,17 +12,22 @@ contracted NOT_IMPLEMENTED error until Workstreams D/E fill them in.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import logging
 import os
 import platform
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import bus_types
 
 from . import doctor, protocol, tiers
+from .ledger import core as ledger_core
+from .ledger import keys as ledger_keys
 from .rpc import (
     FramedReader,
     FramedWriter,
@@ -39,13 +44,19 @@ Handler = Callable[["SidecarServer", Any], Any]
 class SidecarServer:
     """Dispatches framed JSON-RPC requests to method handlers."""
 
-    def __init__(self) -> None:
+    def __init__(self, ledger: ledger_core.Ledger | None = None) -> None:
         self._started_at = time.monotonic()
         self._shutdown_requested = threading.Event()
         self._ping_seq = 0
         # FR-M36-05: enabled tiers default to the base tier only; the
         # handshake and tiers/set notifications widen the set (G5).
         self._enabled_tiers = tiers.normalise_enabled_tiers(None)
+        # FR-M10-01/SEC-06: the ledger lives in the workspace and its
+        # signing key is provisioned over the handshake. Either may be
+        # injected directly by tests instead.
+        self._ledger = ledger
+        self._workspace_dir: str | None = None
+        self._signing_seed: bytes | None = None
         self._handlers: dict[str, Handler] = {
             "handshake": SidecarServer._handle_handshake,
             "ping": SidecarServer._handle_ping,
@@ -90,6 +101,36 @@ class SidecarServer:
     def enabled_tiers(self) -> set[str]:
         """FR-M36-05: the current enabled tier set (exposed for tests)."""
         return set(self._enabled_tiers)
+
+    @property
+    def ledger(self) -> ledger_core.Ledger | None:
+        """The open ledger, or None until a ledger RPC touches it (tests
+        may inject one via the constructor)."""
+        return self._ledger
+
+    def _ensure_ledger(self) -> ledger_core.Ledger:
+        """Open the ledger lazily on the first ledger RPC (FR-M10-01).
+
+        Requires workspaceDir from the handshake; without it the RPC
+        answers LEDGER_UNAVAILABLE — a configuration error, not a crash.
+        """
+        if self._ledger is None:
+            if not self._workspace_dir:
+                raise _RpcError(
+                    protocol.ERROR_LEDGER_UNAVAILABLE,
+                    "no workspace configured: the handshake must carry "
+                    "workspaceDir before ledger methods are usable",
+                )
+            provider: ledger_keys.SigningKeyProvider
+            if self._signing_seed is not None:
+                provider = ledger_keys.ProvisionedSigningKeyProvider(self._signing_seed)
+            else:
+                logger.warning("no ledgerSigningKey provisioned: ephemeral signer")
+                provider = ledger_keys.EphemeralSigningKeyProvider()
+            self._ledger = ledger_core.Ledger(
+                Path(self._workspace_dir) / ".meridian" / "ledger", provider
+            )
+        return self._ledger
 
     # -- dispatch -----------------------------------------------------------
 
@@ -188,6 +229,30 @@ class SidecarServer:
         # FR-M36-05: adopt the workspace's enabled tiers (clamped to known
         # tiers plus the always-on base tier).
         self._enabled_tiers = tiers.normalise_enabled_tiers((params or {}).get("tiers"))
+        # FR-M10-01: the workspace path locates the ledger.
+        workspace_dir = (params or {}).get("workspaceDir")
+        if isinstance(workspace_dir, str) and workspace_dir:
+            self._workspace_dir = workspace_dir
+        # FR-M10-04/SEC-06: signing-key material arrives from the OS-keychain
+        # (host-side SecretStorage) as a base64 32-byte seed. Decoded here
+        # once, held in memory only, and rejected if malformed rather than
+        # silently downgrading the signer.
+        seed_b64 = (params or {}).get("ledgerSigningKey")
+        if seed_b64 is not None:
+            try:
+                seed = base64.b64decode(seed_b64, validate=True)
+            except (binascii.Error, ValueError) as error:
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    "ledgerSigningKey is not valid base64",
+                ) from error
+            if len(seed) != ledger_keys.SEED_BYTES:
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    "ledgerSigningKey must decode to a 32-byte Ed25519 seed",
+                    data={"decodedBytes": len(seed)},
+                )
+            self._signing_seed = seed
         logger.info("enabled tiers: %s", sorted(self._enabled_tiers))
         return {
             "protocolVersion": protocol.PROTOCOL_VERSION,
