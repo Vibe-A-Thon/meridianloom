@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meridian-core"
+version = "0.0.1"
+description = "Meridian Loom sidecar: framed JSON-RPC 2.0 over stdio (FR-M3-01)."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["meridian_core*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
