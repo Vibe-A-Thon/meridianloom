@@ -1,0 +1,244 @@
+{
+  "$id": "methods.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The initial message-bus method set the Simulation Core serves (FR-M32-01 foundation). Lifecycle methods (handshake, ping, shutdown, health) are implemented; ledger and loop methods are the contract the Simulation Core fills in during Workstreams D and E.",
+  "x-methods": {
+    "handshake": {
+      "description": "First request after spawn. Carries the protocol version both ways; either side refuses on mismatch (FR-M3-08).",
+      "params": { "$ref": "#/$defs/HandshakeParams" },
+      "result": { "$ref": "#/$defs/HandshakeResult" }
+    },
+    "ping": {
+      "description": "Heartbeat probe (FR-M3-06).",
+      "params": { "$ref": "#/$defs/PingParams" },
+      "result": { "$ref": "#/$defs/PingResult" }
+    },
+    "shutdown": {
+      "description": "Polite teardown request; the sidecar exits after answering (FR-M3-02).",
+      "params": { "$ref": "#/$defs/ShutdownParams" },
+      "result": { "$ref": "#/$defs/ShutdownResult" }
+    },
+    "health": {
+      "description": "Richer than ping: state, uptime, in-flight loop count.",
+      "params": { "$ref": "#/$defs/HealthParams" },
+      "result": { "$ref": "#/$defs/HealthResult" }
+    },
+    "ledger.append": {
+      "description": "Append an entry to the hash-chained ledger (FR-M10-01/02). Simulation Core writes entries marked simulated (FR-M32-02).",
+      "params": { "$ref": "#/$defs/LedgerAppendParams" },
+      "result": { "$ref": "#/$defs/LedgerAppendResult" }
+    },
+    "ledger.query": {
+      "description": "Read back ledger entries (FR-M10-12).",
+      "params": { "$ref": "#/$defs/LedgerQueryParams" },
+      "result": { "$ref": "#/$defs/LedgerQueryResult" }
+    },
+    "loop.start": {
+      "description": "Start one of the six canonical loops (FR-M4-03).",
+      "params": { "$ref": "#/$defs/LoopStartParams" },
+      "result": { "$ref": "#/$defs/LoopStatusResult" }
+    },
+    "loop.stop": {
+      "description": "Stop a running loop; the loop checkpoints first (FR-M4-05).",
+      "params": { "$ref": "#/$defs/LoopStopParams" },
+      "result": { "$ref": "#/$defs/LoopStatusResult" }
+    },
+    "loop.status": {
+      "description": "Current state of a loop instance.",
+      "params": { "$ref": "#/$defs/LoopStatusParams" },
+      "result": { "$ref": "#/$defs/LoopStatusResult" }
+    },
+    "$/cancel": {
+      "description": "Notification cancelling an in-flight request by id (FR-M1-09).",
+      "notification": true,
+      "params": { "$ref": "#/$defs/CancelParams" }
+    }
+  },
+  "$defs": {
+    "HandshakeParams": {
+      "type": "object",
+      "required": ["protocolVersion", "client"],
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "description": "Must equal PROTOCOL_VERSION or the sidecar refuses with PROTOCOL_MISMATCH."
+        },
+        "client": { "type": "string", "description": "e.g. meridian-loom-extension" }
+      },
+      "additionalProperties": false
+    },
+    "Capabilities": {
+      "type": "object",
+      "required": ["methods", "framing"],
+      "properties": {
+        "methods": { "type": "array", "items": { "type": "string" } },
+        "framing": { "const": "ndjson" }
+      },
+      "additionalProperties": false
+    },
+    "HandshakeResult": {
+      "type": "object",
+      "required": ["protocolVersion", "coreVersion", "pythonVersion", "capabilities"],
+      "properties": {
+        "protocolVersion": { "type": "integer" },
+        "coreVersion": { "type": "string" },
+        "pythonVersion": { "type": "string" },
+        "capabilities": { "$ref": "#/$defs/Capabilities" }
+      },
+      "additionalProperties": false
+    },
+    "PingParams": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "PingResult": {
+      "type": "object",
+      "required": ["pong", "seq", "uptimeSeconds"],
+      "properties": {
+        "pong": { "const": true },
+        "seq": { "type": "integer", "description": "Monotonic per-process ping counter." },
+        "uptimeSeconds": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "ShutdownParams": {
+      "type": "object",
+      "properties": {
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "ShutdownResult": {
+      "type": "object",
+      "required": ["ok"],
+      "properties": {
+        "ok": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "HealthParams": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "HealthResult": {
+      "type": "object",
+      "required": ["status", "uptimeSeconds", "pid", "activeLoops"],
+      "properties": {
+        "status": { "enum": ["ok", "degraded", "shutting-down"] },
+        "uptimeSeconds": { "type": "number" },
+        "pid": { "type": "integer" },
+        "activeLoops": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "LedgerAppendParams": {
+      "type": "object",
+      "required": ["entryType", "payload"],
+      "properties": {
+        "entryType": { "type": "string" },
+        "payload": { "type": "object" },
+        "simulated": {
+          "type": "boolean",
+          "description": "Simulation Core marker (FR-M32-02); absent means false."
+        }
+      },
+      "additionalProperties": false
+    },
+    "LedgerAppendResult": {
+      "type": "object",
+      "required": ["sequence", "hash"],
+      "properties": {
+        "sequence": { "type": "integer" },
+        "hash": { "type": "string", "description": "Hash of this entry, chained from the previous (FR-M10-02)." }
+      },
+      "additionalProperties": false
+    },
+    "LedgerQueryParams": {
+      "type": "object",
+      "properties": {
+        "entryType": { "type": "string" },
+        "fromSequence": { "type": "integer" },
+        "limit": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "LedgerEntry": {
+      "type": "object",
+      "required": ["sequence", "entryType", "hash", "previousHash", "timestamp", "simulated", "payload"],
+      "properties": {
+        "sequence": { "type": "integer" },
+        "entryType": { "type": "string" },
+        "hash": { "type": "string" },
+        "previousHash": { "type": "string" },
+        "timestamp": { "type": "string", "description": "ISO 8601 UTC." },
+        "simulated": { "type": "boolean" },
+        "payload": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "LedgerQueryResult": {
+      "type": "object",
+      "required": ["entries"],
+      "properties": {
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/LedgerEntry" } }
+      },
+      "additionalProperties": false
+    },
+    "LoopKind": {
+      "description": "The six canonical loops (FR-M4-03).",
+      "enum": ["L1-micro", "L2-task", "L3-phase", "L4-delivery", "L5-learning", "L6-organisation"]
+    },
+    "LoopState": {
+      "enum": ["pending", "running", "paused", "blocked", "completed", "failed", "aborted"]
+    },
+    "LoopStartParams": {
+      "type": "object",
+      "required": ["loopId", "storyId", "kind"],
+      "properties": {
+        "loopId": { "type": "string" },
+        "storyId": { "type": "string" },
+        "kind": { "$ref": "#/$defs/LoopKind" }
+      },
+      "additionalProperties": false
+    },
+    "LoopStopParams": {
+      "type": "object",
+      "required": ["loopId"],
+      "properties": {
+        "loopId": { "type": "string" },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "LoopStatusParams": {
+      "type": "object",
+      "required": ["loopId"],
+      "properties": {
+        "loopId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "LoopStatusResult": {
+      "type": "object",
+      "required": ["loopId", "kind", "state", "iteration"],
+      "properties": {
+        "loopId": { "type": "string" },
+        "kind": { "$ref": "#/$defs/LoopKind" },
+        "state": { "$ref": "#/$defs/LoopState" },
+        "iteration": { "type": "integer" },
+        "lastCheckpoint": { "type": "string", "description": "Durable checkpoint id (FR-M4-05), present once the loop has checkpointed." }
+      },
+      "additionalProperties": false
+    },
+    "CancelParams": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "$ref": "protocol.json#/$defs/RequestId" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

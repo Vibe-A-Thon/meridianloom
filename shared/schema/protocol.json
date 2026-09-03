@@ -1,0 +1,67 @@
+{
+  "$id": "protocol.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Meridian message-bus wire protocol: framing constants, JSON-RPC 2.0 envelopes and error codes. Framing is NDJSON — one envelope per UTF-8 line (FR-M3-01, FR-M3-09).",
+  "x-protocol-version": 1,
+  "x-error-codes": {
+    "PARSE_ERROR": -32700,
+    "INVALID_REQUEST": -32600,
+    "METHOD_NOT_FOUND": -32601,
+    "INVALID_PARAMS": -32602,
+    "INTERNAL_ERROR": -32603,
+    "NOT_IMPLEMENTED": -32001,
+    "PROTOCOL_MISMATCH": -32002
+  },
+  "$defs": {
+    "RequestId": {
+      "description": "JSON-RPC 2.0 request id. The extension allocates monotonically increasing integers; strings are accepted for forwards compatibility.",
+      "type": ["integer", "string"]
+    },
+    "ErrorObject": {
+      "description": "JSON-RPC 2.0 error object. code is one of ErrorCode; data carries structured detail (e.g. expected/actual for PROTOCOL_MISMATCH).",
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "integer" },
+        "message": { "type": "string" },
+        "data": {}
+      },
+      "additionalProperties": false
+    },
+    "RequestEnvelope": {
+      "description": "A JSON-RPC 2.0 request on the wire.",
+      "type": "object",
+      "required": ["jsonrpc", "id", "method"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "id": { "$ref": "#/$defs/RequestId" },
+        "method": { "$ref": "methods.json#/$defs/MethodName" },
+        "params": {}
+      },
+      "additionalProperties": false
+    },
+    "ResponseEnvelope": {
+      "description": "A JSON-RPC 2.0 response. Exactly one of result/error is present (asserted by both implementations, not expressible here without oneOf).",
+      "type": "object",
+      "required": ["jsonrpc", "id"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "id": { "$ref": "#/$defs/RequestId" },
+        "result": {},
+        "error": { "$ref": "#/$defs/ErrorObject" }
+      },
+      "additionalProperties": false
+    },
+    "NotificationEnvelope": {
+      "description": "A JSON-RPC 2.0 notification (no id, no response).",
+      "type": "object",
+      "required": ["jsonrpc", "method"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "method": { "$ref": "methods.json#/$defs/NotificationName" },
+        "params": {}
+      },
+      "additionalProperties": false
+    }
+  }
+}
