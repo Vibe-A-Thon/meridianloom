@@ -6,7 +6,7 @@
 
 - **Current phase:** F0 — Flight Recorder
 - **Current workstream:** B — Ledger core
-- **Current task:** 8 — Append-only SQLite with §7.2 schema + v2.1 fields + vendor/observation_confidence/external_session_id (FR-M10-01)
+- **Current task:** 9 — hash chain + Merkle tree + signed tree heads (FR-M10-02..04) — in progress (schema+triggers done in b1a7c05; WIP modules canonical/keys/merkle in working tree)
 - **Last commit:** 4059975 — feat(f0): tiering scaffold (FR-M36-05, X-28) — F0 Workstream A complete (tasks 1–7; doctor via 5730d66)
 - **Updated:** _(see git log)_
 
