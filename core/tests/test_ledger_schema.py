@@ -142,11 +142,11 @@ class TestAppendOnlyTriggers:
 class TestMigrations:
     def test_migration_is_recorded(self, conn):
         newly = apply_migrations(conn)
-        assert newly == [1, 2]
+        assert newly == [1, 2, 3]
         rows = conn.execute(
             "SELECT version, description FROM schema_migrations"
         ).fetchall()
-        assert [row[0] for row in rows] == [1, SCHEMA_VERSION]
+        assert [row[0] for row in rows] == [1, 2, SCHEMA_VERSION]
         assert "FR-M10-01" in rows[0][1]
         assert "FR-M40-02" in rows[1][1]
 
@@ -174,9 +174,16 @@ class TestMigrations:
         old.close()
 
         upgraded = connect(db)
-        assert apply_migrations(upgraded) == [2]
+        assert apply_migrations(upgraded) == [2, 3]
         cols = _columns(upgraded, "ledger_entry")
         assert "run_id" in cols and "origin" in cols
+        tables = {
+            row[0]
+            for row in upgraded.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        assert "blob_key" in tables
         upgraded.close()
 
     def test_origin_is_constrained(self, conn):

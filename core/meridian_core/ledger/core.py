@@ -23,6 +23,14 @@ from pathlib import Path
 from typing import Any
 
 from . import canonical, keys, merkle, schema
+from .blobs import BlobStore
+from .keystore import (
+    BlobKeyStore,
+    WrappedBlobKeyStore,
+    derive_blob_master_key,
+    key_id_for,
+)
+from .redaction import redact_secrets
 
 # Columns that must be present in every append() call (NOT NULL, no default).
 REQUIRED_FIELDS = frozenset(
@@ -74,6 +82,7 @@ class Ledger:
         *,
         tree_head_interval: int = TREE_HEAD_INTERVAL_ENTRIES,
         tree_head_max_age_s: float = TREE_HEAD_MAX_AGE_S,
+        blob_key_store: BlobKeyStore | None = None,
     ) -> None:
         self.dir = Path(ledger_dir)
         self.dir.mkdir(parents=True, exist_ok=True)
@@ -82,6 +91,16 @@ class Ledger:
         self._tree_head_max_age_s = tree_head_max_age_s
         self.conn = schema.connect(self.dir / "ledger.db")
         schema.apply_migrations(self.conn)
+
+        # FR-M10-07: blobs live beside the database; per-subject keys come
+        # from the wrapped registry unless a caller injects a store (tests).
+        self._blob_keys = blob_key_store or WrappedBlobKeyStore(
+            self.conn,
+            derive_blob_master_key(
+                signing_key.private_key().private_bytes_raw()
+            ),
+        )
+        self._blobs = BlobStore(self.dir / "blobs", self._blob_keys)
 
         self._columns: tuple[str, ...] = tuple(
             row[1]
@@ -130,11 +149,24 @@ class Ledger:
     def root_hash(self) -> bytes:
         return self._frontier.root()
 
-    # -- append (FR-M10-02/08) ----------------------------------------------
+    # -- append (FR-M10-02/07/08) -------------------------------------------
 
     def append(self, entry: dict[str, Any]) -> AppendResult:
-        """Append one entry; the chain update is committed before returning."""
+        """Append one entry; the chain update is committed before returning.
+
+        `entry` carries the normative columns. Two conveniences on top:
+        `input` / `output` (str or bytes) are secret-redacted (SEC-07),
+        encrypted and content-addressed into the blob store before the row
+        is written; `blob_subject` selects the per-subject key (defaults
+        to the caller-supplied `blob_key_id`, else "default").
+        """
+        entry = dict(entry)
+        input_data = entry.pop("input", None)
+        output_data = entry.pop("output", None)
+        blob_subject = entry.pop("blob_subject", None)
         row = self._prepare_row(entry)
+        if input_data is not None or output_data is not None:
+            self._attach_blobs(row, input_data, output_data, blob_subject)
         self.conn.execute("BEGIN IMMEDIATE")
         try:
             prev_hash = self._last_hash
@@ -165,6 +197,43 @@ class Ledger:
             entry_hash=row["entry_hash"],
             tree_head=self._maybe_emit_tree_head(),
         )
+
+    def _attach_blobs(
+        self,
+        row: dict[str, Any],
+        input_data: Any,
+        output_data: Any,
+        blob_subject: str | None,
+    ) -> None:
+        if isinstance(input_data, str):
+            input_data = redact_secrets(input_data).encode("utf-8")
+        if isinstance(output_data, str):
+            output_data = redact_secrets(output_data).encode("utf-8")
+        key_id = row.get("blob_key_id")
+        if key_id is None:
+            key_id = self._blob_keys.key_for(blob_subject or "default")
+            row["blob_key_id"] = key_id
+        for prefix, data in (("input", input_data), ("output", output_data)):
+            if data is None:
+                continue
+            digest, ref = self._blobs.put(data, key_id)
+            row[f"{prefix}_digest"] = bytes.fromhex(digest)
+            row[f"{prefix}_ref"] = ref
+
+    # -- blobs (FR-M10-07/14) -----------------------------------------------
+
+    def read_blob(self, ref: str, blob_key_id: str) -> bytes:
+        """Decrypt a referenced blob; raises when the key was shredded."""
+        return self._blobs.get(ref, blob_key_id)
+
+    def shred_subject(self, subject_id: str) -> bool:
+        """FR-M10-14 groundwork: destroy a subject's blob key.
+
+        Rows stay, the chain still verifies (it hashes ciphertext), the
+        blobs become unreadable. The erasure-event ledger entry lands
+        with the full crypto-shredding flow in F4.
+        """
+        return self._blob_keys.destroy(key_id_for(subject_id))
 
     def _prepare_row(self, entry: dict[str, Any]) -> dict[str, Any]:
         unknown = set(entry) - set(self._columns) - {"ts_utc"}

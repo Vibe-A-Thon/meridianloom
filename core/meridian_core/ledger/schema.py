@@ -23,7 +23,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Statement lists (not executescript blobs) so each migration runs inside
 # one explicit transaction with its schema_migrations row.
@@ -144,6 +144,19 @@ _V2_STATEMENTS = [
     ),
 ]
 
+_V3_STATEMENTS = [
+    # NOT append-only by design: erasure (FR-M10-14) destroys wrapped key
+    # rows. Raw key material never appears here — only AES-GCM ciphertext.
+    """
+    CREATE TABLE blob_key (
+      key_id      TEXT PRIMARY KEY,         -- e.g. bk:<subject_id>
+      subject_id  TEXT NOT NULL UNIQUE,
+      wrapped_key BLOB NOT NULL,            -- nonce || AES-GCM(subject key)
+      created_at  TEXT NOT NULL
+    )
+    """,
+]
+
 MIGRATIONS: list[tuple[int, str, list[str]]] = [
     (
         1,
@@ -157,6 +170,13 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
         "every story traces to how the run started (gaps_initiation.md §5); "
         "origin is written with the run's first entry",
         _V2_STATEMENTS,
+    ),
+    (
+        3,
+        "FR-M10-07/FR-M10-14: blob_key registry — per-subject blob keys "
+        "wrapped under the workspace master key; deleting a row "
+        "crypto-shreds the subject's blobs",
+        _V3_STATEMENTS,
     ),
 ]
 

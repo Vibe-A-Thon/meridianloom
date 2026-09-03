@@ -5,11 +5,28 @@ Submodules:
 - canonical — canonical JSON and entry hashing (FR-M10-02)
 - merkle — Merkle tree, inclusion/consistency proofs (FR-M10-03)
 - keys — signing key provider + tree-head signatures (FR-M10-04)
+- keystore — per-subject blob keys, wrapped at rest (FR-M10-14)
+- blobs — encrypted content-addressed blob store (FR-M10-07)
+- redaction — SEC-07 secret filter applied before persistence
 - core — the Ledger facade: append, chain maintenance, tree heads
 """
 
 from .canonical import GENESIS_HASH, canonical_json, entry_hash, hashable_payload
+from .blobs import (
+    BlobError,
+    BlobKeyMissing,
+    BlobNotFound,
+    BlobStore,
+    BlobTampered,
+)
 from .core import AppendResult, Ledger
+from .keystore import (
+    BlobKeyStore,
+    EphemeralBlobKeyStore,
+    WrappedBlobKeyStore,
+    derive_blob_master_key,
+    key_id_for,
+)
 from .keys import (
     EphemeralSigningKeyProvider,
     ProvisionedSigningKeyProvider,
@@ -25,6 +42,7 @@ from .merkle import (
     verify_consistency,
     verify_inclusion,
 )
+from .redaction import redact_secrets
 from .schema import SCHEMA_VERSION, apply_migrations, connect
 
 __all__ = [
@@ -36,11 +54,22 @@ __all__ = [
     "SigningKeyProvider",
     "EphemeralSigningKeyProvider",
     "ProvisionedSigningKeyProvider",
+    "BlobKeyStore",
+    "EphemeralBlobKeyStore",
+    "WrappedBlobKeyStore",
+    "BlobStore",
+    "BlobError",
+    "BlobKeyMissing",
+    "BlobNotFound",
+    "BlobTampered",
     "canonical_json",
     "entry_hash",
     "hashable_payload",
     "sign_tree_head",
     "verify_tree_head",
+    "derive_blob_master_key",
+    "key_id_for",
+    "redact_secrets",
     "inclusion_proof",
     "consistency_proof",
     "verify_inclusion",
