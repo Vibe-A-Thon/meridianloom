@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** F0 — Flight Recorder
-- **Current workstream:** D — Observers
-- **Current task:** 17 — observer framework (FR-M35-08): versioned observer interface, per-vendor implementations, health reporting, fallback chain with confidence downgrade (G3, NFR-32)
-- **Last commit:** ed66495 — test(f0): zero-model-call assertion in both suites (FR-M36-07) — Workstream C complete (13–16; 236 pytest + 128 vitest green)
+- **Current workstream:** E — Portable provenance
+- **Current task:** 23 — commit-msg git hook appending `Meridian-Ledger: <seq range>` (opt-in, visible, removable; D23 closed: hook default, git notes fallback)
+- **Last commit:** c60874b — feat(f0): SEC-27 one-way observer isolation — Workstream D complete (17–22; X-29 detection 63ms, NFR-29 overhead ~0ms, SEC-27 enforced)
 - **Updated:** _(see git log)_
 
 ## Mapping of completed S0 work onto the new plan
@@ -48,8 +48,8 @@
 | A — Shell and sidecar, minimum viable | 1–7 | **done** (4059975; doctor 5730d66; tiers e2e prove G5) |
 | B — Ledger core | 8–12 | **done** (e25a530; 631f86f run_id/origin v2 migration per gaps_initiation §5) |
 | C — Deterministic attribution (no model calls) | 13–16 | **done** (ed66495; FR-M36-07 exit criterion 6 proven by test) |
-| D — Observers | 17–22 | in progress |
-| E — Portable provenance | 23–27 | not started |
+| D — Observers | 17–22 | **done** (c60874b; X-29 + NFR-29 measured within budget; SEC-27 pass) |
+| E — Portable provenance | 23–27 | in progress |
 | F — Rejection measurement, minimum | 28–30 | not started |
 | G — The three screens (interlock GF0) | 31–36 | not started |
 
