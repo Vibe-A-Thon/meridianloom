@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, renameSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,19 +8,37 @@ const extensionDir = path.join(root, 'extension');
 const outDir = path.join(root, 'dist');
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
-// --no-dependencies: every dependency is a devDependency (the bundle is
-// self-contained), and without it vsce's dependency walk leaks npm
-// workspace-root files into the VSIX and fails.
-const result = spawnSync(npx, ['vsce', 'package', '--no-dependencies'], {
-  cwd: extensionDir,
-  stdio: 'inherit',
-  shell: process.platform === 'win32',
+// Ship the sidecar Python sources inside the VSIX at extension/sidecar/
+// (see extension/src/layout.ts). FR-M3-05a / D4: we do NOT bundle a Python
+// runtime — the interpreter comes from the workspace via the FR-M3-05
+// resolution chain — so the package is intentionally platform-neutral: no
+// --target flag, one universal VSIX. Platform-specific VSIX targets become
+// mandatory only if a bundled runtime is ever shipped.
+const sidecarDir = path.join(extensionDir, 'sidecar');
+rmSync(sidecarDir, { recursive: true, force: true });
+cpSync(path.join(root, 'core', 'meridian_core'), path.join(sidecarDir, 'meridian_core'), {
+  recursive: true,
+  filter: (source) => !source.includes('__pycache__'),
 });
-if (result.error) {
-  console.error(result.error);
-}
-if (result.status !== 0) {
-  process.exit(result.status ?? 1);
+cpSync(path.join(root, 'core', 'pyproject.toml'), path.join(sidecarDir, 'pyproject.toml'));
+
+try {
+  // --no-dependencies: every dependency is a devDependency (the bundle is
+  // self-contained), and without it vsce's dependency walk leaks npm
+  // workspace-root files into the VSIX and fails.
+  const result = spawnSync(npx, ['vsce', 'package', '--no-dependencies'], {
+    cwd: extensionDir,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+  if (result.error) {
+    console.error(result.error);
+  }
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+} finally {
+  rmSync(sidecarDir, { recursive: true, force: true });
 }
 
 const vsix = readdirSync(extensionDir).filter((name) => name.endsWith('.vsix'));

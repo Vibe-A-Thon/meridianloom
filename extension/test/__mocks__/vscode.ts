@@ -109,6 +109,9 @@ export const __shownErrors: string[] = [];
 export const __shownWarnings: string[] = [];
 export const __shownInfos: string[] = [];
 export const __progressCalls: ProgressOptions[] = [];
+export const __statusBarItems: Array<{ text: string; tooltip: unknown; shown: boolean }> = [];
+export const __configuration = new Map<string, unknown>();
+export const __extensions = new Map<string, unknown>();
 
 let __lastProgressToken: ManualCancellationToken | undefined;
 
@@ -126,6 +129,9 @@ export function __reset(): void {
   __shownWarnings.length = 0;
   __shownInfos.length = 0;
   __progressCalls.length = 0;
+  __statusBarItems.length = 0;
+  __configuration.clear();
+  __extensions.clear();
   __lastProgressToken = undefined;
 }
 
@@ -174,6 +180,62 @@ export const window = {
       },
     };
     return Promise.resolve(task(progress, token));
+  },
+
+  createStatusBarItem(): StatusBarItem {
+    const item = {
+      text: '',
+      tooltip: undefined as unknown,
+      shown: false,
+      show() {
+        item.shown = true;
+      },
+      hide() {
+        item.shown = false;
+      },
+      dispose() {
+        item.shown = false;
+      },
+    };
+    __statusBarItems.push(item);
+    return item;
+  },
+};
+
+export enum StatusBarAlignment {
+  Left = 1,
+  Right = 2,
+}
+
+export interface StatusBarItem {
+  text: string;
+  tooltip: unknown;
+  show(): void;
+  hide(): void;
+  dispose(): void;
+}
+
+export const workspace = {
+  getConfiguration(section?: string) {
+    const prefix = section ? `${section}.` : '';
+    return {
+      get<T>(key: string, defaultValue?: T): T | undefined {
+        const full = `${prefix}${key}`;
+        return __configuration.has(full)
+          ? (__configuration.get(full) as T)
+          : defaultValue;
+      },
+    };
+  },
+};
+
+export const extensions = {
+  getExtension(id: string): { activate(): Promise<unknown> } | undefined {
+    const api = __extensions.get(id);
+    if (api === undefined) {
+      return undefined;
+    }
+    return { activate: () => Promise.resolve(api) };
   },
 };
 

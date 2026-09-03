@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
 import { registerCommands } from './commands';
+import { resolveInterpreter } from './interpreter';
 import { resolveCoreDir } from './layout';
 import { SecretStorageUnavailableError, SecretStore } from './secrets';
+import { SidecarStatusBar } from './status';
 import { StdioSidecarClient } from './stdio-client';
 import { SidecarSupervisor } from './supervisor';
 import { registerViews } from './views';
@@ -42,23 +44,36 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
     }
     throw error;
   }
+  const statusBar = new SidecarStatusBar();
+  context.subscriptions.push(statusBar);
+  statusBar.showStarting();
   try {
-    // Interpreter resolution per the FR-M3-05 chain lands in task 8; until
-    // then the platform default is used.
-    const command = process.platform === 'win32' ? 'python' : 'python3';
     const coreDir = await resolveCoreDir(context.extensionPath);
+    // FR-M3-05: the interpreter comes from the resolution chain; the
+    // resolved path is shown in the status bar.
+    const interpreter = await resolveInterpreter();
     supervisor = new SidecarSupervisor({
       clientFactory: () =>
         new StdioSidecarClient({
-          command,
+          command: interpreter.executable,
           cwd: coreDir,
           onStderr: (line) => console.debug('[sidecar]', line),
         }),
-      onError: (message) => void vscode.window.showErrorMessage(message),
+      onError: (message) => {
+        statusBar.showFailed(message);
+        void vscode.window.showErrorMessage(message);
+      },
     });
     await supervisor.start();
-  } catch {
-    // start() already surfaced an actionable message via onError.
+    statusBar.showReady(interpreter);
+  } catch (error) {
+    // supervisor.start() failures are already surfaced via onError; layout
+    // and interpreter-resolution failures are not — surface them here.
+    if (supervisor === undefined) {
+      const message = error instanceof Error ? error.message : String(error);
+      statusBar.showFailed(message);
+      void vscode.window.showErrorMessage(message);
+    }
   }
 }
 

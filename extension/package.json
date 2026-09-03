@@ -52,7 +52,17 @@
       { "command": "meridian.dryRun", "title": "Dry Run", "category": "Meridian Loom" },
       { "command": "meridian.abortStory", "title": "Abort Story", "category": "Meridian Loom" },
       { "command": "meridian.doctor", "title": "Doctor", "category": "Meridian Loom" }
-    ]
+    ],
+    "configuration": {
+      "title": "Meridian Loom",
+      "properties": {
+        "meridian.python.interpreterPath": {
+          "type": "string",
+          "default": "",
+          "description": "Python interpreter for the Meridian Core sidecar (>= 3.11). Empty resolves via the Python extension, then python3/python on PATH (FR-M3-05)."
+        }
+      }
+    }
   },
   "scripts": {
     "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node22 --external:vscode --sourcemap --outfile=dist/extension.js",

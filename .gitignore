@@ -5,3 +5,4 @@ extension/dist/
 /dist/*.vsix
 __pycache__/
 *.pyc
+/extension/sidecar/
