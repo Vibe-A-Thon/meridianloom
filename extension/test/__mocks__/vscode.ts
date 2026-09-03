@@ -197,6 +197,7 @@ export interface SecretStorage {
 export interface ExtensionContext {
   subscriptions: Array<{ dispose(): unknown }>;
   secrets: SecretStorage;
+  extensionPath: string;
 }
 
 /** In-memory SecretStorage that behaves like a working keyring. */

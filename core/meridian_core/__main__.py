@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 
 from .log_setup import configure_logging
+from .orphan import monitor_from_environment
 from .rpc import FramedReader, FramedWriter
 from .server import SidecarServer
 
@@ -17,6 +18,9 @@ from .server import SidecarServer
 def main() -> int:
     configure_logging()
     server = SidecarServer()
+    # FR-M3-03: second half of the dual teardown contract. If the extension
+    # host dies without closing our stdin, the monitor self-terminates us.
+    monitor_from_environment(on_orphaned=server.shutdown_requested)
     server.serve(
         FramedReader(sys.stdin.buffer),
         FramedWriter(sys.stdout.buffer),

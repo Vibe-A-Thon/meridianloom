@@ -8,6 +8,9 @@ function mockContext(): vscode.ExtensionContext {
   return {
     subscriptions: [] as { dispose(): void }[],
     secrets: new vscode.MemorySecretStorage(),
+    // Nowhere real: runtime startup must not find (or spawn) a sidecar from
+    // activation tests.
+    extensionPath: '/nonexistent/meridian-test',
   };
 }
 
@@ -41,8 +44,9 @@ describe('activate', () => {
   it('pushes every registration into context.subscriptions', () => {
     const context = mockContext();
     activate(context);
+    // +1: the sidecar teardown disposable (FR-M3-02).
     expect(context.subscriptions).toHaveLength(
-      TREE_VIEWS.length + COMMANDS.length,
+      TREE_VIEWS.length + COMMANDS.length + 1,
     );
   });
 });
