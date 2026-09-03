@@ -22,7 +22,7 @@ from typing import Any
 
 import bus_types
 
-from . import doctor, protocol
+from . import doctor, protocol, tiers
 from .rpc import (
     FramedReader,
     FramedWriter,
@@ -43,6 +43,9 @@ class SidecarServer:
         self._started_at = time.monotonic()
         self._shutdown_requested = threading.Event()
         self._ping_seq = 0
+        # FR-M36-05: enabled tiers default to the base tier only; the
+        # handshake and tiers/set notifications widen the set (G5).
+        self._enabled_tiers = tiers.normalise_enabled_tiers(None)
         self._handlers: dict[str, Handler] = {
             "handshake": SidecarServer._handle_handshake,
             "ping": SidecarServer._handle_ping,
@@ -51,9 +54,12 @@ class SidecarServer:
             "doctor/run": SidecarServer._handle_doctor_run,
             "ledger.append": lambda self, params: self._not_implemented("ledger.append", "Workstream D"),
             "ledger.query": lambda self, params: self._not_implemented("ledger.query", "Workstream D"),
-            "loop.start": lambda self, params: self._not_implemented("loop.start", "Workstream E"),
-            "loop.stop": lambda self, params: self._not_implemented("loop.stop", "Workstream E"),
-            "loop.status": lambda self, params: self._not_implemented("loop.status", "Workstream E"),
+            "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
+            "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
+            "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
+            "gate.evaluate": lambda self, params: self._not_implemented("gate.evaluate", "F1 (Governor)"),
+            "steer.send": lambda self, params: self._not_implemented("steer.send", "F1 (Governor)"),
+            "trust.summary": lambda self, params: self._not_implemented("trust.summary", "F1 (Governor)"),
         }
         # The registry must exactly cover the contracted request methods.
         assert set(self._handlers) == set(bus_types.REQUEST_METHODS), (
@@ -61,11 +67,29 @@ class SidecarServer:
             f"missing={set(bus_types.REQUEST_METHODS) - set(self._handlers)}, "
             f"extra={set(self._handlers) - set(bus_types.REQUEST_METHODS)}"
         )
+        # FR-M36-05: every contracted method must be owned by exactly one
+        # capability, or the tier gate has a hole.
+        claims = [
+            method
+            for capability in bus_types.CAPABILITIES
+            for method in capability["rpcMethods"]
+        ]
+        assert len(claims) == len(set(claims)) and set(claims) == set(
+            bus_types.REQUEST_METHODS
+        ), (
+            "tier registry drifted from the schema: every request method must "
+            "be owned by exactly one capability in shared/schema/tiers.json"
+        )
 
     @property
     def shutdown_requested(self) -> threading.Event:
         """Set when the peer asked us to exit (or stdin closed, task 7)."""
         return self._shutdown_requested
+
+    @property
+    def enabled_tiers(self) -> set[str]:
+        """FR-M36-05: the current enabled tier set (exposed for tests)."""
+        return set(self._enabled_tiers)
 
     # -- dispatch -----------------------------------------------------------
 
@@ -83,10 +107,25 @@ class SidecarServer:
         request_id = message.get("id")
         if request_id is None:
             # Notification: $/cancel is accepted (the cancelled request will
-            # simply be dropped when loops exist); anything else is ignored.
-            if method != "$/cancel":
+            # simply be dropped when loops exist); tiers/set re-configures the
+            # enabled tier set (FR-M36-05); anything else is ignored.
+            if method == "tiers/set":
+                new_tiers = (message.get("params") or {}).get("tiers")
+                self._enabled_tiers = tiers.normalise_enabled_tiers(new_tiers)
+                logger.info("enabled tiers now: %s", sorted(self._enabled_tiers))
+            elif method != "$/cancel":
                 logger.debug("ignoring unknown notification %s", method)
             return None
+        # FR-M36-05: the tier gate runs before dispatch. A method owned by a
+        # disabled tier is refused with a structured, actionable error; a
+        # method nobody owns falls through to METHOD_NOT_FOUND.
+        if not tiers.is_method_enabled(method, self._enabled_tiers):
+            return make_error_response(
+                request_id,
+                protocol.ERROR_TIER_DISABLED,
+                tiers.tier_disabled_message(method),
+                tiers.tier_disabled_data(method, self._enabled_tiers),
+            )
         handler = self._handlers.get(method)
         if handler is None:
             return make_error_response(
@@ -146,6 +185,10 @@ class SidecarServer:
                     "actual": client_version,
                 },
             )
+        # FR-M36-05: adopt the workspace's enabled tiers (clamped to known
+        # tiers plus the always-on base tier).
+        self._enabled_tiers = tiers.normalise_enabled_tiers((params or {}).get("tiers"))
+        logger.info("enabled tiers: %s", sorted(self._enabled_tiers))
         return {
             "protocolVersion": protocol.PROTOCOL_VERSION,
             "coreVersion": protocol.CORE_VERSION,

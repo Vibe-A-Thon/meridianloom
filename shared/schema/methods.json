@@ -53,6 +53,26 @@
       "params": { "$ref": "#/$defs/LoopStatusParams" },
       "result": { "$ref": "#/$defs/LoopStatusResult" }
     },
+    "gate.evaluate": {
+      "description": "Governor tier stub (FR-M12-01; F1): evaluate a policy gate for a story. Registered now so tier enforcement is provable before F1 lands it; answers NOT_IMPLEMENTED while the governor tier is enabled, TIER_DISABLED while it is not.",
+      "params": { "$ref": "#/$defs/GateEvaluateParams" },
+      "result": { "$ref": "#/$defs/GateEvaluateResult" }
+    },
+    "steer.send": {
+      "description": "Governor tier stub (FR-M25-01; F1): steer a running session. Same tier-enforcement role as gate.evaluate.",
+      "params": { "$ref": "#/$defs/SteerSendParams" },
+      "result": { "$ref": "#/$defs/SteerSendResult" }
+    },
+    "trust.summary": {
+      "description": "Governor tier stub (FR-M37-*; F0 subset/F1 full): trust and rejection analytics summary. Same tier-enforcement role as gate.evaluate.",
+      "params": { "$ref": "#/$defs/TrustSummaryParams" },
+      "result": { "$ref": "#/$defs/TrustSummaryResult" }
+    },
+    "tiers/set": {
+      "description": "FR-M36-05: notification carrying the enabled tier set after a meridian.tiers configuration change, so a tier flip needs no reinstall and no window reload. The base tier (flight-recorder) is always enabled regardless of payload.",
+      "notification": true,
+      "params": { "$ref": "#/$defs/TierSetParams" }
+    },
     "$/cancel": {
       "description": "Notification cancelling an in-flight request by id (FR-M1-09).",
       "notification": true,
@@ -68,7 +88,12 @@
           "type": "integer",
           "description": "Must equal PROTOCOL_VERSION or the sidecar refuses with PROTOCOL_MISMATCH."
         },
-        "client": { "type": "string", "description": "e.g. meridian-loom-extension" }
+        "client": { "type": "string", "description": "e.g. meridian-loom-extension" },
+        "tiers": {
+          "type": "array",
+          "items": { "$ref": "tiers.json#/$defs/TierName" },
+          "description": "FR-M36-05: tiers enabled in this workspace (from the meridian.tiers setting). Absent means the sidecar default: flight-recorder only. The base tier is always enabled regardless."
+        }
       },
       "additionalProperties": false
     },
@@ -285,6 +310,67 @@
       "required": ["id"],
       "properties": {
         "id": { "$ref": "protocol.json#/$defs/RequestId" }
+      },
+      "additionalProperties": false
+    },
+    "GateEvaluateParams": {
+      "type": "object",
+      "required": ["storyId", "gate"],
+      "properties": {
+        "storyId": { "type": "string" },
+        "gate": { "type": "string", "description": "Gate name, e.g. security, review (FR-M12-01)." }
+      },
+      "additionalProperties": false
+    },
+    "GateEvaluateResult": {
+      "type": "object",
+      "required": ["decision"],
+      "properties": {
+        "decision": { "enum": ["pass", "block"] },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "SteerSendParams": {
+      "type": "object",
+      "required": ["sessionId", "message"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "SteerSendResult": {
+      "type": "object",
+      "required": ["accepted"],
+      "properties": {
+        "accepted": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "TrustSummaryParams": {
+      "type": "object",
+      "properties": {
+        "agentId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "TrustSummaryResult": {
+      "type": "object",
+      "required": ["entries"],
+      "properties": {
+        "entries": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "TierSetParams": {
+      "type": "object",
+      "required": ["tiers"],
+      "properties": {
+        "tiers": {
+          "type": "array",
+          "items": { "$ref": "tiers.json#/$defs/TierName" }
+        }
       },
       "additionalProperties": false
     }

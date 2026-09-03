@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import type { DoctorRunResult } from '../../shared/ts/bus-types';
+import type { DoctorRunResult, TierName } from '../../shared/ts/bus-types';
+import { isCommandEnabled, tierLockMessage } from '../../shared/ts/tiers';
 import { renderDoctorReport } from './doctor';
 
 /**
@@ -30,6 +31,12 @@ export interface CommandDeps {
    * to prove the not-wired path reports instead of silently succeeding.
    */
   runDoctor?: () => Promise<DoctorRunResult>;
+  /**
+   * FR-M36-05: the workspace's enabled tiers, read lazily so a settings
+   * change takes effect without re-registration. Absent means "all tiers"
+   * so tests that do not care about tiering see the unfiltered behaviour.
+   */
+  enabledTiers?: () => readonly TierName[];
 }
 
 export function registerCommands(deps: CommandDeps = {}): vscode.Disposable[] {
@@ -43,6 +50,14 @@ export function registerCommands(deps: CommandDeps = {}): vscode.Disposable[] {
  * is connected, a command reports instead of silently succeeding.
  */
 async function runCommand(id: CommandId, deps: CommandDeps): Promise<void> {
+  // FR-M36-05 / X-28: a command whose tier is disabled discloses the lock
+  // instead of acting. The palette entry is hidden via `when` clauses; this
+  // guard is the programmatic backstop so a disabled tier leaves no scar.
+  const enabled = deps.enabledTiers?.();
+  if (enabled && !isCommandEnabled(id, enabled)) {
+    await vscode.window.showInformationMessage(tierLockMessage(id));
+    return;
+  }
   if (id === 'meridian.doctor') {
     await runDoctorCommand(deps);
     return;

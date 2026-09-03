@@ -36,8 +36,14 @@ for (const name of readdirSync(schemaDir).filter((n) => n.endsWith('.json')).sor
 }
 
 // Synthesise MethodName/NotificationName from x-methods so envelopes can
-// $ref them like ordinary types.
+// $ref them like ordinary types; TierName likewise from x-tiers.
 for (const schema of schemas.values()) {
+  if (schema['x-tiers']) {
+    schema.$defs.TierName = {
+      description: 'The three product tiers (FR-M36-05), base first.',
+      enum: schema['x-tiers'].tiers,
+    };
+  }
   if (!schema['x-methods']) {
     continue;
   }
@@ -170,6 +176,25 @@ function pyRepr(value) {
   return JSON.stringify(value);
 }
 
+/** Python literal for plain JSON data (dicts, lists, strings). */
+function pyLiteral(value, indent = 0) {
+  if (Array.isArray(value)) {
+    return `[${value.map((v) => pyLiteral(v, indent)).join(', ')}]`;
+  }
+  if (value !== null && typeof value === 'object') {
+    const fields = Object.entries(value).map(
+      ([key, v]) => `${JSON.stringify(key)}: ${pyLiteral(v, indent)}`,
+    );
+    return `{${fields.join(', ')}}`;
+  }
+  return pyRepr(value);
+}
+
+/** Python tuple literal; a single element needs a trailing comma. */
+function pyTuple(items) {
+  return `(${items.map((item) => JSON.stringify(item)).join(', ')}${items.length === 1 ? ',' : ''})`;
+}
+
 // ---- TypeScript emission -----------------------------------------------------
 
 function emitTs() {
@@ -211,6 +236,20 @@ function emitTs() {
       }
       lines.push('');
     }
+    if (schema['x-tiers']) {
+      // FR-M36-05: the tier registry as runtime constants, so the extension
+      // host and the webview filter on the same data the sidecar enforces.
+      const xTiers = schema['x-tiers'];
+      lines.push('/** FR-M36-05: all tiers, base first. */');
+      lines.push(`export const TIERS = ${JSON.stringify(xTiers.tiers)} as const;`);
+      lines.push('');
+      lines.push('/** FR-M36-05: enabled tiers when nothing is configured — Flight Recorder only. */');
+      lines.push(`export const DEFAULT_ENABLED_TIERS: readonly TierName[] = ${JSON.stringify(xTiers.defaultEnabled)};`);
+      lines.push('');
+      lines.push('/** FR-M36-05: capability registry; every capability is owned by exactly one tier. */');
+      lines.push(`export const CAPABILITIES: readonly CapabilityDefinition[] = ${JSON.stringify(xTiers.capabilities)};`);
+      lines.push('');
+    }
   }
 
   const methods = schemas.get('methods.json')['x-methods'];
@@ -226,6 +265,12 @@ function emitTs() {
   }
   lines.push('}');
   lines.push('export type RequestMethod = keyof MethodMap;');
+  lines.push('');
+  lines.push('/** Runtime list of every request method (for tier/ownership checks). */');
+  lines.push(`export const REQUEST_METHODS = ${JSON.stringify(Object.keys(methods).filter((n) => !methods[n].notification))} as const;`);
+  lines.push('');
+  lines.push('/** Runtime list of every notification method. */');
+  lines.push(`export const NOTIFICATION_METHODS = ${JSON.stringify(Object.keys(methods).filter((n) => methods[n].notification))} as const;`);
   lines.push('');
   lines.push('export interface NotificationMap {');
   for (const [name, def] of Object.entries(methods)) {
@@ -292,13 +337,31 @@ function emitPy() {
       }
       lines.push('');
     }
+    if (schema['x-tiers']) {
+      // FR-M36-05: the tier registry as runtime constants; the sidecar
+      // enforces it, the extension host filters on the same data.
+      const xTiers = schema['x-tiers'];
+      lines.push('# FR-M36-05: all tiers, base first.');
+      lines.push(`TIERS: tuple[str, ...] = ${pyTuple(xTiers.tiers)}`);
+      lines.push('');
+      lines.push('# FR-M36-05: enabled tiers when nothing is configured — Flight Recorder only.');
+      lines.push(`DEFAULT_ENABLED_TIERS: tuple[str, ...] = ${pyTuple(xTiers.defaultEnabled)}`);
+      lines.push('');
+      lines.push('# FR-M36-05: capability registry; every capability is owned by exactly one tier.');
+      lines.push('CAPABILITIES: tuple[CapabilityDefinition, ...] = (');
+      for (const capability of xTiers.capabilities) {
+        lines.push(`    ${pyLiteral(capability)},`);
+      }
+      lines.push(')');
+      lines.push('');
+    }
   }
 
   const methods = schemas.get('methods.json')['x-methods'];
   const requestNames = Object.keys(methods).filter((n) => !methods[n].notification);
   const notificationNames = Object.keys(methods).filter((n) => methods[n].notification);
-  lines.push(`REQUEST_METHODS: tuple[str, ...] = (${requestNames.map((n) => `${JSON.stringify(n)},`).join(' ')})`);
-  lines.push(`NOTIFICATION_METHODS: tuple[str, ...] = (${notificationNames.map((n) => `${JSON.stringify(n)},`).join(' ')})`);
+  lines.push(`REQUEST_METHODS: tuple[str, ...] = ${pyTuple(requestNames)}`);
+  lines.push(`NOTIFICATION_METHODS: tuple[str, ...] = ${pyTuple(notificationNames)}`);
   lines.push('');
   lines.push('# Runtime pairing of method name -> params/result TypedDicts.');
   lines.push('METHOD_CONTRACT: dict[str, dict[str, Any]] = {');

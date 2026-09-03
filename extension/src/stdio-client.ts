@@ -5,6 +5,7 @@ import {
   type HandshakeResult,
   type MethodMap,
   type RequestMethod,
+  type TierName,
 } from '../../shared/ts/bus-types';
 import { createFrameDecoder, encodeFrame } from './framing';
 import type { ChildProcessLike, ProcessSpawner, SpawnOptions } from './process';
@@ -27,6 +28,8 @@ export interface StdioSidecarOptions {
   onStderr?: (line: string) => void;
   /** ms to wait for the handshake before declaring early-exit. */
   handshakeTimeoutMs?: number;
+  /** FR-M36-05: enabled tiers, sent with the handshake; absent = sidecar default. */
+  tiers?: readonly TierName[];
 }
 
 export class SidecarSpawnError extends Error {
@@ -164,6 +167,9 @@ export class StdioSidecarClient extends EventEmitter implements SidecarClient {
         this.requestInternal('handshake', {
           protocolVersion: PROTOCOL_VERSION,
           client: 'meridian-loom-extension',
+          // FR-M36-05: the workspace's enabled tiers ride the handshake so
+          // the sidecar's tier gate is correct from the first request.
+          ...(this.options.tiers ? { tiers: [...this.options.tiers] } : {}),
         }).then((result) => {
           const handshake = result as HandshakeResult;
           if (handshake.protocolVersion !== PROTOCOL_VERSION) {
@@ -284,6 +290,14 @@ export class StdioSidecarClient extends EventEmitter implements SidecarClient {
       entry.reject(error);
     }
     this.pending.clear();
+  }
+
+  /**
+   * Fire-and-forget notification (e.g. tiers/set after a config change,
+   * FR-M36-05). No-op when the sidecar is gone.
+   */
+  notify(method: string, params: unknown): void {
+    this.write({ jsonrpc: '2.0', method, params });
   }
 
   /** Hard kill without escalation; the supervisor owns graceful teardown. */

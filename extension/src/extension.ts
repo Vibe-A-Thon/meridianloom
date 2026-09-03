@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { TIERS, type TierName } from '../../shared/ts/bus-types';
+import { normalizeEnabledTiers, TIER_CONTEXT_KEYS } from '../../shared/ts/tiers';
 import { registerCommands } from './commands';
 import { runDoctor } from './doctor';
 import { resolveInterpreter } from './interpreter';
@@ -12,14 +14,54 @@ import { registerViews } from './views';
 let supervisor: SidecarSupervisor | undefined;
 
 /**
+ * FR-M36-05: the workspace's enabled tiers from the `meridian.tiers`
+ * setting, normalised (base tier always on, unknown names dropped).
+ */
+export function readEnabledTiers(): TierName[] {
+  return normalizeEnabledTiers(
+    vscode.workspace.getConfiguration('meridian').get<string[]>('tiers'),
+  );
+}
+
+/**
+ * X-28: publish tier state as context keys so the manifest's `when` clauses
+ * hide disabled-tier commands and views — not even empty states render.
+ */
+function applyTierContextKeys(enabled: readonly TierName[]): void {
+  for (const tier of TIERS) {
+    void vscode.commands.executeCommand(
+      'setContext',
+      TIER_CONTEXT_KEYS[tier],
+      enabled.includes(tier),
+    );
+  }
+}
+
+/**
+ * FR-M36-05: a settings change is the whole cost of a tier flip — update the
+ * context keys and notify the running sidecar; no reinstall, no reload.
+ */
+function onConfigurationChanged(event: vscode.ConfigurationChangeEvent): void {
+  if (!event.affectsConfiguration('meridian.tiers')) {
+    return;
+  }
+  const enabled = readEnabledTiers();
+  applyTierContextKeys(enabled);
+  supervisor?.currentClient?.notify?.('tiers/set', { tiers: enabled });
+}
+
+/**
  * FR-M1-04: activation performs synchronous registration only. The runtime
  * startup (SecretStorage probe, then the sidecar) is deferred off the call
  * stack so the extension host thread is never blocked.
  */
 export function activate(context: vscode.ExtensionContext): void {
+  const enabledTiers = readEnabledTiers();
+  applyTierContextKeys(enabledTiers);
   context.subscriptions.push(
     ...registerViews(),
     ...registerCommands({
+      enabledTiers: readEnabledTiers,
       // FR-M30-01: doctor is wired at activation; the sidecar leg resolves
       // lazily at run time so it works whenever a sidecar is up.
       runDoctor: () =>
@@ -37,6 +79,7 @@ export function activate(context: vscode.ExtensionContext): void {
           workspaceDir: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
         }),
     }),
+    vscode.workspace.onDidChangeConfiguration(onConfigurationChanged),
   );
   context.subscriptions.push({
     dispose: () => {
@@ -78,6 +121,9 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
         new StdioSidecarClient({
           command: interpreter.executable,
           cwd: coreDir,
+          // FR-M36-05: read at spawn time so a supervisor restart picks up a
+          // tier change even if the tiers/set notification was missed.
+          tiers: readEnabledTiers(),
           onStderr: (line) => console.debug('[sidecar]', line),
         }),
       onError: (message) => {

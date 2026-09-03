@@ -1,0 +1,67 @@
+{
+  "$id": "tiers.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "FR-M36-05 capability registry: the single source of truth for tiering. Every capability is owned by exactly one tier (flight-recorder | governor | orchestra), and every bus method belongs to exactly one capability. The sidecar refuses RPCs owned by a disabled tier with TIER_DISABLED; the extension host filters commands and views by the same registry (X-28). Not-yet-built tiers register their capabilities with stub RPC names so the mechanism is proven before the features land. The generator (scripts/generate-bus-types.mjs) emits TIERS, DEFAULT_ENABLED_TIERS and CAPABILITIES constants into both shared/ts/bus-types.ts and shared/py/bus_types.py, and synthesises the TierName type from x-tiers.tiers.",
+  "x-tiers": {
+    "tiers": ["flight-recorder", "governor", "orchestra"],
+    "defaultEnabled": ["flight-recorder"],
+    "capabilities": [
+      {
+        "id": "recorder.lifecycle",
+        "tier": "flight-recorder",
+        "description": "Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.",
+        "rpcMethods": ["handshake", "ping", "shutdown", "health"]
+      },
+      {
+        "id": "recorder.doctor",
+        "tier": "flight-recorder",
+        "description": "Self-diagnostic check registry (FR-M30-01).",
+        "rpcMethods": ["doctor/run"]
+      },
+      {
+        "id": "recorder.ledger",
+        "tier": "flight-recorder",
+        "description": "Append-only provenance ledger and queries (FR-M10-01, FR-M10-12; F0 Workstream B).",
+        "rpcMethods": ["ledger.append", "ledger.query"]
+      },
+      {
+        "id": "governor.gates",
+        "tier": "governor",
+        "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.",
+        "rpcMethods": ["gate.evaluate"]
+      },
+      {
+        "id": "governor.steer",
+        "tier": "governor",
+        "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.",
+        "rpcMethods": ["steer.send"]
+      },
+      {
+        "id": "governor.trust",
+        "tier": "governor",
+        "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.",
+        "rpcMethods": ["trust.summary"]
+      },
+      {
+        "id": "orchestra.loops",
+        "tier": "orchestra",
+        "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.",
+        "rpcMethods": ["loop.start", "loop.stop", "loop.status"]
+      }
+    ]
+  },
+  "$defs": {
+    "CapabilityDefinition": {
+      "description": "One capability in the registry (FR-M36-05). rpcMethods are the bus methods the capability owns.",
+      "type": "object",
+      "required": ["id", "tier", "description", "rpcMethods"],
+      "properties": {
+        "id": { "type": "string" },
+        "tier": { "$ref": "#/$defs/TierName" },
+        "description": { "type": "string" },
+        "rpcMethods": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    }
+  }
+}

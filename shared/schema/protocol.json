@@ -10,7 +10,8 @@
     "INVALID_PARAMS": -32602,
     "INTERNAL_ERROR": -32603,
     "NOT_IMPLEMENTED": -32001,
-    "PROTOCOL_MISMATCH": -32002
+    "PROTOCOL_MISMATCH": -32002,
+    "TIER_DISABLED": -32003
   },
   "$defs": {
     "RequestId": {

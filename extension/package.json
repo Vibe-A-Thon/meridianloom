@@ -35,10 +35,10 @@
     },
     "views": {
       "meridian-loom": [
-        { "id": "meridianLoom.agents", "name": "Agents" },
-        { "id": "meridianLoom.stories", "name": "Stories" },
-        { "id": "meridianLoom.loops", "name": "Loops" },
-        { "id": "meridianLoom.skills", "name": "Skills" },
+        { "id": "meridianLoom.agents", "name": "Agents", "when": "meridian.tiers.orchestra" },
+        { "id": "meridianLoom.stories", "name": "Stories", "when": "meridian.tiers.governor" },
+        { "id": "meridianLoom.loops", "name": "Loops", "when": "meridian.tiers.orchestra" },
+        { "id": "meridianLoom.skills", "name": "Skills", "when": "meridian.tiers.orchestra" },
         { "id": "meridianLoom.ledger", "name": "Ledger" }
       ]
     },
@@ -56,6 +56,19 @@
       { "command": "meridian.abortStory", "title": "Abort Story", "category": "Meridian Loom" },
       { "command": "meridian.doctor", "title": "Doctor", "category": "Meridian Loom" }
     ],
+    "menus": {
+      "commandPalette": [
+        { "command": "meridian.ingestStory", "when": "meridian.tiers.orchestra" },
+        { "command": "meridian.installSkill", "when": "meridian.tiers.orchestra" },
+        { "command": "meridian.onboardAgent", "when": "meridian.tiers.orchestra" },
+        { "command": "meridian.exportAgent", "when": "meridian.tiers.orchestra" },
+        { "command": "meridian.importAgent", "when": "meridian.tiers.orchestra" },
+        { "command": "meridian.haltAll", "when": "meridian.tiers.governor" },
+        { "command": "meridian.steer", "when": "meridian.tiers.governor" },
+        { "command": "meridian.dryRun", "when": "meridian.tiers.governor" },
+        { "command": "meridian.abortStory", "when": "meridian.tiers.governor" }
+      ]
+    },
     "configuration": {
       "title": "Meridian Loom",
       "properties": {
@@ -63,6 +76,15 @@
           "type": "string",
           "default": "",
           "description": "Python interpreter for the Meridian Core sidecar (>= 3.11). Empty resolves via the Python extension, then python3/python on PATH (FR-M3-05)."
+        },
+        "meridian.tiers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["flight-recorder", "governor", "orchestra"]
+          },
+          "default": ["flight-recorder"],
+          "description": "Enabled product tiers (FR-M36-05). Flight Recorder is the base tier and is always on. Enabling Governor or Orchestra is a settings change only — no reinstall; disabling a tier leaves the tiers below fully functional (G5)."
         }
       }
     }

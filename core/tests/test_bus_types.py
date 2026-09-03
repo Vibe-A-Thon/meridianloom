@@ -43,7 +43,30 @@ def test_server_registry_exactly_covers_the_contract():
 
 def test_placeholder_methods_answer_not_implemented():
     server = SidecarServer()
-    for method in ("ledger.append", "ledger.query", "loop.start", "loop.stop", "loop.status"):
+    # Enable every tier first: the point here is the NOT_IMPLEMENTED
+    # placeholder contract, not the tier gate (test_tiers.py covers the gate).
+    server.handle_message(
+        {
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "handshake",
+            "params": {
+                "protocolVersion": 1,
+                "client": "pytest",
+                "tiers": ["flight-recorder", "governor", "orchestra"],
+            },
+        }
+    )
+    for method in (
+        "ledger.append",
+        "ledger.query",
+        "loop.start",
+        "loop.stop",
+        "loop.status",
+        "gate.evaluate",
+        "steer.send",
+        "trust.summary",
+    ):
         response = server.handle_message({"jsonrpc": "2.0", "id": 1, "method": method})
         assert response is not None
         assert response["error"]["code"] == bus_types.NOT_IMPLEMENTED, method

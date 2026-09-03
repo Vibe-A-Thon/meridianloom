@@ -9,6 +9,8 @@ export interface ManagedClient extends SidecarClient {
   start(): Promise<void>;
   kill(): void;
   readonly pid?: number;
+  /** Fire-and-forget notification; optional so test fakes stay minimal. */
+  notify?(method: string, params: unknown): void;
   on(event: 'exit', listener: (code: number | null, signal: string | null) => void): unknown;
   on(event: 'spawnError', listener: (error: Error) => void): unknown;
 }

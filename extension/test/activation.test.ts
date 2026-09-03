@@ -44,9 +44,10 @@ describe('activate', () => {
   it('pushes every registration into context.subscriptions', () => {
     const context = mockContext();
     activate(context);
-    // +1: the sidecar teardown disposable (FR-M3-02).
+    // +1: the sidecar teardown disposable (FR-M3-02); +1: the meridian.tiers
+    // configuration listener (FR-M36-05).
     expect(context.subscriptions).toHaveLength(
-      TREE_VIEWS.length + COMMANDS.length + 1,
+      TREE_VIEWS.length + COMMANDS.length + 2,
     );
   });
 });

@@ -20,6 +20,7 @@ INVALID_PARAMS = bus_types.INVALID_PARAMS
 INTERNAL_ERROR = bus_types.INTERNAL_ERROR
 ERROR_NOT_IMPLEMENTED = bus_types.NOT_IMPLEMENTED
 ERROR_PROTOCOL_MISMATCH = bus_types.PROTOCOL_MISMATCH
+ERROR_TIER_DISABLED = bus_types.TIER_DISABLED
 
 # Version of this sidecar build, reported in the handshake for diagnostics.
 CORE_VERSION = "0.0.1"

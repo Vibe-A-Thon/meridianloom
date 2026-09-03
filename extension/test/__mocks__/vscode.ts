@@ -117,6 +117,16 @@ export const __outputChannels = new Map<
   { lines: string[]; shown: boolean; disposed: boolean }
 >();
 export const __workspaceFolders: Array<{ uri: Uri; name: string }> = [];
+export const __contextKeys = new Map<string, unknown>();
+
+const __configChangeEmitter = new EventEmitter<{ affectsConfiguration(section: string): boolean }>();
+
+/** Fire a configuration-change event; affectsConfiguration matches the given sections. */
+export function __fireConfigurationChange(...sections: string[]): void {
+  __configChangeEmitter.fire({
+    affectsConfiguration: (section: string) => sections.includes(section),
+  });
+}
 
 let __lastProgressToken: ManualCancellationToken | undefined;
 
@@ -139,6 +149,7 @@ export function __reset(): void {
   __extensions.clear();
   __outputChannels.clear();
   __workspaceFolders.length = 0;
+  __contextKeys.clear();
   __lastProgressToken = undefined;
 }
 
@@ -150,6 +161,23 @@ export const commands = {
     return new Disposable(() => {
       __registeredCommands.delete(id);
     });
+  },
+
+  async setContext(key: string, value: unknown): Promise<void> {
+    __contextKeys.set(key, value);
+  },
+
+  async executeCommand(command: string, ...args: unknown[]): Promise<unknown> {
+    // The real API exposes context keys only via `executeCommand('setContext', …)`.
+    if (command === 'setContext') {
+      __contextKeys.set(args[0] as string, args[1]);
+      return undefined;
+    }
+    const handler = __registeredCommands.get(command);
+    if (handler) {
+      return handler(...args);
+    }
+    throw new Error(`unknown command: ${command}`);
   },
 };
 
@@ -261,6 +289,12 @@ export interface StatusBarItem {
 export const workspace = {
   get workspaceFolders(): Array<{ uri: Uri; name: string }> | undefined {
     return __workspaceFolders.length > 0 ? [...__workspaceFolders] : undefined;
+  },
+
+  onDidChangeConfiguration(
+    listener: (event: { affectsConfiguration(section: string): boolean }) => void,
+  ): Disposable {
+    return __configChangeEmitter.event(listener);
   },
 
   getConfiguration(section?: string) {

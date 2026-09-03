@@ -16,10 +16,12 @@ INVALID_PARAMS: int = -32602
 INTERNAL_ERROR: int = -32603
 NOT_IMPLEMENTED: int = -32001
 PROTOCOL_MISMATCH: int = -32002
+TIER_DISABLED: int = -32003
 
 class HandshakeParams(TypedDict):
     protocolVersion: int  # Must equal PROTOCOL_VERSION or the sidecar refuses with PROTOCOL_MISMATCH.
     client: str  # e.g. meridian-loom-extension
+    tiers: NotRequired[list[TierName]]  # FR-M36-05: tiers enabled in this workspace (from the meridian.tiers setting). Absent means the sidecar default: flight-recorder only. The base tier is always enabled regardless.
 
 class Capabilities(TypedDict):
     methods: list[str]
@@ -125,11 +127,35 @@ class LoopStatusResult(TypedDict):
 class CancelParams(TypedDict):
     id: RequestId
 
+class GateEvaluateParams(TypedDict):
+    storyId: str
+    gate: str  # Gate name, e.g. security, review (FR-M12-01).
+
+class GateEvaluateResult(TypedDict):
+    decision: Literal["pass", "block"]
+    reasons: NotRequired[list[str]]
+
+class SteerSendParams(TypedDict):
+    sessionId: str
+    message: str
+
+class SteerSendResult(TypedDict):
+    accepted: bool
+
+class TrustSummaryParams(TypedDict):
+    agentId: NotRequired[str]
+
+class TrustSummaryResult(TypedDict):
+    entries: list[dict[str, Any]]
+
+class TierSetParams(TypedDict):
+    tiers: list[TierName]
+
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "doctor/run", "ledger.append", "ledger.query", "loop.start", "loop.stop", "loop.status"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "doctor/run", "ledger.append", "ledger.query", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary"]
 
 # Every notification method on the bus.
-NotificationName = Literal["$/cancel"]
+NotificationName = Literal["tiers/set", "$/cancel"]
 
 # JSON-RPC 2.0 request id. The extension allocates monotonically increasing integers; strings are accepted for forwards compatibility.
 RequestId = int | str
@@ -160,8 +186,35 @@ class NotificationEnvelope(TypedDict):
     method: NotificationName
     params: NotRequired[Any]
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "doctor/run", "ledger.append", "ledger.query", "loop.start", "loop.stop", "loop.status",)
-NOTIFICATION_METHODS: tuple[str, ...] = ("$/cancel",)
+# One capability in the registry (FR-M36-05). rpcMethods are the bus methods the capability owns.
+class CapabilityDefinition(TypedDict):
+    id: str
+    tier: TierName
+    description: str
+    rpcMethods: list[str]
+
+# The three product tiers (FR-M36-05), base first.
+TierName = Literal["flight-recorder", "governor", "orchestra"]
+
+# FR-M36-05: all tiers, base first.
+TIERS: tuple[str, ...] = ("flight-recorder", "governor", "orchestra")
+
+# FR-M36-05: enabled tiers when nothing is configured — Flight Recorder only.
+DEFAULT_ENABLED_TIERS: tuple[str, ...] = ("flight-recorder",)
+
+# FR-M36-05: capability registry; every capability is owned by exactly one tier.
+CAPABILITIES: tuple[CapabilityDefinition, ...] = (
+    {"id": "recorder.lifecycle", "tier": "flight-recorder", "description": "Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.", "rpcMethods": ["handshake", "ping", "shutdown", "health"]},
+    {"id": "recorder.doctor", "tier": "flight-recorder", "description": "Self-diagnostic check registry (FR-M30-01).", "rpcMethods": ["doctor/run"]},
+    {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger and queries (FR-M10-01, FR-M10-12; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query"]},
+    {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.", "rpcMethods": ["gate.evaluate"]},
+    {"id": "governor.steer", "tier": "governor", "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.", "rpcMethods": ["steer.send"]},
+    {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
+    {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
+)
+
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "doctor/run", "ledger.append", "ledger.query", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary")
+NOTIFICATION_METHODS: tuple[str, ...] = ("tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
 METHOD_CONTRACT: dict[str, dict[str, Any]] = {
@@ -175,4 +228,7 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "loop.start": {"params": LoopStartParams, "result": LoopStatusResult},
     "loop.stop": {"params": LoopStopParams, "result": LoopStatusResult},
     "loop.status": {"params": LoopStatusParams, "result": LoopStatusResult},
+    "gate.evaluate": {"params": GateEvaluateParams, "result": GateEvaluateResult},
+    "steer.send": {"params": SteerSendParams, "result": SteerSendResult},
+    "trust.summary": {"params": TrustSummaryParams, "result": TrustSummaryResult},
 }
