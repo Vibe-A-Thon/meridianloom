@@ -29,16 +29,16 @@
 
 | # | Criterion | Status | Proof |
 |---|---|---|---|
-| 1 | AC-30 first value < 15 min, no model credential, Weave shows external session with vendor tags, any-line provenance | not-yet | |
-| 2 | AC-33 provenance survives uninstall; bundle verifies with open verifier on clean machine | not-yet | |
+| 1 | AC-30 first value < 15 min, no model credential, Weave shows external session with vendor tags, any-line provenance | pass (engineering) / human-gated (measurement) | 10.45/10.46/10.40 screens on real sidecar data (40d8e30, c3aa115, 73922f7); real claude.exe session detected live on the dev machine (X-29 e2e); the 5-person 15-minute measurement is human-gated — NFR-28 |
+| 2 | AC-33 provenance survives uninstall; bundle verifies with open verifier on clean machine | pass (engineering) / human-gated (uninstall act) | open verifier tests verify exported bundles using only bundled material, no Meridian installed (4dfbdb1 — verify.py + Rust meridian-verify); trailer persistence in git is filesystem-verified by hook e2e tests (86aec58); the physical VSIX uninstall is a human/CI-matrix act |
 | 3 | AC-34 (partial) rejection rate per agent split greenfield/brownfield reconciles to ledger over ≥10 sessions | partially — engineering half proven: `test_reconciliation` recomputes the rate independently from raw ledger rows and asserts equality with the trust/rejectionRate RPC result (df7bf0a); ≥10-sessions human half remains pending-human-evidence |
-| 4 | NFR-28 first value < 15 min (5-person measurement — human-gated; engineering proxies automated) | not-yet | |
-| 5 | NFR-29 observation ≤5% latency, never blocks | not-yet | |
+| 4 | NFR-28 first value < 15 min (5-person measurement — human-gated; engineering proxies automated) | human-gated | 10.40 First-Run four steps on real data (73922f7); the 5-person measurement cannot be run by the build agent |
+| 5 | NFR-29 observation ≤5% latency, never blocks | **pass** | measured: hook burst ~0.0ms, RPC reads ~0.0ms during 500ms in-flight observation (9e190c0); budget 100ms |
 | 6 | FR-M36-07 zero model calls — CI test fails on any model-client import in F0 paths | **pass** | `test_no_model_calls.py` (13) + `no-model-calls.test.ts` (12), ed66495 |
-| 7 | Chain verification passes; corrupted entry detected and sequence named | not-yet | |
-| 8 | Broken observer telemetry degrades to `inferred` with visible warning within one session, never silence | not-yet | |
-| 9 | No orphaned sidecar after window close/reload/disable (all platforms, Remote SSH) | partially — orphan-guard test green (a64eee4); cross-platform matrix pending CI | |
-| 10 | G5 tier isolation: disabling Governor/Orchestra leaves Flight Recorder fully functional | not-yet | |
+| 7 | Chain verification passes; corrupted entry detected and sequence named | **pass** | `test_ledger_verify.py` (10) — 3.2s/100k, payload/prev-hash/gap divergence naming (60858d5) |
+| 8 | Broken observer telemetry degrades to `inferred` with visible warning within one session, never silence | **pass** | observer framework NFR-32 downgrade tests (522d07b); visible warning surfaced in 10.46 observer health (c3aa115) |
+| 9 | No orphaned sidecar after window close/reload/disable (all platforms, Remote SSH) | pass (mechanism) / matrix human-gated | dual-teardown orphan-guard tests both halves (a64eee4); Windows/macOS/Linux/Remote-SSH matrix is CI/human |
+| 10 | G5 tier isolation: disabling Governor/Orchestra leaves Flight Recorder fully functional | **pass** | tiers e2e on real sidecar: upper-tier RPCs refused with structured error, FR fully functional, config-only re-enable (4059975) |
 
 ## F0 workstream progress
 
@@ -50,7 +50,7 @@
 | D — Observers | 17–22 | **done** (c60874b; X-29 + NFR-29 measured within budget; SEC-27 pass) |
 | E — Portable provenance | 23–27 | **done** (481f5fa hook UI command; 90b5e6c agent identity trailers; abfc94c full signed bundle — proofs/signature/compliance; 4dfbdb1 open verifier verify.py + meridian-verify; 1ea71c8 spec docs) |
 | F — Rejection measurement, minimum | 28–30 | **done** (5b54279 rejection capture + ledger v4 rejection entries; 820f59a greenfield/brownfield classification; df7bf0a ledger-derived rejection rate, cached, split, reconciling) |
-| G — The three screens (interlock GF0) | 31–36 | in progress — GF0 foundation done (G0a webview scaffold, G0b tokens/themes/invariants, G0c extension host, G0d RPC client + e2e); screens 31–35 next |
+| G — The three screens (interlock GF0) | 31–36 | **done** (82b84b9 export plumbing; 40d8e30 10.45 Flight Recorder; c3aa115 10.46 External Agents; 5f082f6 10.7 Ledger; 73922f7 10.40 First-Run; c0a1243 X-27…X-30 invariants; b3732aa theme close-out) |
 
 ## Later phases (per gaps_implementation.md)
 
