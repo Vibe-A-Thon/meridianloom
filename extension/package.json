@@ -231,6 +231,7 @@
     "vitest": "2.1.9"
   },
   "dependencies": {
-    "@zed-industries/agent-client-protocol": "0.4.5"
+    "@zed-industries/agent-client-protocol": "0.4.5",
+    "yaml": "2.9.0"
   }
 }
