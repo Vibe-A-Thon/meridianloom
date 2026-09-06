@@ -4,10 +4,11 @@
 
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
-- **Current phase:** F0 — Flight Recorder
-- **Current workstream:** G — The three screens *(interlock: GUI phase GF0)*
-- **Current task:** G 31–35 — the three screens (10.45/10.46/10.7/10.40, X-27…30) on top of the GF0 foundation (done)
-- **Last commit:** afbaf98 — test(f0): webview↔host-proxy↔real-python-sidecar e2e round-trip (G0d) — GF0 foundation complete
+- **Current phase:** F1 — Governor
+- **Current workstream:** A — ACP host
+- **Current task:** 1 — ACP client in the extension host (FR-M34-01): subprocess launch, sessions, streaming updates, permission-gated tool execution, client-provided filesystem/terminal access
+- **Last commit:** 02e5831 — F0 exit criteria assessed (7 pass, 3 engineering-pass/human-gated); tagged **f0-complete**; dist/meridian-loom-0.0.1.vsix packaged (637 KB, webview included)
+- **F0 note:** workstreams A–G complete; 448 pytest + 163 extension vitest + 70 webview vitest green; human-gated items (AC-30/AC-33 measurement, NFR-28 5-person study, 3-platform orphan matrix) recorded in DECISIONS.md — they do not block F1 engineering.
 
 ## Mapping of completed S0 work onto the new plan
 
@@ -54,10 +55,23 @@
 
 ## Later phases (per gaps_implementation.md)
 
-- F1 Governor — ACP host (M34), gates over external PRs, roles, trust analytics, spend, 10 screens
+- F1 Governor — ACP host (M34), gates over external PRs, roles, trust analytics, spend, 10 screens — **in progress (workstream A)**
 - F2 Evidence Gate — human-run, 20 real stories; recorded as pending-human-evidence (DECISIONS.md)
 - F3 Orchestra — old C1+C2 re-based on ACP; Simulation Core built here as regression harness
 - F4+ — old C3–C6
+
+## F1 workstream progress
+
+| Workstream | Tasks | Status |
+|---|---|---|
+| A — ACP host | 1–8 | in progress |
+| B — Gates over other people's work | 9–14 | not started |
+| C — Human identity and roles | 15–16 | not started |
+| D — Steer and clarify | 17–18 | not started |
+| E — Trust analytics | 19–25 | not started |
+| F — Cross-vendor spend | 26–29 | not started |
+| G — Remaining observers | 30 | not started |
+| H — Screens (interlock GF1) | 31–32 | not started |
 
 ## Decisions closed
 
