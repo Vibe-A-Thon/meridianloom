@@ -78,7 +78,7 @@ describe('RPC gating logic (FR-M36-05)', () => {
     for (const method of ['doctor/run', 'ledger.append', 'health', 'ping']) {
       expect(isRpcMethodEnabled(method, enabled)).toBe(true);
     }
-    for (const method of ['gate.evaluate', 'steer.send', 'trust.summary', 'loop.start']) {
+    for (const method of ['gate.evaluate', 'steer.send', 'trust.summary', 'acp/sessionBegin', 'loop.start']) {
       expect(isRpcMethodEnabled(method, enabled)).toBe(false);
     }
   });

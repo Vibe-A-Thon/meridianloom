@@ -158,6 +158,21 @@
       "params": { "$ref": "#/$defs/TrustRejectionRateParams" },
       "result": { "$ref": "#/$defs/TrustRejectionRateResult" }
     },
+    "acp/sessionBegin": {
+      "description": "FR-M34-01/FR-M34-04 (F1 Workstream A): the extension host ACP client reports a hosted agent session starting, so the sidecar records it into the ledger (hosted-session recording is Workstream A task 2). Stub until then.",
+      "params": { "$ref": "#/$defs/AcpSessionBeginParams" },
+      "result": { "$ref": "#/$defs/AcpSessionRecordResult" }
+    },
+    "acp/sessionEnd": {
+      "description": "FR-M34-01 (F1 Workstream A): the extension host ACP client reports a hosted agent session ending (stop reason, timing). Stub until task 2 wires the ledger recording.",
+      "params": { "$ref": "#/$defs/AcpSessionEndParams" },
+      "result": { "$ref": "#/$defs/AcpSessionRecordResult" }
+    },
+    "acp/permissionDecision": {
+      "description": "FR-M34-04/SEC-28 (F1 Workstream A): records one ACP permission decision (the option selected or the cancellation/denial) so the governance trail is in the ledger before the human answer. Stub until task 2 wires the ledger recording.",
+      "params": { "$ref": "#/$defs/AcpPermissionDecisionParams" },
+      "result": { "$ref": "#/$defs/AcpSessionRecordResult" }
+    },
     "tiers/set": {
       "description": "FR-M36-05: notification carrying the enabled tier set after a meridian.tiers configuration change, so a tier flip needs no reinstall and no window reload. The base tier (flight-recorder) is always enabled regardless of payload.",
       "notification": true,
@@ -1326,6 +1341,50 @@
           "type": "array",
           "items": { "$ref": "tiers.json#/$defs/TierName" }
         }
+      },
+      "additionalProperties": false
+    },
+    "AcpSessionBeginParams": {
+      "type": "object",
+      "required": ["agentId", "sessionId", "cwd"],
+      "properties": {
+        "agentId": { "type": "string", "description": "The ACP agent identity (registry id or command name)." },
+        "agentVersion": { "type": "string" },
+        "sessionId": { "type": "string", "description": "The ACP session id the agent issued." },
+        "cwd": { "type": "string", "description": "Workspace directory the session runs against." },
+        "startedAt": { "type": "string", "description": "ISO 8601 UTC; absent = now." }
+      },
+      "additionalProperties": false
+    },
+    "AcpSessionEndParams": {
+      "type": "object",
+      "required": ["sessionId"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "stopReason": { "type": "string", "description": "The ACP stop reason that ended the last turn (end_turn, cancelled, refusal…), when known." },
+        "endedAt": { "type": "string", "description": "ISO 8601 UTC; absent = now." }
+      },
+      "additionalProperties": false
+    },
+    "AcpPermissionDecisionParams": {
+      "type": "object",
+      "required": ["sessionId", "outcome"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "toolCallId": { "type": "string" },
+        "toolKind": { "type": "string" },
+        "path": { "type": "string" },
+        "optionId": { "type": "string", "description": "The permission option selected, when outcome is selected." },
+        "outcome": { "enum": ["selected", "cancelled", "denied_by_policy"], "description": "denied_by_policy is reserved for the FR-M34-04 policy pre-check (task 4); the task-1 host records what the human decided." },
+        "decidedAt": { "type": "string", "description": "ISO 8601 UTC; absent = now." }
+      },
+      "additionalProperties": false
+    },
+    "AcpSessionRecordResult": {
+      "type": "object",
+      "required": ["recorded"],
+      "properties": {
+        "recorded": { "type": "boolean", "description": "True when the session fact was appended to the ledger." }
       },
       "additionalProperties": false
     }

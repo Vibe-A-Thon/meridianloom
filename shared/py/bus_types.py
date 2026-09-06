@@ -723,8 +723,32 @@ class ObserveHealthResult(TypedDict):
 class TierSetParams(TypedDict):
     tiers: list[TierName]
 
+class AcpSessionBeginParams(TypedDict):
+    agentId: str  # The ACP agent identity (registry id or command name).
+    agentVersion: NotRequired[str]
+    sessionId: str  # The ACP session id the agent issued.
+    cwd: str  # Workspace directory the session runs against.
+    startedAt: NotRequired[str]  # ISO 8601 UTC; absent = now.
+
+class AcpSessionEndParams(TypedDict):
+    sessionId: str
+    stopReason: NotRequired[str]  # The ACP stop reason that ended the last turn (end_turn, cancelled, refusal…), when known.
+    endedAt: NotRequired[str]  # ISO 8601 UTC; absent = now.
+
+class AcpPermissionDecisionParams(TypedDict):
+    sessionId: str
+    toolCallId: NotRequired[str]
+    toolKind: NotRequired[str]
+    path: NotRequired[str]
+    optionId: NotRequired[str]  # The permission option selected, when outcome is selected.
+    outcome: Literal["selected", "cancelled", "denied_by_policy"]  # denied_by_policy is reserved for the FR-M34-04 policy pre-check (task 4); the task-1 host records what the human decided.
+    decidedAt: NotRequired[str]  # ISO 8601 UTC; absent = now.
+
+class AcpSessionRecordResult(TypedDict):
+    recorded: bool  # True when the session fact was appended to the ledger.
+
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision"]
 
 # Every notification method on the bus.
 NotificationName = Literal["tiers/set", "$/cancel"]
@@ -786,10 +810,11 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.", "rpcMethods": ["gate.evaluate"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.", "rpcMethods": ["steer.send"]},
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
+    {"id": "governor.acp-host", "tier": "governor", "description": "ACP host (FR-M34-01; F1 Workstream A task 1): the extension-host client that launches ACP-conformant agent subprocesses — initialize handshake and protocol-version negotiation, session lifecycle (new/load), streaming session updates, permission-gated tool execution (host approval injectable; wired to vscode window prompts for real use), and client-provided fs/terminal access rooted at the user's workspace. Implemented in extension/src/acp/ (governor tier; disabled => no hosted sessions, G5). These sidecar RPCs are the hosted-session ledger-recording surface that task 2 (FR-M34-04) wires.", "rpcMethods": ["acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision"]},
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision")
 NOTIFICATION_METHODS: tuple[str, ...] = ("tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -825,4 +850,7 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "trust/detectRejections": {"params": TrustDetectRejectionsParams, "result": TrustDetectRejectionsResult},
     "trust/classify": {"params": TrustClassifyParams, "result": TrustClassifyResult},
     "trust/rejectionRate": {"params": TrustRejectionRateParams, "result": TrustRejectionRateResult},
+    "acp/sessionBegin": {"params": AcpSessionBeginParams, "result": AcpSessionRecordResult},
+    "acp/sessionEnd": {"params": AcpSessionEndParams, "result": AcpSessionRecordResult},
+    "acp/permissionDecision": {"params": AcpPermissionDecisionParams, "result": AcpSessionRecordResult},
 }

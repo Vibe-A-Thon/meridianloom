@@ -121,6 +121,12 @@ class SidecarServer:
             "gate.evaluate": lambda self, params: self._not_implemented("gate.evaluate", "F1 (Governor)"),
             "steer.send": lambda self, params: self._not_implemented("steer.send", "F1 (Governor)"),
             "trust.summary": lambda self, params: self._not_implemented("trust.summary", "F1 (Governor)"),
+            # FR-M34-01 (F1 Workstream A): hosted-session ledger recording.
+            # The extension-host ACP client (extension/src/acp/) speaks the
+            # wire today; task 2 implements these recorders.
+            "acp/sessionBegin": lambda self, params: self._not_implemented("acp/sessionBegin", "F1 (Governor) — hosted-session ledger recording (task 2)"),
+            "acp/sessionEnd": lambda self, params: self._not_implemented("acp/sessionEnd", "F1 (Governor) — hosted-session ledger recording (task 2)"),
+            "acp/permissionDecision": lambda self, params: self._not_implemented("acp/permissionDecision", "F1 (Governor) — hosted-session ledger recording (task 2)"),
         }
         # The registry must exactly cover the contracted request methods.
         assert set(self._handlers) == set(bus_types.REQUEST_METHODS), (

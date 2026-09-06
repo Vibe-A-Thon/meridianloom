@@ -49,6 +49,22 @@ export function capabilityForRpcMethod(method: string): CapabilityDefinition | u
   return CAPABILITY_BY_METHOD.get(method);
 }
 
+const CAPABILITY_BY_ID = new Map<string, CapabilityDefinition>(
+  CAPABILITIES.map((capability) => [capability.id, capability]),
+);
+
+/**
+ * FR-M36-05, host-side features: whether the capability (e.g.
+ * `governor.acp-host`, FR-M34-01) is available under the given enabled set.
+ * Host-only capabilities (no sidecar RPC of their own) are gated through
+ * this lookup, mirroring the sidecar's per-method tier gate (G5: disabling
+ * a tier leaves the tiers below fully functional).
+ */
+export function isCapabilityEnabled(capabilityId: string, enabled: readonly TierName[]): boolean {
+  const capability = CAPABILITY_BY_ID.get(capabilityId);
+  return capability !== undefined && enabled.includes(capability.tier);
+}
+
 /**
  * Whether an RPC would pass the sidecar's tier gate under the given enabled
  * set. Methods nobody owns are not a tier question — the bus answers

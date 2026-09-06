@@ -67,6 +67,12 @@
         "rpcMethods": ["trust.summary"]
       },
       {
+        "id": "governor.acp-host",
+        "tier": "governor",
+        "description": "ACP host (FR-M34-01; F1 Workstream A task 1): the extension-host client that launches ACP-conformant agent subprocesses — initialize handshake and protocol-version negotiation, session lifecycle (new/load), streaming session updates, permission-gated tool execution (host approval injectable; wired to vscode window prompts for real use), and client-provided fs/terminal access rooted at the user's workspace. Implemented in extension/src/acp/ (governor tier; disabled => no hosted sessions, G5). These sidecar RPCs are the hosted-session ledger-recording surface that task 2 (FR-M34-04) wires.",
+        "rpcMethods": ["acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision"]
+      },
+      {
         "id": "orchestra.loops",
         "tier": "orchestra",
         "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.",
