@@ -105,6 +105,7 @@ class SidecarServer:
             "hook/status": SidecarServer._handle_hook_status,
             "hook/remove": SidecarServer._handle_hook_remove,
             "hook/pending": SidecarServer._handle_hook_pending,
+            "trailers/parse": SidecarServer._handle_trailers_parse,
             "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
             "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
@@ -596,6 +597,72 @@ class SidecarServer:
             )
         except provenance_hooks.HookError as error:
             raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+
+    def _handle_trailers_parse(
+        self, params: bus_types.TrailersParseParams
+    ) -> bus_types.TrailersParseResult:
+        """FR-M36-03 (task 24): agent-identity trailers as attribution records.
+
+        Either a raw `message` (parsed directly, no repository) or a git
+        walk over repoPath/ref/since, in the newest-first log order.
+        """
+        params = params or {}
+        from . import trailers as trailers_mod
+
+        def commit_payload(
+            commit: str | None,
+            authored_at: str | None,
+            body: str,
+        ) -> bus_types.TrailerCommit:
+            return {
+                "commit": commit,
+                "authoredAt": authored_at,
+                "attributions": trailers_mod.parse_attributions(body),
+                "meridianLedger": [
+                    value
+                    for key, value in trailers_mod.parse_trailers(body)
+                    if key == trailers_mod.MERIDIAN_LEDGER_KEY
+                ],
+            }
+
+        message = params.get("message")
+        if message is not None:
+            if not isinstance(message, str):
+                raise _RpcError(protocol.INVALID_PARAMS, "message must be a string")
+            return {"commits": [commit_payload(None, None, message)]}
+
+        try:
+            repo = self._ensure_attrib_repo(params)
+        except AttributionError as error:
+            raise self._attrib_error(error) from error
+        ref = params.get("ref") or "HEAD"
+        log_args = ["log", f"--format=%H%x1f%cI%x1f%B%x1e"]
+        since = params.get("since")
+        if since:
+            log_args.append(f"--since={since}")
+        log_args.append(ref)
+        try:
+            log = provenance_hooks.run_git(repo, *log_args)
+        except Exception as error:  # noqa: BLE001 - bad ref/since: actionable error
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"cannot read commit messages from {repo}: {error}",
+            ) from error
+        commits: list[bus_types.TrailerCommit] = []
+        for record in log.split("\x1e"):
+            record = record.strip("\n")
+            if not record.strip():
+                continue
+            fields = record.split("\x1f", 2)
+            if len(fields) < 3:
+                continue
+            commit, authored_at, body = fields
+            payload = commit_payload(commit.strip(), authored_at.strip(), body)
+            # Commits carrying no trailer facts are not provenance evidence;
+            # the stream stays limited to what actually attributes.
+            if payload["attributions"] or payload["meridianLedger"]:
+                commits.append(payload)
+        return {"commits": commits}
 
     # -- ledger (FR-M10-01/02/07/08/12) -------------------------------------
 

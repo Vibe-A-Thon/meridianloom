@@ -39,8 +39,8 @@
       {
         "id": "recorder.provenance-hooks",
         "tier": "flight-recorder",
-        "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, and hook lifecycle (install/status/remove). Zero model calls (FR-M36-07).",
-        "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending"]
+        "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).",
+        "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse"]
       },
       {
         "id": "governor.gates",

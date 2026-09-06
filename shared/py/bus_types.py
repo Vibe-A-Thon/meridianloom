@@ -489,6 +489,29 @@ class HookPendingResult(TypedDict):
     recorded: bool
     pendingPath: NotRequired[str]
 
+# One Co-Authored-By trailer value as an attribution record (FR-M36-03, task 24): the claimed identity, the vendor it resolves to (claude | github-copilot | cursor | generic | meridian | unknown), and whether this is Meridian's own reserved co-author line.
+class TrailerAttribution(TypedDict):
+    name: str
+    email: str | None
+    vendor: str
+    meridianAuthored: bool
+
+# One commit's trailer facts: its agent attributions and the Meridian-Ledger sequence ranges it carries. `commit`/`authoredAt` are null only for the direct-message parse path.
+class TrailerCommit(TypedDict):
+    commit: str | None
+    authoredAt: str | None
+    attributions: list[TrailerAttribution]
+    meridianLedger: list[str]
+
+class TrailersParseParams(TypedDict):
+    repoPath: NotRequired[str]  # Repository root. Absent means the handshake workspaceDir.
+    ref: NotRequired[str]  # Range or rev to walk, default HEAD. Any git log ref grammar (e.g. a..b).
+    since: NotRequired[str]  # ISO-8601 cutoff; only commits at or after it are parsed.
+    message: NotRequired[str]  # Parse this raw commit message directly — no repository needed; returns a single synthetic commit.
+
+class TrailersParseResult(TypedDict):
+    commits: list[TrailerCommit]
+
 # The six canonical loops (FR-M4-03).
 LoopKind = Literal["L1-micro", "L2-task", "L3-phase", "L4-delivery", "L5-learning", "L6-organisation"]
 
@@ -581,7 +604,7 @@ class TierSetParams(TypedDict):
     tiers: list[TierName]
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary"]
 
 # Every notification method on the bus.
 NotificationName = Literal["tiers/set", "$/cancel"]
@@ -638,14 +661,14 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.attribution", "tier": "flight-recorder", "description": "Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).", "rpcMethods": ["attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify"]},
     {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]},
     {"id": "recorder.observers", "tier": "flight-recorder", "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).", "rpcMethods": ["observe/sessions", "observe/health"]},
-    {"id": "recorder.provenance-hooks", "tier": "flight-recorder", "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, and hook lifecycle (install/status/remove). Zero model calls (FR-M36-07).", "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending"]},
+    {"id": "recorder.provenance-hooks", "tier": "flight-recorder", "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).", "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse"]},
     {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.", "rpcMethods": ["gate.evaluate"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.", "rpcMethods": ["steer.send"]},
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary")
 NOTIFICATION_METHODS: tuple[str, ...] = ("tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -671,6 +694,7 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "hook/status": {"params": HookStatusParams, "result": HookStatusResult},
     "hook/remove": {"params": HookRemoveParams, "result": HookRemoveResult},
     "hook/pending": {"params": HookPendingParams, "result": HookPendingResult},
+    "trailers/parse": {"params": TrailersParseParams, "result": TrailersParseResult},
     "loop.start": {"params": LoopStartParams, "result": LoopStatusResult},
     "loop.stop": {"params": LoopStopParams, "result": LoopStatusResult},
     "loop.status": {"params": LoopStatusParams, "result": LoopStatusResult},

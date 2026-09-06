@@ -15,12 +15,28 @@ block detection and are always left untouched.
 from __future__ import annotations
 
 import re
+from typing import Any
 
 #: One trailer line: a token of alphanumerics and dashes, colon, space, value.
 TRAILER_LINE_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*):[ \t](.*)$")
 
 MERIDIAN_LEDGER_KEY = "Meridian-Ledger"
 CO_AUTHORED_BY_KEY = "Co-Authored-By"
+
+#: Vendor identity for ``Co-Authored-By`` values (FR-M36-03, task 24), keyed
+#: by the mailbox the vendor's agent writes. An unmatched but well-formed
+#: ``Name <email>`` is a ``generic`` human-or-agent co-author; anything else
+#: is ``unknown``. Meridian's own line is recognised by identity, not by
+#: mailbox, and is reserved for Meridian-authored commits.
+VENDOR_EMAILS = {
+    "noreply@anthropic.com": "claude",
+    "copilot@github.com": "github-copilot",
+    "cursor@anysphere.inc": "cursor",
+    "cursor@cursor.com": "cursor",
+}
+MERIDIAN_IDENTITY = "meridian"
+
+_CO_AUTHOR_RE = re.compile(r"^(?P<name>.*?)\s*<(?P<email>[^<>]+)>\s*$")
 
 
 def is_comment(line: str, comment_char: str = "#") -> bool:
@@ -106,3 +122,51 @@ def append_trailer(message: str, key: str, value: str) -> str:
         lines.append("")
     lines.append(trailer_line)
     return "\n".join(lines)
+
+
+# -- agent identity (FR-M36-03, F0 Workstream E task 24) -----------------------
+
+
+def co_author_attribution(value: str) -> dict[str, Any]:
+    """One ``Co-Authored-By`` trailer value as an attribution record.
+
+    Well-formed ``Name <email>`` values resolve to a vendor via
+    :data:`VENDOR_EMAILS` (``generic`` when no vendor matches); the identity
+    ``Meridian`` is recognised however it is addressed and flagged
+    ``meridianAuthored`` — that line is reserved for Meridian-authored
+    commits. Unparseable values surface as ``vendor: unknown``, never an
+    error: trailer evidence degrades, it never goes silent.
+    """
+    match = _CO_AUTHOR_RE.match(value.strip())
+    if match is None:
+        return {
+            "name": value.strip(),
+            "email": None,
+            "vendor": "unknown",
+            "meridianAuthored": False,
+        }
+    name = match.group("name").strip()
+    email = match.group("email").strip()
+    if name.lower() == MERIDIAN_IDENTITY:
+        return {
+            "name": name,
+            "email": email,
+            "vendor": "meridian",
+            "meridianAuthored": True,
+        }
+    return {
+        "name": name,
+        "email": email,
+        "vendor": VENDOR_EMAILS.get(email, "generic"),
+        "meridianAuthored": False,
+    }
+
+
+def parse_attributions(message: str) -> list[dict[str, Any]]:
+    """Every ``Co-Authored-By`` trailer in ``message`` as attribution records,
+    in order (see :func:`parse_trailers` for the line semantics)."""
+    return [
+        co_author_attribution(value)
+        for key, value in parse_trailers(message)
+        if key == CO_AUTHORED_BY_KEY
+    ]

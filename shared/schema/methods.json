@@ -108,6 +108,11 @@
       "params": { "$ref": "#/$defs/HookPendingParams" },
       "result": { "$ref": "#/$defs/HookPendingResult" }
     },
+    "trailers/parse": {
+      "description": "FR-M36-03 (F0 Workstream E task 24): agent identity trailers. Every vendor's `Co-Authored-By` variant (Claude, GitHub Copilot, Cursor, generic `Name <email>`) in the repository's commit messages parsed into attribution records, with `Meridian-Ledger` ranges alongside; `message` parses one raw message without git. Meridian's own `Co-Authored-By: Meridian <...>` is recognised and reserved for Meridian-authored commits (meridianAuthored). Zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/TrailersParseParams" },
+      "result": { "$ref": "#/$defs/TrailersParseResult" }
+    },
     "loop.start": {
       "description": "Start one of the six canonical loops (FR-M4-03).",
       "params": { "$ref": "#/$defs/LoopStartParams" },
@@ -897,6 +902,48 @@
       "properties": {
         "recorded": { "type": "boolean" },
         "pendingPath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "TrailerAttribution": {
+      "description": "One Co-Authored-By trailer value as an attribution record (FR-M36-03, task 24): the claimed identity, the vendor it resolves to (claude | github-copilot | cursor | generic | meridian | unknown), and whether this is Meridian's own reserved co-author line.",
+      "type": "object",
+      "required": ["name", "email", "vendor", "meridianAuthored"],
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": ["string", "null"] },
+        "vendor": { "type": "string" },
+        "meridianAuthored": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "TrailerCommit": {
+      "description": "One commit's trailer facts: its agent attributions and the Meridian-Ledger sequence ranges it carries. `commit`/`authoredAt` are null only for the direct-message parse path.",
+      "type": "object",
+      "required": ["commit", "authoredAt", "attributions", "meridianLedger"],
+      "properties": {
+        "commit": { "type": ["string", "null"] },
+        "authoredAt": { "type": ["string", "null"] },
+        "attributions": { "type": "array", "items": { "$ref": "#/$defs/TrailerAttribution" } },
+        "meridianLedger": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "TrailersParseParams": {
+      "type": "object",
+      "properties": {
+        "repoPath": { "type": "string", "description": "Repository root. Absent means the handshake workspaceDir." },
+        "ref": { "type": "string", "description": "Range or rev to walk, default HEAD. Any git log ref grammar (e.g. a..b)." },
+        "since": { "type": "string", "description": "ISO-8601 cutoff; only commits at or after it are parsed." },
+        "message": { "type": "string", "description": "Parse this raw commit message directly — no repository needed; returns a single synthetic commit." }
+      },
+      "additionalProperties": false
+    },
+    "TrailersParseResult": {
+      "type": "object",
+      "required": ["commits"],
+      "properties": {
+        "commits": { "type": "array", "items": { "$ref": "#/$defs/TrailerCommit" } }
       },
       "additionalProperties": false
     },

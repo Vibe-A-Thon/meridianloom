@@ -30,6 +30,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .. import trailers as trailers_mod
 from ..attribution._git import ensure_repo, run_git
 from . import fsprobe, otel
 from .base import (
@@ -188,7 +189,15 @@ class ClaudeCodeObserver:
             if len(fields) < 3:
                 continue
             commit, authored, body = fields
-            if TRAILER_COAUTHORED in body or TRAILER_GENERATED in body:
+            # Single ownership of trailer semantics lives in trailers.py
+            # (task 24): the Co-Authored-By evidence goes through the shared
+            # parser. The "Generated with Claude Code" line is free text, not
+            # a Key: value trailer, so it stays a substring check.
+            mentions_claude = TRAILER_GENERATED in body or any(
+                attribution["vendor"] == "claude"
+                for attribution in trailers_mod.parse_attributions(body)
+            )
+            if mentions_claude:
                 hits.append((commit.strip(), authored.strip()))
         if not hits:
             return None
