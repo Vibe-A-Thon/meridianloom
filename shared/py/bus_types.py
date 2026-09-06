@@ -634,6 +634,27 @@ class TrustDetectRejectionsResult(TypedDict):
     recorded: int  # Rejection entries appended to the ledger in this call.
     duplicatesSkipped: int  # Detections already present in the ledger (idempotent re-run).
 
+class TrustClassifyParams(TypedDict):
+    repoPath: NotRequired[str]  # Repository root. Absent means the handshake workspaceDir.
+    commits: NotRequired[list[str]]  # The story's/session's commits (full or abbreviated shas). Takes precedence over base/compare.
+    base: NotRequired[str]
+    compare: NotRequired[str]  # Classify the base..compare range instead of an explicit commit list.
+    newFileRatioThreshold: NotRequired[float]  # Default 0.5 (meridian.greenfieldNewFileRatio).
+    maxMedianAgeDays: NotRequired[float]  # Default 30 (meridian.greenfieldMaxMedianAgeDays).
+
+class TrustClassificationThresholds(TypedDict):
+    newFileRatioThreshold: float
+    maxMedianAgeDays: float
+
+class TrustClassifyResult(TypedDict):
+    repoPath: str
+    newFiles: int
+    modifiedFiles: int
+    newFileRatio: float
+    medianTouchedCodeAgeDays: float | None  # Median age in days of the pre-existing code the changes touched (per-line git history age); null when the story only added files.
+    classification: Literal["greenfield", "brownfield"]
+    thresholds: TrustClassificationThresholds
+
 # FR-M35-02 observation confidence: direct (the agent's own telemetry/ACP session), telemetry (evidence the agent left behind: git trailers, SCM/PR API, OS process listing), inferred (filesystem/git inference — the floor, never silence).
 ObservationConfidence = Literal["direct", "telemetry", "inferred"]
 
@@ -678,7 +699,7 @@ class TierSetParams(TypedDict):
     tiers: list[TierName]
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify"]
 
 # Every notification method on the bus.
 NotificationName = Literal["tiers/set", "$/cancel"]
@@ -736,14 +757,14 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]},
     {"id": "recorder.observers", "tier": "flight-recorder", "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).", "rpcMethods": ["observe/sessions", "observe/health"]},
     {"id": "recorder.provenance-hooks", "tier": "flight-recorder", "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).", "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse"]},
-    {"id": "recorder.trust-metrics", "tier": "flight-recorder", "description": "Rejection measurement, minimum (FR-M37-01 subset; F0 Workstream F task 28): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections). Zero model calls (FR-M36-07).", "rpcMethods": ["trust/detectRejections"]},
+    {"id": "recorder.trust-metrics", "tier": "flight-recorder", "description": "Rejection measurement, minimum (FR-M37-01 subset, FR-M37-06; F0 Workstream F tasks 28-29): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections) and greenfield/brownfield classification of a story's changes (trust/classify). Zero model calls (FR-M36-07).", "rpcMethods": ["trust/detectRejections", "trust/classify"]},
     {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.", "rpcMethods": ["gate.evaluate"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.", "rpcMethods": ["steer.send"]},
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify")
 NOTIFICATION_METHODS: tuple[str, ...] = ("tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -777,4 +798,5 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "steer.send": {"params": SteerSendParams, "result": SteerSendResult},
     "trust.summary": {"params": TrustSummaryParams, "result": TrustSummaryResult},
     "trust/detectRejections": {"params": TrustDetectRejectionsParams, "result": TrustDetectRejectionsResult},
+    "trust/classify": {"params": TrustClassifyParams, "result": TrustClassifyResult},
 }

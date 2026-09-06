@@ -36,6 +36,7 @@ from .attribution import heuristics
 from .attribution import AttributionError
 from .attribution._git import normalise_repo_path as attribution_normalise
 from . import hooks as provenance_hooks
+from . import metrics as metrics_mod
 from . import rejection as rejection_mod
 from .ledger import core as ledger_core
 from .ledger import keys as ledger_keys
@@ -108,6 +109,7 @@ class SidecarServer:
             "hook/pending": SidecarServer._handle_hook_pending,
             "trailers/parse": SidecarServer._handle_trailers_parse,
             "trust/detectRejections": SidecarServer._handle_trust_detect_rejections,
+            "trust/classify": SidecarServer._handle_trust_classify,
             "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
             "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
@@ -810,6 +812,43 @@ class SidecarServer:
             "rejectedSequence": rejected_sequence,
             "recordedSequence": recorded_sequence,
             "alreadyRecorded": already_recorded,
+        }
+
+    # -- greenfield/brownfield classification (FR-M37-06, task 29) ------------
+
+    def _handle_trust_classify(
+        self, params: bus_types.TrustClassifyParams
+    ) -> bus_types.TrustClassifyResult:
+        params = params or {}
+        ratio_threshold = params.get("newFileRatioThreshold")
+        if ratio_threshold is None:
+            ratio_threshold = metrics_mod.DEFAULT_NEW_FILE_RATIO_THRESHOLD
+        max_age_days = params.get("maxMedianAgeDays")
+        if max_age_days is None:
+            max_age_days = metrics_mod.DEFAULT_MAX_MEDIAN_AGE_DAYS
+        try:
+            repo = self._ensure_attrib_repo({"repoPath": params.get("repoPath")})
+            result = metrics_mod.classify(
+                repo,
+                commits=params.get("commits"),
+                base=params.get("base"),
+                compare=params.get("compare"),
+                new_file_ratio_threshold=ratio_threshold,
+                max_median_age_days=max_age_days,
+            )
+        except AttributionError as error:
+            raise self._attrib_error(error) from error
+        return {
+            "repoPath": str(repo),
+            "newFiles": result.new_files,
+            "modifiedFiles": result.modified_files,
+            "newFileRatio": result.new_file_ratio,
+            "medianTouchedCodeAgeDays": result.median_touched_code_age_days,
+            "classification": result.classification,  # type: ignore[typeddict-item]
+            "thresholds": {
+                "newFileRatioThreshold": ratio_threshold,
+                "maxMedianAgeDays": max_age_days,
+            },
         }
 
     # -- ledger (FR-M10-01/02/07/08/12) -------------------------------------

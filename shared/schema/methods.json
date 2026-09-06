@@ -148,6 +148,11 @@
       "params": { "$ref": "#/$defs/TrustDetectRejectionsParams" },
       "result": { "$ref": "#/$defs/TrustDetectRejectionsResult" }
     },
+    "trust/classify": {
+      "description": "FR-M37-06 (F0 Workstream F task 29): greenfield/brownfield classification of a story's or session's changes (a commit list or base..compare range). Greenfield when the new-file ratio is >= newFileRatioThreshold (default 0.5 — meridian.greenfieldNewFileRatio) OR the median age of the touched code is < maxMedianAgeDays (default 30 — meridian.greenfieldMaxMedianAgeDays). Deterministic from git; zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/TrustClassifyParams" },
+      "result": { "$ref": "#/$defs/TrustClassifyResult" }
+    },
     "tiers/set": {
       "description": "FR-M36-05: notification carrying the enabled tier set after a meridian.tiers configuration change, so a tier flip needs no reinstall and no window reload. The base tier (flight-recorder) is always enabled regardless of payload.",
       "notification": true,
@@ -1166,6 +1171,41 @@
         "rejections": { "type": "array", "items": { "$ref": "#/$defs/TrustRejection" } },
         "recorded": { "type": "integer", "description": "Rejection entries appended to the ledger in this call." },
         "duplicatesSkipped": { "type": "integer", "description": "Detections already present in the ledger (idempotent re-run)." }
+      },
+      "additionalProperties": false
+    },
+    "TrustClassifyParams": {
+      "type": "object",
+      "properties": {
+        "repoPath": { "type": "string", "description": "Repository root. Absent means the handshake workspaceDir." },
+        "commits": { "type": "array", "items": { "type": "string" }, "description": "The story's/session's commits (full or abbreviated shas). Takes precedence over base/compare." },
+        "base": { "type": "string" },
+        "compare": { "type": "string", "description": "Classify the base..compare range instead of an explicit commit list." },
+        "newFileRatioThreshold": { "type": "number", "description": "Default 0.5 (meridian.greenfieldNewFileRatio)." },
+        "maxMedianAgeDays": { "type": "number", "description": "Default 30 (meridian.greenfieldMaxMedianAgeDays)." }
+      },
+      "additionalProperties": false
+    },
+    "TrustClassificationThresholds": {
+      "type": "object",
+      "required": ["newFileRatioThreshold", "maxMedianAgeDays"],
+      "properties": {
+        "newFileRatioThreshold": { "type": "number" },
+        "maxMedianAgeDays": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "TrustClassifyResult": {
+      "type": "object",
+      "required": ["repoPath", "newFiles", "modifiedFiles", "newFileRatio", "medianTouchedCodeAgeDays", "classification", "thresholds"],
+      "properties": {
+        "repoPath": { "type": "string" },
+        "newFiles": { "type": "integer" },
+        "modifiedFiles": { "type": "integer" },
+        "newFileRatio": { "type": "number" },
+        "medianTouchedCodeAgeDays": { "type": ["number", "null"], "description": "Median age in days of the pre-existing code the changes touched (per-line git history age); null when the story only added files." },
+        "classification": { "enum": ["greenfield", "brownfield"] },
+        "thresholds": { "$ref": "#/$defs/TrustClassificationThresholds" }
       },
       "additionalProperties": false
     },
