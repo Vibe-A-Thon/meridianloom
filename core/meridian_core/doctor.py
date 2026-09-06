@@ -31,9 +31,9 @@ import bus_types
 
 MIN_PYTHON_VERSION = (3, 11)
 
-# Marker the trailer hook installer (F0 Workstream E, FR-M36-03) writes into
-# the commit-msg hook it manages.
-HOOK_MARKER = "Meridian-Ledger"
+# Marker the trailer hook installer writes into the commit-msg hook it
+# manages — single ownership lives in hooks.py (FR-M36-03, F0 Workstream E).
+from .hooks import HOOK_MARKER
 
 
 class UnknownCheckError(ValueError):
@@ -197,13 +197,30 @@ def _check_ledger(
 
 
 def _hooks_dir(workspace: Path) -> Path | None:
-    """Resolve the hooks dir without spawning git.
+    """Resolve the hooks dir the way the installer does.
 
-    Plain repositories: ``.git/hooks``. Linked worktrees and submodules store
-    a ``gitdir: <path>`` pointer in a ``.git`` file; the hooks then live under
-    the pointed-at git dir (the ``commondir`` refinement is deliberately out
-    of scope for a diagnostic).
+    ``git rev-parse --git-path hooks`` honours ``core.hooksPath`` at every
+    config level and linked-worktree gitdirs. When git cannot answer (not a
+    real repository, e.g. the synthetic fixtures in tests) fall back to the
+    plain ``.git`` layout, including the ``gitdir:`` pointer file that
+    linked worktrees and submodules use.
     """
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["git", "--no-pager", "rev-parse", "--git-path", "hooks"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            path = Path(result.stdout.strip())
+            return path if path.is_absolute() else (workspace / path).resolve()
+    except (OSError, ValueError):
+        pass
     dot_git = workspace / ".git"
     if dot_git.is_dir():
         return dot_git / "hooks"

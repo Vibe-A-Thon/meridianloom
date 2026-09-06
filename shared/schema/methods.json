@@ -84,9 +84,29 @@
       "result": { "$ref": "#/$defs/LedgerProofResult" }
     },
     "ledger.exportBundle": {
-      "description": "FR-M11-05 audit bundle for a range: signed tree head + chained entries (ciphertext refs + digests). Data assembly and signing land here; the full NIST SSDF AI-provenance / ISO 42001 mapping is F0-E task 25 (FR-M36-04).",
+      "description": "FR-M11-05/FR-M36-04 (F0 Workstream E task 25): signed audit bundle for any sequence range, date range, agent or story — entries, signed tree head, Merkle inclusion proofs, signature block and an explicit NIST SSDF AI-provenance / ISO/IEC 42001 / EU AI Act Art. 12 mapping section. Verifiable with only the bundle's own public key (SEC-29).",
       "params": { "$ref": "#/$defs/LedgerExportBundleParams" },
       "result": { "$ref": "#/$defs/LedgerExportBundleResult" }
+    },
+    "hook/install": {
+      "description": "FR-M36-03 (F0 Workstream E task 23): install the opt-in commit-msg trailer hook into the workspace repository. The hooks directory is resolved with `git rev-parse --git-path hooks`, so a configured core.hooksPath is honoured. A foreign commit-msg hook is never overwritten: it is moved to commit-msg.meridian-backup and the Meridian hook chains to it (runs it first). Idempotent; one-action removal via hook/remove.",
+      "params": { "$ref": "#/$defs/HookInstallParams" },
+      "result": { "$ref": "#/$defs/HookInstallResult" }
+    },
+    "hook/status": {
+      "description": "FR-M36-03 (F0 Workstream E task 23): report the commit-msg hook state — installed/foreign/chained, and where — so the UI and doctor show the same facts.",
+      "params": { "$ref": "#/$defs/HookStatusParams" },
+      "result": { "$ref": "#/$defs/HookStatusResult" }
+    },
+    "hook/remove": {
+      "description": "FR-M36-03 (F0 Workstream E task 23): remove the Meridian commit-msg hook in one action, restoring a backed-up foreign hook if one was chained. Never touches a hook that is not Meridian's.",
+      "params": { "$ref": "#/$defs/HookRemoveParams" },
+      "result": { "$ref": "#/$defs/HookRemoveResult" }
+    },
+    "hook/pending": {
+      "description": "FR-M36-03 (F0 Workstream E task 23): record a pending commit linkage — the staged-content hash (git write-tree) mapped to the ledger sequence range recorded for those changes. The commit-msg hook resolves this record at commit time and appends `Meridian-Ledger: <seq range>` to the message. Records are consumed once; a commit whose staged hash has no pending record passes through untouched.",
+      "params": { "$ref": "#/$defs/HookPendingParams" },
+      "result": { "$ref": "#/$defs/HookPendingResult" }
     },
     "loop.start": {
       "description": "Start one of the six canonical loops (FR-M4-03).",
@@ -800,6 +820,83 @@
         "range": { "$ref": "#/$defs/LedgerRange" },
         "filter": { "$ref": "#/$defs/LedgerBundleFilter" },
         "entries": { "type": "array", "items": { "$ref": "#/$defs/LedgerBundleEntry" } }
+      },
+      "additionalProperties": false
+    },
+    "HookInstallParams": {
+      "type": "object",
+      "properties": {
+        "workspaceDir": { "type": "string", "description": "Repository root. Absent means the handshake workspaceDir." }
+      },
+      "additionalProperties": false
+    },
+    "HookInstallResult": {
+      "type": "object",
+      "required": ["installed", "hookPath", "chained", "alreadyInstalled"],
+      "properties": {
+        "installed": { "type": "boolean" },
+        "hookPath": { "type": "string" },
+        "chained": { "type": "boolean", "description": "True when a foreign commit-msg hook was backed up and is invoked by the Meridian hook before its own trailer logic." },
+        "alreadyInstalled": { "type": "boolean", "description": "True when the hook was already Meridian's — install is idempotent." },
+        "backupPath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "HookStatusParams": {
+      "type": "object",
+      "properties": {
+        "workspaceDir": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "HookStatusResult": {
+      "type": "object",
+      "required": ["installed", "foreignHook"],
+      "properties": {
+        "installed": { "type": "boolean", "description": "A commit-msg hook exists and carries the Meridian marker." },
+        "hookPath": { "type": "string" },
+        "chained": { "type": "boolean" },
+        "foreignHook": { "type": "boolean", "description": "A commit-msg hook exists that is NOT Meridian's — it is left untouched." },
+        "backupPath": { "type": "string" },
+        "detail": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "HookRemoveParams": {
+      "type": "object",
+      "properties": {
+        "workspaceDir": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "HookRemoveResult": {
+      "type": "object",
+      "required": ["removed", "restoredBackup"],
+      "properties": {
+        "removed": { "type": "boolean", "description": "False when there was no Meridian hook to remove; the repository is left untouched." },
+        "restoredBackup": { "type": "boolean", "description": "True when a chained foreign hook was restored to commit-msg." },
+        "backupPath": { "type": "string" },
+        "detail": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "HookPendingParams": {
+      "type": "object",
+      "required": ["stagedHash", "fromSequence", "toSequence"],
+      "properties": {
+        "stagedHash": { "type": "string", "description": "The staged-content key: the hex of the tree object git write-tree produces for the index (`git write-tree`)." },
+        "fromSequence": { "type": "integer" },
+        "toSequence": { "type": "integer" },
+        "recordedAt": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "HookPendingResult": {
+      "type": "object",
+      "required": ["recorded"],
+      "properties": {
+        "recorded": { "type": "boolean" },
+        "pendingPath": { "type": "string" }
       },
       "additionalProperties": false
     },

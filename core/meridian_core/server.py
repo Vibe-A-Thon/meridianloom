@@ -20,6 +20,7 @@ import logging
 import os
 import platform
 import sqlite3
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -34,6 +35,7 @@ from .attribution import symbols as symbols_mod
 from .attribution import heuristics
 from .attribution import AttributionError
 from .attribution._git import normalise_repo_path as attribution_normalise
+from . import hooks as provenance_hooks
 from .ledger import core as ledger_core
 from .ledger import keys as ledger_keys
 from .ledger import wire as ledger_wire
@@ -99,6 +101,10 @@ class SidecarServer:
             "ledger.verify": SidecarServer._handle_ledger_verify,
             "ledger.proof": SidecarServer._handle_ledger_proof,
             "ledger.exportBundle": SidecarServer._handle_ledger_export_bundle,
+            "hook/install": SidecarServer._handle_hook_install,
+            "hook/status": SidecarServer._handle_hook_status,
+            "hook/remove": SidecarServer._handle_hook_remove,
+            "hook/pending": SidecarServer._handle_hook_pending,
             "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
             "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
@@ -532,6 +538,64 @@ class SidecarServer:
                 for file in result.files
             ],
         }
+
+    # -- provenance hook (FR-M36-03, D23; F0 Workstream E tasks 23-24) --------
+
+    def _hook_repo(self, params: dict[str, Any]) -> Path:
+        workspace = (params or {}).get("workspaceDir") or self._workspace_dir
+        if not workspace:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "hook methods need workspaceDir (param or handshake)",
+            )
+        try:
+            return provenance_hooks.ensure_repo(Path(workspace))
+        except AttributionError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+
+    def _handle_hook_install(
+        self, params: bus_types.HookInstallParams
+    ) -> bus_types.HookInstallResult:
+        try:
+            return provenance_hooks.install(
+                self._hook_repo(params), python=sys.executable or None
+            )  # type: ignore[return-value]
+        except provenance_hooks.HookError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+
+    def _handle_hook_status(
+        self, params: bus_types.HookStatusParams
+    ) -> bus_types.HookStatusResult:
+        workspace = (params or {}).get("workspaceDir") or self._workspace_dir
+        if not workspace:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "hook/status needs workspaceDir (param or handshake)",
+            )
+        return provenance_hooks.status(Path(workspace))  # type: ignore[return-value]
+
+    def _handle_hook_remove(
+        self, params: bus_types.HookRemoveParams
+    ) -> bus_types.HookRemoveResult:
+        try:
+            return provenance_hooks.remove(self._hook_repo(params))  # type: ignore[return-value]
+        except provenance_hooks.HookError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+
+    def _handle_hook_pending(
+        self, params: bus_types.HookPendingParams
+    ) -> bus_types.HookPendingResult:
+        params = params or {}
+        try:
+            return provenance_hooks.record_pending(
+                self._hook_repo(params),
+                params.get("stagedHash", ""),
+                params.get("fromSequence", 0),
+                params.get("toSequence", 0),
+                recorded_at=params.get("recordedAt"),
+            )
+        except provenance_hooks.HookError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
 
     # -- ledger (FR-M10-01/02/07/08/12) -------------------------------------
 

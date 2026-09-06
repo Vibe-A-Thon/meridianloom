@@ -37,6 +37,12 @@
         "rpcMethods": ["observe/sessions", "observe/health"]
       },
       {
+        "id": "recorder.provenance-hooks",
+        "tier": "flight-recorder",
+        "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, and hook lifecycle (install/status/remove). Zero model calls (FR-M36-07).",
+        "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending"]
+      },
+      {
         "id": "governor.gates",
         "tier": "governor",
         "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.",
