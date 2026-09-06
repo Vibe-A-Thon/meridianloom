@@ -43,7 +43,7 @@ describe('extension manifest', () => {
   it('contributes the twelve FR-M1-03 commands plus the provenance hook command', () => {
     const expected = [
       'meridian.ingestStory',
-      'meridian.openDashboard',
+      'meridian.openRecorder',
       'meridian.installSkill',
       'meridian.onboardAgent',
       'meridian.exportAgent',

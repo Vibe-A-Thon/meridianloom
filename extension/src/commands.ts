@@ -10,13 +10,14 @@ import { isCommandEnabled, tierLockMessage } from '../../shared/ts/tiers';
 import { renderDoctorReport } from './doctor';
 
 /**
- * FR-M1-03: exactly these twelve commands, plus the F0 Workstream E
- * provenance-hook command (FR-M36-03, D23). Ids here are the single source
- * of truth; the manifest test asserts package.json matches them.
+ * FR-M1-03 (F0 subset per gaps_implementation.md §F0): `meridian.openRecorder`
+ * is the Flight Recorder dashboard command; the remaining ids here are the
+ * pre-F0 superset retained until their tiers land. Ids in this file are the
+ * single source of truth; the manifest test asserts package.json matches.
  */
 export const COMMANDS = [
   { id: 'meridian.ingestStory', title: 'Ingest Story' },
-  { id: 'meridian.openDashboard', title: 'Open Dashboard' },
+  { id: 'meridian.openRecorder', title: 'Open Recorder' },
   { id: 'meridian.installSkill', title: 'Install Skill' },
   { id: 'meridian.onboardAgent', title: 'Onboard Agent' },
   { id: 'meridian.exportAgent', title: 'Export Agent' },
@@ -33,6 +34,12 @@ export const COMMANDS = [
 export type CommandId = (typeof COMMANDS)[number]['id'];
 
 export interface CommandDeps {
+  /**
+   * F0 Workstream G: opens the Flight Recorder dashboard webview panel.
+   * Tests may omit it to prove the not-wired path reports instead of
+   * silently succeeding.
+   */
+  openRecorder?: () => Promise<void>;
   /**
    * FR-M30-01: runs the full doctor (host + sidecar checks) and returns the
    * structured report. The extension always supplies it; tests may omit it
@@ -72,6 +79,16 @@ async function runCommand(id: CommandId, deps: CommandDeps): Promise<void> {
   const enabled = deps.enabledTiers?.();
   if (enabled && !isCommandEnabled(id, enabled)) {
     await vscode.window.showInformationMessage(tierLockMessage(id));
+    return;
+  }
+  if (id === 'meridian.openRecorder') {
+    if (!deps.openRecorder) {
+      await vscode.window.showWarningMessage(
+        "Meridian Loom: 'meridian.openRecorder' needs the extension runtime, which is not started yet.",
+      );
+      return;
+    }
+    await deps.openRecorder();
     return;
   }
   if (id === 'meridian.doctor') {

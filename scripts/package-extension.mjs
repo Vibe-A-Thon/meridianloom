@@ -28,6 +28,23 @@ cpSync(path.join(root, 'shared', 'py'), path.join(sidecarDir, 'shared', 'py'), {
   filter: (source) => !source.includes('__pycache__'),
 });
 
+// The recorder dashboard webview ships as its built bundle at
+// <extension>/webview-dist (VIGUIX_Final §17: the panel serves every
+// resource from this directory through asWebviewUri). Building here keeps
+// the VSIX self-contained; development checkouts read ../webview/dist
+// directly (see extension/src/recorder-panel.ts).
+const webviewDist = path.join(extensionDir, 'webview-dist');
+rmSync(webviewDist, { recursive: true, force: true });
+const webviewBuild = spawnSync(
+  process.platform === 'win32' ? 'npm.cmd' : 'npm',
+  ['run', 'build', '--workspace=webview'],
+  { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' },
+);
+if (webviewBuild.status !== 0) {
+  process.exit(webviewBuild.status ?? 1);
+}
+cpSync(path.join(root, 'webview', 'dist'), webviewDist, { recursive: true });
+
 try {
   // --no-dependencies: every dependency is a devDependency (the bundle is
   // self-contained), and without it vsce's dependency walk leaks npm

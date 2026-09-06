@@ -45,9 +45,10 @@ describe('activate', () => {
     const context = mockContext();
     activate(context);
     // +1: the sidecar teardown disposable (FR-M3-02); +1: the meridian.tiers
-    // configuration listener (FR-M36-05).
+    // configuration listener (FR-M36-05); +1: the recorder panel serializer
+    // (VIGUIX_Final §17 — panel revival after reload).
     expect(context.subscriptions).toHaveLength(
-      TREE_VIEWS.length + COMMANDS.length + 2,
+      TREE_VIEWS.length + COMMANDS.length + 3,
     );
   });
 });

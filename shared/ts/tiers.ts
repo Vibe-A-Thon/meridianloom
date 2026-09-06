@@ -69,7 +69,7 @@ export function isRpcMethodEnabled(method: string, enabled: readonly TierName[])
  */
 export const COMMAND_TIERS: Record<string, TierName> = {
   'meridian.ingestStory': 'orchestra',
-  'meridian.openDashboard': 'flight-recorder',
+  'meridian.openRecorder': 'flight-recorder',
   'meridian.installSkill': 'orchestra',
   'meridian.onboardAgent': 'orchestra',
   'meridian.exportAgent': 'orchestra',

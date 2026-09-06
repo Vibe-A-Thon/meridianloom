@@ -44,7 +44,7 @@
     },
     "commands": [
       { "command": "meridian.ingestStory", "title": "Ingest Story", "category": "Meridian Loom" },
-      { "command": "meridian.openDashboard", "title": "Open Dashboard", "category": "Meridian Loom" },
+      { "command": "meridian.openRecorder", "title": "Open Recorder", "category": "Meridian Loom" },
       { "command": "meridian.installSkill", "title": "Install Skill", "category": "Meridian Loom" },
       { "command": "meridian.onboardAgent", "title": "Onboard Agent", "category": "Meridian Loom" },
       { "command": "meridian.exportAgent", "title": "Export Agent", "category": "Meridian Loom" },

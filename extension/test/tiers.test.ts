@@ -129,7 +129,7 @@ describe('command and view filtering (FR-M36-05, X-28)', () => {
       [
         'meridian.doctor',
         'meridian.installHook',
-        'meridian.openDashboard',
+        'meridian.openRecorder',
         'meridian.verifyChain',
       ].sort(),
     );

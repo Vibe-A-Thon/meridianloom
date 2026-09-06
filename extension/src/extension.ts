@@ -5,6 +5,7 @@ import { registerCommands } from './commands';
 import { runDoctor } from './doctor';
 import { resolveInterpreter } from './interpreter';
 import { resolveCoreDir } from './layout';
+import { RecorderPanel } from './recorder-panel';
 import { SecretStorageUnavailableError, SecretStore } from './secrets';
 import { SidecarStatusBar } from './status';
 import { StdioSidecarClient } from './stdio-client';
@@ -60,8 +61,24 @@ export function activate(context: vscode.ExtensionContext): void {
   applyTierContextKeys(enabledTiers);
   context.subscriptions.push(
     ...registerViews(),
+    RecorderPanel.registerSerializer(context, {
+      extensionPath: context.extensionPath,
+      enabledTiers: readEnabledTiers,
+      sidecar: () => supervisor?.currentClient,
+      onError: (message) => void vscode.window.showErrorMessage(message),
+    }),
     ...registerCommands({
       enabledTiers: readEnabledTiers,
+      // F0 Workstream G: the recorder command opens the dashboard webview;
+      // the panel proxies sidecar RPCs with the tier gate applied.
+      openRecorder: async () => {
+        RecorderPanel.createOrShow({
+          extensionPath: context.extensionPath,
+          enabledTiers: readEnabledTiers,
+          sidecar: () => supervisor?.currentClient,
+          onError: (message) => void vscode.window.showErrorMessage(message),
+        });
+      },
       // FR-M30-01: doctor is wired at activation; the sidecar leg resolves
       // lazily at run time so it works whenever a sidecar is up.
       runDoctor: () =>

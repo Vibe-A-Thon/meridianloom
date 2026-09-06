@@ -124,6 +124,83 @@ export const __outputChannels = new Map<
 >();
 export const __workspaceFolders: Array<{ uri: Uri; name: string }> = [];
 export const __contextKeys = new Map<string, unknown>();
+export const __createdWebviewPanels: MockWebviewPanel[] = [];
+export const __webviewSerializers = new Map<string, { deserializeWebviewPanel(panel: unknown): Promise<void> }>();
+
+export enum ViewColumn {
+  One = 1,
+  Two = 2,
+  Three = 3,
+  Beside = -2,
+  Active = -1,
+}
+
+/** Headless WebviewPanel/Webview pair with the surface the panel host uses. */
+export class MockWebviewPanel {
+  readonly webview = new MockWebview();
+  revealed = false;
+  disposed = false;
+  private readonly disposeListeners = new Set<() => void>();
+
+  constructor(
+    readonly viewType: string,
+    readonly title: string,
+  ) {}
+
+  reveal(): void {
+    this.revealed = true;
+  }
+
+  onDidDispose(listener: () => void): Disposable {
+    this.disposeListeners.add(listener);
+    return new Disposable(() => this.disposeListeners.delete(listener));
+  }
+
+  dispose(): void {
+    if (!this.disposed) {
+      this.disposed = true;
+      for (const listener of [...this.disposeListeners]) {
+        listener();
+      }
+    }
+  }
+}
+
+export class MockWebview {
+  html = '';
+  options: WebviewOptions = { enableScripts: false };
+  readonly cspSource = 'https://webview.vscode-cdn.net';
+  readonly localResourceRoots: Uri[] = [];
+  readonly postedMessages: unknown[] = [];
+  private readonly messageListeners = new Set<(message: unknown) => void>();
+
+  asWebviewUri(uri: Uri): { toString(): string } {
+    return { toString: () => `vscode-resource://webview${uri.fsPath}` };
+  }
+
+  onDidReceiveMessage(listener: (message: unknown) => void): Disposable {
+    this.messageListeners.add(listener);
+    return new Disposable(() => this.messageListeners.delete(listener));
+  }
+
+  async postMessage(message: unknown): Promise<boolean> {
+    this.postedMessages.push(message);
+    return true;
+  }
+
+  /** Test hook: a webview → host message, as the real runtime delivers it. */
+  async receiveMessage(message: unknown): Promise<void> {
+    for (const listener of [...this.messageListeners]) {
+      await listener(message);
+    }
+  }
+}
+
+export interface WebviewOptions {
+  enableScripts?: boolean;
+  retainContextWhenHidden?: boolean;
+  localResourceRoots?: Uri[];
+}
 
 const __configChangeEmitter = new EventEmitter<{ affectsConfiguration(section: string): boolean }>();
 
@@ -158,6 +235,8 @@ export function __reset(): void {
   __outputChannels.clear();
   __workspaceFolders.length = 0;
   __contextKeys.clear();
+  __createdWebviewPanels.length = 0;
+  __webviewSerializers.clear();
   __lastProgressToken = undefined;
 }
 
@@ -194,6 +273,33 @@ export const window = {
     __registeredTreeProviders.set(viewId, provider);
     return new Disposable(() => {
       __registeredTreeProviders.delete(viewId);
+    });
+  },
+
+  createWebviewPanel(
+    viewType: string,
+    title: string,
+    _column: unknown,
+    options?: WebviewOptions,
+  ): MockWebviewPanel {
+    const panel = new MockWebviewPanel(viewType, title);
+    if (options) {
+      panel.webview.options = options;
+      if (options.localResourceRoots) {
+        panel.webview.localResourceRoots.push(...options.localResourceRoots);
+      }
+    }
+    __createdWebviewPanels.push(panel);
+    return panel;
+  },
+
+  registerWebviewPanelSerializer(
+    viewType: string,
+    serializer: { deserializeWebviewPanel(panel: unknown): Promise<void> },
+  ): Disposable {
+    __webviewSerializers.set(viewType, serializer);
+    return new Disposable(() => {
+      __webviewSerializers.delete(viewType);
     });
   },
 
