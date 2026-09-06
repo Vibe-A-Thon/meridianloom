@@ -6,8 +6,8 @@
 
 - **Current phase:** F0 — Flight Recorder
 - **Current workstream:** G — The three screens *(interlock: GUI phase GF0)*
-- **Current task:** G-foundation — webview scaffold, tokens/themes/density (VIGUIX_Final §4–6 primitives), extension webview host (CSP nonce, asWebviewUri, getState/setState, no web storage), then 31–35 (screens 10.45/10.46/10.7/10.40, X-27…30)
-- **Last commit:** df7bf0a — feat(f0): rejection rate per agent/repository, split greenfield/brownfield (FR-M17-05, FR-M37-01, FR-M37-06) — Workstream F complete (28–30)
+- **Current task:** G 31–35 — the three screens (10.45/10.46/10.7/10.40, X-27…30) on top of the GF0 foundation (done)
+- **Last commit:** afbaf98 — test(f0): webview↔host-proxy↔real-python-sidecar e2e round-trip (G0d) — GF0 foundation complete
 
 ## Mapping of completed S0 work onto the new plan
 
@@ -50,7 +50,7 @@
 | D — Observers | 17–22 | **done** (c60874b; X-29 + NFR-29 measured within budget; SEC-27 pass) |
 | E — Portable provenance | 23–27 | **done** (481f5fa hook UI command; 90b5e6c agent identity trailers; abfc94c full signed bundle — proofs/signature/compliance; 4dfbdb1 open verifier verify.py + meridian-verify; 1ea71c8 spec docs) |
 | F — Rejection measurement, minimum | 28–30 | **done** (5b54279 rejection capture + ledger v4 rejection entries; 820f59a greenfield/brownfield classification; df7bf0a ledger-derived rejection rate, cached, split, reconciling) |
-| G — The three screens (interlock GF0) | 31–36 | in progress (foundation first: webview scaffold, tokens/themes, webview host) |
+| G — The three screens (interlock GF0) | 31–36 | in progress — GF0 foundation done (G0a webview scaffold, G0b tokens/themes/invariants, G0c extension host, G0d RPC client + e2e); screens 31–35 next |
 
 ## Later phases (per gaps_implementation.md)
 
@@ -70,3 +70,4 @@
 
 - Workstream E (tasks 23–27) done: pytest 360→406, extension vitest 128→137, `tsc --noEmit` clean, `check:contracts` green throughout. Proof commits 481f5fa, 90b5e6c, abfc94c, 4dfbdb1, 1ea71c8. Cargo-based verifier tests skip-and-notice when cargo is off PATH.
 - Workstream F (tasks 28–30) done: pytest 406→448 collected (test_rejection 20, test_greenfield 14, test_trust_metrics 9, schema tests updated for v4; cargo-based verifier tests skip-and-notice when cargo is off PATH), extension vitest unchanged at 137, `tsc --noEmit` clean, `check:contracts` green throughout. Proof commits 5b54279, 820f59a, df7bf0a. New surface: `trust/detectRejections`, `trust/classify`, `trust/rejectionRate` (capability `recorder.trust-metrics`, flight-recorder tier); ledger schema v4 (rejected_sequence/rejected_commit/rejecting_commit); workspace settings `meridian.rejectionWindowDays` (7), `meridian.greenfieldNewFileRatio` (0.5), `meridian.greenfieldMaxMedianAgeDays` (30).
+- GF0 foundation (G0a–G0d) done: new `webview/` workspace (Vite+React+TS, vitest+RTL) — six themes + follow-vscode default, Iron Gall forced on high contrast; comfortable density default; Archivo + JetBrains Mono via @fontsource (latin subset; Commit Mono deferred, see `webview/FONTS.md`); invariant components (X-27 ConfidenceBar, RationaleBlock, AgentToken, ActionClassChip, VendorTag with geometric SVG glyphs — V10 glyph pass deferred); `shared/ts/webview-messages.ts` (hand-written, not generated — `check:contracts` green); extension host `RecorderPanel` (CSP nonce, asWebviewUri, serializer, no web storage), pure tier-gated `dispatchWebviewMessage` proxy, rename `meridian.openDashboard`→`meridian.openRecorder` (gaps §F0 names it; DECISIONS.md G-0), packaging copies `webview/dist`→`extension/webview-dist`. Suite: pytest 448, extension vitest 137→158 (recorder-panel 12, webview-rpc-proxy 8, webview-e2e 1 real sidecar round-trip), webview vitest 70, both `tsc --noEmit` clean, `npm run build` green (webview bundle 154.79 kB). Proof commits 2c563a7, 6999b8c, afbaf98.
