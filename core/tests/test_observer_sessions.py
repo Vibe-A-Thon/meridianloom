@@ -146,7 +146,7 @@ class TestX29DetectionBudget:
         try:
             elapsed = wait_for(
                 lambda: any(
-                    s["vendor"] == "claude-code"
+                    s["vendor"] == "claude-code" and s.get("pid") == claude_helper.pid
                     for s in monitor.snapshot()["sessions"]
                 ),
                 timeout=X29_BUDGET_SECONDS + 2,
@@ -157,7 +157,7 @@ class TestX29DetectionBudget:
             session = next(
                 s
                 for s in monitor.snapshot()["sessions"]
-                if s["vendor"] == "claude-code"
+                if s["vendor"] == "claude-code" and s.get("pid") == claude_helper.pid
             )
             assert session["pid"] == claude_helper.pid
             assert session["confidence"] == "telemetry"
@@ -180,7 +180,7 @@ class TestX29DetectionBudget:
         try:
             wait_for(
                 lambda: any(
-                    s["vendor"] == "claude-code"
+                    s["vendor"] == "claude-code" and s.get("pid") == proc.pid
                     for s in monitor.snapshot()["sessions"]
                 ),
                 timeout=X29_BUDGET_SECONDS + 2,
@@ -189,7 +189,7 @@ class TestX29DetectionBudget:
             proc.wait(timeout=10)
             elapsed = wait_for(
                 lambda: not any(
-                    s["vendor"] == "claude-code"
+                    s["vendor"] == "claude-code" and s.get("pid") == proc.pid
                     for s in monitor.snapshot()["sessions"]
                 ),
                 timeout=X29_BUDGET_SECONDS + 2,
