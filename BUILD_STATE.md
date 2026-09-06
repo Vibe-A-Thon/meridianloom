@@ -5,9 +5,10 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** F0 — Flight Recorder
-- **Current workstream:** F — Rejection measurement, minimum
-- **Current task:** 28 — rejection capture (FR-M37-01 subset: reverted, force-amended away, or replaced within a configurable window, from git, no gates yet)
-- **Last commit:** 1ea71c8 — docs(f0): open ledger specification v1 (FR-M36-06, NFR-31) — Workstream E complete (23–27; open verifier Python+Rust green, bundle maps SSDF/ISO-42001/AI-Act)
+- **Current workstream:** G — The three screens *(interlock: GUI phase GF0)*
+- **Current task:** 31 — 10.45 Flight Recorder (Weave, This Session, Any Line, Export, Selvage)
+- **Last commit:** df7bf0a — feat(f0): rejection rate per agent/repository, split greenfield/brownfield (FR-M17-05, FR-M37-01, FR-M37-06) — Workstream F complete (28–30)
+- **Updated:** _(see git log)_
 - **Updated:** _(see git log)_
 
 ## Mapping of completed S0 work onto the new plan
@@ -32,7 +33,7 @@
 |---|---|---|---|
 | 1 | AC-30 first value < 15 min, no model credential, Weave shows external session with vendor tags, any-line provenance | not-yet | |
 | 2 | AC-33 provenance survives uninstall; bundle verifies with open verifier on clean machine | not-yet | |
-| 3 | AC-34 (partial) rejection rate per agent split greenfield/brownfield reconciles to ledger over ≥10 sessions | not-yet | |
+| 3 | AC-34 (partial) rejection rate per agent split greenfield/brownfield reconciles to ledger over ≥10 sessions | partially — engineering half proven: `test_reconciliation` recomputes the rate independently from raw ledger rows and asserts equality with the trust/rejectionRate RPC result (df7bf0a); ≥10-sessions human half remains pending-human-evidence |
 | 4 | NFR-28 first value < 15 min (5-person measurement — human-gated; engineering proxies automated) | not-yet | |
 | 5 | NFR-29 observation ≤5% latency, never blocks | not-yet | |
 | 6 | FR-M36-07 zero model calls — CI test fails on any model-client import in F0 paths | **pass** | `test_no_model_calls.py` (13) + `no-model-calls.test.ts` (12), ed66495 |
@@ -50,7 +51,7 @@
 | C — Deterministic attribution (no model calls) | 13–16 | **done** (ed66495; FR-M36-07 exit criterion 6 proven by test) |
 | D — Observers | 17–22 | **done** (c60874b; X-29 + NFR-29 measured within budget; SEC-27 pass) |
 | E — Portable provenance | 23–27 | **done** (481f5fa hook UI command; 90b5e6c agent identity trailers; abfc94c full signed bundle — proofs/signature/compliance; 4dfbdb1 open verifier verify.py + meridian-verify; 1ea71c8 spec docs) |
-| F — Rejection measurement, minimum | 28–30 | not started |
+| F — Rejection measurement, minimum | 28–30 | **done** (5b54279 rejection capture + ledger v4 rejection entries; 820f59a greenfield/brownfield classification; df7bf0a ledger-derived rejection rate, cached, split, reconciling) |
 | G — The three screens (interlock GF0) | 31–36 | not started |
 
 ## Later phases (per gaps_implementation.md)
@@ -70,3 +71,4 @@
 ## Phase log
 
 - Workstream E (tasks 23–27) done: pytest 360→406, extension vitest 128→137, `tsc --noEmit` clean, `check:contracts` green throughout. Proof commits 481f5fa, 90b5e6c, abfc94c, 4dfbdb1, 1ea71c8. Cargo-based verifier tests skip-and-notice when cargo is off PATH.
+- Workstream F (tasks 28–30) done: pytest 406→448 collected (test_rejection 20, test_greenfield 14, test_trust_metrics 9, schema tests updated for v4; cargo-based verifier tests skip-and-notice when cargo is off PATH), extension vitest unchanged at 137, `tsc --noEmit` clean, `check:contracts` green throughout. Proof commits 5b54279, 820f59a, df7bf0a. New surface: `trust/detectRejections`, `trust/classify`, `trust/rejectionRate` (capability `recorder.trust-metrics`, flight-recorder tier); ledger schema v4 (rejected_sequence/rejected_commit/rejecting_commit); workspace settings `meridian.rejectionWindowDays` (7), `meridian.greenfieldNewFileRatio` (0.5), `meridian.greenfieldMaxMedianAgeDays` (30).
