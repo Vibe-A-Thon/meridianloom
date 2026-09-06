@@ -45,8 +45,8 @@
       {
         "id": "recorder.trust-metrics",
         "tier": "flight-recorder",
-        "description": "Rejection measurement, minimum (FR-M37-01 subset, FR-M37-06; F0 Workstream F tasks 28-29): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections) and greenfield/brownfield classification of a story's changes (trust/classify). Zero model calls (FR-M36-07).",
-        "rpcMethods": ["trust/detectRejections", "trust/classify"]
+        "description": "Rejection measurement, minimum (FR-M37-01 subset, FR-M37-06, FR-M17-05; F0 Workstream F tasks 28-30): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), and the ledger-derived, in-process-cached rejection rate per agent/repository split by that distinction (trust/rejectionRate). Zero model calls (FR-M36-07).",
+        "rpcMethods": ["trust/detectRejections", "trust/classify", "trust/rejectionRate"]
       },
       {
         "id": "governor.gates",

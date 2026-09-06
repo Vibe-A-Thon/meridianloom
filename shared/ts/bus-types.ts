@@ -846,6 +846,43 @@ export interface TrustClassifyResult {
   "thresholds": TrustClassificationThresholds;
 }
 
+export interface TrustMetricBucket {
+  /** Proposed changes: ledger entries with actionType "diff" in scope. */
+  "proposed": number;
+  /** Proposed changes whose sequence is carried as rejectedSequence by a rejection entry in scope. */
+  "rejected": number;
+  /** rejected / proposed; 0 when proposed is 0. */
+  "rate": number;
+}
+
+export interface TrustRejectionRateParams {
+  "repoId"?: string;
+  "storyId"?: string;
+  "actorId"?: string;
+  "fromSequence"?: number;
+  "toSequence"?: number;
+  /** Repository for greenfield/brownfield classification. Absent means the handshake workspaceDir. */
+  "repoPath"?: string;
+  /** storyId -> the story's commits, used to classify each in-scope story (trust/classify). Stories without an entry land in the unclassified bucket. */
+  "storyCommits"?: Record<string, unknown>;
+  "newFileRatioThreshold"?: number;
+  "maxMedianAgeDays"?: number;
+}
+
+export interface TrustRejectionRateResult {
+  /** The echoed scope filters. */
+  "scope": Record<string, unknown>;
+  "proposed": number;
+  "rejected": number;
+  "rate": number;
+  /** greenfield / brownfield / unclassified buckets (G6: every trust metric reports the split). */
+  "split": Record<string, unknown>;
+  /** actorId -> bucket, per-agent rejection rates. */
+  "byAgent": Record<string, unknown>;
+  /** True when served from the in-process cache (FR-M17-05: derived from the ledger, cached, invalidated on append). */
+  "cacheHit": boolean;
+}
+
 /** FR-M35-02 observation confidence: direct (the agent's own telemetry/ACP session), telemetry (evidence the agent left behind: git trailers, SCM/PR API, OS process listing), inferred (filesystem/git inference — the floor, never silence). */
 export type ObservationConfidence = "direct" | "telemetry" | "inferred";
 
@@ -900,7 +937,7 @@ export interface TierSetParams {
 }
 
 /** Every request/response method on the bus. */
-export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "observe/sessions" | "observe/health" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "hook/install" | "hook/status" | "hook/remove" | "hook/pending" | "trailers/parse" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "steer.send" | "trust.summary" | "trust/detectRejections" | "trust/classify";
+export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "observe/sessions" | "observe/health" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "hook/install" | "hook/status" | "hook/remove" | "hook/pending" | "trailers/parse" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "steer.send" | "trust.summary" | "trust/detectRejections" | "trust/classify" | "trust/rejectionRate";
 
 /** Every notification method on the bus. */
 export type NotificationName = "tiers/set" | "$/cancel";
@@ -956,7 +993,7 @@ export const TIERS = ["flight-recorder","governor","orchestra"] as const;
 export const DEFAULT_ENABLED_TIERS: readonly TierName[] = ["flight-recorder"];
 
 /** FR-M36-05: capability registry; every capability is owned by exactly one tier. */
-export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff","attrib/symbol","attrib/classify"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"recorder.observers","tier":"flight-recorder","description":"External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).","rpcMethods":["observe/sessions","observe/health"]},{"id":"recorder.provenance-hooks","tier":"flight-recorder","description":"Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).","rpcMethods":["hook/install","hook/status","hook/remove","hook/pending","trailers/parse"]},{"id":"recorder.trust-metrics","tier":"flight-recorder","description":"Rejection measurement, minimum (FR-M37-01 subset, FR-M37-06; F0 Workstream F tasks 28-29): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections) and greenfield/brownfield classification of a story's changes (trust/classify). Zero model calls (FR-M36-07).","rpcMethods":["trust/detectRejections","trust/classify"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.","rpcMethods":["gate.evaluate"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
+export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff","attrib/symbol","attrib/classify"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"recorder.observers","tier":"flight-recorder","description":"External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).","rpcMethods":["observe/sessions","observe/health"]},{"id":"recorder.provenance-hooks","tier":"flight-recorder","description":"Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).","rpcMethods":["hook/install","hook/status","hook/remove","hook/pending","trailers/parse"]},{"id":"recorder.trust-metrics","tier":"flight-recorder","description":"Rejection measurement, minimum (FR-M37-01 subset, FR-M37-06, FR-M17-05; F0 Workstream F tasks 28-30): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), and the ledger-derived, in-process-cached rejection rate per agent/repository split by that distinction (trust/rejectionRate). Zero model calls (FR-M36-07).","rpcMethods":["trust/detectRejections","trust/classify","trust/rejectionRate"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.","rpcMethods":["gate.evaluate"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
 
 /** Params/result pairing for every request method. */
 export interface MethodMap {
@@ -990,11 +1027,12 @@ export interface MethodMap {
   "trust.summary": { params: TrustSummaryParams; result: TrustSummaryResult };
   "trust/detectRejections": { params: TrustDetectRejectionsParams; result: TrustDetectRejectionsResult };
   "trust/classify": { params: TrustClassifyParams; result: TrustClassifyResult };
+  "trust/rejectionRate": { params: TrustRejectionRateParams; result: TrustRejectionRateResult };
 }
 export type RequestMethod = keyof MethodMap;
 
 /** Runtime list of every request method (for tier/ownership checks). */
-export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","observe/sessions","observe/health","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","hook/install","hook/status","hook/remove","hook/pending","trailers/parse","loop.start","loop.stop","loop.status","gate.evaluate","steer.send","trust.summary","trust/detectRejections","trust/classify"] as const;
+export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","observe/sessions","observe/health","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","hook/install","hook/status","hook/remove","hook/pending","trailers/parse","loop.start","loop.stop","loop.status","gate.evaluate","steer.send","trust.summary","trust/detectRejections","trust/classify","trust/rejectionRate"] as const;
 
 /** Runtime list of every notification method. */
 export const NOTIFICATION_METHODS = ["tiers/set","$/cancel"] as const;

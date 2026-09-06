@@ -32,6 +32,7 @@ from .greenfield import (
     Classification,
     classify,
 )
+from .trust import TrustMetricsCache, compute_rejection_rate
 
 __all__ = [
     "BROWNFIELD",
@@ -39,5 +40,7 @@ __all__ = [
     "DEFAULT_MAX_MEDIAN_AGE_DAYS",
     "DEFAULT_NEW_FILE_RATIO_THRESHOLD",
     "GREENFIELD",
+    "TrustMetricsCache",
     "classify",
+    "compute_rejection_rate",
 ]

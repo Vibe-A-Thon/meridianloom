@@ -153,6 +153,11 @@
       "params": { "$ref": "#/$defs/TrustClassifyParams" },
       "result": { "$ref": "#/$defs/TrustClassifyResult" }
     },
+    "trust/rejectionRate": {
+      "description": "FR-M17-05 + FR-M37-01 (F0 Workstream F task 30): rejection rate per agent, per repository, split greenfield/brownfield (G6), derived from the ledger on demand — proposed changes are ledger entries with actionType \"diff\", rejections are the entries they link to via a rejection entry's rejectedSequence. No separate metrics database: the numbers recompute from ledger entries and cache in-process, invalidated on append. Stories are classified via trust/classify when storyCommits (storyId -> commits) and repoPath are provided; stories without commit data are reported in the unclassified bucket, never silently dropped.",
+      "params": { "$ref": "#/$defs/TrustRejectionRateParams" },
+      "result": { "$ref": "#/$defs/TrustRejectionRateResult" }
+    },
     "tiers/set": {
       "description": "FR-M36-05: notification carrying the enabled tier set after a meridian.tiers configuration change, so a tier flip needs no reinstall and no window reload. The base tier (flight-recorder) is always enabled regardless of payload.",
       "notification": true,
@@ -1206,6 +1211,45 @@
         "medianTouchedCodeAgeDays": { "type": ["number", "null"], "description": "Median age in days of the pre-existing code the changes touched (per-line git history age); null when the story only added files." },
         "classification": { "enum": ["greenfield", "brownfield"] },
         "thresholds": { "$ref": "#/$defs/TrustClassificationThresholds" }
+      },
+      "additionalProperties": false
+    },
+    "TrustMetricBucket": {
+      "type": "object",
+      "required": ["proposed", "rejected", "rate"],
+      "properties": {
+        "proposed": { "type": "integer", "description": "Proposed changes: ledger entries with actionType \"diff\" in scope." },
+        "rejected": { "type": "integer", "description": "Proposed changes whose sequence is carried as rejectedSequence by a rejection entry in scope." },
+        "rate": { "type": "number", "description": "rejected / proposed; 0 when proposed is 0." }
+      },
+      "additionalProperties": false
+    },
+    "TrustRejectionRateParams": {
+      "type": "object",
+      "properties": {
+        "repoId": { "type": "string" },
+        "storyId": { "type": "string" },
+        "actorId": { "type": "string" },
+        "fromSequence": { "type": "integer" },
+        "toSequence": { "type": "integer" },
+        "repoPath": { "type": "string", "description": "Repository for greenfield/brownfield classification. Absent means the handshake workspaceDir." },
+        "storyCommits": { "type": "object", "description": "storyId -> the story's commits, used to classify each in-scope story (trust/classify). Stories without an entry land in the unclassified bucket." },
+        "newFileRatioThreshold": { "type": "number" },
+        "maxMedianAgeDays": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "TrustRejectionRateResult": {
+      "type": "object",
+      "required": ["scope", "proposed", "rejected", "rate", "split", "byAgent", "cacheHit"],
+      "properties": {
+        "scope": { "type": "object", "description": "The echoed scope filters." },
+        "proposed": { "type": "integer" },
+        "rejected": { "type": "integer" },
+        "rate": { "type": "number" },
+        "split": { "type": "object", "description": "greenfield / brownfield / unclassified buckets (G6: every trust metric reports the split)." },
+        "byAgent": { "type": "object", "description": "actorId -> bucket, per-agent rejection rates." },
+        "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05: derived from the ledger, cached, invalidated on append)." }
       },
       "additionalProperties": false
     },

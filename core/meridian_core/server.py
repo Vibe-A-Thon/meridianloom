@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import binascii
 import dataclasses
+import json
 import logging
 import os
 import platform
@@ -74,6 +75,9 @@ class SidecarServer:
         self._ledger = ledger
         self._workspace_dir: str | None = None
         self._signing_seed: bytes | None = None
+        # FR-M17-05: trust metrics derive from the ledger and cache
+        # in-process; the cache is invalidated on every append below.
+        self._trust_cache = metrics_mod.TrustMetricsCache()
         # FR-M35-08/X-29: the observer manager exists from boot (cheap,
         # credential-free constructors); the session monitor thread starts
         # once the handshake carries a workspace. Observer IO happens only
@@ -110,6 +114,7 @@ class SidecarServer:
             "trailers/parse": SidecarServer._handle_trailers_parse,
             "trust/detectRejections": SidecarServer._handle_trust_detect_rejections,
             "trust/classify": SidecarServer._handle_trust_classify,
+            "trust/rejectionRate": SidecarServer._handle_trust_rejection_rate,
             "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
             "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
@@ -851,6 +856,79 @@ class SidecarServer:
             },
         }
 
+    # -- rejection rate (FR-M17-05 + FR-M37-01, task 30) ----------------------
+
+    def _handle_trust_rejection_rate(
+        self, params: bus_types.TrustRejectionRateParams
+    ) -> bus_types.TrustRejectionRateResult:
+        params = params or {}
+        ledger = self._ensure_ledger()
+        story_commits = params.get("storyCommits") or {}
+        ratio_threshold = params.get("newFileRatioThreshold")
+        max_age_days = params.get("maxMedianAgeDays")
+
+        cache_key = json.dumps(
+            {
+                "scope": {
+                    "repoId": params.get("repoId"),
+                    "storyId": params.get("storyId"),
+                    "actorId": params.get("actorId"),
+                    "fromSequence": params.get("fromSequence"),
+                    "toSequence": params.get("toSequence"),
+                },
+                "storyCommits": story_commits,
+                "thresholds": [ratio_threshold, max_age_days],
+                "tip": ledger.last_sequence,  # append-invalidation backstop
+            },
+            sort_keys=True,
+        )
+        cached = self._trust_cache.get(cache_key)
+        if cached is not None:
+            result = dict(cached)
+            result["cacheHit"] = True
+            return result  # type: ignore[return-value]
+
+        classify_fn = None
+        if story_commits:
+            try:
+                repo = self._ensure_attrib_repo({"repoPath": params.get("repoPath")})
+            except AttributionError as error:
+                raise self._attrib_error(error) from error
+
+            def classify_fn(story_id: str) -> str | None:  # type: ignore[no-redef]
+                commits = story_commits.get(story_id)
+                if not commits:
+                    return None
+                try:
+                    return metrics_mod.classify(
+                        repo,
+                        commits=list(commits),
+                        new_file_ratio_threshold=ratio_threshold
+                        if ratio_threshold is not None
+                        else metrics_mod.DEFAULT_NEW_FILE_RATIO_THRESHOLD,
+                        max_median_age_days=max_age_days
+                        if max_age_days is not None
+                        else metrics_mod.DEFAULT_MAX_MEDIAN_AGE_DAYS,
+                    ).classification
+                except AttributionError:
+                    # A story whose commits cannot be classified (rewritten
+                    # away, foreign repo) reports unclassified — a metric
+                    # degrades, never goes silent.
+                    return None
+
+        result = metrics_mod.compute_rejection_rate(
+            ledger,
+            repo_id=params.get("repoId"),
+            story_id=params.get("storyId"),
+            actor_id=params.get("actorId"),
+            from_sequence=params.get("fromSequence"),
+            to_sequence=params.get("toSequence"),
+            classify=classify_fn,
+        )
+        result["cacheHit"] = False
+        self._trust_cache.put(cache_key, result)
+        return result  # type: ignore[return-value]
+
     # -- ledger (FR-M10-01/02/07/08/12) -------------------------------------
 
     def _handle_ledger_append(
@@ -867,6 +945,9 @@ class SidecarServer:
             raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
         except sqlite3.IntegrityError as error:
             raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        # FR-M17-05: derived trust metrics may not outlive the facts they
+        # derive from — every append invalidates the in-process cache.
+        self._trust_cache.invalidate()
         return {
             "sequence": result.sequence,
             "hash": result.entry_hash.hex(),
