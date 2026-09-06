@@ -1,0 +1,56 @@
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ml-space-1);
+  font: var(--ml-t-ui);
+  color: var(--ml-text-secondary);
+  white-space: nowrap;
+}
+
+.glyph {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: var(--ml-dye-idle);
+}
+
+.glyph svg,
+.confidence svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Confidence mark: three shapes (A-02 — never colour alone). The hues are
+   the dye tokens; the shapes carry the distinction. */
+.confidence {
+  width: 10px;
+  height: 10px;
+  flex: none;
+}
+.confidenceDirect {
+  color: var(--ml-dye-approved);
+}
+.confidenceTelemetry {
+  color: var(--ml-dye-working);
+}
+.confidenceInferred {
+  color: var(--ml-text-tertiary);
+}
+
+/* The meaning is available to assistive tech on every tag (A-09) and shows
+   on hover/focus (H5) — banned pattern 22 forbids hover-only *affordances*,
+   and this is supplementary text, not an action. */
+.meaning {
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+}
+@media (hover: hover) and (pointer: fine) {
+  .meaning {
+    display: none;
+  }
+  .tag:hover .meaning,
+  .tag:focus-within .meaning {
+    display: inline;
+  }
+}

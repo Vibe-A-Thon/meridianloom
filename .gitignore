@@ -7,3 +7,6 @@ __pycache__/
 *.pyc
 /extension/sidecar/
 /verifier/target/
+webview/dist/
+extension/webview-dist/
+!webview/index.html

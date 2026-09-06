@@ -1,0 +1,321 @@
+/*
+ * MERIDIAN LOOM — design token layers (VIGUIX_Final §4–§6).
+ *
+ * Every component consumes var() tokens; no component hard-codes a colour.
+ * Layers, outside → inside:
+ *   1. structural tokens (:root) — space, radius, type ramp, density deltas
+ *   2. theme blocks ([data-ml-theme]) — ground, linen, dyes, elevation
+ *   3. follow-vscode — derived from --vscode-* variables (§5)
+ *
+ * GF0 ships only the primitives the Recorder screens need; the token set
+ * grows with the screens that need it.
+ */
+
+/* ——— 1. Structure: space, radius, density, type ——— */
+:root {
+  /* §4.3 space */
+  --ml-space-1: 4px;
+  --ml-space-2: 8px;
+  --ml-space-3: 12px;
+  --ml-space-4: 16px;
+  --ml-space-5: 24px;
+  --ml-space-6: 32px;
+  --ml-space-7: 48px;
+  --ml-space-8: 64px;
+
+  /* §4.3 radius — three values only, each carries meaning */
+  --ml-r-thread: 2px;   /* data surfaces: rows, cells, chips */
+  --ml-r-panel: 6px;    /* containers */
+  --ml-r-actor: 50%;    /* anything representing an agent */
+
+  /* §4.4 density — comfortable is the default (V7, DECISIONS.md) */
+  --ml-row-height: 32px;
+  --ml-panel-padding: var(--ml-space-4);
+  --ml-weave-row-height: 22px;
+  --ml-body-size: 13px;
+  --ml-cell-padding: 7px 10px;
+
+  /* §6 typography — families with the documented fallback stack (P-12) */
+  --ml-font-ui:
+    'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ml-font-data:
+    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* §6.1 scale — 1.25 ratio from a 13px base */
+  --ml-t-display: 600 34px/1.05 var(--ml-font-ui);
+  --ml-t-display-track: -0.02em;
+  --ml-t-h1: 600 24px/1.15 var(--ml-font-ui);
+  --ml-t-h1-track: -0.01em;
+  --ml-t-h2: 600 18px/1.25 var(--ml-font-ui);
+  --ml-t-h3: 600 15px/1.3 var(--ml-font-ui);
+  --ml-t-body: 400 var(--ml-body-size)/1.55 var(--ml-font-ui);
+  --ml-t-ui: 500 var(--ml-body-size)/1.2 var(--ml-font-ui);
+  --ml-t-small: 400 11px/1.4 var(--ml-font-ui);
+  --ml-t-data: 400 var(--ml-body-size)/1.45 var(--ml-font-data);
+  --ml-t-data-lg: 500 28px/1 var(--ml-font-data);
+  --ml-t-code: 400 12px/1.6 var(--ml-font-data);
+
+  /* §8.1 motion primitives (components reference named tokens only) */
+  --ml-motion-fast: 120ms;
+  --ml-motion-med: 240ms;
+}
+
+/* §4.4 density deltas — a token layer, not per-component overrides */
+[data-ml-density='compact'] {
+  --ml-row-height: 26px;
+  --ml-panel-padding: var(--ml-space-3);
+  --ml-weave-row-height: 15px;
+  --ml-body-size: 13px;
+  --ml-cell-padding: 5px 8px;
+}
+[data-ml-density='dense'] {
+  --ml-row-height: 22px;
+  --ml-panel-padding: var(--ml-space-2);
+  --ml-weave-row-height: 9px;
+  --ml-body-size: 12px;
+  --ml-cell-padding: 3px 6px;
+}
+
+/* ——— 2. Themes ——— */
+
+/* Indigo Vat — default dark (§4.1, normative values) */
+:root,
+[data-ml-theme='indigo-vat'] {
+  --ml-ground-deepest: #0b0e1c;
+  --ml-ground-canvas: #11152a;
+  --ml-ground-raised: #171d38;
+  --ml-ground-card: #1f2748;
+  --ml-hairline: #2a3358;
+  --ml-border: #3a4570;
+
+  --ml-text-primary: #f2efe6;
+  --ml-text-secondary: #d5d0c2;
+  --ml-text-tertiary: #9c9a90;
+  --ml-text-disabled: #6b6c68;
+
+  --ml-dye-working: #4a83c4;
+  --ml-dye-working-dim: #2c5686;
+  --ml-dye-attention: #e0a828;
+  --ml-dye-attention-dim: #8a6614;
+  --ml-dye-rework: #c8483a;
+  --ml-dye-rework-dim: #7c2c23;
+  --ml-dye-approved: #2fa592;
+  --ml-dye-approved-dim: #1a6459;
+  --ml-dye-meta: #9b3f6c;
+  --ml-dye-meta-dim: #5e2542;
+  --ml-dye-idle: #5b6480;
+
+  /* §4.3 elevation — hairline plus top inner light, cast shadow only at 3 */
+  --ml-elev-0: none;
+  --ml-elev-1:
+    inset 0 1px 0 rgba(242, 239, 230, 0.06), 0 0 0 1px var(--ml-hairline);
+  --ml-elev-2:
+    inset 0 1px 0 rgba(242, 239, 230, 0.09), 0 0 0 1px var(--ml-border),
+    0 8px 24px -12px rgba(0, 0, 0, 0.7);
+  --ml-elev-3:
+    inset 0 1px 0 rgba(242, 239, 230, 0.12), 0 0 0 1px var(--ml-dye-working-dim),
+    0 18px 48px -18px rgba(0, 0, 0, 0.85);
+}
+
+/* --ml-halt is reserved for exactly one control: Halt All (§4.1). It is
+   defined once on :root and never re-themed — a crisis colour that moves
+   between themes would defeat its purpose. */
+:root {
+  --ml-halt: #ff4d3d;
+}
+
+/* Sized Linen — default light; dyes darkened ~18% for AA on light */
+[data-ml-theme='sized-linen'] {
+  --ml-ground-deepest: #ddd8ca;
+  --ml-ground-canvas: #e7e4da;
+  --ml-ground-raised: #efebe0;
+  --ml-ground-card: #f5f2e9;
+  --ml-hairline: #c9c3b2;
+  --ml-border: #b0a992;
+
+  --ml-text-primary: #1c2440;
+  --ml-text-secondary: #414b6e;
+  --ml-text-tertiary: #6b7290;
+  --ml-text-disabled: #9ca0b0;
+
+  --ml-dye-working: #3c6ba0;
+  --ml-dye-working-dim: #2c5686;
+  --ml-dye-attention: #b88820;
+  --ml-dye-attention-dim: #8a6614;
+  --ml-dye-rework: #a33b2f;
+  --ml-dye-rework-dim: #7c2c23;
+  --ml-dye-approved: #268778;
+  --ml-dye-approved-dim: #1a6459;
+  --ml-dye-meta: #7f3458;
+  --ml-dye-meta-dim: #5e2542;
+  --ml-dye-idle: #4a5266;
+
+  --ml-elev-0: none;
+  --ml-elev-1:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 0 0 1px var(--ml-hairline);
+  --ml-elev-2:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 0 1px var(--ml-border),
+    0 8px 24px -12px rgba(28, 36, 64, 0.25);
+  --ml-elev-3:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 0 0 1px var(--ml-dye-working-dim),
+    0 18px 48px -18px rgba(28, 36, 64, 0.35);
+}
+
+/* Iron Gall — maximum contrast, near-monochrome, dyes at full saturation */
+[data-ml-theme='iron-gall'] {
+  --ml-ground-deepest: #04050a;
+  --ml-ground-canvas: #07080f;
+  --ml-ground-raised: #0c0e18;
+  --ml-ground-card: #12141f;
+  --ml-hairline: #232637;
+  --ml-border: #39405c;
+
+  --ml-text-primary: #f4f5f7;
+  --ml-text-secondary: #c9cdd8;
+  --ml-text-tertiary: #8e93a6;
+  --ml-text-disabled: #5a5f72;
+
+  --ml-dye-working: #5a9be0;
+  --ml-dye-working-dim: #2c5686;
+  --ml-dye-attention: #f2bc33;
+  --ml-dye-attention-dim: #8a6614;
+  --ml-dye-rework: #e05545;
+  --ml-dye-rework-dim: #7c2c23;
+  --ml-dye-approved: #35bca6;
+  --ml-dye-approved-dim: #1a6459;
+  --ml-dye-meta: #b44b7e;
+  --ml-dye-meta-dim: #5e2542;
+  --ml-dye-idle: #7c86a6;
+}
+
+/* Madder Dusk — warm dark, dyes shifted warm */
+[data-ml-theme='madder-dusk'] {
+  --ml-ground-deepest: #120a0d;
+  --ml-ground-canvas: #1a1013;
+  --ml-ground-raised: #221419;
+  --ml-ground-card: #2a181e;
+  --ml-hairline: #3e232b;
+  --ml-border: #54303a;
+
+  --ml-text-primary: #f2e9e4;
+  --ml-text-secondary: #d8c6be;
+  --ml-text-tertiary: #a08b84;
+  --ml-text-disabled: #6e5c57;
+
+  --ml-dye-working: #4e7fb8;
+  --ml-dye-working-dim: #34587e;
+  --ml-dye-attention: #dfa63a;
+  --ml-dye-attention-dim: #8a6614;
+  --ml-dye-rework: #d05244;
+  --ml-dye-rework-dim: #7c2c23;
+  --ml-dye-approved: #3aa08c;
+  --ml-dye-approved-dim: #1a6459;
+  --ml-dye-meta: #a8456e;
+  --ml-dye-meta-dim: #5e2542;
+  --ml-dye-idle: #6e6270;
+}
+
+/* Weld Dawn — light, warmer, higher-key */
+[data-ml-theme='weld-dawn'] {
+  --ml-ground-deepest: #e4ddc9;
+  --ml-ground-canvas: #f0ebdc;
+  --ml-ground-raised: #f7f3e6;
+  --ml-ground-card: #fcf9ef;
+  --ml-hairline: #d2cab2;
+  --ml-border: #b8af93;
+
+  --ml-text-primary: #33301f;
+  --ml-text-secondary: #5a5540;
+  --ml-text-tertiary: #7e7862;
+  --ml-text-disabled: #a6a08c;
+
+  --ml-dye-working: #3f74b3;
+  --ml-dye-working-dim: #2c5686;
+  --ml-dye-attention: #a87f1d;
+  --ml-dye-attention-dim: #8a6614;
+  --ml-dye-rework: #b03e32;
+  --ml-dye-rework-dim: #7c2c23;
+  --ml-dye-approved: #258175;
+  --ml-dye-approved-dim: #1a6459;
+  --ml-dye-meta: #8c3860;
+  --ml-dye-meta-dim: #5e2542;
+  --ml-dye-idle: #5f6678;
+
+  --ml-elev-0: none;
+  --ml-elev-1:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 0 1px var(--ml-hairline);
+  --ml-elev-2:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 0 0 1px var(--ml-border),
+    0 8px 24px -12px rgba(51, 48, 31, 0.25);
+  --ml-elev-3:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 1px var(--ml-dye-working-dim),
+    0 18px 48px -18px rgba(51, 48, 31, 0.35);
+}
+
+/* Loom Ghost — dark, dyes desaturated to 35%, reads as a photograph */
+[data-ml-theme='loom-ghost'] {
+  --ml-ground-deepest: #0b0e1c;
+  --ml-ground-canvas: #0d1020;
+  --ml-ground-raised: #12152a;
+  --ml-ground-card: #181c33;
+  --ml-hairline: #262b45;
+  --ml-border: #353b5c;
+
+  --ml-text-primary: #c9c6bc;
+  --ml-text-secondary: #a3a198;
+  --ml-text-tertiary: #74756e;
+  --ml-text-disabled: #4e4f4b;
+
+  --ml-dye-working: #4a5e80;
+  --ml-dye-working-dim: #333f57;
+  --ml-dye-attention: #8a7a50;
+  --ml-dye-attention-dim: #5d5236;
+  --ml-dye-rework: #7e564f;
+  --ml-dye-rework-dim: #543a35;
+  --ml-dye-approved: #4a7a72;
+  --ml-dye-approved-dim: #33514c;
+  --ml-dye-meta: #6e4e5e;
+  --ml-dye-meta-dim: #4a343f;
+  --ml-dye-idle: #4a4e5e;
+}
+
+/* Follow VS Code — derives ground and linen from --vscode-* variables (§5),
+   with Indigo Vat as the documented fallback (theme resolution order step 3).
+   Meridian's six functional dyes are kept: §5 says that when following,
+   Meridian identity is carried by shape, motion and typography — the dyes
+   stay the product's own, only the ground follows the editor. */
+[data-ml-theme='follow-vscode'] {
+  --ml-ground-deepest: var(--vscode-editor-background, #0b0e1c);
+  --ml-ground-canvas: var(--vscode-editor-background, #11152a);
+  --ml-ground-raised: var(--vscode-sideBar-background, #171d38);
+  --ml-ground-card: var(--vscode-editorGroupHeader-tabsBackground, #1f2748);
+  --ml-hairline: var(--vscode-panel-border, #2a3358);
+  --ml-border: var(--ml-hairline);
+
+  --ml-text-primary: var(--vscode-editor-foreground, #f2efe6);
+  --ml-text-secondary: var(--vscode-descriptionForeground, #d5d0c2);
+  --ml-text-tertiary: var(--vscode-descriptionForeground, #9c9a90);
+  --ml-text-disabled: var(--ml-text-tertiary);
+
+  --ml-dye-working: #4a83c4;
+  --ml-dye-working-dim: #2c5686;
+  --ml-dye-attention: #e0a828;
+  --ml-dye-attention-dim: #8a6614;
+  --ml-dye-rework: #c8483a;
+  --ml-dye-rework-dim: #7c2c23;
+  --ml-dye-approved: #2fa592;
+  --ml-dye-approved-dim: #1a6459;
+  --ml-dye-meta: #9b3f6c;
+  --ml-dye-meta-dim: #5e2542;
+  --ml-dye-idle: #5b6480;
+}
+
+/* High-contrast handling (§5): when VS Code reports a high-contrast theme,
+   the host sets data-ml-high-contrast on <html> and Iron Gall wins
+   regardless of the chosen theme; decorative motion halts and hairlines
+   thicken. */
+[data-ml-high-contrast='true'] {
+  --ml-hairline: var(--ml-border);
+  --ml-motion-fast: 1ms;
+  --ml-motion-med: 1ms;
+}

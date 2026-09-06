@@ -1,0 +1,33 @@
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--ml-space-2);
+  min-height: var(--ml-row-height);
+  padding: var(--ml-space-1) var(--ml-cell-padding);
+  border-radius: var(--ml-r-thread);
+  font: var(--ml-t-body);
+  color: var(--ml-text-primary);
+}
+
+.step:nth-child(even) {
+  background: var(--ml-ground-raised);
+}
+
+.index {
+  flex: none;
+  width: 3ch;
+  font: var(--ml-t-data);
+  color: var(--ml-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.description {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.action {
+  flex: none;
+}

@@ -1,0 +1,52 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ml-space-1);
+  padding: 2px var(--ml-space-2);
+  border-radius: var(--ml-r-thread);
+  box-shadow: inset 0 0 0 1px var(--ml-hairline);
+  background: var(--ml-ground-raised);
+  font: var(--ml-t-small);
+  color: var(--ml-text-secondary);
+  white-space: nowrap;
+}
+
+/* Shape+colour pair (§9.1), never colour alone:
+   deterministic — solid iron square
+   assisted    — half-filled woad square
+   generative  — hollow cochineal square */
+.shape {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: var(--ml-r-thread);
+  border: 1px solid transparent;
+}
+.shapeDeterministic {
+  background: var(--ml-dye-idle);
+  border-color: var(--ml-dye-idle);
+}
+.shapeAssisted {
+  background: linear-gradient(to top, var(--ml-dye-working) 50%, transparent 50%);
+  border-color: var(--ml-dye-working);
+}
+.shapeGenerative {
+  background: transparent;
+  border-color: var(--ml-dye-meta);
+}
+
+/* why_llm — visible on hover/focus as supplementary disclosure (H5), and
+   always available to assistive tech via the chip's accessible name. */
+.why {
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+}
+@media (hover: hover) and (pointer: fine) {
+  .why {
+    display: none;
+  }
+  .chip:hover .why,
+  .chip:focus-within .why {
+    display: inline;
+  }
+}

@@ -1,0 +1,38 @@
+.block {
+  position: relative;
+  padding: var(--ml-space-3) var(--ml-space-4);
+  border-left: 3px solid var(--ml-dye-meta);
+  border-radius: 0 var(--ml-r-panel) var(--ml-r-panel) 0;
+  background: var(--ml-ground-raised);
+  font: var(--ml-t-body);
+  color: var(--ml-text-primary);
+  max-width: 72ch; /* §6.1 prose line length */
+}
+
+/* Hatched left border (§9.1) — the hatching, not only the hue, marks
+   unverified prose; banned pattern 16 forbids colour alone. */
+.block::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 -3px;
+  width: 3px;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--ml-dye-meta) 0 3px,
+    transparent 3px 6px
+  );
+  border-radius: inherit;
+}
+
+.marking {
+  display: block;
+  margin-bottom: var(--ml-space-2);
+  font: var(--ml-t-small);
+  color: var(--ml-dye-meta);
+}
+
+.body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
