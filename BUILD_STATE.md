@@ -6,10 +6,8 @@
 
 - **Current phase:** F0 — Flight Recorder
 - **Current workstream:** G — The three screens *(interlock: GUI phase GF0)*
-- **Current task:** 31 — 10.45 Flight Recorder (Weave, This Session, Any Line, Export, Selvage)
+- **Current task:** G-foundation — webview scaffold, tokens/themes/density (VIGUIX_Final §4–6 primitives), extension webview host (CSP nonce, asWebviewUri, getState/setState, no web storage), then 31–35 (screens 10.45/10.46/10.7/10.40, X-27…30)
 - **Last commit:** df7bf0a — feat(f0): rejection rate per agent/repository, split greenfield/brownfield (FR-M17-05, FR-M37-01, FR-M37-06) — Workstream F complete (28–30)
-- **Updated:** _(see git log)_
-- **Updated:** _(see git log)_
 
 ## Mapping of completed S0 work onto the new plan
 
@@ -52,7 +50,7 @@
 | D — Observers | 17–22 | **done** (c60874b; X-29 + NFR-29 measured within budget; SEC-27 pass) |
 | E — Portable provenance | 23–27 | **done** (481f5fa hook UI command; 90b5e6c agent identity trailers; abfc94c full signed bundle — proofs/signature/compliance; 4dfbdb1 open verifier verify.py + meridian-verify; 1ea71c8 spec docs) |
 | F — Rejection measurement, minimum | 28–30 | **done** (5b54279 rejection capture + ledger v4 rejection entries; 820f59a greenfield/brownfield classification; df7bf0a ledger-derived rejection rate, cached, split, reconciling) |
-| G — The three screens (interlock GF0) | 31–36 | not started |
+| G — The three screens (interlock GF0) | 31–36 | in progress (foundation first: webview scaffold, tokens/themes, webview host) |
 
 ## Later phases (per gaps_implementation.md)
 
