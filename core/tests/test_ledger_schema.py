@@ -75,6 +75,8 @@ class TestNormativeSchema:
             "simulated",
             # FR-M40-02 amendment to FR-M10-01 (gaps_initiation.md §5)
             "run_id", "origin",
+            # FR-M37-01 rejection linkage (F0 Workstream F task 28)
+            "rejected_sequence", "rejected_commit", "rejecting_commit",
         ]
 
     def test_tree_head_columns_match_vision_ddl(self, conn):
@@ -142,20 +144,22 @@ class TestAppendOnlyTriggers:
 class TestMigrations:
     def test_migration_is_recorded(self, conn):
         newly = apply_migrations(conn)
-        assert newly == [1, 2, 3]
+        assert newly == [1, 2, 3, 4]
         rows = conn.execute(
             "SELECT version, description FROM schema_migrations"
         ).fetchall()
-        assert [row[0] for row in rows] == [1, 2, SCHEMA_VERSION]
+        assert [row[0] for row in rows] == [1, 2, 3, SCHEMA_VERSION]
         assert "FR-M10-01" in rows[0][1]
         assert "FR-M40-02" in rows[1][1]
+        assert "FR-M37-01" in rows[3][1]
 
     def test_reapply_is_a_noop(self, conn):
         apply_migrations(conn)
         assert apply_migrations(conn) == []
 
     def test_v1_database_is_upgraded(self, tmp_path):
-        """A ledger created at v1 gains run_id/origin via the v2 migration."""
+        """A ledger created at v1 gains run_id/origin (v2), blob keys (v3)
+        and the rejection linkage columns (v4) via migrations."""
         db = tmp_path / "ledger.db"
         old = connect(db)
         old.execute(
@@ -174,9 +178,10 @@ class TestMigrations:
         old.close()
 
         upgraded = connect(db)
-        assert apply_migrations(upgraded) == [2, 3]
+        assert apply_migrations(upgraded) == [2, 3, 4]
         cols = _columns(upgraded, "ledger_entry")
         assert "run_id" in cols and "origin" in cols
+        assert "rejected_sequence" in cols and "rejecting_commit" in cols
         tables = {
             row[0]
             for row in upgraded.execute(

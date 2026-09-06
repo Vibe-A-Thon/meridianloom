@@ -23,7 +23,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 # Statement lists (not executescript blobs) so each migration runs inside
 # one explicit transaction with its schema_migrations row.
@@ -50,7 +50,8 @@ _V1_STATEMENTS = [
       model_version  TEXT,
 
       action_type    TEXT    NOT NULL,      -- plan|prompt|tool_call|diff|test_run|
-                                            -- review|scan|gate|approval|policy_update|export
+                                            -- review|scan|gate|approval|policy_update|export|
+                                            -- rejection (FR-M37-01: a rejected change)
       input_digest   BLOB,                  -- SHA-256 of the (encrypted) input blob
       input_ref      TEXT,                  -- blob store path, relative
       output_digest  BLOB,
@@ -157,6 +158,17 @@ _V3_STATEMENTS = [
     """,
 ]
 
+_V4_STATEMENTS = [
+    # FR-M37-01 (F0 Workstream F task 28): rejection entries — the distinct
+    # action_type "rejection" plus the linkage columns. rejected_sequence
+    # carries the rejected entry's ledger sequence (null when the rejected
+    # commit has no resolvable Meridian-Ledger trailer); rejecting_commit is
+    # null for force-amended changes (there is no rejecting commit).
+    "ALTER TABLE ledger_entry ADD COLUMN rejected_sequence INTEGER",
+    "ALTER TABLE ledger_entry ADD COLUMN rejected_commit TEXT",
+    "ALTER TABLE ledger_entry ADD COLUMN rejecting_commit TEXT",
+]
+
 MIGRATIONS: list[tuple[int, str, list[str]]] = [
     (
         1,
@@ -177,6 +189,13 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
         "wrapped under the workspace master key; deleting a row "
         "crypto-shreds the subject's blobs",
         _V3_STATEMENTS,
+    ),
+    (
+        4,
+        "FR-M37-01 (F0 Workstream F): rejection linkage columns "
+        "(rejected_sequence, rejected_commit, rejecting_commit) for "
+        "action_type='rejection' entries",
+        _V4_STATEMENTS,
     ),
 ]
 

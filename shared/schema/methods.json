@@ -143,6 +143,11 @@
       "params": { "$ref": "#/$defs/TrustSummaryParams" },
       "result": { "$ref": "#/$defs/TrustSummaryResult" }
     },
+    "trust/detectRejections": {
+      "description": "FR-M37-01 subset (F0 Workstream F task 28): deterministic rejection capture from git history over base..ref (the attribution engine's diff/blame — zero model calls, FR-M36-07). A change is rejected when reverted (a later commit removes its added lines and restores its removed lines), force-amended away (its commit is unreachable and its content no longer exists at ref), or replaced within windowDays (default 7 — the meridian.rejectionWindowDays workspace setting). Each detected rejection is recorded in the ledger as an entry with actionType \"rejection\" carrying the rejected entry's sequence (from the commit's Meridian-Ledger trailer when present), the rejecting commit and the reason; re-running is idempotent (duplicates are skipped, never double-recorded). Detection records facts — no gate exists and none is implied.",
+      "params": { "$ref": "#/$defs/TrustDetectRejectionsParams" },
+      "result": { "$ref": "#/$defs/TrustDetectRejectionsResult" }
+    },
     "tiers/set": {
       "description": "FR-M36-05: notification carrying the enabled tier set after a meridian.tiers configuration change, so a tier flip needs no reinstall and no window reload. The base tier (flight-recorder) is always enabled regardless of payload.",
       "notification": true,
@@ -590,6 +595,9 @@
         "runId": { "type": "string" },
         "origin": { "type": "string" },
         "simulated": { "type": "boolean" },
+        "rejectedSequence": { "type": ["integer", "null"], "description": "FR-M37-01: on actionType \"rejection\" entries — the rejected entry's ledger sequence." },
+        "rejectedCommit": { "type": ["string", "null"], "description": "FR-M37-01: on rejection entries — the commit whose change was rejected." },
+        "rejectingCommit": { "type": ["string", "null"], "description": "FR-M37-01: on rejection entries — the commit that rejected it (null for force_amended)." },
         "entryHash": { "type": "string" },
         "previousHash": { "type": "string" },
         "hasInputBlob": { "type": "boolean" },
@@ -1113,6 +1121,51 @@
       "required": ["entries"],
       "properties": {
         "entries": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "TrustDetectRejectionsParams": {
+      "type": "object",
+      "properties": {
+        "repoPath": { "type": "string", "description": "Repository root. Absent means the handshake workspaceDir." },
+        "base": { "type": "string", "description": "Optional commit-ish; detection covers base..ref. Absent: the whole ref history." },
+        "ref": { "type": "string", "description": "Detection endpoint (default HEAD)." },
+        "windowDays": { "type": "integer", "description": "The replaced-within-window bound in days (default 7 — meridian.rejectionWindowDays)." },
+        "repoId": { "type": "string", "description": "Repository identifier written to the rejection entries' repo_id column (default: the repository folder name)." },
+        "storyId": { "type": "string", "description": "Fallback story id for rejection entries whose rejected commit carries no resolvable Meridian-Ledger trailer." },
+        "actorId": { "type": "string", "description": "Fallback actor id (default \"unknown\") for the same case." },
+        "actorVersion": { "type": "string" },
+        "actorKind": { "type": "string" },
+        "policyVersion": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "TrustRejection": {
+      "type": "object",
+      "required": ["rejectedCommit", "rejectingCommit", "reason", "paths", "linesRejected", "rejectedAt", "rejectedSequence", "recordedSequence", "alreadyRecorded"],
+      "properties": {
+        "rejectedCommit": { "type": "string" },
+        "rejectingCommit": { "type": ["string", "null"], "description": "The commit that rejected the change; null for force_amended (the change vanished with the amend)." },
+        "reason": { "enum": ["reverted", "force_amended", "replaced_within_window"] },
+        "paths": { "type": "array", "items": { "type": "string" } },
+        "linesRejected": { "type": "integer" },
+        "rejectedAt": { "type": ["string", "null"], "description": "ISO 8601 UTC of the rejecting commit (the rejected commit's date for force_amended)." },
+        "rejectedSequence": { "type": ["integer", "null"], "description": "The rejected ledger entry's sequence, from the commit's Meridian-Ledger trailer when present." },
+        "recordedSequence": { "type": ["integer", "null"], "description": "The ledger sequence of the rejection entry that was (or already had been) appended." },
+        "alreadyRecorded": { "type": "boolean", "description": "True when a rejection entry for this rejectedCommit/rejectingCommit/reason/repoId already existed — detection is idempotent." }
+      },
+      "additionalProperties": false
+    },
+    "TrustDetectRejectionsResult": {
+      "type": "object",
+      "required": ["repoPath", "ref", "windowDays", "rejections", "recorded", "duplicatesSkipped"],
+      "properties": {
+        "repoPath": { "type": "string" },
+        "ref": { "type": "string" },
+        "windowDays": { "type": "integer" },
+        "rejections": { "type": "array", "items": { "$ref": "#/$defs/TrustRejection" } },
+        "recorded": { "type": "integer", "description": "Rejection entries appended to the ledger in this call." },
+        "duplicatesSkipped": { "type": "integer", "description": "Detections already present in the ledger (idempotent re-run)." }
       },
       "additionalProperties": false
     },

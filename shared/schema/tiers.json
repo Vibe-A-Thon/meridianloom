@@ -43,6 +43,12 @@
         "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse"]
       },
       {
+        "id": "recorder.trust-metrics",
+        "tier": "flight-recorder",
+        "description": "Rejection measurement, minimum (FR-M37-01 subset; F0 Workstream F task 28): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections). Zero model calls (FR-M36-07).",
+        "rpcMethods": ["trust/detectRejections"]
+      },
+      {
         "id": "governor.gates",
         "tier": "governor",
         "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.",

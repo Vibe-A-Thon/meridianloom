@@ -283,6 +283,9 @@ class LedgerEntry(TypedDict):
     runId: NotRequired[str]
     origin: NotRequired[str]
     simulated: bool
+    rejectedSequence: NotRequired[int | None]  # FR-M37-01: on actionType "rejection" entries — the rejected entry's ledger sequence.
+    rejectedCommit: NotRequired[str | None]  # FR-M37-01: on rejection entries — the commit whose change was rejected.
+    rejectingCommit: NotRequired[str | None]  # FR-M37-01: on rejection entries — the commit that rejected it (null for force_amended).
     entryHash: str
     previousHash: str
     hasInputBlob: bool
@@ -600,6 +603,37 @@ class TrustSummaryParams(TypedDict):
 class TrustSummaryResult(TypedDict):
     entries: list[dict[str, Any]]
 
+class TrustDetectRejectionsParams(TypedDict):
+    repoPath: NotRequired[str]  # Repository root. Absent means the handshake workspaceDir.
+    base: NotRequired[str]  # Optional commit-ish; detection covers base..ref. Absent: the whole ref history.
+    ref: NotRequired[str]  # Detection endpoint (default HEAD).
+    windowDays: NotRequired[int]  # The replaced-within-window bound in days (default 7 — meridian.rejectionWindowDays).
+    repoId: NotRequired[str]  # Repository identifier written to the rejection entries' repo_id column (default: the repository folder name).
+    storyId: NotRequired[str]  # Fallback story id for rejection entries whose rejected commit carries no resolvable Meridian-Ledger trailer.
+    actorId: NotRequired[str]  # Fallback actor id (default "unknown") for the same case.
+    actorVersion: NotRequired[str]
+    actorKind: NotRequired[str]
+    policyVersion: NotRequired[str]
+
+class TrustRejection(TypedDict):
+    rejectedCommit: str
+    rejectingCommit: str | None  # The commit that rejected the change; null for force_amended (the change vanished with the amend).
+    reason: Literal["reverted", "force_amended", "replaced_within_window"]
+    paths: list[str]
+    linesRejected: int
+    rejectedAt: str | None  # ISO 8601 UTC of the rejecting commit (the rejected commit's date for force_amended).
+    rejectedSequence: int | None  # The rejected ledger entry's sequence, from the commit's Meridian-Ledger trailer when present.
+    recordedSequence: int | None  # The ledger sequence of the rejection entry that was (or already had been) appended.
+    alreadyRecorded: bool  # True when a rejection entry for this rejectedCommit/rejectingCommit/reason/repoId already existed — detection is idempotent.
+
+class TrustDetectRejectionsResult(TypedDict):
+    repoPath: str
+    ref: str
+    windowDays: int
+    rejections: list[TrustRejection]
+    recorded: int  # Rejection entries appended to the ledger in this call.
+    duplicatesSkipped: int  # Detections already present in the ledger (idempotent re-run).
+
 # FR-M35-02 observation confidence: direct (the agent's own telemetry/ACP session), telemetry (evidence the agent left behind: git trailers, SCM/PR API, OS process listing), inferred (filesystem/git inference — the floor, never silence).
 ObservationConfidence = Literal["direct", "telemetry", "inferred"]
 
@@ -644,7 +678,7 @@ class TierSetParams(TypedDict):
     tiers: list[TierName]
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections"]
 
 # Every notification method on the bus.
 NotificationName = Literal["tiers/set", "$/cancel"]
@@ -702,13 +736,14 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]},
     {"id": "recorder.observers", "tier": "flight-recorder", "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).", "rpcMethods": ["observe/sessions", "observe/health"]},
     {"id": "recorder.provenance-hooks", "tier": "flight-recorder", "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).", "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse"]},
+    {"id": "recorder.trust-metrics", "tier": "flight-recorder", "description": "Rejection measurement, minimum (FR-M37-01 subset; F0 Workstream F task 28): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections). Zero model calls (FR-M36-07).", "rpcMethods": ["trust/detectRejections"]},
     {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.", "rpcMethods": ["gate.evaluate"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.", "rpcMethods": ["steer.send"]},
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections")
 NOTIFICATION_METHODS: tuple[str, ...] = ("tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -741,4 +776,5 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "gate.evaluate": {"params": GateEvaluateParams, "result": GateEvaluateResult},
     "steer.send": {"params": SteerSendParams, "result": SteerSendResult},
     "trust.summary": {"params": TrustSummaryParams, "result": TrustSummaryResult},
+    "trust/detectRejections": {"params": TrustDetectRejectionsParams, "result": TrustDetectRejectionsResult},
 }

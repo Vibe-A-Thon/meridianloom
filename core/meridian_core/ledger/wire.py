@@ -48,6 +48,9 @@ APPEND_PARAM_TO_COLUMN: dict[str, str] = {
     "origin": "origin",
     "simulated": "simulated",
     "timestamp": "ts_utc",
+    "rejectedSequence": "rejected_sequence",
+    "rejectedCommit": "rejected_commit",
+    "rejectingCommit": "rejecting_commit",
 }
 
 #: Convenience params handled by Ledger.append, not columns.
@@ -111,6 +114,9 @@ def row_to_wire(row: dict[str, Any]) -> dict[str, Any]:
         "runId": row.get("run_id"),
         "origin": row.get("origin"),
         "simulated": bool(row["simulated"]),
+        "rejectedSequence": row.get("rejected_sequence"),
+        "rejectedCommit": row.get("rejected_commit"),
+        "rejectingCommit": row.get("rejecting_commit"),
         "entryHash": _hex(row["entry_hash"]),
         "previousHash": _hex(row["prev_hash"]),
         "hasInputBlob": row.get("input_ref") is not None,

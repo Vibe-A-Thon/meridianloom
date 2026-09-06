@@ -36,6 +36,7 @@ from .attribution import heuristics
 from .attribution import AttributionError
 from .attribution._git import normalise_repo_path as attribution_normalise
 from . import hooks as provenance_hooks
+from . import rejection as rejection_mod
 from .ledger import core as ledger_core
 from .ledger import keys as ledger_keys
 from .ledger import wire as ledger_wire
@@ -106,6 +107,7 @@ class SidecarServer:
             "hook/remove": SidecarServer._handle_hook_remove,
             "hook/pending": SidecarServer._handle_hook_pending,
             "trailers/parse": SidecarServer._handle_trailers_parse,
+            "trust/detectRejections": SidecarServer._handle_trust_detect_rejections,
             "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
             "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
@@ -663,6 +665,152 @@ class SidecarServer:
             if payload["attributions"] or payload["meridianLedger"]:
                 commits.append(payload)
         return {"commits": commits}
+
+    # -- rejection capture (FR-M37-01 subset, F0 Workstream F task 28) --------
+
+    def _handle_trust_detect_rejections(
+        self, params: bus_types.TrustDetectRejectionsParams
+    ) -> bus_types.TrustDetectRejectionsResult:
+        """Detect rejections from git history and record each in the ledger.
+
+        Detection is pure git attribution (zero model calls, FR-M36-07) and
+        idempotent: a rejection whose (rejectedCommit, rejectingCommit,
+        reason, repoId) already exists in the ledger is reported with
+        alreadyRecorded=True and never double-appended.
+        """
+        params = params or {}
+        window_days = params.get("windowDays")
+        if window_days is None:
+            window_days = rejection_mod.DEFAULT_REJECTION_WINDOW_DAYS
+        if (
+            not isinstance(window_days, int)
+            or isinstance(window_days, bool)
+            or not 1 <= window_days <= 3650
+        ):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"windowDays must be an integer between 1 and 3650, got {window_days!r}",
+            )
+        ref = params.get("ref") or "HEAD"
+        base = params.get("base")
+        try:
+            repo = self._ensure_attrib_repo({"repoPath": params.get("repoPath")})
+            rejections = rejection_mod.detect(
+                repo, base=base, ref=ref, window_days=window_days
+            )
+        except AttributionError as error:
+            raise self._attrib_error(error) from error
+
+        ledger = self._ensure_ledger()
+        repo_id = params.get("repoId") or repo.name
+        # Idempotency: rejection entries already recorded for this repo.
+        existing = ledger.query(action_type="rejection", limit=1000)
+        known: dict[tuple, int] = {}
+        for row in existing:
+            key = (
+                row.get("rejected_commit"),
+                row.get("rejecting_commit"),
+                row.get("rework_reason"),
+                row.get("repo_id"),
+            )
+            known[key] = row["seq"]
+
+        wire: list[bus_types.TrustRejection] = []
+        recorded = 0
+        duplicates = 0
+        for rejection in rejections:
+            key = (
+                rejection.rejected_commit,
+                rejection.rejecting_commit,
+                rejection.reason,
+                repo_id,
+            )
+            if key in known:
+                duplicates += 1
+                wire.append(
+                    self._rejection_wire(rejection, None, known[key], True)
+                )
+                continue
+            rejected_sequence = rejection_mod.resolve_ledger_sequence(
+                repo, rejection.rejected_commit
+            )
+            source = (
+                ledger.get_entry(rejected_sequence) if rejected_sequence else None
+            )
+            # The rejection entry inherits the rejected entry's story and
+            # actor when the trailer link resolves; otherwise the caller's
+            # fallbacks (an untracked external change).
+            entry = {
+                "story_id": (source or {}).get("story_id")
+                or params.get("storyId")
+                or "untracked",
+                "phase": (source or {}).get("phase") or "review",
+                "loop_id": "rejection",
+                "loop_iteration": 0,
+                "actor_id": (source or {}).get("actor_id")
+                or params.get("actorId")
+                or "unknown",
+                "actor_version": (source or {}).get("actor_version")
+                or params.get("actorVersion")
+                or "0",
+                "actor_kind": (source or {}).get("actor_kind")
+                or params.get("actorKind")
+                or "external",
+                "policy_version": (source or {}).get("policy_version")
+                or params.get("policyVersion")
+                or "f0",
+                "vendor": (source or {}).get("vendor") or "meridian",
+                "action_type": "rejection",
+                "decision": "rejected",
+                "rework_reason": rejection.reason,
+                "rejected_sequence": rejected_sequence,
+                "rejected_commit": rejection.rejected_commit,
+                "rejecting_commit": rejection.rejecting_commit,
+                "repo_id": repo_id,
+                "tool_calls": [
+                    {
+                        "paths": list(rejection.paths),
+                        "linesRejected": rejection.lines_rejected,
+                        "rejectedAt": rejection.rejected_at,
+                    }
+                ],
+            }
+            try:
+                result = ledger.append(entry)
+            except (ValueError, sqlite3.IntegrityError) as error:
+                raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+            known[key] = result.sequence
+            recorded += 1
+            wire.append(
+                self._rejection_wire(rejection, rejected_sequence, result.sequence, False)
+            )
+        return {
+            "repoPath": str(repo),
+            "ref": ref,
+            "windowDays": window_days,
+            "rejections": wire,
+            "recorded": recorded,
+            "duplicatesSkipped": duplicates,
+        }
+
+    @staticmethod
+    def _rejection_wire(
+        rejection: rejection_mod.Rejection,
+        rejected_sequence: int | None,
+        recorded_sequence: int | None,
+        already_recorded: bool,
+    ) -> bus_types.TrustRejection:
+        return {
+            "rejectedCommit": rejection.rejected_commit,
+            "rejectingCommit": rejection.rejecting_commit,
+            "reason": rejection.reason,  # type: ignore[typeddict-item]
+            "paths": list(rejection.paths),
+            "linesRejected": rejection.lines_rejected,
+            "rejectedAt": rejection.rejected_at,
+            "rejectedSequence": rejected_sequence,
+            "recordedSequence": recorded_sequence,
+            "alreadyRecorded": already_recorded,
+        }
 
     # -- ledger (FR-M10-01/02/07/08/12) -------------------------------------
 
