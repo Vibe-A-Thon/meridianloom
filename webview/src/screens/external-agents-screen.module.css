@@ -1,0 +1,227 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-6);
+  flex: 1;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--ml-space-6);
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.listColumn,
+.detailColumn,
+.health {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-3);
+  min-width: 0;
+}
+
+.heading {
+  margin: 0;
+  font: var(--ml-t-h2);
+}
+
+.detailHeading {
+  margin: var(--ml-space-3) 0 0;
+  font: var(--ml-t-h3);
+}
+
+.copy {
+  margin: 0;
+  font: var(--ml-t-body);
+  color: var(--ml-text-secondary);
+  max-width: 72ch;
+}
+
+.noRepo {
+  margin: 0;
+  font: var(--ml-t-body);
+  color: var(--ml-dye-attention);
+  max-width: 72ch;
+}
+
+/* NFR-32 sticky warnings — visible, never silent. */
+.warnings {
+  padding: var(--ml-space-2) var(--ml-space-3);
+  border-left: 3px solid var(--ml-dye-attention);
+  background: var(--ml-ground-raised);
+  font: var(--ml-t-body);
+  color: var(--ml-text-primary);
+}
+.warnings ul {
+  margin: 0;
+  padding-left: var(--ml-space-5);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rowWrap > div {
+  width: 100%;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--ml-space-3);
+  width: 100%;
+  min-height: var(--ml-row-height);
+  padding: var(--ml-space-1) var(--ml-cell-padding);
+  border: none;
+  border-radius: var(--ml-r-thread);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--ml-ground-raised);
+}
+
+.rowSelected,
+.rowSelected:hover {
+  background: var(--ml-ground-card);
+  box-shadow: inset 0 0 0 1px var(--ml-border);
+}
+
+.rowDetail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ml-text-secondary);
+}
+
+.rowMeta {
+  flex: none;
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-2);
+  padding: var(--ml-space-3);
+  background: var(--ml-ground-raised);
+  border-radius: var(--ml-r-panel);
+}
+
+.detailIntro {
+  margin: 0;
+  font: var(--ml-t-body);
+  color: var(--ml-text-primary);
+}
+
+.fileList,
+.trailerList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fileRow,
+.trailerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ml-space-2) var(--ml-space-3);
+  padding: var(--ml-space-2);
+  background: var(--ml-ground-card);
+  border-radius: var(--ml-r-thread);
+}
+
+.filePath {
+  font: var(--ml-t-data);
+  color: var(--ml-text-primary);
+  word-break: break-all;
+}
+
+.fileStats {
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.attribution {
+  font: var(--ml-t-small);
+  color: var(--ml-text-secondary);
+}
+
+.rationale {
+  flex-basis: 100%;
+  margin: 0;
+  padding-left: var(--ml-space-5);
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+}
+
+.ledgerRange {
+  font: var(--ml-t-small);
+  color: var(--ml-dye-approved);
+}
+
+/* Observer health — degraded rows surface prominently (NFR-32). */
+.healthList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.healthRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-1);
+  padding: var(--ml-space-2) var(--ml-space-3);
+  background: var(--ml-ground-raised);
+  border-left: 3px solid var(--ml-dye-approved);
+  border-radius: var(--ml-r-thread);
+}
+
+.healthRow[data-status='degraded'] {
+  border-left-color: var(--ml-dye-attention);
+  background: var(--ml-ground-card);
+}
+
+.healthName {
+  font: var(--ml-t-ui);
+  color: var(--ml-text-primary);
+}
+
+.healthDetail {
+  font: var(--ml-t-body);
+  color: var(--ml-text-secondary);
+  max-width: 72ch;
+}
+
+.healthWarning {
+  font: var(--ml-t-ui);
+  color: var(--ml-dye-attention);
+}

@@ -3,6 +3,7 @@ import type { TierName } from '../../../shared/ts/bus-types';
 import type { RpcQueryState } from '../hooks/useRpcQuery';
 import type { WebviewRpcClient } from '../rpc/client';
 import { FlightRecorderScreen } from './FlightRecorderScreen';
+import { ExternalAgentsScreen } from './ExternalAgentsScreen';
 
 /**
  * X-28 / DS-3: the Loom Bar is generated from this registry, filtered by
@@ -35,6 +36,12 @@ export const SCREEN_REGISTRY: readonly ScreenDefinition[] = [
     title: 'Flight Recorder',
     tier: 'flight-recorder',
     component: FlightRecorderScreen,
+  },
+  {
+    id: 'external-agents',
+    title: 'External Agents',
+    tier: 'flight-recorder',
+    component: ExternalAgentsScreen,
   },
 ];
 
