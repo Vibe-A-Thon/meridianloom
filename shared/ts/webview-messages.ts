@@ -9,8 +9,12 @@
 
 import type { RequestId, RequestMethod, TierName } from './bus-types';
 
-/** Bump when either union's shape changes incompatibly. */
-export const WEBVIEW_PROTOCOL_VERSION = 1;
+/** Bump when either union's shape changes incompatibly.
+ *  v2: init gained `workspaceDir`; the webview→host union gained the
+ *  `download` message (audit-bundle export, FR-M36-04). Both sides are
+ *  always built from the same commit, so the handshake version check is
+ *  the enforcement. */
+export const WEBVIEW_PROTOCOL_VERSION = 2;
 
 export type { RequestId, RequestMethod };
 
@@ -21,6 +25,10 @@ export interface HostInitPayload {
   /** FR-M36-05: enabled tiers, so the webview's registry filter (X-28)
    *  matches the host's without a second round-trip. */
   enabledTiers: readonly TierName[];
+  /** The workspace folder the sidecar was pointed at (handshake
+   *  workspaceDir). attrib/* and hook/* RPCs need it; absent means no
+   *  folder is open — the screens say so honestly instead of guessing. */
+  workspaceDir?: string;
   /** Workspace configuration the host resolved (density/theme overrides
    *  arrive here once Config › Appearance lands; until then the webview
    *  uses its persisted or default choices). */
@@ -55,7 +63,12 @@ export type WebviewMessage =
   | { type: 'ready'; protocolVersion: number }
   | { type: 'rpc/request'; id: RequestId; method: RequestMethod; params?: unknown }
   /** UI-state changes the host may persist beyond the panel's life. */
-  | { type: 'state/update'; state: Record<string, unknown> };
+  | { type: 'state/update'; state: Record<string, unknown> }
+  /** 10.45/10.7 Export: the webview cannot write files (VIGUIX_Final §17),
+   *  so a signed audit bundle (FR-M36-04) crosses as text and the host
+   *  offers the save dialog. Fire-and-forget; the webview already holds
+   *  the bundle facts it displays. */
+  | { type: 'download'; fileName: string; mimeType: string; content: string };
 
 export function isHostMessage(value: unknown): value is HostMessage {
   if (typeof value !== 'object' || value === null) {
@@ -70,6 +83,14 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
     return false;
   }
   const message = value as { type?: unknown; method?: unknown; id?: unknown };
+  if (message.type === 'download') {
+    const download = value as { fileName?: unknown; mimeType?: unknown; content?: unknown };
+    return (
+      typeof download.fileName === 'string' &&
+      typeof download.mimeType === 'string' &&
+      typeof download.content === 'string'
+    );
+  }
   return (
     message.type === 'ready' ||
     message.type === 'state/update' ||

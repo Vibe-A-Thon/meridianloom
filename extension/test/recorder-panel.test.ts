@@ -148,7 +148,7 @@ describe('RecorderPanel — host behaviour under the vscode mock', () => {
     expect(panel.viewType).toBe(RECORDER_VIEW_TYPE);
     expect(panel.title).toBe(RECORDER_TITLE);
     // configure() is async (fs access): wait for the html to land, then
-    // assert every �17 property of it.
+    // assert every §17 property of it.
     await until(() => expect(panel.webview.html).toContain("default-src 'none'"));
     const roots = panel.webview.options.localResourceRoots ?? [];
     expect(roots).toHaveLength(1);
@@ -218,5 +218,48 @@ describe('RecorderPanel — host behaviour under the vscode mock', () => {
     const reply = webview.postedMessages[0] as { error: { code: number; data: { tier: string } } };
     expect(reply.error.code).toBe(-32003);
     expect(reply.error.data.tier).toBe('governor');
+  });
+
+  it('routes a download message to onDownload (export through the host)', async () => {
+    const { extensionRoot } = fakeDist();
+    const downloads: Array<{ fileName: string; mimeType: string; content: string }> = [];
+    RecorderPanel.createOrShow({
+      ...deps(extensionRoot),
+      onDownload: async (request) => {
+        downloads.push(request);
+      },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    const webview = vscode.__createdWebviewPanels[0]!.webview;
+    await webview.receiveMessage({
+      type: 'download',
+      fileName: 'meridian-bundle-1-12.json',
+      mimeType: 'application/json',
+      content: '{"formatVersion":1}',
+    });
+    await until(() => expect(downloads.length).toBe(1));
+    expect(downloads[0]).toEqual({
+      fileName: 'meridian-bundle-1-12.json',
+      mimeType: 'application/json',
+      content: '{"formatVersion":1}',
+    });
+    // Fire-and-forget: nothing is posted back for a download.
+    expect(webview.postedMessages).toEqual([]);
+  });
+
+  it('handshake init carries the workspace folder from deps', async () => {
+    const { extensionRoot } = fakeDist();
+    RecorderPanel.createOrShow({
+      ...deps(extensionRoot),
+      workspaceDir: () => '/repo/ws',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    const webview = vscode.__createdWebviewPanels[0]!.webview;
+    await webview.receiveMessage({ type: 'ready', protocolVersion: 2 });
+    await until(() => expect(webview.postedMessages.length).toBeGreaterThan(0));
+    expect(webview.postedMessages[0]).toMatchObject({
+      type: 'init',
+      init: { workspaceDir: '/repo/ws' },
+    });
   });
 });

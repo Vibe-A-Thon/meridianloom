@@ -14,6 +14,30 @@ import { registerViews } from './views';
 
 let supervisor: SidecarSupervisor | undefined;
 
+/** The workspace folder the sidecar is pointed at (handshake workspaceDir). */
+function workspaceDir(): string | undefined {
+  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+}
+
+/**
+ * 10.45/10.7 Export (FR-M36-04): the webview cannot write files, so a signed
+ * audit bundle crosses the bus as text and the host offers the save dialog.
+ * A cancelled dialog is not an error — the bundle facts stay in the UI.
+ */
+async function saveDownload(request: {
+  fileName: string;
+  content: string;
+}): Promise<void> {
+  const target = await vscode.window.showSaveDialog({
+    defaultUri: vscode.Uri.file(request.fileName),
+    filters: { 'Audit bundle': ['json'] },
+  });
+  if (!target) {
+    return;
+  }
+  await vscode.workspace.fs.writeFile(target, Buffer.from(request.content, 'utf8'));
+}
+
 /**
  * FR-M36-05: the workspace's enabled tiers from the `meridian.tiers`
  * setting, normalised (base tier always on, unknown names dropped).
@@ -65,6 +89,8 @@ export function activate(context: vscode.ExtensionContext): void {
       extensionPath: context.extensionPath,
       enabledTiers: readEnabledTiers,
       sidecar: () => supervisor?.currentClient,
+      workspaceDir,
+      onDownload: saveDownload,
       onError: (message) => void vscode.window.showErrorMessage(message),
     }),
     ...registerCommands({
@@ -76,6 +102,8 @@ export function activate(context: vscode.ExtensionContext): void {
           extensionPath: context.extensionPath,
           enabledTiers: readEnabledTiers,
           sidecar: () => supervisor?.currentClient,
+          workspaceDir,
+          onDownload: saveDownload,
           onError: (message) => void vscode.window.showErrorMessage(message),
         });
       },

@@ -24,6 +24,68 @@ describe('dispatchWebviewMessage — the extension-host proxy (G0c/G0d)', () => 
     });
   });
 
+  it('init carries the workspace folder when one is open (attrib repoPath)', async () => {
+    const reply = await dispatchWebviewMessage(
+      { type: 'ready', protocolVersion: WEBVIEW_PROTOCOL_VERSION },
+      {
+        enabledTiers: () => [...recorderTiers],
+        sidecar: undefined,
+        workspaceDir: () => '/repo/workspace',
+      },
+    );
+    expect(reply).toMatchObject({
+      type: 'init',
+      init: { workspaceDir: '/repo/workspace' },
+    });
+    // …and absent entirely when no folder is open — never an empty string.
+    const bare = await dispatchWebviewMessage(
+      { type: 'ready', protocolVersion: WEBVIEW_PROTOCOL_VERSION },
+      { enabledTiers: () => [...recorderTiers], sidecar: undefined },
+    );
+    expect((bare as { init: Record<string, unknown> }).init.workspaceDir).toBeUndefined();
+  });
+
+  it('a download message goes to the host save channel, fire-and-forget', async () => {
+    const saved: Array<[string, string]> = [];
+    const reply = await dispatchWebviewMessage(
+      {
+        type: 'download',
+        fileName: 'meridian-bundle.json',
+        mimeType: 'application/json',
+        content: '{"formatVersion":1}',
+      },
+      {
+        enabledTiers: () => [...recorderTiers],
+        sidecar: undefined,
+        saveFile: (fileName, content) => {
+          saved.push([fileName, content]);
+        },
+      },
+    );
+    expect(reply).toBeUndefined();
+    expect(saved).toEqual([['meridian-bundle.json', '{"formatVersion":1}']]);
+  });
+
+  it('rejects malformed download messages at the boundary', async () => {
+    let called = false;
+    for (const garbage of [
+      { type: 'download' },
+      { type: 'download', fileName: 'x.json', mimeType: 'application/json' },
+      { type: 'download', fileName: 7, mimeType: 'application/json', content: '{}' },
+    ]) {
+      expect(
+        await dispatchWebviewMessage(garbage, {
+          enabledTiers: () => [...recorderTiers],
+          sidecar: undefined,
+          saveFile: () => {
+            called = true;
+          },
+        }),
+      ).toBeUndefined();
+    }
+    expect(called).toBe(false);
+  });
+
   it('drops messages that are not recognisably the webview bus', async () => {
     for (const garbage of [null, 'x', 42, { type: 'eval' }, { type: 'rpc/request' }]) {
       expect(await dispatchWebviewMessage(garbage, {

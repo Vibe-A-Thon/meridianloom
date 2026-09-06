@@ -31,6 +31,12 @@ export interface ProxyContext {
   /** Undefined while the sidecar is not up — requests surface that
    *  structured failure instead of hanging. */
   sidecar: SidecarRequestor | undefined;
+  /** The workspace folder the sidecar was pointed at; handed to the webview
+   *  in `init` so attrib/hook RPCs get a real repoPath. */
+  workspaceDir?: () => string | undefined;
+  /** 10.45/10.7 Export: persists a downloaded audit bundle through the
+   *  host's save dialog (the webview has no filesystem, VIGUIX_Final §17). */
+  saveFile?: (fileName: string, content: string) => void | Promise<void>;
 }
 
 function toErrorObject(error: unknown): WebviewRpcError {
@@ -57,13 +63,22 @@ export async function dispatchWebviewMessage(
     return undefined;
   }
   if (message.type === 'ready') {
+    const workspaceDir = context.workspaceDir?.();
     return {
       type: 'init',
       init: {
         protocolVersion: WEBVIEW_PROTOCOL_VERSION,
         enabledTiers: [...context.enabledTiers()],
+        ...(workspaceDir ? { workspaceDir } : {}),
       },
     };
+  }
+  if (message.type === 'download') {
+    // Export (FR-M36-04): the bundle is already signed and in the webview's
+    // hands; the host only offers the save dialog. Fire-and-forget — there
+    // is nothing to ack, and a save failure surfaces host-side.
+    await context.saveFile?.(message.fileName, message.content);
+    return undefined;
   }
   if (message.type === 'state/update') {
     // Panel state lives in the webview's own getState/setState (VIGUIX_Final

@@ -26,6 +26,15 @@ export interface RecorderPanelDeps {
   enabledTiers: ProxyContext['enabledTiers'];
   /** Resolved lazily: the panel outlives individual sidecar connections. */
   sidecar: () => ProxyContext['sidecar'];
+  /** Workspace folder handed to the webview in `init` (attrib/hook RPCs). */
+  workspaceDir?: () => string | undefined;
+  /** 10.45/10.7 Export: the webview asks the host to save a signed bundle
+   *  (it has no filesystem of its own, VIGUIX_Final §17). */
+  onDownload?: (request: {
+    fileName: string;
+    mimeType: string;
+    content: string;
+  }) => Promise<void>;
   onError?: (message: string) => void;
 }
 
@@ -152,6 +161,9 @@ export class RecorderPanel {
       get sidecar() {
         return deps.sidecar();
       },
+      workspaceDir: deps.workspaceDir,
+      saveFile: (fileName, content) =>
+        deps.onDownload?.({ fileName, mimeType: 'application/json', content }),
     };
     // localResourceRoots must pin exactly what the webview may load: the
     // built bundle directory — nothing else on the extension host's disk.
@@ -187,8 +199,8 @@ export class RecorderPanel {
   private static async configure(panel: vscode.WebviewPanel, deps: RecorderPanelDeps) {
     const distDir = await resolveWebviewDist(deps.extensionPath);
     // Note: retainContextWhenHidden belongs to WebviewPanelOptions
-    // (creation-time, set above) � correctness never relies on it
-    // (VIGUIX_Final �17); revival goes through the serializer.
+    // (creation-time, set above) — correctness never relies on it
+    // (VIGUIX_Final §17); revival goes through the serializer.
     panel.webview.options = {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.file(distDir)],
