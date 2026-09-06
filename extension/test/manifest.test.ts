@@ -40,7 +40,7 @@ describe('extension manifest', () => {
     );
   });
 
-  it('contributes exactly the twelve FR-M1-03 commands', () => {
+  it('contributes the twelve FR-M1-03 commands plus the provenance hook command', () => {
     const expected = [
       'meridian.ingestStory',
       'meridian.openDashboard',
@@ -54,11 +54,13 @@ describe('extension manifest', () => {
       'meridian.dryRun',
       'meridian.abortStory',
       'meridian.doctor',
+      // F0 Workstream E (FR-M36-03, D23): opt-in commit-msg trailer hook.
+      'meridian.installHook',
     ];
     const contributed = manifest.contributes.commands.map(
       (c: { command: string }) => c.command,
     );
-    expect(contributed).toHaveLength(12);
+    expect(contributed).toHaveLength(13);
     expect([...contributed].sort()).toEqual([...expected].sort());
     // Code and manifest share one source of truth.
     expect(COMMANDS.map((c) => c.id)).toEqual(contributed);

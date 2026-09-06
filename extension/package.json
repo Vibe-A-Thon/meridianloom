@@ -54,7 +54,8 @@
       { "command": "meridian.steer", "title": "Steer", "category": "Meridian Loom" },
       { "command": "meridian.dryRun", "title": "Dry Run", "category": "Meridian Loom" },
       { "command": "meridian.abortStory", "title": "Abort Story", "category": "Meridian Loom" },
-      { "command": "meridian.doctor", "title": "Doctor", "category": "Meridian Loom" }
+      { "command": "meridian.doctor", "title": "Doctor", "category": "Meridian Loom" },
+      { "command": "meridian.installHook", "title": "Provenance Hook (Install / Remove)", "category": "Meridian Loom" }
     ],
     "menus": {
       "commandPalette": [

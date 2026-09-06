@@ -126,7 +126,12 @@ describe('command and view filtering (FR-M36-05, X-28)', () => {
   it('enabledCommands/enabledViews reflect the tier set', () => {
     const base = normalizeEnabledTiers(undefined);
     expect(enabledCommands(base).sort()).toEqual(
-      ['meridian.doctor', 'meridian.openDashboard', 'meridian.verifyChain'].sort(),
+      [
+        'meridian.doctor',
+        'meridian.installHook',
+        'meridian.openDashboard',
+        'meridian.verifyChain',
+      ].sort(),
     );
     expect(enabledViews(base)).toEqual(['meridianLoom.ledger']);
     expect(isCommandEnabled('meridian.doctor', base)).toBe(true);

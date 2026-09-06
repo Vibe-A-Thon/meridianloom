@@ -80,6 +80,7 @@ export const COMMAND_TIERS: Record<string, TierName> = {
   'meridian.dryRun': 'governor',
   'meridian.abortStory': 'governor',
   'meridian.doctor': 'flight-recorder',
+  'meridian.installHook': 'flight-recorder',
 };
 
 /** Tree view → owning tier; same drift-checked pattern as COMMAND_TIERS. */

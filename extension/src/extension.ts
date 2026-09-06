@@ -78,6 +78,30 @@ export function activate(context: vscode.ExtensionContext): void {
             : undefined,
           workspaceDir: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
         }),
+      // FR-M36-03 / D23: the hook lifecycle resolves the sidecar lazily at
+      // run time, so the command works whenever a sidecar is up and reports
+      // instead of acting when it is not.
+      hookStatus: () => {
+        const client = supervisor?.currentClient;
+        if (!client) {
+          return Promise.reject(new Error('sidecar is not connected'));
+        }
+        return client.request('hook/status', {}, new AbortController().signal);
+      },
+      hookInstall: () => {
+        const client = supervisor?.currentClient;
+        if (!client) {
+          return Promise.reject(new Error('sidecar is not connected'));
+        }
+        return client.request('hook/install', {}, new AbortController().signal);
+      },
+      hookRemove: () => {
+        const client = supervisor?.currentClient;
+        if (!client) {
+          return Promise.reject(new Error('sidecar is not connected'));
+        }
+        return client.request('hook/remove', {}, new AbortController().signal);
+      },
     }),
     vscode.workspace.onDidChangeConfiguration(onConfigurationChanged),
   );

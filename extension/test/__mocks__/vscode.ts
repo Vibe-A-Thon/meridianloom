@@ -108,6 +108,12 @@ export const __registeredTreeProviders = new Map<string, unknown>();
 export const __shownErrors: string[] = [];
 export const __shownWarnings: string[] = [];
 export const __shownInfos: string[] = [];
+export const __quickPickCalls: Array<{ items: unknown[]; options?: unknown }> = [];
+/**
+ * Choices consumed by show*Message calls that pass button items: the first
+ * entry is returned by the next such call (modal confirmation, action pick).
+ */
+export const __messageChoices: string[] = [];
 export const __progressCalls: ProgressOptions[] = [];
 export const __statusBarItems: Array<{ text: string; tooltip: unknown; shown: boolean }> = [];
 export const __configuration = new Map<string, unknown>();
@@ -143,6 +149,8 @@ export function __reset(): void {
   __shownErrors.length = 0;
   __shownWarnings.length = 0;
   __shownInfos.length = 0;
+  __quickPickCalls.length = 0;
+  __messageChoices.length = 0;
   __progressCalls.length = 0;
   __statusBarItems.length = 0;
   __configuration.clear();
@@ -189,19 +197,41 @@ export const window = {
     });
   },
 
-  async showErrorMessage(message: string): Promise<undefined> {
+  async showErrorMessage(
+    message: string,
+    ...items: Array<string | { modal: boolean }>
+  ): Promise<string | undefined> {
     __shownErrors.push(message);
-    return undefined;
+    return items.some((i) => typeof i === 'string') ? __messageChoices.shift() : undefined;
   },
 
-  async showWarningMessage(message: string): Promise<undefined> {
+  async showWarningMessage(
+    message: string,
+    ...items: Array<string | { modal: boolean }>
+  ): Promise<string | undefined> {
     __shownWarnings.push(message);
-    return undefined;
+    return items.some((i) => typeof i === 'string') ? __messageChoices.shift() : undefined;
   },
 
-  async showInformationMessage(message: string): Promise<undefined> {
+  async showInformationMessage(
+    message: string,
+    ...items: Array<string | { modal: boolean }>
+  ): Promise<string | undefined> {
     __shownInfos.push(message);
-    return undefined;
+    return items.some((i) => typeof i === 'string') ? __messageChoices.shift() : undefined;
+  },
+
+  async showQuickPick<T>(items: T[] | Thenable<T[]>, options?: unknown): Promise<T | undefined> {
+    const resolved = await items;
+    __quickPickCalls.push({ items: [...resolved], options });
+    if (__messageChoices.length === 0) {
+      return undefined;
+    }
+    const wanted = __messageChoices.shift();
+    return resolved.find((item) => {
+      const label = typeof item === 'string' ? item : (item as { label?: string }).label;
+      return label === wanted;
+    });
   },
 
   withProgress(options: ProgressOptions, task: ProgressTask): Promise<unknown> {
