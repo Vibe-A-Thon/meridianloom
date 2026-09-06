@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** F0 — Flight Recorder
-- **Current workstream:** E — Portable provenance
-- **Current task:** 23 — commit-msg git hook appending `Meridian-Ledger: <seq range>` (opt-in, visible, removable; D23 closed: hook default, git notes fallback)
-- **Last commit:** c60874b — feat(f0): SEC-27 one-way observer isolation — Workstream D complete (17–22; X-29 detection 63ms, NFR-29 overhead ~0ms, SEC-27 enforced)
+- **Current workstream:** E — Portable provenance — **done** (tasks 23–27)
+- **Current task:** 27 complete — Workstream E done; next is Workstream F (tasks 28–30)
+- **Last commit:** 1ea71c8 — docs(f0): open ledger specification v1 (FR-M36-06, NFR-31)
 - **Updated:** _(see git log)_
 
 ## Mapping of completed S0 work onto the new plan
@@ -49,7 +49,7 @@
 | B — Ledger core | 8–12 | **done** (e25a530; 631f86f run_id/origin v2 migration per gaps_initiation §5) |
 | C — Deterministic attribution (no model calls) | 13–16 | **done** (ed66495; FR-M36-07 exit criterion 6 proven by test) |
 | D — Observers | 17–22 | **done** (c60874b; X-29 + NFR-29 measured within budget; SEC-27 pass) |
-| E — Portable provenance | 23–27 | in progress |
+| E — Portable provenance | 23–27 | **done** (481f5fa hook UI command; 90b5e6c agent identity trailers; abfc94c full signed bundle — proofs/signature/compliance; 4dfbdb1 open verifier verify.py + meridian-verify; 1ea71c8 spec docs) |
 | F — Rejection measurement, minimum | 28–30 | not started |
 | G — The three screens (interlock GF0) | 31–36 | not started |
 
@@ -69,4 +69,4 @@
 
 ## Phase log
 
-_(F0 in progress)_
+- Workstream E (tasks 23–27) done: pytest 360→406, extension vitest 128→137, `tsc --noEmit` clean, `check:contracts` green throughout. Proof commits 481f5fa, 90b5e6c, abfc94c, 4dfbdb1, 1ea71c8. Cargo-based verifier tests skip-and-notice when cargo is off PATH.
