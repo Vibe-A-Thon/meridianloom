@@ -4,8 +4,7 @@ import {
   type HostInitPayload,
 } from '../../shared/ts/webview-messages';
 import { ErrorState } from './components/AsyncState';
-import { useInterval, useObserveSessions } from './hooks/recorder-hooks';
-import { useRpcQuery } from './hooks/useRpcQuery';
+import { useInterval, useLedgerQuery, useObserveSessions } from './hooks/recorder-hooks';
 import {
   getVsCodeApi,
   readUiState,
@@ -14,6 +13,7 @@ import {
 } from './host/vscode-api';
 import { RpcProtocolError, type WebviewRpcClient } from './rpc/client';
 import { visibleScreens } from './screens/registry';
+import { FirstRunScreen } from './screens/FirstRunScreen';
 import {
   DEFAULT_DENSITY,
   DEFAULT_THEME,
@@ -142,6 +142,16 @@ export function App({ client }: { client: WebviewRpcClient }) {
   const sessions = useObserveSessions(ready ? client : undefined, true, sessionEpoch);
   useInterval(() => sessions.refresh(), ready ? 2000 : null);
 
+  // 10.40 first-run detection: nothing observed AND nothing recorded.
+  // Small poll — ledger appends carry no push event in F0.
+  const ledgerTip = useLedgerQuery(ready ? client : undefined, { limit: 1 }, true);
+  useInterval(() => ledgerTip.refresh(), ready ? 4000 : null);
+  const firstRun =
+    sessions.status === 'ready' &&
+    ledgerTip.status === 'ready' &&
+    sessions.data.sessions.length === 0 &&
+    ledgerTip.data.entries.length === 0;
+
   if (protocolError) {
     return (
       <div className={styles.app}>
@@ -176,32 +186,46 @@ export function App({ client }: { client: WebviewRpcClient }) {
           sessions.status === 'ready' ? sessions.data.sessions[0]?.vendor : undefined
         }
       />
-      <nav className={styles.loomBar} aria-label="Screens">
-        {screens.map((screen) => (
-          <button
-            key={screen.id}
-            type="button"
-            className={`${styles.loomTab} ${
-              active?.id === screen.id ? styles.loomTabActive : ''
-            }`}
-            aria-current={active?.id === screen.id ? 'page' : undefined}
-            onClick={() => selectScreen(screen.id)}
-          >
-            {screen.title}
-          </button>
-        ))}
-      </nav>
-      <main className={styles.main}>
-        {active && (
-          <active.component
+      {firstRun ? (
+        <main className={styles.main}>
+          <FirstRunScreen
             client={client}
             ready={ready}
-            sessions={sessions}
             workspaceDir={init?.workspaceDir}
-            enabledTiers={init?.enabledTiers ?? []}
+            sessions={sessions}
+            ledgerTip={ledgerTip}
           />
-        )}
-      </main>
+        </main>
+      ) : (
+        <>
+          <nav className={styles.loomBar} aria-label="Screens">
+            {screens.map((screen) => (
+              <button
+                key={screen.id}
+                type="button"
+                className={`${styles.loomTab} ${
+                  active?.id === screen.id ? styles.loomTabActive : ''
+                }`}
+                aria-current={active?.id === screen.id ? 'page' : undefined}
+                onClick={() => selectScreen(screen.id)}
+              >
+                {screen.title}
+              </button>
+            ))}
+          </nav>
+          <main className={styles.main}>
+            {active && (
+              <active.component
+                client={client}
+                ready={ready}
+                sessions={sessions}
+                workspaceDir={init?.workspaceDir}
+                enabledTiers={init?.enabledTiers ?? []}
+              />
+            )}
+          </main>
+        </>
+      )}
     </div>
   );
 }

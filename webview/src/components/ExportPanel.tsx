@@ -23,9 +23,13 @@ type ExportPhase =
 export function ExportPanel({
   client,
   ready,
+  onExported,
 }: {
   client: WebviewRpcClient;
   ready: boolean;
+  /** Notified with the signed bundle when an export succeeds (10.40
+   *  first-run marks its export step from this). */
+  onExported?: (bundle: LedgerExportBundleResult) => void;
 }) {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -51,6 +55,7 @@ export function ExportPanel({
         content: JSON.stringify(bundle, null, 2),
       });
       setPhase({ kind: 'done', bundle });
+      onExported?.(bundle);
     } catch (error) {
       setPhase({ kind: 'error', error });
     }

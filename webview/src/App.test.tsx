@@ -65,7 +65,7 @@ describe('App shell against a scripted host', () => {
     client.dispose();
   });
 
-  it('an empty weave renders the invitation, not a blank section', async () => {
+  it('with nothing recorded yet the panel shows the 10.40 first-run state', async () => {
     const host = makeHost({
       'observe/sessions': { sessions: [], warnings: [] },
       'ledger.query': { entries: [] },
@@ -75,9 +75,13 @@ describe('App shell against a scripted host', () => {
     render(<App client={client} />);
     await act(async () => {});
     await host.settle();
-    await waitFor(() => expect(screen.getAllByTestId('empty-state').length).toBeGreaterThan(0));
-    expect(screen.getByText('No ledger entries yet')).toBeInTheDocument();
-    expect(screen.getByText('Nothing recorded yet')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('first-run')).toBeInTheDocument());
+    // Four honest steps, no mock rows.
+    expect(screen.getByText('Connect a repository')).toBeInTheDocument();
+    expect(screen.getByText('Run your existing agent')).toBeInTheDocument();
+    expect(screen.getByText('See the Weave')).toBeInTheDocument();
+    expect(screen.getByText('Export a bundle')).toBeInTheDocument();
+    expect(screen.queryByTestId('vendor-tag')).toBeNull();
     client.dispose();
   });
 

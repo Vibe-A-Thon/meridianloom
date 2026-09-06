@@ -300,7 +300,7 @@ describe('10.45 Flight Recorder screen', () => {
   it('Any Line with no agent trailer answers visibly labelled inferred (G3/B12)', async () => {
     const host = makeHost({
       'observe/sessions': { sessions: [], warnings: [] },
-      'ledger.query': { entries: [] },
+      'ledger.query': ledgerRangeFixture(),
       'ledger.verify': okVerify(),
       'attrib/blame': blameFixture(),
       'attrib/symbol': () => ({
@@ -387,7 +387,7 @@ describe('10.45 Flight Recorder screen', () => {
   it('Export calls ledger/exportBundle and offers the JSON through the host', async () => {
     const host = makeHost({
       'observe/sessions': { sessions: [], warnings: [] },
-      'ledger.query': { entries: [] },
+      'ledger.query': () => ({ entries: [{ sequence: 1 }] }),
       'ledger.verify': okVerify(),
       'ledger.exportBundle': bundleFixture(),
     });
