@@ -6,3 +6,4 @@ extension/dist/
 __pycache__/
 *.pyc
 /extension/sidecar/
+/verifier/target/
