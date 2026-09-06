@@ -64,7 +64,7 @@
 
 | Workstream | Tasks | Status |
 |---|---|---|
-| A — ACP host | 1–8 | in progress |
+| A — ACP host | 1–8 | tasks 1, 8 done (c4a4805 ACP client + governor.acp-host stubs; 8ed0bcf conformance suite; 196 ext vitest); 2–7 next |
 | B — Gates over other people's work | 9–14 | not started |
 | C — Human identity and roles | 15–16 | not started |
 | D — Steer and clarify | 17–18 | not started |
