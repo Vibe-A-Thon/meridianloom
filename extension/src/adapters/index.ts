@@ -32,3 +32,14 @@ export {
   type ProbationResult,
 } from './probation';
 export { launchAdapter, type AdapterSession, type LaunchOptions } from './launch';
+export {
+  ACP_REGISTRY_DEFAULT_URL,
+  AcpRegistrySource,
+  mapRegistryEntryToManifest,
+  parseRegistryIndex,
+  type RegistryEntry,
+  type RegistryMapResult,
+  type RegistryParseResult,
+  type RegistrySourceOptions,
+  type RegistryStatus,
+} from './registry-source';
