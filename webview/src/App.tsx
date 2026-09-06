@@ -3,9 +3,8 @@ import {
   WEBVIEW_PROTOCOL_VERSION,
   type HostInitPayload,
 } from '../../shared/ts/webview-messages';
-import { EmptyState, ErrorState, LoadingState } from './components/AsyncState';
-import { VendorTag } from './components/VendorTag';
-import { useLedgerQuery } from './hooks/recorder-hooks';
+import { ErrorState } from './components/AsyncState';
+import { useInterval, useObserveSessions } from './hooks/recorder-hooks';
 import { useRpcQuery } from './hooks/useRpcQuery';
 import {
   getVsCodeApi,
@@ -14,6 +13,7 @@ import {
   type PersistedUiState,
 } from './host/vscode-api';
 import { RpcProtocolError, type WebviewRpcClient } from './rpc/client';
+import { visibleScreens } from './screens/registry';
 import {
   DEFAULT_DENSITY,
   DEFAULT_THEME,
@@ -24,12 +24,14 @@ import {
   type Density,
   type ThemeName,
 } from './theme/themes';
+import { vendorLabel } from './components/vendors';
 import styles from './app.module.css';
 
 /**
- * GF0 foundation surface — the shell the 10.45/10.46/10.7 screens land in.
- * It already speaks the real data layer (sessions and ledger through the
- * host proxy) and renders every honest state; screen design is Workstream D.
+ * The GF0 shell (VIGUIX_Final §7.2, F0 shape): a Crown carrying the X-29
+ * external-session indicator, a Loom Bar generated from the screen
+ * registry filtered by enabled tiers (X-28), the active screen, and no
+ * Orchestra chrome — F0 screens are DOM-first and complete alone.
  */
 
 function useUiTheme(): [ThemeName, Density] {
@@ -84,10 +86,41 @@ function useHostInit(client: WebviewRpcClient): {
   return { init, protocolError };
 }
 
+function Crown({
+  ready,
+  sessionCount,
+  firstVendor,
+}: {
+  ready: boolean;
+  sessionCount: number;
+  firstVendor: string | undefined;
+}) {
+  return (
+    <header className={styles.crown}>
+      <h1 className={styles.title}>Flight Recorder</h1>
+      <p className={styles.subtitle} role="status" data-testid="crown-indicator">
+        {!ready
+          ? 'Connecting to the recorder…'
+          : sessionCount > 0
+            ? `● Recording · ${vendorLabel(firstVendor ?? 'unknown')} active · ` +
+              `${sessionCount} ${sessionCount === 1 ? 'session' : 'sessions'} · ` +
+              '0 model calls by Meridian'
+            : 'Watching for agent sessions · 0 model calls by Meridian'}
+      </p>
+    </header>
+  );
+}
+
 export function App({ client }: { client: WebviewRpcClient }) {
   useUiTheme();
   const { init, protocolError } = useHostInit(client);
   const [sessionEpoch, setSessionEpoch] = useState(0);
+  const api = getVsCodeApi();
+  const [activeScreen, setActiveScreen] = useState<string | undefined>(
+    () => readUiState(api)?.view?.screen as string | undefined,
+  );
+
+  const ready = init !== undefined && protocolError === null;
 
   // Handshake (§17: version checked on handshake): the host answers `ready`
   // with `init`, carrying its protocol version and enabled tiers.
@@ -103,6 +136,12 @@ export function App({ client }: { client: WebviewRpcClient }) {
     });
   }, [client]);
 
+  // X-29: sessions are App-level state — the Crown indicator must reflect a
+  // session within two seconds of the sidecar knowing it. Host push events
+  // re-arm the query instantly; the 2s interval is the backstop.
+  const sessions = useObserveSessions(ready ? client : undefined, true, sessionEpoch);
+  useInterval(() => sessions.refresh(), ready ? 2000 : null);
+
   if (protocolError) {
     return (
       <div className={styles.app}>
@@ -112,125 +151,57 @@ export function App({ client }: { client: WebviewRpcClient }) {
     );
   }
 
+  const screens = visibleScreens(init?.enabledTiers ?? []);
+  const active =
+    screens.find((screen) => screen.id === activeScreen) ?? screens[0];
+
+  const selectScreen = (id: string) => {
+    setActiveScreen(id);
+    const persisted: PersistedUiState = {
+      ...(readUiState(api) ?? {
+        theme: resolveTheme(undefined),
+        density: resolveDensity(undefined),
+      }),
+      view: { ...(readUiState(api)?.view ?? {}), screen: id },
+    };
+    writeUiState(api, persisted);
+  };
+
   return (
     <div className={styles.app}>
-      <header className={styles.crown}>
-        <h1 className={styles.title}>Flight Recorder</h1>
-        <p className={styles.subtitle}>External agent sessions, recorded as they happen.</p>
-      </header>
+      <Crown
+        ready={ready}
+        sessionCount={sessions.status === 'ready' ? sessions.data.sessions.length : 0}
+        firstVendor={
+          sessions.status === 'ready' ? sessions.data.sessions[0]?.vendor : undefined
+        }
+      />
+      <nav className={styles.loomBar} aria-label="Screens">
+        {screens.map((screen) => (
+          <button
+            key={screen.id}
+            type="button"
+            className={`${styles.loomTab} ${
+              active?.id === screen.id ? styles.loomTabActive : ''
+            }`}
+            aria-current={active?.id === screen.id ? 'page' : undefined}
+            onClick={() => selectScreen(screen.id)}
+          >
+            {screen.title}
+          </button>
+        ))}
+      </nav>
       <main className={styles.main}>
-        <SessionsSection client={client} epoch={sessionEpoch} ready={init !== undefined} />
-        <LedgerSection client={client} ready={init !== undefined} />
+        {active && (
+          <active.component
+            client={client}
+            ready={ready}
+            sessions={sessions}
+            workspaceDir={init?.workspaceDir}
+            enabledTiers={init?.enabledTiers ?? []}
+          />
+        )}
       </main>
     </div>
-  );
-}
-
-function SessionsSection({
-  client,
-  epoch,
-  ready,
-}: {
-  client: WebviewRpcClient;
-  epoch: number;
-  ready: boolean;
-}) {
-  // `epoch` re-arms the query when the host pushes a session change; while
-  // the handshake has not delivered init the hook stays pending (loading).
-  const { status, data, error, refresh } = useRpcQuery(
-    ready ? client : undefined,
-    'observe/sessions',
-    {},
-    true,
-    epoch,
-  );
-  return (
-    <section aria-labelledby="sessions-heading">
-      <h2 className={styles.sectionTitle} id="sessions-heading">
-        Observed sessions
-      </h2>
-      {status === 'loading' && <LoadingState label="Watching for agent sessions…" />}
-      {status === 'error' && (
-        <>
-          <ErrorState error={error} />
-          <button type="button" onClick={refresh}>Retry</button>
-        </>
-      )}
-      {status === 'ready' && (
-        <>
-          {data.warnings.length > 0 && (
-            <div className={styles.warnings} role="status" data-testid="observer-warnings">
-              <ul>
-                {data.warnings.map((warning, i) => (
-                  <li key={i}>{warning}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {data.sessions.length === 0 ? (
-            <EmptyState
-              title="Nothing recorded yet"
-              invitation="Run the agent you already use — Claude Code, Cursor, Copilot — in this workspace and the cloth will start."
-            />
-          ) : (
-            <ul className={styles.rows} style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-              {data.sessions.map((session) => (
-                <li key={session.sessionId} className={styles.row}>
-                  <VendorTag vendor={session.vendor} confidence={session.confidence} />
-                  <span className={styles.rowDetail}>{session.detail}</span>
-                  <span className={styles.rowMeta}>{session.source}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
-    </section>
-  );
-}
-
-function LedgerSection({
-  client,
-  ready,
-}: {
-  client: WebviewRpcClient;
-  ready: boolean;
-}) {
-  const { status, data, error, refresh } = useLedgerQuery(ready ? client : undefined, {
-    limit: 100,
-  });
-  return (
-    <section aria-labelledby="ledger-heading">
-      <h2 className={styles.sectionTitle} id="ledger-heading">
-        Ledger
-      </h2>
-      {status === 'loading' && <LoadingState label="Reading the ledger…" />}
-      {status === 'error' && (
-        <>
-          <ErrorState error={error} />
-          <button type="button" onClick={refresh}>Retry</button>
-        </>
-      )}
-      {status === 'ready' &&
-        (data.entries.length === 0 ? (
-          <EmptyState
-            title="No ledger entries yet"
-            invitation="Entries appear when recorded work lands — a commit with provenance trailers, a rejection, an export."
-          />
-        ) : (
-          <ul className={styles.rows} style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            {data.entries.map((entry) => (
-              <li key={entry.sequence} className={styles.row}>
-                <span className={styles.rowMeta}>#{entry.sequence}</span>
-                <VendorTag vendor={entry.vendor} confidence={entry.observationConfidence} />
-                <span className={styles.rowDetail}>
-                  {entry.actionType} — {entry.actorId}
-                </span>
-                <span className={styles.rowMeta}>{entry.timestamp}</span>
-              </li>
-            ))}
-          </ul>
-        ))}
-    </section>
   );
 }
