@@ -35,39 +35,137 @@
     },
     "views": {
       "meridian-loom": [
-        { "id": "meridianLoom.agents", "name": "Agents", "when": "meridian.tiers.orchestra" },
-        { "id": "meridianLoom.stories", "name": "Stories", "when": "meridian.tiers.governor" },
-        { "id": "meridianLoom.loops", "name": "Loops", "when": "meridian.tiers.orchestra" },
-        { "id": "meridianLoom.skills", "name": "Skills", "when": "meridian.tiers.orchestra" },
-        { "id": "meridianLoom.ledger", "name": "Ledger" }
+        {
+          "id": "meridianLoom.agents",
+          "name": "Agents",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "id": "meridianLoom.stories",
+          "name": "Stories",
+          "when": "meridian.tiers.governor"
+        },
+        {
+          "id": "meridianLoom.loops",
+          "name": "Loops",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "id": "meridianLoom.skills",
+          "name": "Skills",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "id": "meridianLoom.ledger",
+          "name": "Ledger"
+        }
       ]
     },
     "commands": [
-      { "command": "meridian.ingestStory", "title": "Ingest Story", "category": "Meridian Loom" },
-      { "command": "meridian.openRecorder", "title": "Open Recorder", "category": "Meridian Loom" },
-      { "command": "meridian.installSkill", "title": "Install Skill", "category": "Meridian Loom" },
-      { "command": "meridian.onboardAgent", "title": "Onboard Agent", "category": "Meridian Loom" },
-      { "command": "meridian.exportAgent", "title": "Export Agent", "category": "Meridian Loom" },
-      { "command": "meridian.importAgent", "title": "Import Agent", "category": "Meridian Loom" },
-      { "command": "meridian.verifyChain", "title": "Verify Chain", "category": "Meridian Loom" },
-      { "command": "meridian.haltAll", "title": "Halt All", "category": "Meridian Loom" },
-      { "command": "meridian.steer", "title": "Steer", "category": "Meridian Loom" },
-      { "command": "meridian.dryRun", "title": "Dry Run", "category": "Meridian Loom" },
-      { "command": "meridian.abortStory", "title": "Abort Story", "category": "Meridian Loom" },
-      { "command": "meridian.doctor", "title": "Doctor", "category": "Meridian Loom" },
-      { "command": "meridian.installHook", "title": "Provenance Hook (Install / Remove)", "category": "Meridian Loom" }
+      {
+        "command": "meridian.ingestStory",
+        "title": "Ingest Story",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.openRecorder",
+        "title": "Open Recorder",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.installSkill",
+        "title": "Install Skill",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.onboardAgent",
+        "title": "Onboard Agent",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.exportAgent",
+        "title": "Export Agent",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.importAgent",
+        "title": "Import Agent",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.verifyChain",
+        "title": "Verify Chain",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.haltAll",
+        "title": "Halt All",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.steer",
+        "title": "Steer",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.dryRun",
+        "title": "Dry Run",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.abortStory",
+        "title": "Abort Story",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.doctor",
+        "title": "Doctor",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.installHook",
+        "title": "Provenance Hook (Install / Remove)",
+        "category": "Meridian Loom"
+      }
     ],
     "menus": {
       "commandPalette": [
-        { "command": "meridian.ingestStory", "when": "meridian.tiers.orchestra" },
-        { "command": "meridian.installSkill", "when": "meridian.tiers.orchestra" },
-        { "command": "meridian.onboardAgent", "when": "meridian.tiers.orchestra" },
-        { "command": "meridian.exportAgent", "when": "meridian.tiers.orchestra" },
-        { "command": "meridian.importAgent", "when": "meridian.tiers.orchestra" },
-        { "command": "meridian.haltAll", "when": "meridian.tiers.governor" },
-        { "command": "meridian.steer", "when": "meridian.tiers.governor" },
-        { "command": "meridian.dryRun", "when": "meridian.tiers.governor" },
-        { "command": "meridian.abortStory", "when": "meridian.tiers.governor" }
+        {
+          "command": "meridian.ingestStory",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "command": "meridian.installSkill",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "command": "meridian.onboardAgent",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "command": "meridian.exportAgent",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "command": "meridian.importAgent",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "command": "meridian.haltAll",
+          "when": "meridian.tiers.governor"
+        },
+        {
+          "command": "meridian.steer",
+          "when": "meridian.tiers.governor"
+        },
+        {
+          "command": "meridian.dryRun",
+          "when": "meridian.tiers.governor"
+        },
+        {
+          "command": "meridian.abortStory",
+          "when": "meridian.tiers.governor"
+        }
       ]
     },
     "configuration": {
@@ -82,9 +180,15 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["flight-recorder", "governor", "orchestra"]
+            "enum": [
+              "flight-recorder",
+              "governor",
+              "orchestra"
+            ]
           },
-          "default": ["flight-recorder"],
+          "default": [
+            "flight-recorder"
+          ],
           "description": "Enabled product tiers (FR-M36-05). Flight Recorder is the base tier and is always on. Enabling Governor or Orchestra is a settings change only — no reinstall; disabling a tier leaves the tiers below fully functional (G5)."
         },
         "meridian.rejectionWindowDays": {
@@ -125,5 +229,8 @@
     "esbuild": "0.24.2",
     "typescript": "5.6.3",
     "vitest": "2.1.9"
+  },
+  "dependencies": {
+    "@zed-industries/agent-client-protocol": "^0.4.5"
   }
 }
