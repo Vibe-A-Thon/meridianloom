@@ -338,9 +338,9 @@ class TestTierOwnership:
         ]
         assert len(claims) == len(set(claims))
 
-    def test_ssdf_mapping_is_marked_todo_in_contract(self):
-        # The SSDF/ISO-42001 mapping is F0-E task 25; the contract carries
-        # the pointer so the GUI and reviewers see it.
+    def test_contract_describes_the_full_bundle(self):
+        # F0-E task 25 shipped the full bundle; the contract description is
+        # the pointer reviewers and the GUI read.
         schema_path = (
             Path(__file__).resolve().parent.parent.parent
             / "shared" / "schema" / "methods.json"
@@ -348,4 +348,7 @@ class TestTierOwnership:
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         description = schema["x-methods"]["ledger.exportBundle"]["description"]
         assert "SSDF" in description
-        assert "task 25" in description
+        assert "FR-M12-11" in description
+        result_def = schema["$defs"]["LedgerExportBundleResult"]
+        for field in ("proofs", "signature", "compliance"):
+            assert field in result_def["required"]

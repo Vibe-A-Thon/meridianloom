@@ -791,50 +791,13 @@ class SidecarServer:
     def _handle_ledger_export_bundle(
         self, params: bus_types.LedgerExportBundleParams
     ) -> bus_types.LedgerExportBundleResult:
-        import base64 as b64
-
+        # FR-M36-04/SEC-29 (task 25): the full signed audit bundle —
+        # assembly lives in ledger/bundle.py so the wire shape, proofs,
+        # signature block and compliance section stay testable in isolation.
         ledger = self._ensure_ledger()
-        from_seq = (params or {}).get("fromSequence") or 1
-        to_seq = min(
-            (params or {}).get("toSequence") or ledger.last_sequence,
-            ledger.last_sequence,
-        )
-        rows = []
-        if to_seq >= from_seq and to_seq > 0:
-            rows = ledger.query(
-                story_id=(params or {}).get("storyId"),
-                actor_id=(params or {}).get("agentId"),
-                from_sequence=from_seq,
-                to_sequence=to_seq,
-                limit=1000,
-            )
-        # A signed head must cover the range end; emit one at the tip if
-        # the cadence has not produced one yet (FR-M10-04).
-        head_row = ledger.latest_tree_head()
-        head_wire = None
-        if ledger.last_sequence and (head_row is None or head_row["seq"] < to_seq):
-            head_wire = ledger.emit_tree_head_now()  # already wire shape
-        elif head_row is not None:
-            head_wire = ledger_wire.tree_head_to_wire(head_row)
-        return {
-            "formatVersion": 1,
-            "generatedAt": ledger_core.utc_now(),
-            "signer": {
-                "algorithm": "Ed25519",
-                "publicKey": b64.b64encode(ledger.signing_public_key).decode(),
-            },
-            **({"treeHead": head_wire} if head_wire is not None else {}),
-            "range": {"fromSequence": from_seq, "toSequence": to_seq},
-            "filter": {
-                key: value
-                for key, value in (
-                    ("storyId", (params or {}).get("storyId")),
-                    ("agentId", (params or {}).get("agentId")),
-                )
-                if value is not None
-            },
-            "entries": [ledger_wire.row_to_bundle_entry(row) for row in rows],
-        }
+        from .ledger import bundle as ledger_bundle
+
+        return ledger_bundle.build_bundle(ledger, params or {})  # type: ignore[return-value]
 
 
 class _RpcError(Exception):

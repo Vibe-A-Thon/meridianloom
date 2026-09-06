@@ -84,7 +84,7 @@
       "result": { "$ref": "#/$defs/LedgerProofResult" }
     },
     "ledger.exportBundle": {
-      "description": "FR-M11-05/FR-M36-04 (F0 Workstream E task 25): signed audit bundle for any sequence range, date range, agent or story — entries, signed tree head, Merkle inclusion proofs, signature block and an explicit NIST SSDF AI-provenance / ISO/IEC 42001 / EU AI Act Art. 12 mapping section. Verifiable with only the bundle's own public key (SEC-29).",
+      "description": "FR-M11-05/FR-M36-04/SEC-29/FR-M12-11 (F0 Workstream E task 25): the full signed audit bundle for any sequence range, date range, agent or story — entries with their exact hash preimages, Merkle inclusion proofs against the signed tree head, an Ed25519 signature over the whole bundle, and a compliance section mapping bundle fields to NIST SSDF (SP 800-218) provenance practice, ISO/IEC 42001:2023 record-keeping clauses and EU AI Act Article 12. Verifies standalone with the open reference verifier (FR-M36-06) using only the bundle's own public key.",
       "params": { "$ref": "#/$defs/LedgerExportBundleParams" },
       "result": { "$ref": "#/$defs/LedgerExportBundleResult" }
     },
@@ -734,15 +734,17 @@
       "properties": {
         "fromSequence": { "type": "integer", "description": "Default 1." },
         "toSequence": { "type": "integer", "description": "Default the ledger tip." },
+        "fromTimestamp": { "type": "string", "description": "ISO-8601 lower bound on entry timestamps (with the sequence range)." },
+        "toTimestamp": { "type": "string", "description": "ISO-8601 upper bound on entry timestamps (with the sequence range)." },
         "storyId": { "type": "string", "description": "Optional filter within the range." },
         "agentId": { "type": "string", "description": "Optional filter within the range." }
       },
       "additionalProperties": false
     },
     "LedgerBundleEntry": {
-      "description": "One entry in an audit bundle: the FR-M11-02 stream shape plus ciphertext refs and digests, so a third-party verifier can check the chain segment without any key.",
+      "description": "One entry in an audit bundle: the FR-M11-02 stream shape plus ciphertext refs and digests, so a third-party verifier can check the chain segment without any key. `hashPayload` is the exact JSON-native preimage of the entry hash (ledger columns minus entryHash/previousHash, digests hex-projected) — the open verifier hashes it byte-for-byte per the canonical JSON rules; it is the anchor of truth, the sibling fields are the human-readable view.",
       "type": "object",
-      "required": ["sequence", "timestamp", "storyId", "phase", "loopId", "actorId", "actorVersion", "actorKind", "actionType", "vendor", "observationConfidence", "simulated", "entryHash", "previousHash"],
+      "required": ["sequence", "timestamp", "storyId", "phase", "loopId", "actorId", "actorVersion", "actorKind", "actionType", "vendor", "observationConfidence", "simulated", "entryHash", "previousHash", "hashPayload"],
       "properties": {
         "sequence": { "type": "integer" },
         "timestamp": { "type": "string" },
@@ -784,7 +786,8 @@
         "inputDigest": { "type": "string" },
         "inputRef": { "type": "string" },
         "outputDigest": { "type": "string" },
-        "outputRef": { "type": "string" }
+        "outputRef": { "type": "string" },
+        "hashPayload": { "type": "object", "description": "The exact preimage of entryHash per the open ledger spec: ledger_entry columns minus entryHash/previousHash, byte digests hex-projected, JSON-native values." }
       },
       "additionalProperties": false
     },
@@ -810,21 +813,83 @@
       "type": "object",
       "properties": {
         "storyId": { "type": "string" },
-        "agentId": { "type": "string" }
+        "agentId": { "type": "string" },
+        "fromTimestamp": { "type": "string" },
+        "toTimestamp": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "LedgerBundleInclusion": {
+      "description": "RFC 6962 §2.1.1 audit path proving one entry's leaf (its entryHash) is included in the Merkle tree the signed tree head commits to.",
+      "type": "object",
+      "required": ["sequence", "leafIndex", "path"],
+      "properties": {
+        "sequence": { "type": "integer", "description": "The ledger sequence this proof is for (1-based; the leaf index is sequence - 1)." },
+        "leafIndex": { "type": "integer" },
+        "path": { "type": "array", "items": { "type": "string" }, "description": "Sibling hashes, leaf-to-root, hex-encoded." }
+      },
+      "additionalProperties": false
+    },
+    "LedgerBundleProofs": {
+      "description": "Merkle proofs for every included entry, against the tree size and root the signed tree head commits to (FR-M36-04/SEC-29: the bundle verifies standalone).",
+      "type": "object",
+      "required": ["treeSize", "rootHash", "inclusion"],
+      "properties": {
+        "treeSize": { "type": "integer" },
+        "rootHash": { "type": "string" },
+        "inclusion": { "type": "array", "items": { "$ref": "#/$defs/LedgerBundleInclusion" } }
+      },
+      "additionalProperties": false
+    },
+    "LedgerBundleSignature": {
+      "description": "Ed25519 signature over the whole bundle (FR-M36-04): `digest` is SHA-256 of the canonical JSON of the entire bundle object minus this signature block; the signature signs the 32 digest bytes with the ledger key. Verification needs only the bundled public key (SEC-29).",
+      "type": "object",
+      "required": ["algorithm", "signedAt", "digest", "signature"],
+      "properties": {
+        "algorithm": { "const": "Ed25519" },
+        "signedAt": { "type": "string" },
+        "digest": { "type": "string", "description": "Hex SHA-256 of the canonical bundle core (bundle minus this block)." },
+        "signature": { "type": "string", "description": "Hex Ed25519 signature over the raw 32 digest bytes." }
+      },
+      "additionalProperties": false
+    },
+    "LedgerComplianceMapping": {
+      "description": "One mapping from a bundle field set to a record-keeping requirement (FR-M12-11 as amended by gaps-requirements M12: NIST SSDF AI provenance + ISO/IEC 42001 + EU AI Act Article 12).",
+      "type": "object",
+      "required": ["framework", "reference", "requirement", "bundleFields"],
+      "properties": {
+        "framework": { "type": "string" },
+        "reference": { "type": "string" },
+        "requirement": { "type": "string" },
+        "bundleFields": { "type": "array", "items": { "type": "string" } },
+        "note": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "LedgerComplianceSection": {
+      "description": "The compliance section: which standards the bundle maps to and every field-level mapping (FR-M36-04, FR-M12-11).",
+      "type": "object",
+      "required": ["standards", "mappings"],
+      "properties": {
+        "standards": { "type": "array", "items": { "type": "string" } },
+        "mappings": { "type": "array", "items": { "$ref": "#/$defs/LedgerComplianceMapping" } }
       },
       "additionalProperties": false
     },
     "LedgerExportBundleResult": {
       "type": "object",
-      "required": ["formatVersion", "generatedAt", "signer", "range", "filter", "entries"],
+      "required": ["formatVersion", "generatedAt", "signer", "range", "filter", "entries", "proofs", "signature", "compliance"],
       "properties": {
-        "formatVersion": { "type": "integer", "description": "Bundle format v1; the open ledger spec (FR-M36-06) will pin this." },
+        "formatVersion": { "type": "integer", "description": "Bundle format v1; pinned by the open ledger spec (FR-M36-06, docs/open-ledger-spec/)." },
         "generatedAt": { "type": "string" },
         "signer": { "$ref": "#/$defs/LedgerBundleSigner" },
-        "treeHead": { "$ref": "#/$defs/TreeHead", "description": "Signed head covering at least the range end; absent only when the ledger has no head yet (task 25 anchors this into the full SSDF bundle)." },
+        "treeHead": { "$ref": "#/$defs/TreeHead", "description": "Signed head covering the ledger tip at export time; absent only when the ledger has no entries yet." },
         "range": { "$ref": "#/$defs/LedgerRange" },
         "filter": { "$ref": "#/$defs/LedgerBundleFilter" },
-        "entries": { "type": "array", "items": { "$ref": "#/$defs/LedgerBundleEntry" } }
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/LedgerBundleEntry" } },
+        "proofs": { "$ref": "#/$defs/LedgerBundleProofs" },
+        "signature": { "$ref": "#/$defs/LedgerBundleSignature" },
+        "compliance": { "$ref": "#/$defs/LedgerComplianceSection" }
       },
       "additionalProperties": false
     },

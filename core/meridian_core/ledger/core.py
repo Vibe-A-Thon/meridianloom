@@ -177,6 +177,10 @@ class Ledger:
     def signing_public_key(self) -> bytes:
         return keys.public_key_bytes(self._signing_key.private_key())
 
+    def sign(self, data: bytes) -> bytes:
+        """Sign arbitrary bytes with the ledger key (audit-bundle block)."""
+        return self._signing_key.private_key().sign(data)
+
     def root_hash(self) -> bytes:
         return self._frontier.root()
 

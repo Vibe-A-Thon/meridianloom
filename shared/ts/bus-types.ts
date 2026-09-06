@@ -483,13 +483,17 @@ export interface LedgerExportBundleParams {
   "fromSequence"?: number;
   /** Default the ledger tip. */
   "toSequence"?: number;
+  /** ISO-8601 lower bound on entry timestamps (with the sequence range). */
+  "fromTimestamp"?: string;
+  /** ISO-8601 upper bound on entry timestamps (with the sequence range). */
+  "toTimestamp"?: string;
   /** Optional filter within the range. */
   "storyId"?: string;
   /** Optional filter within the range. */
   "agentId"?: string;
 }
 
-/** One entry in an audit bundle: the FR-M11-02 stream shape plus ciphertext refs and digests, so a third-party verifier can check the chain segment without any key. */
+/** One entry in an audit bundle: the FR-M11-02 stream shape plus ciphertext refs and digests, so a third-party verifier can check the chain segment without any key. `hashPayload` is the exact JSON-native preimage of the entry hash (ledger columns minus entryHash/previousHash, digests hex-projected) — the open verifier hashes it byte-for-byte per the canonical JSON rules; it is the anchor of truth, the sibling fields are the human-readable view. */
 export interface LedgerBundleEntry {
   "sequence": number;
   "timestamp": string;
@@ -532,6 +536,8 @@ export interface LedgerBundleEntry {
   "inputRef"?: string;
   "outputDigest"?: string;
   "outputRef"?: string;
+  /** The exact preimage of entryHash per the open ledger spec: ledger_entry columns minus entryHash/previousHash, byte digests hex-projected, JSON-native values. */
+  "hashPayload": Record<string, unknown>;
 }
 
 export interface LedgerBundleSigner {
@@ -548,18 +554,64 @@ export interface LedgerRange {
 export interface LedgerBundleFilter {
   "storyId"?: string;
   "agentId"?: string;
+  "fromTimestamp"?: string;
+  "toTimestamp"?: string;
+}
+
+/** RFC 6962 §2.1.1 audit path proving one entry's leaf (its entryHash) is included in the Merkle tree the signed tree head commits to. */
+export interface LedgerBundleInclusion {
+  /** The ledger sequence this proof is for (1-based; the leaf index is sequence - 1). */
+  "sequence": number;
+  "leafIndex": number;
+  /** Sibling hashes, leaf-to-root, hex-encoded. */
+  "path": string[];
+}
+
+/** Merkle proofs for every included entry, against the tree size and root the signed tree head commits to (FR-M36-04/SEC-29: the bundle verifies standalone). */
+export interface LedgerBundleProofs {
+  "treeSize": number;
+  "rootHash": string;
+  "inclusion": LedgerBundleInclusion[];
+}
+
+/** Ed25519 signature over the whole bundle (FR-M36-04): `digest` is SHA-256 of the canonical JSON of the entire bundle object minus this signature block; the signature signs the 32 digest bytes with the ledger key. Verification needs only the bundled public key (SEC-29). */
+export interface LedgerBundleSignature {
+  "algorithm": "Ed25519";
+  "signedAt": string;
+  /** Hex SHA-256 of the canonical bundle core (bundle minus this block). */
+  "digest": string;
+  /** Hex Ed25519 signature over the raw 32 digest bytes. */
+  "signature": string;
+}
+
+/** One mapping from a bundle field set to a record-keeping requirement (FR-M12-11 as amended by gaps-requirements M12: NIST SSDF AI provenance + ISO/IEC 42001 + EU AI Act Article 12). */
+export interface LedgerComplianceMapping {
+  "framework": string;
+  "reference": string;
+  "requirement": string;
+  "bundleFields": string[];
+  "note"?: string;
+}
+
+/** The compliance section: which standards the bundle maps to and every field-level mapping (FR-M36-04, FR-M12-11). */
+export interface LedgerComplianceSection {
+  "standards": string[];
+  "mappings": LedgerComplianceMapping[];
 }
 
 export interface LedgerExportBundleResult {
-  /** Bundle format v1; the open ledger spec (FR-M36-06) will pin this. */
+  /** Bundle format v1; pinned by the open ledger spec (FR-M36-06, docs/open-ledger-spec/). */
   "formatVersion": number;
   "generatedAt": string;
   "signer": LedgerBundleSigner;
-  /** Signed head covering at least the range end; absent only when the ledger has no head yet (task 25 anchors this into the full SSDF bundle). */
+  /** Signed head covering the ledger tip at export time; absent only when the ledger has no entries yet. */
   "treeHead"?: TreeHead;
   "range": LedgerRange;
   "filter": LedgerBundleFilter;
   "entries": LedgerBundleEntry[];
+  "proofs": LedgerBundleProofs;
+  "signature": LedgerBundleSignature;
+  "compliance": LedgerComplianceSection;
 }
 
 export interface HookInstallParams {

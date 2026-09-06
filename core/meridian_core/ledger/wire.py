@@ -149,14 +149,20 @@ def row_to_detail(
 
 
 def row_to_bundle_entry(row: dict[str, Any]) -> dict[str, Any]:
-    """One entry inside an audit bundle (FR-M11-05): stream shape plus
-    ciphertext refs/digests — a third party checks the chain without keys."""
+    """One entry inside an audit bundle (FR-M11-05/FR-M36-04): stream shape
+    plus ciphertext refs/digests — a third party checks the chain without
+    keys — and ``hashPayload``, the exact JSON-native preimage of
+    ``entry_hash`` (canonical.hashable_payload) so the open verifier
+    recomputes the hash with no column knowledge."""
+    from .canonical import hashable_payload
+
     bundle = row_to_wire(row)
     bundle["inputDigest"] = _hex(row.get("input_digest"))
     bundle["inputRef"] = row.get("input_ref")
     bundle["outputDigest"] = _hex(row.get("output_digest"))
     bundle["outputRef"] = row.get("output_ref")
     bundle.pop("toolCallsSummary", None)
+    bundle["hashPayload"] = hashable_payload(row)
     return bundle
 
 

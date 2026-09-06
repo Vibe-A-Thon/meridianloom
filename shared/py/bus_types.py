@@ -381,10 +381,12 @@ class LedgerProofResult(TypedDict):
 class LedgerExportBundleParams(TypedDict):
     fromSequence: NotRequired[int]  # Default 1.
     toSequence: NotRequired[int]  # Default the ledger tip.
+    fromTimestamp: NotRequired[str]  # ISO-8601 lower bound on entry timestamps (with the sequence range).
+    toTimestamp: NotRequired[str]  # ISO-8601 upper bound on entry timestamps (with the sequence range).
     storyId: NotRequired[str]  # Optional filter within the range.
     agentId: NotRequired[str]  # Optional filter within the range.
 
-# One entry in an audit bundle: the FR-M11-02 stream shape plus ciphertext refs and digests, so a third-party verifier can check the chain segment without any key.
+# One entry in an audit bundle: the FR-M11-02 stream shape plus ciphertext refs and digests, so a third-party verifier can check the chain segment without any key. `hashPayload` is the exact JSON-native preimage of the entry hash (ledger columns minus entryHash/previousHash, digests hex-projected) — the open verifier hashes it byte-for-byte per the canonical JSON rules; it is the anchor of truth, the sibling fields are the human-readable view.
 class LedgerBundleEntry(TypedDict):
     sequence: int
     timestamp: str
@@ -427,6 +429,7 @@ class LedgerBundleEntry(TypedDict):
     inputRef: NotRequired[str]
     outputDigest: NotRequired[str]
     outputRef: NotRequired[str]
+    hashPayload: dict[str, Any]  # The exact preimage of entryHash per the open ledger spec: ledger_entry columns minus entryHash/previousHash, byte digests hex-projected, JSON-native values.
 
 class LedgerBundleSigner(TypedDict):
     algorithm: Literal["Ed25519"]
@@ -439,15 +442,52 @@ class LedgerRange(TypedDict):
 class LedgerBundleFilter(TypedDict):
     storyId: NotRequired[str]
     agentId: NotRequired[str]
+    fromTimestamp: NotRequired[str]
+    toTimestamp: NotRequired[str]
+
+# RFC 6962 §2.1.1 audit path proving one entry's leaf (its entryHash) is included in the Merkle tree the signed tree head commits to.
+class LedgerBundleInclusion(TypedDict):
+    sequence: int  # The ledger sequence this proof is for (1-based; the leaf index is sequence - 1).
+    leafIndex: int
+    path: list[str]  # Sibling hashes, leaf-to-root, hex-encoded.
+
+# Merkle proofs for every included entry, against the tree size and root the signed tree head commits to (FR-M36-04/SEC-29: the bundle verifies standalone).
+class LedgerBundleProofs(TypedDict):
+    treeSize: int
+    rootHash: str
+    inclusion: list[LedgerBundleInclusion]
+
+# Ed25519 signature over the whole bundle (FR-M36-04): `digest` is SHA-256 of the canonical JSON of the entire bundle object minus this signature block; the signature signs the 32 digest bytes with the ledger key. Verification needs only the bundled public key (SEC-29).
+class LedgerBundleSignature(TypedDict):
+    algorithm: Literal["Ed25519"]
+    signedAt: str
+    digest: str  # Hex SHA-256 of the canonical bundle core (bundle minus this block).
+    signature: str  # Hex Ed25519 signature over the raw 32 digest bytes.
+
+# One mapping from a bundle field set to a record-keeping requirement (FR-M12-11 as amended by gaps-requirements M12: NIST SSDF AI provenance + ISO/IEC 42001 + EU AI Act Article 12).
+class LedgerComplianceMapping(TypedDict):
+    framework: str
+    reference: str
+    requirement: str
+    bundleFields: list[str]
+    note: NotRequired[str]
+
+# The compliance section: which standards the bundle maps to and every field-level mapping (FR-M36-04, FR-M12-11).
+class LedgerComplianceSection(TypedDict):
+    standards: list[str]
+    mappings: list[LedgerComplianceMapping]
 
 class LedgerExportBundleResult(TypedDict):
-    formatVersion: int  # Bundle format v1; the open ledger spec (FR-M36-06) will pin this.
+    formatVersion: int  # Bundle format v1; pinned by the open ledger spec (FR-M36-06, docs/open-ledger-spec/).
     generatedAt: str
     signer: LedgerBundleSigner
-    treeHead: NotRequired[TreeHead]  # Signed head covering at least the range end; absent only when the ledger has no head yet (task 25 anchors this into the full SSDF bundle).
+    treeHead: NotRequired[TreeHead]  # Signed head covering the ledger tip at export time; absent only when the ledger has no entries yet.
     range: LedgerRange
     filter: LedgerBundleFilter
     entries: list[LedgerBundleEntry]
+    proofs: LedgerBundleProofs
+    signature: LedgerBundleSignature
+    compliance: LedgerComplianceSection
 
 class HookInstallParams(TypedDict):
     workspaceDir: NotRequired[str]  # Repository root. Absent means the handshake workspaceDir.
