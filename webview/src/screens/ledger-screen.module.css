@@ -1,0 +1,243 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-6);
+  flex: 1;
+}
+
+.heading {
+  margin: 0;
+  font: var(--ml-t-h2);
+}
+
+.stream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-3);
+  min-width: 0;
+}
+
+/* E-LG-01 query builder over FR-M10-12. */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ml-space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-1);
+}
+
+.label {
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+}
+
+.input {
+  font: var(--ml-t-data);
+  color: var(--ml-text-primary);
+  background: var(--ml-ground-raised);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-r-thread);
+  padding: var(--ml-cell-padding);
+  width: 18ch;
+}
+
+.inputSmall {
+  composes: input;
+  width: 10ch;
+}
+
+.button {
+  font: var(--ml-t-ui);
+  color: var(--ml-text-primary);
+  background: var(--ml-dye-working-dim);
+  border: 1px solid var(--ml-dye-working);
+  border-radius: var(--ml-r-panel);
+  padding: var(--ml-cell-padding);
+  cursor: pointer;
+}
+
+.button:disabled {
+  color: var(--ml-text-disabled);
+  background: var(--ml-ground-raised);
+  border-color: var(--ml-hairline);
+  cursor: default;
+}
+
+.clearButton {
+  font: var(--ml-t-ui);
+  color: var(--ml-text-secondary);
+  background: none;
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-r-panel);
+  padding: var(--ml-cell-padding);
+  cursor: pointer;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--ml-space-3);
+  width: 100%;
+  min-height: var(--ml-row-height);
+  padding: var(--ml-space-1) var(--ml-cell-padding);
+  border: none;
+  border-radius: var(--ml-r-thread);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--ml-ground-raised);
+}
+
+.rowSelected,
+.rowSelected:hover {
+  background: var(--ml-ground-card);
+  box-shadow: inset 0 0 0 1px var(--ml-border);
+}
+
+.rowDetail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ml-text-secondary);
+}
+
+.rowMeta {
+  flex: none;
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Entry drawer — the full record. */
+.drawer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-3);
+  padding: var(--ml-space-4);
+  background: var(--ml-ground-raised);
+  border-radius: var(--ml-r-panel);
+  box-shadow: var(--ml-elev-1);
+}
+
+.drawerHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ml-space-3);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--ml-space-2) var(--ml-space-4);
+  margin: 0;
+}
+
+.facts dt {
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+}
+
+.facts dd {
+  margin: 0;
+  font: var(--ml-t-body);
+  color: var(--ml-text-primary);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.confidenceBlock {
+  max-width: 40ch;
+}
+
+.blobBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-2);
+}
+
+.blobLabel {
+  margin: 0;
+  font: var(--ml-t-h3);
+}
+
+.blob {
+  margin: 0;
+  padding: var(--ml-space-3);
+  background: var(--ml-ground-deepest);
+  border: 1px solid var(--ml-hairline);
+  border-radius: var(--ml-r-thread);
+  font: var(--ml-t-code);
+  color: var(--ml-text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.shredded {
+  margin: 0;
+  padding: var(--ml-space-2) var(--ml-space-3);
+  border-left: 3px solid var(--ml-dye-attention);
+  background: var(--ml-ground-card);
+  font: var(--ml-t-body);
+  color: var(--ml-text-primary);
+  max-width: 72ch;
+}
+
+.noBlob {
+  margin: 0;
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+}
+
+.proofControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ml-space-4);
+}
+
+.consistencyForm {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ml-space-3);
+}
+
+.proof {
+  padding: var(--ml-space-3);
+  background: var(--ml-ground-card);
+  border-radius: var(--ml-r-thread);
+}
+
+.hash {
+  font: var(--ml-t-code);
+  color: var(--ml-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.pathList {
+  margin: 0;
+  padding-left: var(--ml-space-5);
+}

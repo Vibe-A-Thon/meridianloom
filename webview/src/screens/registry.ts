@@ -4,6 +4,7 @@ import type { RpcQueryState } from '../hooks/useRpcQuery';
 import type { WebviewRpcClient } from '../rpc/client';
 import { FlightRecorderScreen } from './FlightRecorderScreen';
 import { ExternalAgentsScreen } from './ExternalAgentsScreen';
+import { LedgerScreen } from './LedgerScreen';
 
 /**
  * X-28 / DS-3: the Loom Bar is generated from this registry, filtered by
@@ -42,6 +43,12 @@ export const SCREEN_REGISTRY: readonly ScreenDefinition[] = [
     title: 'External Agents',
     tier: 'flight-recorder',
     component: ExternalAgentsScreen,
+  },
+  {
+    id: 'ledger',
+    title: 'Ledger',
+    tier: 'flight-recorder',
+    component: LedgerScreen,
   },
 ];
 
