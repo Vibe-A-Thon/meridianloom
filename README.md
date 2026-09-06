@@ -30,4 +30,21 @@ Build progress is tracked in `BUILD_STATE.md`; decisions in `DECISIONS.md`.
 
 ## Build, run, test, package
 
-_(updated as phases land — see BUILD_STATE.md)_
+**Prereqs:** Node 22 + npm 10, Python 3.11+ (`python` on PATH), Rust 1.97+ (optional — only for verifier tests; they skip-and-notice without it), Git 2.40+. No model credentials anywhere — the Flight Recorder makes zero model calls.
+
+```bash
+npm install                      # workspaces: extension + webview
+node scripts/generate-bus-types.mjs   # regenerate shared bus types (also runs in build)
+npm test                         # pytest (core) + vitest (extension + webview) + typecheck
+npm run build                    # bus types + webview (Vite) + extension (esbuild)
+npm run check:contracts          # fails if generated bus types are stale vs shared/schema
+npm run package                  # dist/meridian-loom-<ver>.vsix
+cd core && python -m pytest -q   # core-only, targeted runs
+cd verifier && cargo test        # Rust open verifier (optional)
+```
+
+**What works now (F0 — Flight Recorder):** installable VS Code extension with a Python sidecar over framed JSON-RPC stdio; append-only SQLite ledger (hash-chained, Merkle-indexed, signed tree heads, encrypted content-addressed blobs, per-subject keys); chain verification (~3s/100k) with first-divergent-sequence; deterministic attribution (git blame/diff, tree-sitter symbols, human-vs-agent heuristics, all confidence-labelled); Claude Code and Copilot observers with a degradation fallback chain; external-session detection; rejection capture + greenfield/brownfield trust metrics; opt-in `commit-msg` provenance hook (`Meridian-Ledger:` trailers); signed audit bundles with NIST SSDF / ISO 42001 / EU AI Act mapping; open reference verifier (Python single-file + Rust binary) and the open ledger spec under `docs/open-ledger-spec/`; the three GF0 screens (10.45 Flight Recorder, 10.46 External Agents, 10.7 Ledger, 10.40 First-Run) running on real sidecar data; tiering scaffold (Flight Recorder base tier; Governor/Orchestra refused until enabled).
+
+**Try it:** `npm run package`, install the .vsix, run `Meridian: Open Recorder` (command palette) — the panel opens against a real sidecar; run `Meridian: Doctor` for the health report; enable the provenance hook via `Meridian: Install Git Hook`. With Claude Code or Copilot active in the workspace, sessions and provenance appear on the real-data screens.
+
+Build progress is tracked in `BUILD_STATE.md`; decisions in `DECISIONS.md`.
