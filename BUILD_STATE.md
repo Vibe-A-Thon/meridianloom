@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** F0 — Flight Recorder
-- **Current workstream:** E — Portable provenance — **done** (tasks 23–27)
-- **Current task:** 27 complete — Workstream E done; next is Workstream F (tasks 28–30)
-- **Last commit:** 1ea71c8 — docs(f0): open ledger specification v1 (FR-M36-06, NFR-31)
+- **Current workstream:** F — Rejection measurement, minimum
+- **Current task:** 28 — rejection capture (FR-M37-01 subset: reverted, force-amended away, or replaced within a configurable window, from git, no gates yet)
+- **Last commit:** 1ea71c8 — docs(f0): open ledger specification v1 (FR-M36-06, NFR-31) — Workstream E complete (23–27; open verifier Python+Rust green, bundle maps SSDF/ISO-42001/AI-Act)
 - **Updated:** _(see git log)_
 
 ## Mapping of completed S0 work onto the new plan
