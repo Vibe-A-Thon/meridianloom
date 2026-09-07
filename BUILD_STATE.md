@@ -6,7 +6,7 @@
 
 - **Current phase:** F1 — Governor
 - **Current workstream:** B — Gates over other people's work
-- **Current task:** 9 — policy engine with machine-checkable DoR/DoD (FR-M12-01, FR-M12-08, FR-M12-09); then 10 (merge gate + approver identity FR-M12-05/07), 11 (governance can halt FR-M12-06)
+- **Current task:** 12–14 — external PR gating + PR ingest as story (FR-M35-04/05), multi-agent conflict detection (FR-M35-07), rework reason taxonomy (E-GR-03); tasks 9–11 committed (47e809b policy engine, 0791ec9 merge gate, 3abb236 halt)
 - **Last commit:** eeec15a — feat(f1): MCP server exposure (FR-M34-06) — **Workstream A complete** (tasks 1–8; 512 pytest + 300 vitest)
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
