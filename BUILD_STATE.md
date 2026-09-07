@@ -6,8 +6,8 @@
 
 - **Current phase:** F1 — Governor
 - **Current workstream:** A — ACP host
-- **Current task:** 6–7 — MCP server exposure (FR-M34-06) + upstream-contribution tracking (FR-M34-05); task 5 committed as c72afb3 (worktrees)
-- **Last commit:** c72afb3 — feat(f1): worktree isolation for hosted agents (FR-M18-01..08, AC-13, AC-14)
+- **Current task:** 8 — ACP conformance in CI (NFR-30); tasks 6–7 committed as eeec15a (MCP server, FR-M34-06) and 88a2b32 (upstream tracking, FR-M34-05)
+- **Last commit:** 88a2b32 — feat(f1): upstream-contribution tracking for the ACP host (FR-M34-05)
 - **Orchestrator note:** uncommitted `workbench/` studio changes in the tree belong to a parallel session — never stage or overwrite them; stage by explicit pathspec. FR-M18-06/09 are SHOULD v1.x, out of F1 scope per gaps plan.
 
 ## Mapping of completed S0 work onto the new plan
@@ -64,7 +64,7 @@
 
 | Workstream | Tasks | Status |
 |---|---|---|
-| A — ACP host | 1–8 | tasks 1–5, 8 done (c4a4805 client; df4b267 adapter re-base; f22ef6a registry; 289d33a permission gate SEC-28; 8ed0bcf conformance; task 5 worktree isolation below); 6–7 next |
+| A — ACP host | 1–8 | tasks 1–5, 8 done (c4a4805 client; df4b267 adapter re-base; f22ef6a registry; 289d33a permission gate SEC-28; 8ed0bcf conformance; task 5 worktree isolation below); 6–7 done (eeec15a MCP server FR-M34-06; 88a2b32 upstream tracking FR-M34-05) |
 | B — Gates over other people's work | 9–14 | not started |
 | C — Human identity and roles | 15–16 | not started |
 | D — Steer and clarify | 17–18 | not started |
@@ -81,6 +81,9 @@
 - D22 — OPEN, human-gated (DECISIONS.md → Deferred)
 
 ## Phase log
+
+- F1 Workstream A task 6 (MCP server exposure, FR-M34-06) done: new sidecar RPC `mcp/invoke` in capability `governor.mcp-server` (single-ownership registry holds; bus types regenerated) — the governor tier gate is the permission gate (disabled ⇒ TIER_DISABLED, G5), every call is ledger-recorded as a `tool_call` entry (vendor `mcp`, direct confidence, story `mcp:<tool>`) BEFORE it executes, and the tool maps onto the existing read-only handler (ledger_query/export_bundle/verify, trust_rejection_rate). Extension: `extension/src/mcp/server.ts` implements MCP 2025-03-26 directly (initialize/ping/tools/list/tools/call/resources/list/resources/read; NDJSON stdio; no protocol deps); structured sidecar errors mirrored verbatim (TIER_DISABLED shape included); resources `meridian://open-ledger-spec` + live `meridian://doctor-report`. `extension/src/mcp/main.ts` is the standalone vscode-free entrypoint (same framed sidecar spawn, FR-M3-01/11; stdout MCP-only per FR-M3-09); bundled via `npm run build` to `dist/mcp/mcp-server.js` and smoke-tested as a real spawned process. Suite: pytest 500→512 (test_mcp_invoke 12), extension vitest 282→296 (mcp-server 13 unit + 1 real-sidecar e2e), `tsc --noEmit` clean, `check:contracts` green, no-model-calls green.
+- F1 Workstream A task 7 (upstream contribution, FR-M34-05) done: `extension/src/acp/UPSTREAM.md` (host-generic vs Meridian-specific inventory; Apache-2.0 publication plan — LICENSE stays with the human owner per D22; layering strategy on native ACP; supported-SDK declaration `<!-- supported-acp-sdk: 0.4.5 -->`), `docs/upstream/vscode-acp-issue.md` (tracks microsoft/vscode#265496, signal order, review cadence), `extension/test/acp-upstream-version.test.ts` (4 tests; warns never fails on SDK drift). Deferred: wiring the MCP server into VS Code via `vscode.lm.registerMcpServerDefinitionProvider` (needs a newer `@types/vscode` than 1.95 pinned in the repo) — the server is spawnable and tested standalone today.
 
 - F1 Workstream A task 5 (worktree isolation, M18) done: new `core/meridian_core/worktree/` (manager: create/list/remove/abort/conflicts — dedicated branch `meridian/<story>` under `.meridian/worktrees/<story-id>/`, worktree-local agent identity + `Meridian-Hosted-Agent` trailer hook via per-worktree `core.hooksPath`, abort deletes never-pushed branch and leaves the primary tree byte-identical). Sidecar RPCs `worktree/create|list|remove|abortStory|conflicts` in a new governor-tier capability `governor.worktrees` (single-ownership assertion holds); create/remove/abort ledger-recorded with `worktree_ref`. Extension: `meridian.abortStory` wired to the abort RPC (confirm-first), new `meridian.openWorktree` command (worktree/list → `vscode.openFolder` new window, FR-M18-08). AC-13/AC-14-shaped tests by name; conflict report consumed later by the M40 RunRequest/preflight flow. Suite: pytest 457→500 (test_worktree 43), extension vitest 268→282 (worktree-commands 13, manifest 1), `tsc --noEmit` clean, `check:contracts` green. FR-M18-06 (signed agent commits, SecretStorage key) and FR-M18-09 (GC retention) remain v1.x per spec — not built here.
 
