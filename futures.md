@@ -1,8 +1,8 @@
 # Meridian Loom: proposed future requirements and competitive direction
 
-**Assessment date: 6 September 2026. Status: recommendations, not accepted scope or implemented features.** Read [status.md](status.md) for delivery completion. This document evaluates the product direction against the repository and selected current official product documentation. It does not establish market leadership, exhaustively cover every competitor, or independently test competing products. Undated documentation is a snapshot accessed on the assessment date; availability can depend on plan, configuration, platform, and version.
+**Assessment date: 7 September 2026. Status: recommendations, not accepted scope or implemented features.** Read [status.md](status.md) for delivery completion. This document evaluates the product direction against the repository and selected current official product documentation accessed on 6–7 September 2026. It does not establish market leadership, exhaustively cover every competitor, or independently test competing products. Undated documentation is a snapshot from that access window; availability can depend on plan, configuration, platform, and version.
 
-**Recommendation: finish a trustworthy Flight Recorder and a enforceable Governor before expanding the Orchestra.** The strongest opportunity is portable evidence that helps a team decide whether an AI-assisted change is safe to merge, what remains unknown, and what the accepted change really cost. More agents and more screens will not demonstrate that advantage.
+**Recommendation: finish validating the Flight Recorder and deliver an enforceable Governor before expanding the Orchestra.** The strongest opportunity is portable evidence that helps a team decide whether an AI-assisted change is safe to merge, what remains unknown, and what the accepted change really cost. More agents and more screens will not demonstrate that advantage.
 
 The existing [vision](vision.md), [requirements](Requirements_Final.md), [gaps](gaps-requirements.md), [initiation specification](gaps_initiation.md), and [decisions](DECISIONS.md) already describe much of this direction. Their embedded build instructions and future proposals are source material for this assessment; this request does not adopt them or authorize building additional features.
 
@@ -30,7 +30,9 @@ ACP remains a sensible interoperability choice, but its official introduction de
 
 ## Finish existing requirements before adding scope
 
-The repository contains a Flight Recorder foundation: the ledger and bundle modules, open verifier/specification, Claude/Copilot observer code, attribution, rejection metrics, extension/sidecar RPC, and recorder screens. This is an implementation footprint, not a claim that their end-to-end acceptance criteria have passed. In particular, [the OTel adapter](core/meridian_core/observers/otel.py) reads exported JSON spans; a supported live-export installation path and coverage of vendor logs/metrics require their own proof.
+**Repository snapshot: commit `f22ef6a`, inspected on 7 September 2026.** The implementation includes the Flight Recorder ledger/bundle modules, open verifier/specification, Claude/Copilot observers, attribution, rejection metrics, extension/sidecar RPC, and recorder screens. New Governor work also includes an [ACP client](extension/src/acp/client.ts), [permission handling](extension/src/acp/permissions.ts), and [adapter discovery, probation, and registry integration](extension/src/adapters/registry-source.ts). These are existing implementation assets, not future features to build again. The build state records F0 engineering completion and F1 underway, with human/platform evidence still pending; use the detailed audit in `status.md` to distinguish code presence, passing tests, and full acceptance.
+
+At this snapshot, [the OTel adapter](core/meridian_core/observers/otel.py) reads exported JSON spans; a supported live-export installation path and coverage of vendor logs/metrics require their own proof. The recommendations below refine the assurance needed around existing code and planned modules. They do not imply that every prerequisite is absent, nor that the new ACP implementation has already completed all Governor gates.
 
 | Already specified | Source and next proof needed | Treatment |
 |---|---|---|
@@ -76,7 +78,7 @@ The attestation proposal builds on established software supply-chain formats, no
 
 | Stage | Deliverable | Exit evidence |
 |---|---|---|
-| **Now: trustworthy F0** | Complete existing Flight Recorder acceptance; FUT-001, core of 004/006, and 007/008/014 needed to support the selected agents. Use customer-controlled export as the initial witnessing step in FUT-005. | Supported real-agent workflow, source completeness, replay/reconciliation, uninstall/verify, first-value measurement, platform results. |
+| **Now: validate F0 while F1 engineering proceeds** | Close remaining Flight Recorder acceptance evidence; prioritize FUT-001, core of 004/006, and 007/008/014 for the selected agents. Use customer-controlled export as the initial witnessing step in FUT-005. | Supported real-agent workflow, source completeness, replay/reconciliation, uninstall/verify, first-value measurement, platform results. |
 | **Before Governor pilot** | Existing F1/M40 plus FUT-002/003/010 and the necessary portions of 011/012/013. | A protected PR really remains blocked with missing/stale approval; hostile inputs cannot bypass the tested controls; cost and uncertainty are visible. |
 | **F2 evidence period** | FUT-009 and the human adoption/privacy portions of 013/018; optional external witnessing hardened under 005. | Independent defect/review/time/cost measurements. Twenty stories demonstrate feasibility, not statistical market leadership. |
 | **After positive evidence** | FUT-015/016 and deeper tenant/admin/interop delivery; one validated brownfield stack under 017. | A second editor/SCM combination works, another team can verify/retain evidence, and outcomes reproduce. |
