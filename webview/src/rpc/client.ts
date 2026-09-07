@@ -1,6 +1,7 @@
 import type { HostMessage, WebviewMessage, WebviewRpcError } from '../../../shared/ts/webview-messages';
 import { WEBVIEW_PROTOCOL_VERSION } from '../../../shared/ts/webview-messages';
 import type { MethodMap, RequestId, RequestMethod } from '../../../shared/ts/bus-types';
+import type { WorkbenchAction, WorkbenchActionMap } from '../../../shared/ts/workbench';
 
 /**
  * Thin typed client over the extension↔webview postMessage channel.
@@ -120,6 +121,22 @@ export class WebviewRpcClient {
       }, this.options.timeoutMs ?? 30_000);
       this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
       this.transport.postMessage({ type: 'rpc/request', id, method, params });
+    });
+  }
+
+  /** Workspace management is hosted by the extension, independently of the sidecar. */
+  workbench<A extends WorkbenchAction>(
+    action: A,
+    params: WorkbenchActionMap[A]['params'],
+  ): Promise<WorkbenchActionMap[A]['result']> {
+    const id = this.nextId++ as RequestId;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new RpcError(-32010, `The workspace did not answer '${action}'. Try again.`));
+      }, this.options.timeoutMs ?? 30_000);
+      this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
+      this.transport.postMessage({ type: 'workbench/request', id, action, params });
     });
   }
 

@@ -11,7 +11,7 @@
  */
 import { createAcpClient } from '../acp';
 import type { AcpClient, AcpClientOptions, PermissionApprover } from '../acp/client';
-import type { InitializeResponse } from '@zed-industries/agent-client-protocol';
+import type { InitializeResponse, SessionNotification } from '@zed-industries/agent-client-protocol';
 import type { TierName } from '../../../shared/ts/bus-types';
 import type { DiscoveredAdapter } from './discovery';
 
@@ -37,6 +37,8 @@ export interface LaunchOptions {
   /** Test seam, forwarded to the ACP client. */
   spawner?: AcpClientOptions['spawner'];
   onStderr?: (line: string) => void;
+  /** Optional streaming output; callers still own storage and presentation. */
+  onUpdate?: (notification: SessionNotification) => void;
 }
 
 /**
@@ -59,6 +61,9 @@ export function launchAdapter(
     },
     options.enabledTiers,
   );
+  if (options.onUpdate) {
+    client.on('update', options.onUpdate);
+  }
   return {
     adapterId: adapter.id,
     get pid() {

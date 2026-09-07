@@ -7,6 +7,7 @@ import {
   type WebviewRpcError,
 } from '../../../shared/ts/webview-messages';
 import { capabilityForRpcMethod, isRpcMethodEnabled } from '../../../shared/ts/tiers';
+import type { WorkbenchRequest } from '../../../shared/ts/workbench';
 
 /**
  * The extension-host half of the webview message bus (G0c/G0d). Pure by
@@ -37,6 +38,9 @@ export interface ProxyContext {
   /** 10.45/10.7 Export: persists a downloaded audit bundle through the
    *  host's save dialog (the webview has no filesystem, VIGUIX_Final §17). */
   saveFile?: (fileName: string, content: string) => void | Promise<void>;
+  /** Local workspace management survives a sidecar reconnect. Execution is
+   * separately checked by the service against workspace trust and tiers. */
+  workbench?: (request: WorkbenchRequest) => Promise<unknown>;
 }
 
 function toErrorObject(error: unknown): WebviewRpcError {
@@ -85,6 +89,17 @@ export async function dispatchWebviewMessage(
     // §17); a host-side mirror is not needed for GF0. Acknowledge nothing —
     // state/update is fire-and-forget.
     return undefined;
+  }
+  if (message.type === 'workbench/request') {
+    try {
+      if (!context.workbench) {
+        throw new Error('The workspace workbench is not available. Reopen the Meridian panel.');
+      }
+      const result = await context.workbench({ action: message.action, params: message.params });
+      return { type: 'rpc/response', id: message.id, result };
+    } catch (error) {
+      return { type: 'rpc/response', id: message.id, error: toErrorObject(error) };
+    }
   }
 
   const { method, params, id } = message;

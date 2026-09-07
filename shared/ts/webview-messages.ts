@@ -8,6 +8,7 @@
 //   WebviewMessage — webview → extension host
 
 import type { RequestId, RequestMethod, TierName } from './bus-types';
+import type { WorkbenchAction } from './workbench';
 
 /** Bump when either union's shape changes incompatibly.
  *  v2: init gained `workspaceDir`; the webview→host union gained the
@@ -49,7 +50,8 @@ export type HostMessage =
 
 export type HostEvent =
   | { kind: 'tiers/changed'; enabledTiers: readonly TierName[] }
-  | { kind: 'sessions/changed'; detail: string };
+  | { kind: 'sessions/changed'; detail: string }
+  | { kind: 'workbench/changed' };
 
 /** JSON-RPC error object, structured detail preserved end to end so the
  *  webview can distinguish e.g. TIER_DISABLED (-32003) from a dead sidecar. */
@@ -62,6 +64,7 @@ export interface WebviewRpcError {
 export type WebviewMessage =
   | { type: 'ready'; protocolVersion: number }
   | { type: 'rpc/request'; id: RequestId; method: RequestMethod; params?: unknown }
+  | { type: 'workbench/request'; id: RequestId; action: WorkbenchAction; params?: unknown }
   /** UI-state changes the host may persist beyond the panel's life. */
   | { type: 'state/update'; state: Record<string, unknown> }
   /** 10.45/10.7 Export: the webview cannot write files (VIGUIX_Final §17),
@@ -82,7 +85,7 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
-  const message = value as { type?: unknown; method?: unknown; id?: unknown };
+  const message = value as { type?: unknown; method?: unknown; action?: unknown; id?: unknown };
   if (message.type === 'download') {
     const download = value as { fileName?: unknown; mimeType?: unknown; content?: unknown };
     return (
@@ -94,6 +97,9 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
   return (
     message.type === 'ready' ||
     message.type === 'state/update' ||
+    (message.type === 'workbench/request' &&
+      typeof message.action === 'string' &&
+      (typeof message.id === 'number' || typeof message.id === 'string')) ||
     (message.type === 'rpc/request' &&
       typeof message.method === 'string' &&
       (typeof message.id === 'number' || typeof message.id === 'string'))
