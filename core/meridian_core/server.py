@@ -121,12 +121,12 @@ class SidecarServer:
             "gate.evaluate": lambda self, params: self._not_implemented("gate.evaluate", "F1 (Governor)"),
             "steer.send": lambda self, params: self._not_implemented("steer.send", "F1 (Governor)"),
             "trust.summary": lambda self, params: self._not_implemented("trust.summary", "F1 (Governor)"),
-            # FR-M34-01 (F1 Workstream A): hosted-session ledger recording.
-            # The extension-host ACP client (extension/src/acp/) speaks the
-            # wire today; task 2 implements these recorders.
-            "acp/sessionBegin": lambda self, params: self._not_implemented("acp/sessionBegin", "F1 (Governor) — hosted-session ledger recording (task 2)"),
-            "acp/sessionEnd": lambda self, params: self._not_implemented("acp/sessionEnd", "F1 (Governor) — hosted-session ledger recording (task 2)"),
-            "acp/permissionDecision": lambda self, params: self._not_implemented("acp/permissionDecision", "F1 (Governor) — hosted-session ledger recording (task 2)"),
+            # FR-M34-01/02/04 (F1 Workstream A task 4): hosted-session ledger
+            # recording — the extension-host ACP client reports session facts
+            # and the sidecar makes them durable (see the handlers below).
+            "acp/sessionBegin": SidecarServer._handle_acp_session_begin,
+            "acp/sessionEnd": SidecarServer._handle_acp_session_end,
+            "acp/permissionDecision": SidecarServer._handle_acp_permission_decision,
         }
         # The registry must exactly cover the contracted request methods.
         assert set(self._handlers) == set(bus_types.REQUEST_METHODS), (
@@ -1072,6 +1072,125 @@ class SidecarServer:
         from .ledger import bundle as ledger_bundle
 
         return ledger_bundle.build_bundle(ledger, params or {})  # type: ignore[return-value]
+
+    # -- ACP hosted-session recording (FR-M34-02/04, SEC-28; task 4) ----------
+
+    #: Fallback policy tag when the host does not name the policy file version.
+    ACP_DEFAULT_POLICY_VERSION = "acp-permissions/v1"
+
+    def _append_acp_entry(self, entry: dict[str, Any], detail: dict[str, Any]) -> None:
+        """Append one hosted-session fact; the encrypted input blob carries
+        the wire detail (cwd, stop reason, tool call) alongside the row."""
+        ledger = self._ensure_ledger()
+        ledger.append({**entry, "input": json.dumps(detail, ensure_ascii=False)})
+        # FR-M17-05: derived trust metrics may not outlive new facts.
+        self._trust_cache.invalidate()
+
+    def _handle_acp_session_begin(
+        self, params: bus_types.AcpSessionBeginParams
+    ) -> bus_types.AcpSessionRecordResult:
+        # The session exists in the ledger BEFORE the agent's first turn:
+        # hosted work is governed work from sequence one.
+        detail = {"cwd": params["cwd"], "agentVersion": params.get("agentVersion")}
+        self._append_acp_entry(
+            {
+                "ts_utc": params.get("startedAt") or ledger_core.utc_now(),
+                "story_id": f"acp:{params['sessionId']}",
+                "phase": "build",
+                "loop_id": "acp-host",
+                "loop_iteration": 1,
+                "actor_id": params["agentId"],
+                "actor_version": params.get("agentVersion") or "0.0.0",
+                "actor_kind": "external",
+                "policy_version": params.get("policyVersion")
+                or self.ACP_DEFAULT_POLICY_VERSION,
+                "action_type": "session_begin",
+                "vendor": "acp",
+                "observation_confidence": "direct",
+                "external_session_id": params["sessionId"],
+            },
+            detail,
+        )
+        return {"recorded": True}
+
+    def _acp_actor_for_session(self, session_id: str) -> str:
+        """Best-effort attribution of a session end to the begin entry's
+        actor; 'unknown' when no begin was recorded (never a crash)."""
+        ledger = self._ensure_ledger()
+        begins = ledger.query(action_type="session_begin", limit=10_000)
+        for row in reversed(begins):
+            if row.get("external_session_id") == session_id:
+                return str(row["actor_id"])
+        return "unknown"
+
+    def _handle_acp_session_end(
+        self, params: bus_types.AcpSessionEndParams
+    ) -> bus_types.AcpSessionRecordResult:
+        actor = params.get("agentId") or self._acp_actor_for_session(params["sessionId"])
+        detail = {"sessionId": params["sessionId"], "stopReason": params.get("stopReason")}
+        self._append_acp_entry(
+            {
+                "ts_utc": params.get("endedAt") or ledger_core.utc_now(),
+                "story_id": f"acp:{params['sessionId']}",
+                "phase": "build",
+                "loop_id": "acp-host",
+                "loop_iteration": 1,
+                "actor_id": actor,
+                "actor_version": "0.0.0",
+                "actor_kind": "external" if actor != "unknown" else "meta",
+                "policy_version": params.get("policyVersion")
+                or self.ACP_DEFAULT_POLICY_VERSION,
+                "action_type": "session_end",
+                "vendor": "acp",
+                "observation_confidence": "direct",
+                "external_session_id": params["sessionId"],
+            },
+            detail,
+        )
+        return {"recorded": True}
+
+    def _handle_acp_permission_decision(
+        self, params: bus_types.AcpPermissionDecisionParams
+    ) -> bus_types.AcpSessionRecordResult:
+        # The governance trail is durable before and independently of the
+        # human answer. denied_by_policy lands as decision 'rejected' with
+        # the citation in rework_reason — the exact records SEC-28
+        # re-request checks look up by actor.
+        outcome = params["outcome"]
+        decision = (
+            "approved"
+            if outcome == "selected"
+            else "rejected"
+            if outcome == "denied_by_policy"
+            else None
+        )
+        detail = {
+            key: params.get(key)
+            for key in ("sessionId", "adapterId", "toolCallId", "toolKind", "path", "optionId", "reason")
+            if params.get(key) is not None
+        }
+        entry: dict[str, Any] = {
+            "ts_utc": params.get("decidedAt") or ledger_core.utc_now(),
+            "story_id": f"acp:{params['sessionId']}",
+            "phase": "build",
+            "loop_id": "acp-host",
+            "loop_iteration": 1,
+            "actor_id": params.get("adapterId") or "acp-host",
+            "actor_version": "0.0.0",
+            "actor_kind": "external" if params.get("adapterId") else "meta",
+            "policy_version": params.get("policyVersion")
+            or self.ACP_DEFAULT_POLICY_VERSION,
+            "action_type": "permission_decision",
+            "vendor": "acp",
+            "observation_confidence": "direct",
+            "external_session_id": params["sessionId"],
+        }
+        if decision is not None:
+            entry["decision"] = decision
+        if params.get("reason"):
+            entry["rework_reason"] = params["reason"]
+        self._append_acp_entry(entry, detail)
+        return {"recorded": True}
 
 
 class _RpcError(Exception):

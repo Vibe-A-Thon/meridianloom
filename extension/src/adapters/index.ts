@@ -43,3 +43,13 @@ export {
   type RegistrySourceOptions,
   type RegistryStatus,
 } from './registry-source';
+export {
+  parseAcpPermissionPolicy,
+  POLICY_STAR,
+  type AcpPermissionPolicy,
+} from './policy';
+export {
+  createPolicyGate,
+  type PolicyGateOptions,
+  type PolicyGateSidecar,
+} from './permission-gate';

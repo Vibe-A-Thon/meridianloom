@@ -64,9 +64,6 @@ def test_placeholder_methods_answer_not_implemented():
         "gate.evaluate",
         "steer.send",
         "trust.summary",
-        "acp/sessionBegin",
-        "acp/sessionEnd",
-        "acp/permissionDecision",
     ):
         response = server.handle_message({"jsonrpc": "2.0", "id": 1, "method": method})
         assert response is not None

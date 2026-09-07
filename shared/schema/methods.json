@@ -159,17 +159,17 @@
       "result": { "$ref": "#/$defs/TrustRejectionRateResult" }
     },
     "acp/sessionBegin": {
-      "description": "FR-M34-01/FR-M34-04 (F1 Workstream A): the extension host ACP client reports a hosted agent session starting, so the sidecar records it into the ledger (hosted-session recording is Workstream A task 2). Stub until then.",
+      "description": "FR-M34-01/02 (F1 Workstream A task 4): the extension host ACP client reports a hosted agent session starting; the sidecar records a `session_begin` ledger entry (actorKind external, vendor acp, direct confidence) before the agent's first turn.",
       "params": { "$ref": "#/$defs/AcpSessionBeginParams" },
       "result": { "$ref": "#/$defs/AcpSessionRecordResult" }
     },
     "acp/sessionEnd": {
-      "description": "FR-M34-01 (F1 Workstream A): the extension host ACP client reports a hosted agent session ending (stop reason, timing). Stub until task 2 wires the ledger recording.",
+      "description": "FR-M34-01/02 (F1 Workstream A task 4): the extension host reports a hosted session ending (stop reason, timing); the sidecar records a `session_end` ledger entry, attributing it to the same actor as the session's begin entry.",
       "params": { "$ref": "#/$defs/AcpSessionEndParams" },
       "result": { "$ref": "#/$defs/AcpSessionRecordResult" }
     },
     "acp/permissionDecision": {
-      "description": "FR-M34-04/SEC-28 (F1 Workstream A): records one ACP permission decision (the option selected or the cancellation/denial) so the governance trail is in the ledger before the human answer. Stub until task 2 wires the ledger recording.",
+      "description": "FR-M34-04/SEC-28 (F1 Workstream A task 4): records one ACP permission decision — selected option, cancellation, policy denial (outcome denied_by_policy, reason cited) or a SEC-28 re-request auto-denial — as a `permission_decision` ledger entry so the governance trail is durable before and independently of the human answer.",
       "params": { "$ref": "#/$defs/AcpPermissionDecisionParams" },
       "result": { "$ref": "#/$defs/AcpSessionRecordResult" }
     },
@@ -1348,11 +1348,12 @@
       "type": "object",
       "required": ["agentId", "sessionId", "cwd"],
       "properties": {
-        "agentId": { "type": "string", "description": "The ACP agent identity (registry id or command name)." },
+        "agentId": { "type": "string", "description": "The adapter id (Meridian governance manifest id) the hosted agent runs under." },
         "agentVersion": { "type": "string" },
         "sessionId": { "type": "string", "description": "The ACP session id the agent issued." },
         "cwd": { "type": "string", "description": "Workspace directory the session runs against." },
-        "startedAt": { "type": "string", "description": "ISO 8601 UTC; absent = now." }
+        "startedAt": { "type": "string", "description": "ISO 8601 UTC; absent = now." },
+        "policyVersion": { "type": "string", "description": "Version/tag of the Meridian policy the host checked the session under (the acp-permissions policy file); absent = sidecar default." }
       },
       "additionalProperties": false
     },
@@ -1361,8 +1362,10 @@
       "required": ["sessionId"],
       "properties": {
         "sessionId": { "type": "string" },
+        "agentId": { "type": "string", "description": "The adapter id, when the host knows it; absent = the sidecar attributes the end to the begin entry's actor." },
         "stopReason": { "type": "string", "description": "The ACP stop reason that ended the last turn (end_turn, cancelled, refusal…), when known." },
-        "endedAt": { "type": "string", "description": "ISO 8601 UTC; absent = now." }
+        "endedAt": { "type": "string", "description": "ISO 8601 UTC; absent = now." },
+        "policyVersion": { "type": "string", "description": "Policy version the session ran under, for the record." }
       },
       "additionalProperties": false
     },
@@ -1371,12 +1374,15 @@
       "required": ["sessionId", "outcome"],
       "properties": {
         "sessionId": { "type": "string" },
+        "adapterId": { "type": "string", "description": "The adapter (manifest id) the permission request belongs to; the durable lookup key for SEC-28 re-request checks." },
         "toolCallId": { "type": "string" },
         "toolKind": { "type": "string" },
         "path": { "type": "string" },
         "optionId": { "type": "string", "description": "The permission option selected, when outcome is selected." },
-        "outcome": { "enum": ["selected", "cancelled", "denied_by_policy"], "description": "denied_by_policy is reserved for the FR-M34-04 policy pre-check (task 4); the task-1 host records what the human decided." },
-        "decidedAt": { "type": "string", "description": "ISO 8601 UTC; absent = now." }
+        "outcome": { "enum": ["selected", "cancelled", "denied_by_policy"], "description": "selected/cancelled record the human's answer; denied_by_policy records a pre-prompt refusal by the FR-M34-04 policy gate (allow-list, declared needs, suspension) or a SEC-28 re-request auto-denial — the human NEVER saw the prompt for those." },
+        "reason": { "type": "string", "description": "Why the decision is what it is — for denied_by_policy, the citation (policy rule, prior decision) the UI and SEC-28 audits surface." },
+        "decidedAt": { "type": "string", "description": "ISO 8601 UTC; absent = now." },
+        "policyVersion": { "type": "string", "description": "Version/tag of the acp-permissions policy that produced a denied_by_policy outcome." }
       },
       "additionalProperties": false
     },

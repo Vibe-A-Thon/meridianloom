@@ -132,7 +132,11 @@ describe('adapter registry hot plug / unplug (FR-M31-04)', () => {
       await watching.scan();
       plug('watched');
       onChange?.();
-      await new Promise((resolve) => setTimeout(resolve, 30));
+      // Poll instead of a fixed sleep: the debounced re-scan runs against
+      // the real fs and its latency varies under suite load.
+      for (let attempt = 0; attempt < 50 && watching.list().length === 0; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
       expect(watching.list().map((a) => a.id)).toEqual(['watched']);
     } finally {
       watching.dispose();

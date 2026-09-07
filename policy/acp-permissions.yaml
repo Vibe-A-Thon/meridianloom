@@ -1,0 +1,37 @@
+# ACP permission allow-list (FR-M34-04, SEC-28) — F1 Workstream A task 4.
+#
+# This is the MINIMAL policy interface the ACP host checks BEFORE an agent's
+# permission request reaches the human (FR-M34-04): the requested tool kind
+# must be covered here AND declared in the adapter's governance manifest,
+# or the prompt is never shown and the denial is ledger-recorded. A
+# re-request after a denial is auto-denied citing the prior decision
+# (SEC-28) — re-requesting cannot escalate.
+#
+# D16-style: declarative, git-backed, versioned. Workstream B (the FR-M12-01
+# policy engine + FR-M12-09 machine-checkable DoR/DoD) generalizes this file;
+# the shape below is the subset the ACP host consumes today.
+#
+# Keys under `adapters` are adapter manifest ids; `*` is the default for
+# adapters with no specific entry. Each entry maps the adapter's autonomy
+# STATE (probation while on probation FR-M31-07, active after admission;
+# a suspended adapter is denied everything) to the ACP tool kinds it may
+# be granted. `deny` lists are evaluated before `allow`: a kind on both is
+# denied. Kinds: read|edit|delete|move|execute|search|think (ACP
+# session/request_permission toolCall.kind).
+#
+# A workspace overrides this file at .meridian/policy/acp-permissions.yaml;
+# the first readable file wins, workspace first, then this repository file.
+
+version: 1
+
+adapters:
+  # Conservative floor for every adapter without a specific entry.
+  '*':
+    probation: [read, search]
+    active: [read, search, edit, execute]
+
+  # Example specific entry — a registry-installed agent the team admitted
+  # after probation. Delete or tighten freely; this is policy, not code.
+  gemini:
+    probation: [read, search]
+    active: [read, search, edit, execute]
