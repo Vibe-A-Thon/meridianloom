@@ -6,9 +6,8 @@
 
 - **Current phase:** F1 — Governor
 - **Current workstream:** A — ACP host
-- **Current task:** 1 — ACP client in the extension host (FR-M34-01): subprocess launch, sessions, streaming updates, permission-gated tool execution, client-provided filesystem/terminal access
-- **Last commit:** 02e5831 — F0 exit criteria assessed (7 pass, 3 engineering-pass/human-gated); tagged **f0-complete**; dist/meridian-loom-0.0.1.vsix packaged (637 KB, webview included)
-- **F0 note:** workstreams A–G complete; 448 pytest + 163 extension vitest + 70 webview vitest green; human-gated items (AC-30/AC-33 measurement, NFR-28 5-person study, 3-platform orphan matrix) recorded in DECISIONS.md — they do not block F1 engineering.
+- **Current task:** 4 — policy-checked ACP permission requests (FR-M34-04, SEC-28) — WIP in tree (server handler green 9/9, policy/ YAML, extension gate + test skeleton); tasks 1, 2, 3, 8 committed
+- **Last commit:** f22ef6a — feat(f1): ACP Registry as an installable Adapter Bay source (FR-M34-03)
 
 ## Mapping of completed S0 work onto the new plan
 
