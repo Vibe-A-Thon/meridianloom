@@ -6,7 +6,7 @@
 
 - **Current phase:** F1 — Governor
 - **Current workstream:** A — ACP host
-- **Current task:** 4 — policy-checked ACP permission requests (FR-M34-04, SEC-28) — WIP in tree (server handler green 9/9, policy/ YAML, extension gate + test skeleton); tasks 1, 2, 3, 8 committed
+- **Current task:** 5 — worktree isolation for hosted agents (M18: worktree manager, conflict detection before a packet starts FR-M18-03, story abort leaving the primary tree untouched FR-M18-04, agent git identity + commit trailer FR-M18-05/07, open-in-window FR-M18-08)
 - **Last commit:** f22ef6a — feat(f1): ACP Registry as an installable Adapter Bay source (FR-M34-03)
 
 ## Mapping of completed S0 work onto the new plan
@@ -63,7 +63,7 @@
 
 | Workstream | Tasks | Status |
 |---|---|---|
-| A — ACP host | 1–8 | tasks 1, 8 done (c4a4805 ACP client + governor.acp-host stubs; 8ed0bcf conformance suite; 196 ext vitest); 2–7 next |
+| A — ACP host | 1–8 | tasks 1–4, 8 done (c4a4805 client; df4b267 adapter re-base; f22ef6a registry; 289d33a permission gate SEC-28; 8ed0bcf conformance); 5–7 next |
 | B — Gates over other people's work | 9–14 | not started |
 | C — Human identity and roles | 15–16 | not started |
 | D — Steer and clarify | 17–18 | not started |
