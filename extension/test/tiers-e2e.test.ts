@@ -104,9 +104,12 @@ run('tier enforcement against the real sidecar (FR-M36-05, G5)', () => {
 
         // Live flip: tiers/set turns governor on without reconnecting.
         client.notify('tiers/set', { tiers: ['flight-recorder', 'governor'] });
+        // gate.evaluate is real now (FR-M12-09): without a workspaceDir the
+        // decision cannot be recorded, so the structured refusal is
+        // LEDGER_UNAVAILABLE — refused by configuration, not by tier.
         await expect(
-          client.call('gate.evaluate', { storyId: 's', gate: 'review' }, new AbortController().signal),
-        ).rejects.toMatchObject({ code: ErrorCode.NOT_IMPLEMENTED });
+          client.call('gate.evaluate', { storyId: 's', gate: 'review', packet: {} }, new AbortController().signal),
+        ).rejects.toMatchObject({ code: ErrorCode.LEDGER_UNAVAILABLE });
         // ...and turns orchestra off again — no scar.
         await expectTierDisabled(client, 'loop.start', 'orchestra');
       } finally {

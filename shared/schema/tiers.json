@@ -51,8 +51,8 @@
       {
         "id": "governor.gates",
         "tier": "governor",
-        "description": "Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.",
-        "rpcMethods": ["gate.evaluate"]
+        "description": "Policy gates over external and hosted agent work (FR-M12-01/08/09; F1 Workstream B task 9): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack (policy/governance.yaml, workspace-overridable), with DoR/DoD as machine-checkable criteria. Every decision is ledger-recorded before the RPC returns (FR-M10-08).",
+        "rpcMethods": ["gate.evaluate", "gate.profiles"]
       },
       {
         "id": "governor.steer",

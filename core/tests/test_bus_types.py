@@ -61,7 +61,6 @@ def test_placeholder_methods_answer_not_implemented():
         "loop.start",
         "loop.stop",
         "loop.status",
-        "gate.evaluate",
         "steer.send",
         "trust.summary",
     ):

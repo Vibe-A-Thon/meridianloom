@@ -19,6 +19,11 @@ dependencies = [
     "tree-sitter==0.25.1",
     "tree-sitter-java==0.23.5",
     "tree-sitter-python==0.25.0",
+    # Approved pinned dependency for declarative policy-pack parsing
+    # (FR-M12-01, F1 Workstream B): governance packs load through
+    # yaml.safe_load only. Deterministic structural parsing — NEVER used
+    # for model calls (FR-M36-07).
+    "PyYAML==6.0.2",
 ]
 
 [project.optional-dependencies]

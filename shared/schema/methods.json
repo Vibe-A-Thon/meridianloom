@@ -129,9 +129,14 @@
       "result": { "$ref": "#/$defs/LoopStatusResult" }
     },
     "gate.evaluate": {
-      "description": "Governor tier stub (FR-M12-01; F1): evaluate a policy gate for a story. Registered now so tier enforcement is provable before F1 lands it; answers NOT_IMPLEMENTED while the governor tier is enabled, TIER_DISABLED while it is not.",
+      "description": "FR-M12-01/FR-M12-09 (F1 Workstream B task 9): evaluate a packet/PR payload against a named gate profile of the governance policy pack (FR-M12-01, fail-closed YAML). Every criterion is a machine-checkable DoR/DoD predicate (requiredFields, testEvidence, securityScan, humanApproval) with a pass/fail reason; the verdict is their conjunction. Fail-closed pack or unknown profile blocks. The decision is ledger-recorded (actionType gate) BEFORE the response returns (FR-M10-08).",
       "params": { "$ref": "#/$defs/GateEvaluateParams" },
       "result": { "$ref": "#/$defs/GateEvaluateResult" }
+    },
+    "gate.profiles": {
+      "description": "FR-M12-01 (F1 Workstream B task 9): list the gate profiles of the active governance policy pack — name, description, and the ordered criterion ids each profile checks. Fail-closed packs report their errors and an empty profile list.",
+      "params": { "$ref": "#/$defs/GateProfilesParams" },
+      "result": { "$ref": "#/$defs/GateProfilesResult" }
     },
     "steer.send": {
       "description": "Governor tier stub (FR-M25-01; F1): steer a running session. Same tier-enforcement role as gate.evaluate.",
@@ -1131,19 +1136,65 @@
     },
     "GateEvaluateParams": {
       "type": "object",
-      "required": ["storyId", "gate"],
+      "required": ["storyId", "gate", "packet"],
       "properties": {
         "storyId": { "type": "string" },
-        "gate": { "type": "string", "description": "Gate name, e.g. security, review (FR-M12-01)." }
+        "gate": { "type": "string", "description": "Gate profile name from the policy pack (FR-M12-01), e.g. ready, verify, security, review." },
+        "packet": { "type": "object", "description": "The packet/PR payload the criteria check: fields (storyId, branch, headCommit...), evidence artifacts (kind/status/criticalFindings), approvals. Free-form; criteria address it by key." },
+        "policyPath": { "type": "string", "description": "Optional explicit policy pack path; defaults to the workspace override then the repository policy directory." }
       },
       "additionalProperties": false
     },
     "GateEvaluateResult": {
       "type": "object",
-      "required": ["decision"],
+      "required": ["decision", "profile", "policyVersion", "failClosed", "criteria", "reasons"],
       "properties": {
         "decision": { "enum": ["pass", "block"] },
-        "reasons": { "type": "array", "items": { "type": "string" } }
+        "profile": { "type": "string" },
+        "policyVersion": { "type": "string", "description": "governance/v<N> of the pack that decided; governance/invalid on a fail-closed pack." },
+        "failClosed": { "type": "boolean", "description": "True when the active pack failed closed (malformed/missing policy) — every evaluation blocks." },
+        "criteria": { "type": "array", "items": { "$ref": "#/$defs/GateCriterionResult" } },
+        "reasons": { "type": "array", "items": { "type": "string" }, "description": "One reason per failed criterion (plus policy errors when fail-closed)." }
+      },
+      "additionalProperties": false
+    },
+    "GateCriterionResult": {
+      "type": "object",
+      "required": ["id", "kind", "passed", "reason"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "enum": ["requiredFields", "testEvidence", "securityScan", "humanApproval"] },
+        "passed": { "type": "boolean" },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "GateProfilesParams": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "policyPath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "GateProfilesResult": {
+      "type": "object",
+      "required": ["profiles", "policyVersion", "failClosed", "errors"],
+      "properties": {
+        "profiles": { "type": "array", "items": { "$ref": "#/$defs/GateProfileInfo" } },
+        "policyVersion": { "type": "string" },
+        "failClosed": { "type": "boolean" },
+        "errors": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "GateProfileInfo": {
+      "type": "object",
+      "required": ["name", "description", "criteria"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "criteria": { "type": "array", "items": { "type": "string" }, "description": "Ordered criterion ids the profile checks." }
       },
       "additionalProperties": false
     },

@@ -36,6 +36,8 @@ from .attribution import symbols as symbols_mod
 from .attribution import heuristics
 from .attribution import AttributionError
 from .attribution._git import normalise_repo_path as attribution_normalise
+from .governance import engine as governance_engine
+from .governance import policy as governance_policy
 from . import hooks as provenance_hooks
 from . import metrics as metrics_mod
 from . import rejection as rejection_mod
@@ -119,7 +121,8 @@ class SidecarServer:
             "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
             "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
-            "gate.evaluate": lambda self, params: self._not_implemented("gate.evaluate", "F1 (Governor)"),
+            "gate.evaluate": SidecarServer._handle_gate_evaluate,
+            "gate.profiles": SidecarServer._handle_gate_profiles,
             "steer.send": lambda self, params: self._not_implemented("steer.send", "F1 (Governor)"),
             "trust.summary": lambda self, params: self._not_implemented("trust.summary", "F1 (Governor)"),
             # FR-M34-01/02/04 (F1 Workstream A task 4): hosted-session ledger
@@ -444,6 +447,129 @@ class SidecarServer:
             protocol.ERROR_NOT_IMPLEMENTED,
             f"{method} is contracted but not implemented yet (lands with {lands_with})",
         )
+
+    # -- governance policy engine (FR-M12-01/08/09; F1 Workstream B task 9) ---
+
+    def _governance_pack(self, params: dict[str, Any]) -> governance_policy.PolicyPack:
+        """Resolve the active policy pack: an explicit policyPath param, then
+        the workspace override, then the repository policy directory. A
+        missing file is a fail-closed pack, never an error."""
+        paths: list[Any] = []
+        if params.get("policyPath"):
+            paths.append(params["policyPath"])
+        if self._workspace_dir:
+            workspace = Path(self._workspace_dir)
+            paths.append(workspace / ".meridian" / "policy" / "governance.yaml")
+            paths.append(workspace / "policy" / "governance.yaml")
+        return governance_policy.load_policy_pack(paths)
+
+    def _append_gate_entry(
+        self,
+        *,
+        story_id: str,
+        pack: governance_policy.PolicyPack,
+        decision: str,
+        detail: dict[str, Any],
+        human_actor: str | None = None,
+        human_role: str | None = None,
+    ) -> int:
+        """FR-M10-08: the gate decision is committed to the ledger BEFORE the
+        RPC returns; the encrypted input blob carries the full detail."""
+        ledger = self._ensure_ledger()
+        entry: dict[str, Any] = {
+            "ts_utc": ledger_core.utc_now(),
+            "story_id": story_id,
+            "phase": "review",
+            "loop_id": "governance",
+            "loop_iteration": 1,
+            "actor_id": "governor",
+            "actor_version": protocol.CORE_VERSION,
+            "actor_kind": "meta",
+            "policy_version": pack.policy_version,
+            "action_type": "gate",
+            "decision": decision,
+            "vendor": "meridian",
+            "observation_confidence": "direct",
+            "input": json.dumps(detail, ensure_ascii=False),
+        }
+        if human_actor:
+            entry["human_actor"] = human_actor
+        if human_role:
+            entry["human_role"] = human_role
+        if detail.get("reasons"):
+            entry["rework_reason"] = "; ".join(detail["reasons"])[:4000]
+        result = ledger.append(entry)
+        self._trust_cache.invalidate()
+        return result.sequence
+
+    def _handle_gate_evaluate(
+        self, params: bus_types.GateEvaluateParams
+    ) -> bus_types.GateEvaluateResult:
+        params = params or {}
+        packet = params.get("packet")
+        if not isinstance(packet, dict):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "gate.evaluate needs a packet object (the PR/payload to check)",
+            )
+        story_id = params.get("storyId")
+        if not isinstance(story_id, str) or not story_id.strip():
+            raise _RpcError(protocol.INVALID_PARAMS, "storyId must be a non-empty string")
+        gate = params.get("gate")
+        if not isinstance(gate, str) or not gate.strip():
+            raise _RpcError(protocol.INVALID_PARAMS, "gate must be a non-empty profile name")
+        pack = self._governance_pack(params)
+        verdict = governance_engine.evaluate(packet, gate.strip(), pack)
+        self._append_gate_entry(
+            story_id=story_id.strip(),
+            pack=pack,
+            decision="approved" if verdict.passed else "rejected",
+            detail={
+                "method": "gate.evaluate",
+                "gate": gate.strip(),
+                "packet": packet,
+                "criteria": [
+                    {
+                        "id": c.id,
+                        "kind": c.kind,
+                        "passed": c.passed,
+                        "reason": c.reason,
+                    }
+                    for c in verdict.criteria
+                ],
+                "reasons": list(verdict.reasons),
+                "failClosed": verdict.fail_closed,
+            },
+        )
+        return {
+            "decision": "pass" if verdict.passed else "block",
+            "profile": verdict.profile,
+            "policyVersion": verdict.policy_version,
+            "failClosed": verdict.fail_closed,
+            "criteria": [
+                {"id": c.id, "kind": c.kind, "passed": c.passed, "reason": c.reason}
+                for c in verdict.criteria
+            ],
+            "reasons": list(verdict.reasons),
+        }
+
+    def _handle_gate_profiles(
+        self, params: bus_types.GateProfilesParams
+    ) -> bus_types.GateProfilesResult:
+        pack = self._governance_pack(params or {})
+        return {
+            "profiles": [
+                {
+                    "name": profile.name,
+                    "description": profile.description,
+                    "criteria": [criterion.id for criterion in profile.criteria],
+                }
+                for profile in pack.profiles.values()
+            ],
+            "policyVersion": pack.policy_version,
+            "failClosed": pack.fail_closed,
+            "errors": list(pack.errors),
+        }
 
     # -- attribution (FR-M33-02 subset, F0 Workstream C) ----------------------
 
