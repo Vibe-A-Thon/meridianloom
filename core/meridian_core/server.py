@@ -37,6 +37,8 @@ from .attribution import heuristics
 from .attribution import AttributionError
 from .attribution._git import normalise_repo_path as attribution_normalise
 from .governance import engine as governance_engine
+from .governance import identity as governance_identity
+from .governance import merge_gate as governance_merge_gate
 from .governance import policy as governance_policy
 from . import hooks as provenance_hooks
 from . import metrics as metrics_mod
@@ -65,7 +67,11 @@ Handler = Callable[["SidecarServer", Any], Any]
 class SidecarServer:
     """Dispatches framed JSON-RPC requests to method handlers."""
 
-    def __init__(self, ledger: ledger_core.Ledger | None = None) -> None:
+    def __init__(
+        self,
+        ledger: ledger_core.Ledger | None = None,
+        identity_provider: governance_identity.IdentityProvider | None = None,
+    ) -> None:
         self._started_at = time.monotonic()
         self._shutdown_requested = threading.Event()
         self._ping_seq = 0
@@ -76,6 +82,10 @@ class SidecarServer:
         # signing key is provisioned over the handshake. Either may be
         # injected directly by tests instead.
         self._ledger = ledger
+        # FR-M12-07/D9: approver identity for gate.approve. Defaults to git
+        # user.name/user.email in the workspace; workstream C (FR-M20-01)
+        # swaps this for authenticated identity behind the same interface.
+        self._identity_provider = identity_provider
         self._workspace_dir: str | None = None
         self._signing_seed: bytes | None = None
         # FR-M17-05: trust metrics derive from the ledger and cache
@@ -123,6 +133,8 @@ class SidecarServer:
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
             "gate.evaluate": SidecarServer._handle_gate_evaluate,
             "gate.profiles": SidecarServer._handle_gate_profiles,
+            "gate.approve": SidecarServer._handle_gate_approve,
+            "gate.status": SidecarServer._handle_gate_status,
             "steer.send": lambda self, params: self._not_implemented("steer.send", "F1 (Governor)"),
             "trust.summary": lambda self, params: self._not_implemented("trust.summary", "F1 (Governor)"),
             # FR-M34-01/02/04 (F1 Workstream A task 4): hosted-session ledger
@@ -470,6 +482,7 @@ class SidecarServer:
         pack: governance_policy.PolicyPack,
         decision: str,
         detail: dict[str, Any],
+        action_type: str = "gate",
         human_actor: str | None = None,
         human_role: str | None = None,
     ) -> int:
@@ -486,7 +499,7 @@ class SidecarServer:
             "actor_version": protocol.CORE_VERSION,
             "actor_kind": "meta",
             "policy_version": pack.policy_version,
-            "action_type": "gate",
+            "action_type": action_type,
             "decision": decision,
             "vendor": "meridian",
             "observation_confidence": "direct",
@@ -570,6 +583,107 @@ class SidecarServer:
             "failClosed": pack.fail_closed,
             "errors": list(pack.errors),
         }
+
+    # -- merge gate (FR-M12-05/07; F1 Workstream B task 10) -------------------
+
+    def _approver_identity(self) -> governance_identity.HumanIdentity:
+        """D9: git user.name/user.email in the workspace, or the injected
+        provider. Unavailable identity is a refusal — FR-M12-07 anonymous
+        approval is not possible."""
+        provider = self._identity_provider
+        if provider is None:
+            if not self._workspace_dir:
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    "approver identity unavailable: no workspaceDir handshake "
+                    "and no identity provider configured (FR-M12-07: anonymous "
+                    "approval is not possible)",
+                )
+            provider = governance_identity.GitIdentityProvider(Path(self._workspace_dir))
+        try:
+            return provider.identity()
+        except governance_identity.IdentityUnavailableError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+
+    def _handle_gate_approve(
+        self, params: bus_types.GateApproveParams
+    ) -> bus_types.GateApproveResult:
+        params = params or {}
+        subject = params.get("subject")
+        commit = params.get("commit")
+        if not isinstance(subject, str) or not subject.strip():
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "subject must be a non-empty branch name or PR id",
+            )
+        if not isinstance(commit, str) or not commit.strip():
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "commit must be the non-empty head digest the approval binds",
+            )
+        who = self._approver_identity()
+        role = params.get("role")
+        pack = self._governance_pack(params)
+        # FR-M10-08: the approval is durable BEFORE this response returns.
+        sequence = self._append_gate_entry(
+            story_id=(params.get("storyId") or f"gate:{subject.strip()}"),
+            pack=pack,
+            action_type="approval",
+            decision="approved",
+            human_actor=who.display(),
+            human_role=role if isinstance(role, str) and role.strip() else None,
+            detail={
+                "method": "gate.approve",
+                "subject": subject.strip(),
+                "commit": commit.strip(),
+                "role": role if isinstance(role, str) else None,
+            },
+        )
+        return {
+            "recorded": True,
+            "sequence": sequence,
+            "approver": {"name": who.name, "email": who.email},
+            "subject": subject.strip(),
+            "commit": commit.strip(),
+        }
+
+    def _handle_gate_status(
+        self, params: bus_types.GateStatusParams
+    ) -> bus_types.GateStatusResult:
+        params = params or {}
+        subject = params.get("subject")
+        if not isinstance(subject, str) or not subject.strip():
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "subject must be a non-empty branch name or PR id",
+            )
+        commit = params.get("commit")
+        if commit is not None and (not isinstance(commit, str) or not commit.strip()):
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "commit must be a non-empty digest when given"
+            )
+        pack = self._governance_pack(params)
+        # Read-only: a status query decides and records nothing.
+        verdict = governance_merge_gate.check_merge(
+            self._ensure_ledger(),
+            pack,
+            subject=subject.strip(),
+            head_commit=commit.strip() if isinstance(commit, str) else None,
+        )
+        result: bus_types.GateStatusResult = {
+            "status": "approved" if verdict.allowed else "blocked",
+            "subject": verdict.subject,
+            "requiredApproval": verdict.required_approval,
+            "halted": verdict.halted,
+            "missing": list(verdict.missing),
+        }
+        if verdict.approval is not None:
+            result["approvalSequence"] = verdict.approval.sequence
+            result["approver"] = {
+                "name": verdict.approval.approver.name,
+                "email": verdict.approval.approver.email,
+            }
+        return result
 
     # -- attribution (FR-M33-02 subset, F0 Workstream C) ----------------------
 

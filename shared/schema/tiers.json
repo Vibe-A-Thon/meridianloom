@@ -51,8 +51,8 @@
       {
         "id": "governor.gates",
         "tier": "governor",
-        "description": "Policy gates over external and hosted agent work (FR-M12-01/08/09; F1 Workstream B task 9): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack (policy/governance.yaml, workspace-overridable), with DoR/DoD as machine-checkable criteria. Every decision is ledger-recorded before the RPC returns (FR-M10-08).",
-        "rpcMethods": ["gate.evaluate", "gate.profiles"]
+        "description": "Policy gates over external and hosted agent work (FR-M12-01/05/07/08/09; F1 Workstream B tasks 9-10): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack, with DoR/DoD as machine-checkable criteria; the merge gate refuses merges to protected branches without a recorded human approval bound to the head commit digest (approver identity in the ledger, FR-M12-07). Every decision is ledger-recorded before the RPC returns (FR-M10-08).",
+        "rpcMethods": ["gate.evaluate", "gate.profiles", "gate.approve", "gate.status"]
       },
       {
         "id": "governor.steer",

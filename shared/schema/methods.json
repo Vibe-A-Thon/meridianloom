@@ -138,6 +138,16 @@
       "params": { "$ref": "#/$defs/GateProfilesParams" },
       "result": { "$ref": "#/$defs/GateProfilesResult" }
     },
+    "gate.approve": {
+      "description": "FR-M12-05/FR-M12-07 (F1 Workstream B task 10): record a human approval for a merge subject (protected branch or PR id) bound to a commit digest. The approver identity comes from the identity interface (git user.name/email per D9, swappable); anonymous approval is refused, never recorded. The approval lands in the ledger (actionType approval, humanActor/humanRole set) BEFORE the RPC returns (FR-M10-08).",
+      "params": { "$ref": "#/$defs/GateApproveParams" },
+      "result": { "$ref": "#/$defs/GateApproveResult" }
+    },
+    "gate.status": {
+      "description": "FR-M12-05 (F1 Workstream B task 10): merge-gate status for a branch/PR subject at an optional head commit. approved only when the subject is unprotected or a recorded human approval binds the head digest; blocked carries the missing-criteria report (no approval, approval invalidated by a changed head, or an active governance halt). Read-only — decides nothing, records nothing.",
+      "params": { "$ref": "#/$defs/GateStatusParams" },
+      "result": { "$ref": "#/$defs/GateStatusResult" }
+    },
     "steer.send": {
       "description": "Governor tier stub (FR-M25-01; F1): steer a running session. Same tier-enforcement role as gate.evaluate.",
       "params": { "$ref": "#/$defs/SteerSendParams" },
@@ -1195,6 +1205,63 @@
         "name": { "type": "string" },
         "description": { "type": "string" },
         "criteria": { "type": "array", "items": { "type": "string" }, "description": "Ordered criterion ids the profile checks." }
+      },
+      "additionalProperties": false
+    },
+    "GateApprover": {
+      "type": "object",
+      "required": ["name", "email"],
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "GateApproveParams": {
+      "type": "object",
+      "required": ["subject", "commit"],
+      "properties": {
+        "subject": { "type": "string", "description": "The merge subject: protected branch name or PR id." },
+        "commit": { "type": "string", "description": "Head commit digest the approval binds. A changed head invalidates the approval." },
+        "storyId": { "type": "string" },
+        "role": { "type": "string", "description": "The approver's role (humanRole in the ledger; FR-M20 lands role checks in workstream C)." },
+        "policyPath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "GateApproveResult": {
+      "type": "object",
+      "required": ["recorded", "sequence", "approver", "subject", "commit"],
+      "properties": {
+        "recorded": { "type": "boolean" },
+        "sequence": { "type": "integer", "description": "Ledger sequence of the approval entry — durable before this response returns." },
+        "approver": { "$ref": "#/$defs/GateApprover" },
+        "subject": { "type": "string" },
+        "commit": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "GateStatusParams": {
+      "type": "object",
+      "required": ["subject"],
+      "properties": {
+        "subject": { "type": "string" },
+        "commit": { "type": "string", "description": "Current head digest; an approval bound to a different digest is invalidated." },
+        "policyPath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "GateStatusResult": {
+      "type": "object",
+      "required": ["status", "subject", "requiredApproval", "halted", "missing"],
+      "properties": {
+        "status": { "enum": ["approved", "blocked"] },
+        "subject": { "type": "string" },
+        "requiredApproval": { "type": "boolean", "description": "True when the subject is a protected branch." },
+        "halted": { "type": "boolean", "description": "True when an active governance halt blocks this subject." },
+        "approvalSequence": { "type": "integer", "description": "The bound approval's ledger sequence; present only when approved via an approval." },
+        "approver": { "$ref": "#/$defs/GateApprover" },
+        "missing": { "type": "array", "items": { "type": "string" }, "description": "The missing-criteria report when blocked." }
       },
       "additionalProperties": false
     },

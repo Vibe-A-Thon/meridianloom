@@ -616,6 +616,38 @@ class GateProfileInfo(TypedDict):
     description: str
     criteria: list[str]  # Ordered criterion ids the profile checks.
 
+class GateApprover(TypedDict):
+    name: str
+    email: str
+
+class GateApproveParams(TypedDict):
+    subject: str  # The merge subject: protected branch name or PR id.
+    commit: str  # Head commit digest the approval binds. A changed head invalidates the approval.
+    storyId: NotRequired[str]
+    role: NotRequired[str]  # The approver's role (humanRole in the ledger; FR-M20 lands role checks in workstream C).
+    policyPath: NotRequired[str]
+
+class GateApproveResult(TypedDict):
+    recorded: bool
+    sequence: int  # Ledger sequence of the approval entry — durable before this response returns.
+    approver: GateApprover
+    subject: str
+    commit: str
+
+class GateStatusParams(TypedDict):
+    subject: str
+    commit: NotRequired[str]  # Current head digest; an approval bound to a different digest is invalidated.
+    policyPath: NotRequired[str]
+
+class GateStatusResult(TypedDict):
+    status: Literal["approved", "blocked"]
+    subject: str
+    requiredApproval: bool  # True when the subject is a protected branch.
+    halted: bool  # True when an active governance halt blocks this subject.
+    approvalSequence: NotRequired[int]  # The bound approval's ledger sequence; present only when approved via an approval.
+    approver: NotRequired[GateApprover]
+    missing: list[str]  # The missing-criteria report when blocked.
+
 class SteerSendParams(TypedDict):
     sessionId: str
     message: str
@@ -864,7 +896,7 @@ class McpInvokeResult(TypedDict):
     result: dict[str, Any] | list[Any] | str | float | bool | None  # The underlying method's result JSON, unmodified.
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke"]
 
 # Every notification method on the bus.
 NotificationName = Literal["tiers/set", "$/cancel"]
@@ -923,7 +955,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.observers", "tier": "flight-recorder", "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).", "rpcMethods": ["observe/sessions", "observe/health"]},
     {"id": "recorder.provenance-hooks", "tier": "flight-recorder", "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).", "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse"]},
     {"id": "recorder.trust-metrics", "tier": "flight-recorder", "description": "Rejection measurement, minimum (FR-M37-01 subset, FR-M37-06, FR-M17-05; F0 Workstream F tasks 28-30): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), and the ledger-derived, in-process-cached rejection rate per agent/repository split by that distinction (trust/rejectionRate). Zero model calls (FR-M36-07).", "rpcMethods": ["trust/detectRejections", "trust/classify", "trust/rejectionRate"]},
-    {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01/08/09; F1 Workstream B task 9): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack (policy/governance.yaml, workspace-overridable), with DoR/DoD as machine-checkable criteria. Every decision is ledger-recorded before the RPC returns (FR-M10-08).", "rpcMethods": ["gate.evaluate", "gate.profiles"]},
+    {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01/05/07/08/09; F1 Workstream B tasks 9-10): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack, with DoR/DoD as machine-checkable criteria; the merge gate refuses merges to protected branches without a recorded human approval bound to the head commit digest (approver identity in the ledger, FR-M12-07). Every decision is ledger-recorded before the RPC returns (FR-M10-08).", "rpcMethods": ["gate.evaluate", "gate.profiles", "gate.approve", "gate.status"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.", "rpcMethods": ["steer.send"]},
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
     {"id": "governor.acp-host", "tier": "governor", "description": "ACP host (FR-M34-01/02/03/04, SEC-28; F1 Workstream A tasks 1–4): the extension-host client that launches ACP-conformant agent subprocesses — initialize handshake and protocol-version negotiation, session lifecycle (new/load), streaming session updates, permission-gated tool execution, and client-provided fs/terminal access rooted at the user's workspace. Implemented in extension/src/acp/ (governor tier; disabled => no hosted sessions, G5). The adapter surface (extension/src/adapters/) re-bases AgentAdapter on ACP: governance manifests (§7.9), three-tier discovery (FR-M31-02), hot plug/unplug (FR-M31-04), probation (FR-M31-07), and the ACP Registry install source (FR-M34-03). The sidecar RPCs record hosted-session facts into the ledger: acp/sessionBegin/acp/sessionEnd (session_begin/session_end entries) and acp/permissionDecision (permission_decision entries — the FR-M34-04/SEC-28 governance trail, written before and independently of the human answer).", "rpcMethods": ["acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision"]},
@@ -932,7 +964,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke")
 NOTIFICATION_METHODS: tuple[str, ...] = ("tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -964,6 +996,8 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "loop.status": {"params": LoopStatusParams, "result": LoopStatusResult},
     "gate.evaluate": {"params": GateEvaluateParams, "result": GateEvaluateResult},
     "gate.profiles": {"params": GateProfilesParams, "result": GateProfilesResult},
+    "gate.approve": {"params": GateApproveParams, "result": GateApproveResult},
+    "gate.status": {"params": GateStatusParams, "result": GateStatusResult},
     "steer.send": {"params": SteerSendParams, "result": SteerSendResult},
     "trust.summary": {"params": TrustSummaryParams, "result": TrustSummaryResult},
     "trust/detectRejections": {"params": TrustDetectRejectionsParams, "result": TrustDetectRejectionsResult},
