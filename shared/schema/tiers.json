@@ -73,6 +73,12 @@
         "rpcMethods": ["acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision"]
       },
       {
+        "id": "governor.mcp-server",
+        "tier": "governor",
+        "description": "MCP server exposure of Meridian's governed surfaces (FR-M34-06; F1 Workstream A task 6): a standalone stdio MCP server process (extension/src/mcp/) speaks the MCP protocol to any client (VS Code's native agent mode included) and forwards each tools/call as one mcp/invoke. The sidecar is the permission gate and the provenance trail: the governor tier gate refuses when disabled (G5), each call is ledger-recorded (action_type tool_call, vendor mcp) before it executes, and the tool maps onto the existing read-only ledger/trust handlers.",
+        "rpcMethods": ["mcp/invoke"]
+      },
+      {
         "id": "governor.worktrees",
         "tier": "governor",
         "description": "Worktree isolation for hosted agents (FR-M18-01..08, AC-13/AC-14; F1 Workstream A task 5): a dedicated git worktree per story under .meridian/worktrees/ on branch meridian/<story-id> — never the primary tree — with a worktree-local agent git identity and a commit-msg hook appending the Meridian-Hosted-Agent trailer. worktree/conflicts is the pre-flight conflict report the RunRequest flow (M40) consumes before a packet starts; worktree/abortStory removes worktree + never-pushed branch and leaves the primary tree byte-identical. Creation, removal and abort are ledger-recorded with worktree_ref set.",

@@ -198,6 +198,11 @@
       "params": { "$ref": "#/$defs/WorktreeConflictsParams" },
       "result": { "$ref": "#/$defs/WorktreeConflictsResult" }
     },
+    "mcp/invoke": {
+      "description": "FR-M34-06 (F1 Workstream A task 6): the MCP server gateway. The standalone MCP server process (extension/src/mcp/, governor tier) forwards every MCP tools/call as one mcp/invoke; the sidecar's tier gate is the permission gate (governor disabled => TIER_DISABLED, G5), the call is ledger-recorded as a `tool_call` entry (vendor mcp, direct confidence) BEFORE it runs, and the named tool maps onto the existing read-only handler — ledger_query -> ledger.query, ledger_export_bundle -> ledger.exportBundle, ledger_verify -> ledger.verify, trust_rejection_rate -> trust/rejectionRate. Unknown tool names are refused with INVALID_PARAMS listing the available tools; the underlying result passes through verbatim.",
+      "params": { "$ref": "#/$defs/McpInvokeParams" },
+      "result": { "$ref": "#/$defs/McpInvokeResult" }
+    },
     "tiers/set": {
       "description": "FR-M36-05: notification carrying the enabled tier set after a meridian.tiers configuration change, so a tier flip needs no reinstall and no window reload. The base tier (flight-recorder) is always enabled regardless of payload.",
       "notification": true,
@@ -1548,6 +1553,27 @@
         "blocked": { "type": "boolean", "description": "True when at least one conflict was detected — the packet must not start (AC-13)." },
         "conflicts": { "type": "array", "items": { "$ref": "#/$defs/WorktreeConflict" } }
       },
+      "additionalProperties": false
+    },
+    "McpInvokeParams": {
+      "description": "One MCP tool call as forwarded by the MCP server process (FR-M34-06).",
+      "type": "object",
+      "required": ["tool", "arguments"],
+      "properties": {
+        "tool": { "type": "string", "description": "The MCP tool name: ledger_query | ledger_export_bundle | ledger_verify | trust_rejection_rate." },
+        "arguments": { "type": "object", "description": "Passthrough params for the underlying read-only method (the ledger.query / ledger.exportBundle / ledger.verify / trust-rejectionRate shapes)." },
+        "client": { "type": "string", "description": "Optional MCP client identification recorded as the ledger entry's actor_id (default mcp-client)." },
+        "sessionId": { "type": "string", "description": "Optional MCP session correlation recorded as external_session_id." }
+      },
+      "additionalProperties": false
+    },
+    "McpInvokeResult": {
+      "description": "The underlying handler's result, passed through verbatim under `result`.",
+      "type": "object",
+      "required": ["tool", "result"],
+      "properties": {
+        "tool": { "type": "string" },
+        "result": { "type": ["object", "array", "string", "number", "boolean", "null"], "description": "The underlying method's result JSON, unmodified." }      },
       "additionalProperties": false
     }
   }

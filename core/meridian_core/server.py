@@ -137,6 +137,12 @@ class SidecarServer:
             "worktree/remove": SidecarServer._handle_worktree_remove,
             "worktree/abortStory": SidecarServer._handle_worktree_abort_story,
             "worktree/conflicts": SidecarServer._handle_worktree_conflicts,
+            # FR-M34-06 (F1 Workstream A task 6): the MCP server gateway —
+            # the standalone MCP server process forwards each tools/call as
+            # one mcp/invoke; the tier gate is the permission gate, the call
+            # is ledger-recorded before it runs, and the tool maps onto the
+            # existing read-only handler (see the handler below).
+            "mcp/invoke": SidecarServer._handle_mcp_invoke,
         }
         # The registry must exactly cover the contracted request methods.
         assert set(self._handlers) == set(bus_types.REQUEST_METHODS), (
@@ -1403,6 +1409,66 @@ class SidecarServer:
                 for c in report.conflicts
             ],
         }
+
+    # -- MCP server gateway (FR-M34-06; F1 Workstream A task 6) ---------------
+
+    #: MCP tool name -> the existing read-only bus method it forwards to.
+    #: The MCP server process (extension/src/mcp/) advertises exactly these
+    #: names in its tools/list; the sidecar remains the authority for what
+    #: exists and what each call did.
+    MCP_TOOLS: dict[str, str] = {
+        "ledger_query": "ledger.query",
+        "ledger_export_bundle": "ledger.exportBundle",
+        "ledger_verify": "ledger.verify",
+        "trust_rejection_rate": "trust/rejectionRate",
+    }
+
+    def _handle_mcp_invoke(
+        self, params: bus_types.McpInvokeParams
+    ) -> bus_types.McpInvokeResult:
+        params = params or {}
+        tool = params.get("tool")
+        if not isinstance(tool, str) or tool not in self.MCP_TOOLS:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"unknown MCP tool: {tool!r}",
+                {"tool": tool, "availableTools": sorted(self.MCP_TOOLS)},
+            )
+        arguments = params.get("arguments") or {}
+        if not isinstance(arguments, dict):
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "arguments must be an object", {"tool": tool}
+            )
+        # The governance trail is durable before and independently of the
+        # outcome: an external MCP client invoked this tool, and the ledger
+        # says so even if the underlying read then fails.
+        entry: dict[str, Any] = {
+            "ts_utc": ledger_core.utc_now(),
+            "story_id": f"mcp:{tool}",
+            "phase": "intake",
+            "loop_id": "mcp-server",
+            "loop_iteration": 1,
+            "actor_id": params.get("client") or "mcp-client",
+            "actor_version": "0",
+            "actor_kind": "external",
+            "policy_version": "mcp-server/v1",
+            "action_type": "tool_call",
+            "vendor": "mcp",
+            "observation_confidence": "direct",
+            "input": json.dumps(
+                {"tool": tool, "arguments": arguments}, ensure_ascii=False
+            ),
+        }
+        if params.get("sessionId"):
+            entry["external_session_id"] = params["sessionId"]
+        ledger = self._ensure_ledger()
+        ledger.append(entry)
+        self._trust_cache.invalidate()
+        # Reuse the existing handler — the MCP surface adds protocol and
+        # governance, not a second implementation of the reads.
+        handler = self._handlers[self.MCP_TOOLS[tool]]
+        outcome = handler(self, arguments)
+        return {"tool": tool, "result": outcome}
 
 
 class _RpcError(Exception):
