@@ -6,8 +6,9 @@
 
 - **Current phase:** F1 — Governor
 - **Current workstream:** A — ACP host
-- **Current task:** 6 — Meridian agents exposed as MCP servers (FR-M34-06)
-- **Last commit:** (this task) — feat(f1): worktree isolation for hosted agents (FR-M18-01..08, AC-13, AC-14)
+- **Current task:** 6–7 — MCP server exposure (FR-M34-06) + upstream-contribution tracking (FR-M34-05); task 5 committed as c72afb3 (worktrees)
+- **Last commit:** c72afb3 — feat(f1): worktree isolation for hosted agents (FR-M18-01..08, AC-13, AC-14)
+- **Orchestrator note:** uncommitted `workbench/` studio changes in the tree belong to a parallel session — never stage or overwrite them; stage by explicit pathspec. FR-M18-06/09 are SHOULD v1.x, out of F1 scope per gaps plan.
 
 ## Mapping of completed S0 work onto the new plan
 
