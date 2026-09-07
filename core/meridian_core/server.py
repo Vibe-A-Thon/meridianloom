@@ -55,6 +55,7 @@ from .rpc import (
     FramedReader,
     FramedWriter,
     make_error_response,
+    make_notification,
     make_response,
 )
 
@@ -71,6 +72,7 @@ class SidecarServer:
         self,
         ledger: ledger_core.Ledger | None = None,
         identity_provider: governance_identity.IdentityProvider | None = None,
+        notification_sink: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self._started_at = time.monotonic()
         self._shutdown_requested = threading.Event()
@@ -86,6 +88,10 @@ class SidecarServer:
         # user.name/user.email in the workspace; workstream C (FR-M20-01)
         # swaps this for authenticated identity behind the same interface.
         self._identity_provider = identity_provider
+        # FR-M12-06: sidecar -> host notifications (gate/halt dispatch) ride
+        # the same framed writer as responses; serve() installs the writer
+        # here, tests inject a capture callable.
+        self._notification_sink = notification_sink
         self._workspace_dir: str | None = None
         self._signing_seed: bytes | None = None
         # FR-M17-05: trust metrics derive from the ledger and cache
@@ -135,6 +141,7 @@ class SidecarServer:
             "gate.profiles": SidecarServer._handle_gate_profiles,
             "gate.approve": SidecarServer._handle_gate_approve,
             "gate.status": SidecarServer._handle_gate_status,
+            "gate.halt": SidecarServer._handle_gate_halt,
             "steer.send": lambda self, params: self._not_implemented("steer.send", "F1 (Governor)"),
             "trust.summary": lambda self, params: self._not_implemented("trust.summary", "F1 (Governor)"),
             # FR-M34-01/02/04 (F1 Workstream A task 4): hosted-session ledger
@@ -276,6 +283,9 @@ class SidecarServer:
         """Read frames until the peer closes stdin or asks for shutdown."""
         logger.info("sidecar serving (protocol v%s, core %s)",
                     protocol.PROTOCOL_VERSION, protocol.CORE_VERSION)
+        # FR-M12-06: gate/halt notifications to the host share the response
+        # writer (frames are atomic on the single write path, FR-M3-01).
+        self._notification_sink = writer.write_message
         while not self._shutdown_requested.is_set():
             try:
                 message = reader.read_message()
@@ -485,6 +495,7 @@ class SidecarServer:
         action_type: str = "gate",
         human_actor: str | None = None,
         human_role: str | None = None,
+        rework_reason: str | None = None,
     ) -> int:
         """FR-M10-08: the gate decision is committed to the ledger BEFORE the
         RPC returns; the encrypted input blob carries the full detail."""
@@ -509,8 +520,10 @@ class SidecarServer:
             entry["human_actor"] = human_actor
         if human_role:
             entry["human_role"] = human_role
-        if detail.get("reasons"):
-            entry["rework_reason"] = "; ".join(detail["reasons"])[:4000]
+        if rework_reason is None and detail.get("reasons"):
+            rework_reason = "; ".join(detail["reasons"])
+        if rework_reason:
+            entry["rework_reason"] = rework_reason[:4000]
         result = ledger.append(entry)
         self._trust_cache.invalidate()
         return result.sequence
@@ -683,6 +696,137 @@ class SidecarServer:
                 "name": verdict.approval.approver.name,
                 "email": verdict.approval.approver.email,
             }
+        return result
+
+    # -- governance halt (FR-M12-06; F1 Workstream B task 11) -------------------
+
+    #: FR-M12-06: what each scope can enforce. Observe-only agents are never
+    #: intercepted (FR-M35-06) — the halt records, blocks merges, warns.
+    HALT_SCOPES = ("hosted-session", "merge", "observe-only")
+
+    def _handle_gate_halt(
+        self, params: bus_types.GateHaltParams
+    ) -> bus_types.GateHaltResult:
+        params = params or {}
+        reason = params.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "reason must be a non-empty string"
+            )
+        scope = params.get("scope")
+        if scope not in self.HALT_SCOPES:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"scope must be one of {', '.join(self.HALT_SCOPES)}",
+            )
+        subject = params.get("subject")
+        if subject is not None and (not isinstance(subject, str) or not subject.strip()):
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "subject must be a non-empty string when given"
+            )
+        session_id = params.get("sessionId")
+        if scope == "hosted-session" and (
+            not isinstance(session_id, str) or not session_id.strip()
+        ):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "scope hosted-session needs the sessionId to terminate",
+            )
+        who = self._approver_identity()
+        pack = self._governance_pack(params)
+        detail: dict[str, Any] = {
+            "method": "gate.halt",
+            "scope": scope,
+            "subject": subject.strip() if isinstance(subject, str) else None,
+            "sessionId": session_id if isinstance(session_id, str) else None,
+            "reason": reason.strip(),
+        }
+        # FR-M10-08: the halt is durable BEFORE any action or response.
+        sequence = self._append_gate_entry(
+            story_id=f"gate:halt:{subject.strip() if isinstance(subject, str) else 'all'}",
+            pack=pack,
+            decision="halted",
+            human_actor=who.display(),
+            rework_reason=reason.strip(),
+            detail=detail,
+        )
+        actions: list[bus_types.GateHaltAction] = []
+        warning: str | None = None
+        enforceable = True
+        subject_desc = detail["subject"] or "all branches"
+        if scope == "hosted-session":
+            # The kill itself is the extension registry's job (it owns the
+            # child process); the sidecar owns the record and the dispatch.
+            if self._notification_sink is not None:
+                self._notification_sink(
+                    make_notification(
+                        "gate/halt",
+                        {
+                            "sequence": sequence,
+                            "sessionId": detail["sessionId"],
+                            "reason": reason.strip(),
+                        },
+                    )
+                )
+            actions.append(
+                {
+                    "scope": "hosted-session",
+                    "action": "terminated",
+                    "detail": (
+                        f"halt dispatched to the extension's ACP session registry "
+                        f"for session '{detail['sessionId']}'; the registry owns "
+                        f"the process kill"
+                    ),
+                }
+            )
+        elif scope == "merge":
+            actions.append(
+                {
+                    "scope": "merge",
+                    "action": "blocked",
+                    "detail": (
+                        f"merge attempts for {subject_desc} are refused until the "
+                        f"halt lifts; the halt wins over recorded approvals"
+                    ),
+                }
+            )
+        else:  # observe-only: FR-M35-06 — observation never intercepts.
+            enforceable = False
+            actions.append(
+                {
+                    "scope": "observe-only",
+                    "action": "warned",
+                    "detail": (
+                        "external agent cannot be force-stopped: observation "
+                        "never intercepts (FR-M35-06); the operator is warned "
+                        "and the agent's merge is blocked instead"
+                    ),
+                }
+            )
+            actions.append(
+                {
+                    "scope": "merge",
+                    "action": "blocked",
+                    "detail": (
+                        f"merge attempts for {subject_desc} are refused while the "
+                        f"observe-only halt stands"
+                    ),
+                }
+            )
+            warning = (
+                f"observe-only halt recorded (seq {sequence}): the external agent "
+                "cannot be force-stopped (FR-M35-06) and keeps running; its merge "
+                "is blocked and the operator is warned."
+            )
+        result: bus_types.GateHaltResult = {
+            "recorded": True,
+            "sequence": sequence,
+            "scope": scope,
+            "enforceable": enforceable,
+            "actions": actions,
+        }
+        if warning is not None:
+            result["warning"] = warning
         return result
 
     # -- attribution (FR-M33-02 subset, F0 Workstream C) ----------------------

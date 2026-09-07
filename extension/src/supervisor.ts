@@ -13,6 +13,7 @@ export interface ManagedClient extends SidecarClient {
   notify?(method: string, params: unknown): void;
   on(event: 'exit', listener: (code: number | null, signal: string | null) => void): unknown;
   on(event: 'spawnError', listener: (error: Error) => void): unknown;
+  on(event: 'notification', listener: (method: string, params: unknown) => void): unknown;
 }
 
 export type SupervisorState = 'stopped' | 'ready' | 'restarting' | 'failed';

@@ -148,6 +148,16 @@
       "params": { "$ref": "#/$defs/GateStatusParams" },
       "result": { "$ref": "#/$defs/GateStatusResult" }
     },
+    "gate.halt": {
+      "description": "FR-M12-06 (F1 Workstream B task 11): governance halts — record a halt (reason, scope: hosted-session | merge | observe-only) in the ledger before returning, then take the enforceable action available at that scope. hosted-session dispatches a gate/halt notification to the extension host's ACP session registry (the registry owns the process kill). merge enters the halted state: merge attempts for the subject (all subjects when none is named) are refused. observe-only (external agents) cannot be force-stopped (FR-M35-06 — observation never intercepts): the halt records, blocks merges, warns, and the response says exactly that (enforceable: false). Policy outranks delivery.",
+      "params": { "$ref": "#/$defs/GateHaltParams" },
+      "result": { "$ref": "#/$defs/GateHaltResult" }
+    },
+    "gate/halt": {
+      "description": "Sidecar -> extension-host notification (FR-M12-06; F1 Workstream B task 11): a hosted-session halt, dispatched to the extension's ACP session registry. The registry looks up the session and owns the kill — the sidecar owns the ledger record and the dispatch, never host processes.",
+      "notification": true,
+      "params": { "$ref": "#/$defs/GateHaltNotification" }
+    },
     "steer.send": {
       "description": "Governor tier stub (FR-M25-01; F1): steer a running session. Same tier-enforcement role as gate.evaluate.",
       "params": { "$ref": "#/$defs/SteerSendParams" },
@@ -1262,6 +1272,50 @@
         "approvalSequence": { "type": "integer", "description": "The bound approval's ledger sequence; present only when approved via an approval." },
         "approver": { "$ref": "#/$defs/GateApprover" },
         "missing": { "type": "array", "items": { "type": "string" }, "description": "The missing-criteria report when blocked." }
+      },
+      "additionalProperties": false
+    },
+    "GateHaltParams": {
+      "type": "object",
+      "required": ["reason", "scope"],
+      "properties": {
+        "reason": { "type": "string", "description": "Why governance halted; recorded in the ledger and quoted in the merge-gate report." },
+        "scope": { "enum": ["hosted-session", "merge", "observe-only"] },
+        "subject": { "type": "string", "description": "Branch/PR the halt binds; absent = global (every subject)." },
+        "sessionId": { "type": "string", "description": "Required for scope hosted-session: the ACP session to terminate." }
+      },
+      "additionalProperties": false
+    },
+    "GateHaltResult": {
+      "type": "object",
+      "required": ["recorded", "sequence", "scope", "enforceable", "actions"],
+      "properties": {
+        "recorded": { "type": "boolean" },
+        "sequence": { "type": "integer", "description": "Ledger sequence of the halt entry — durable before this response returns." },
+        "scope": { "enum": ["hosted-session", "merge", "observe-only"] },
+        "enforceable": { "type": "boolean", "description": "False exactly when the scope cannot be force-stopped (observe-only, FR-M35-06)." },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/GateHaltAction" } },
+        "warning": { "type": "string", "description": "Present when the halt could not be fully enforced (observe-only): says exactly what did and did not happen." }
+      },
+      "additionalProperties": false
+    },
+    "GateHaltAction": {
+      "type": "object",
+      "required": ["scope", "action", "detail"],
+      "properties": {
+        "scope": { "type": "string" },
+        "action": { "enum": ["terminated", "blocked", "warned"], "description": "terminated = dispatched to the session registry; blocked = merge gate halted; warned = operator warned, agent untouched." },
+        "detail": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "GateHaltNotification": {
+      "type": "object",
+      "required": ["sequence", "sessionId", "reason"],
+      "properties": {
+        "sequence": { "type": "integer", "description": "Ledger sequence of the halt entry." },
+        "sessionId": { "type": "string" },
+        "reason": { "type": "string" }
       },
       "additionalProperties": false
     },

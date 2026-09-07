@@ -3,6 +3,8 @@ import { TIERS, type TierName } from '../../shared/ts/bus-types';
 import { normalizeEnabledTiers, TIER_CONTEXT_KEYS } from '../../shared/ts/tiers';
 import { registerCommands } from './commands';
 import { runDoctor } from './doctor';
+import { handleGateHaltNotification } from './governance/gate-halt';
+import { hostedSessionRegistry } from './governance/session-registry';
 import { resolveInterpreter } from './interpreter';
 import { resolveCoreDir } from './layout';
 import { RecorderPanel } from './recorder-panel';
@@ -232,6 +234,15 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
       },
     });
     await supervisor.start();
+    // FR-M12-06: governance halt dispatch. The sidecar records the halt in
+    // the ledger, then notifies; the hosted-session registry owns the
+    // process kill, and the halt is always surfaced as a warning.
+    supervisor.currentClient?.on('notification', (method: string, params: unknown) => {
+      handleGateHaltNotification(method, params, {
+        registry: hostedSessionRegistry,
+        warn: (message) => void vscode.window.showWarningMessage(message),
+      });
+    });
     statusBar.showReady(interpreter);
   } catch (error) {
     // supervisor.start() failures are already surfaced via onError; layout
