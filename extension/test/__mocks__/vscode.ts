@@ -104,6 +104,7 @@ type ProgressTask = (
 // ---- Test inspection hooks ------------------------------------------------
 
 export const __registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
+export const __executedCommands: Array<{ command: string; args: unknown[] }> = [];
 export const __registeredTreeProviders = new Map<string, unknown>();
 export const __shownErrors: string[] = [];
 export const __shownWarnings: string[] = [];
@@ -222,6 +223,7 @@ export function __lastToken(): ManualCancellationToken {
 
 export function __reset(): void {
   __registeredCommands.clear();
+  __executedCommands.length = 0;
   __registeredTreeProviders.clear();
   __shownErrors.length = 0;
   __shownWarnings.length = 0;
@@ -255,9 +257,15 @@ export const commands = {
   },
 
   async executeCommand(command: string, ...args: unknown[]): Promise<unknown> {
+    __executedCommands.push({ command, args });
     // The real API exposes context keys only via `executeCommand('setContext', …)`.
     if (command === 'setContext') {
       __contextKeys.set(args[0] as string, args[1]);
+      return undefined;
+    }
+    // Built-in window management command: VS Code owns it, so the mock
+    // records the invocation (tests assert it) and succeeds silently.
+    if (command === 'vscode.openFolder') {
       return undefined;
     }
     const handler = __registeredCommands.get(command);

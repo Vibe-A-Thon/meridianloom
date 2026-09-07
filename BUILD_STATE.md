@@ -6,8 +6,8 @@
 
 - **Current phase:** F1 — Governor
 - **Current workstream:** A — ACP host
-- **Current task:** 5 — worktree isolation for hosted agents (M18: worktree manager, conflict detection before a packet starts FR-M18-03, story abort leaving the primary tree untouched FR-M18-04, agent git identity + commit trailer FR-M18-05/07, open-in-window FR-M18-08)
-- **Last commit:** f22ef6a — feat(f1): ACP Registry as an installable Adapter Bay source (FR-M34-03)
+- **Current task:** 6 — Meridian agents exposed as MCP servers (FR-M34-06)
+- **Last commit:** (this task) — feat(f1): worktree isolation for hosted agents (FR-M18-01..08, AC-13, AC-14)
 
 ## Mapping of completed S0 work onto the new plan
 
@@ -63,7 +63,7 @@
 
 | Workstream | Tasks | Status |
 |---|---|---|
-| A — ACP host | 1–8 | tasks 1–4, 8 done (c4a4805 client; df4b267 adapter re-base; f22ef6a registry; 289d33a permission gate SEC-28; 8ed0bcf conformance); 5–7 next |
+| A — ACP host | 1–8 | tasks 1–5, 8 done (c4a4805 client; df4b267 adapter re-base; f22ef6a registry; 289d33a permission gate SEC-28; 8ed0bcf conformance; task 5 worktree isolation below); 6–7 next |
 | B — Gates over other people's work | 9–14 | not started |
 | C — Human identity and roles | 15–16 | not started |
 | D — Steer and clarify | 17–18 | not started |
@@ -80,6 +80,8 @@
 - D22 — OPEN, human-gated (DECISIONS.md → Deferred)
 
 ## Phase log
+
+- F1 Workstream A task 5 (worktree isolation, M18) done: new `core/meridian_core/worktree/` (manager: create/list/remove/abort/conflicts — dedicated branch `meridian/<story>` under `.meridian/worktrees/<story-id>/`, worktree-local agent identity + `Meridian-Hosted-Agent` trailer hook via per-worktree `core.hooksPath`, abort deletes never-pushed branch and leaves the primary tree byte-identical). Sidecar RPCs `worktree/create|list|remove|abortStory|conflicts` in a new governor-tier capability `governor.worktrees` (single-ownership assertion holds); create/remove/abort ledger-recorded with `worktree_ref`. Extension: `meridian.abortStory` wired to the abort RPC (confirm-first), new `meridian.openWorktree` command (worktree/list → `vscode.openFolder` new window, FR-M18-08). AC-13/AC-14-shaped tests by name; conflict report consumed later by the M40 RunRequest/preflight flow. Suite: pytest 457→500 (test_worktree 43), extension vitest 268→282 (worktree-commands 13, manifest 1), `tsc --noEmit` clean, `check:contracts` green. FR-M18-06 (signed agent commits, SecretStorage key) and FR-M18-09 (GC retention) remain v1.x per spec — not built here.
 
 - Workstream E (tasks 23–27) done: pytest 360→406, extension vitest 128→137, `tsc --noEmit` clean, `check:contracts` green throughout. Proof commits 481f5fa, 90b5e6c, abfc94c, 4dfbdb1, 1ea71c8. Cargo-based verifier tests skip-and-notice when cargo is off PATH.
 - Workstream F (tasks 28–30) done: pytest 406→448 collected (test_rejection 20, test_greenfield 14, test_trust_metrics 9, schema tests updated for v4; cargo-based verifier tests skip-and-notice when cargo is off PATH), extension vitest unchanged at 137, `tsc --noEmit` clean, `check:contracts` green throughout. Proof commits 5b54279, 820f59a, df7bf0a. New surface: `trust/detectRejections`, `trust/classify`, `trust/rejectionRate` (capability `recorder.trust-metrics`, flight-recorder tier); ledger schema v4 (rejected_sequence/rejected_commit/rejecting_commit); workspace settings `meridian.rejectionWindowDays` (7), `meridian.greenfieldNewFileRatio` (0.5), `meridian.greenfieldMaxMedianAgeDays` (30).

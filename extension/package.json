@@ -118,6 +118,11 @@
         "category": "Meridian Loom"
       },
       {
+        "command": "meridian.openWorktree",
+        "title": "Open Story Worktree in New Window",
+        "category": "Meridian Loom"
+      },
+      {
         "command": "meridian.doctor",
         "title": "Doctor",
         "category": "Meridian Loom"
@@ -164,6 +169,10 @@
         },
         {
           "command": "meridian.abortStory",
+          "when": "meridian.tiers.governor"
+        },
+        {
+          "command": "meridian.openWorktree",
           "when": "meridian.tiers.governor"
         }
       ]

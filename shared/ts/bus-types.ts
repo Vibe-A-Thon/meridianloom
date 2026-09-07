@@ -986,8 +986,114 @@ export interface AcpSessionRecordResult {
   "recorded": boolean;
 }
 
+/** FR-M18-01/02: one Meridian-managed story worktree. `path` is absolute; `worktreeRef` the repo-relative form written to ledger worktree_ref entries. */
+export interface WorktreeInfo {
+  "storyId": string;
+  /** The dedicated story branch (default meridian/<story-id>). */
+  "branch": string;
+  "path": string;
+  "worktreeRef": string;
+  "baseBranch": string;
+  "baseCommit": string;
+  "headCommit": string;
+  /** The hosted-agent adapter id the worktree-local git identity and commit trailer derive from (FR-M18-05/07). */
+  "adapterId": string;
+  /** True when the worktree has uncommitted or untracked changes. */
+  "dirty": boolean;
+  /** Commits on the story branch not reachable from the base branch. */
+  "unpushedCommits": number;
+}
+
+export interface WorktreeCreateParams {
+  /** Story (or run) id; the worktree lives at <repo>/.meridian/worktrees/<story-id>/. */
+  "storyId": string;
+  /** The hosted agent's adapter id; the worktree-local git identity and Meridian-Hosted-Agent trailer derive deterministically from it. Restricted to [A-Za-z0-9._-]. */
+  "adapterId": string;
+  /** Configurable base branch (FR-M18-02), default main. */
+  "baseBranch"?: string;
+  /** Repository root. Absent means the handshake workspaceDir. */
+  "repoPath"?: string;
+}
+
+export interface WorktreeCreateResult {
+  "worktree": WorktreeInfo;
+}
+
+export interface WorktreeListParams {
+  /** Repository root. Absent means the handshake workspaceDir. */
+  "repoPath"?: string;
+}
+
+export interface WorktreeListResult {
+  "worktrees": WorktreeInfo[];
+}
+
+export interface WorktreeRemoveParams {
+  "storyId": string;
+  /** Remove even when the worktree is dirty (the caller asserts the content is expendable). Default false: a dirty worktree is refused with an actionable error so hosted-agent output is never silently destroyed (R14). */
+  "force"?: boolean;
+  /** Why the worktree is being removed; recorded in the ledger entry's input blob. */
+  "reason"?: string;
+  /** Repository root. Absent means the handshake workspaceDir. */
+  "repoPath"?: string;
+}
+
+export interface WorktreeRemoveResult {
+  "removed": boolean;
+  "storyId": string;
+  /** The story branch — still present; only worktree/abortStory deletes it. */
+  "branch": string;
+  "worktreeRef": string;
+}
+
+export interface WorktreeAbortStoryParams {
+  "storyId": string;
+  /** Repository root. Absent means the handshake workspaceDir. */
+  "repoPath"?: string;
+}
+
+export interface WorktreeAbortStoryResult {
+  "removed": boolean;
+  "storyId": string;
+  "branch": string;
+  /** True when the (never-pushed) story branch was deleted; false when a pushed branch was kept. */
+  "branchDeleted": boolean;
+  /** Present exactly when branchDeleted is false — the branch exists on a remote, so abort keeps it for the record. */
+  "branchKeptReason"?: string;
+  "worktreeRef": string;
+}
+
+/** FR-M18-03: one detected conflict class. unmerged_upstream — the story branch has fallen behind the base branch; primary_uncommitted — the human has uncommitted changes in the primary tree colliding with the packet's target paths; worktree_uncommitted — the story worktree carries uncommitted state; worktree_unpushed — the story branch has commits not on the base branch (unpushed work that would be discarded). */
+export type WorktreeConflictKind = "unmerged_upstream" | "primary_uncommitted" | "worktree_uncommitted" | "worktree_unpushed";
+
+export interface WorktreeConflict {
+  "kind": WorktreeConflictKind;
+  /** The colliding worktree-relative file, when the conflict is file-scoped; null for branch-level conflicts. */
+  "path": string | null;
+  "detail": string;
+}
+
+export interface WorktreeConflictsParams {
+  /** The story about to run; without it, only primary-tree checks run. */
+  "storyId"?: string;
+  /** The base branch to check divergence against, default main (FR-M18-02 configurable). */
+  "baseBranch"?: string;
+  /** The files the packet targets (FR-M18-03). Absent: every dirty file in the primary tree is reported. */
+  "targetPaths"?: string[];
+  /** Repository root. Absent means the handshake workspaceDir. */
+  "repoPath"?: string;
+}
+
+export interface WorktreeConflictsResult {
+  "repoPath": string;
+  "baseBranch": string;
+  /** True when at least one conflict was detected — the packet must not start (AC-13). */
+  "blocked": boolean;
+  "conflicts": WorktreeConflict[];
+}
+
 /** Every request/response method on the bus. */
-export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "observe/sessions" | "observe/health" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "hook/install" | "hook/status" | "hook/remove" | "hook/pending" | "trailers/parse" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "steer.send" | "trust.summary" | "trust/detectRejections" | "trust/classify" | "trust/rejectionRate" | "acp/sessionBegin" | "acp/sessionEnd" | "acp/permissionDecision";
+export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "observe/sessions" | "observe/health" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "hook/install" | "hook/status" | "hook/remove" | "hook/pending" | "trailers/parse" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "steer.send" | "trust.summary" | "trust/detectRejections" | "trust/classify" | "trust/rejectionRate" | "acp/sessionBegin" | "acp/sessionEnd" | "acp/permissionDecision" | "worktree/create" | "worktree/list" | "worktree/remove" | "worktree/abortStory" | "worktree/conflicts";
 
 /** Every notification method on the bus. */
 export type NotificationName = "tiers/set" | "$/cancel";
@@ -1043,7 +1149,7 @@ export const TIERS = ["flight-recorder","governor","orchestra"] as const;
 export const DEFAULT_ENABLED_TIERS: readonly TierName[] = ["flight-recorder"];
 
 /** FR-M36-05: capability registry; every capability is owned by exactly one tier. */
-export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff","attrib/symbol","attrib/classify"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"recorder.observers","tier":"flight-recorder","description":"External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).","rpcMethods":["observe/sessions","observe/health"]},{"id":"recorder.provenance-hooks","tier":"flight-recorder","description":"Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).","rpcMethods":["hook/install","hook/status","hook/remove","hook/pending","trailers/parse"]},{"id":"recorder.trust-metrics","tier":"flight-recorder","description":"Rejection measurement, minimum (FR-M37-01 subset, FR-M37-06, FR-M17-05; F0 Workstream F tasks 28-30): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), and the ledger-derived, in-process-cached rejection rate per agent/repository split by that distinction (trust/rejectionRate). Zero model calls (FR-M36-07).","rpcMethods":["trust/detectRejections","trust/classify","trust/rejectionRate"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.","rpcMethods":["gate.evaluate"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"governor.acp-host","tier":"governor","description":"ACP host (FR-M34-01/02/03/04, SEC-28; F1 Workstream A tasks 1–4): the extension-host client that launches ACP-conformant agent subprocesses — initialize handshake and protocol-version negotiation, session lifecycle (new/load), streaming session updates, permission-gated tool execution, and client-provided fs/terminal access rooted at the user's workspace. Implemented in extension/src/acp/ (governor tier; disabled => no hosted sessions, G5). The adapter surface (extension/src/adapters/) re-bases AgentAdapter on ACP: governance manifests (§7.9), three-tier discovery (FR-M31-02), hot plug/unplug (FR-M31-04), probation (FR-M31-07), and the ACP Registry install source (FR-M34-03). The sidecar RPCs record hosted-session facts into the ledger: acp/sessionBegin/acp/sessionEnd (session_begin/session_end entries) and acp/permissionDecision (permission_decision entries — the FR-M34-04/SEC-28 governance trail, written before and independently of the human answer).","rpcMethods":["acp/sessionBegin","acp/sessionEnd","acp/permissionDecision"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
+export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff","attrib/symbol","attrib/classify"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"recorder.observers","tier":"flight-recorder","description":"External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).","rpcMethods":["observe/sessions","observe/health"]},{"id":"recorder.provenance-hooks","tier":"flight-recorder","description":"Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).","rpcMethods":["hook/install","hook/status","hook/remove","hook/pending","trailers/parse"]},{"id":"recorder.trust-metrics","tier":"flight-recorder","description":"Rejection measurement, minimum (FR-M37-01 subset, FR-M37-06, FR-M17-05; F0 Workstream F tasks 28-30): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), and the ledger-derived, in-process-cached rejection rate per agent/repository split by that distinction (trust/rejectionRate). Zero model calls (FR-M36-07).","rpcMethods":["trust/detectRejections","trust/classify","trust/rejectionRate"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01; F1). Stub RPC until F1 lands it.","rpcMethods":["gate.evaluate"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"governor.acp-host","tier":"governor","description":"ACP host (FR-M34-01/02/03/04, SEC-28; F1 Workstream A tasks 1–4): the extension-host client that launches ACP-conformant agent subprocesses — initialize handshake and protocol-version negotiation, session lifecycle (new/load), streaming session updates, permission-gated tool execution, and client-provided fs/terminal access rooted at the user's workspace. Implemented in extension/src/acp/ (governor tier; disabled => no hosted sessions, G5). The adapter surface (extension/src/adapters/) re-bases AgentAdapter on ACP: governance manifests (§7.9), three-tier discovery (FR-M31-02), hot plug/unplug (FR-M31-04), probation (FR-M31-07), and the ACP Registry install source (FR-M34-03). The sidecar RPCs record hosted-session facts into the ledger: acp/sessionBegin/acp/sessionEnd (session_begin/session_end entries) and acp/permissionDecision (permission_decision entries — the FR-M34-04/SEC-28 governance trail, written before and independently of the human answer).","rpcMethods":["acp/sessionBegin","acp/sessionEnd","acp/permissionDecision"]},{"id":"governor.worktrees","tier":"governor","description":"Worktree isolation for hosted agents (FR-M18-01..08, AC-13/AC-14; F1 Workstream A task 5): a dedicated git worktree per story under .meridian/worktrees/ on branch meridian/<story-id> — never the primary tree — with a worktree-local agent git identity and a commit-msg hook appending the Meridian-Hosted-Agent trailer. worktree/conflicts is the pre-flight conflict report the RunRequest flow (M40) consumes before a packet starts; worktree/abortStory removes worktree + never-pushed branch and leaves the primary tree byte-identical. Creation, removal and abort are ledger-recorded with worktree_ref set.","rpcMethods":["worktree/create","worktree/list","worktree/remove","worktree/abortStory","worktree/conflicts"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
 
 /** Params/result pairing for every request method. */
 export interface MethodMap {
@@ -1081,11 +1187,16 @@ export interface MethodMap {
   "acp/sessionBegin": { params: AcpSessionBeginParams; result: AcpSessionRecordResult };
   "acp/sessionEnd": { params: AcpSessionEndParams; result: AcpSessionRecordResult };
   "acp/permissionDecision": { params: AcpPermissionDecisionParams; result: AcpSessionRecordResult };
+  "worktree/create": { params: WorktreeCreateParams; result: WorktreeCreateResult };
+  "worktree/list": { params: WorktreeListParams; result: WorktreeListResult };
+  "worktree/remove": { params: WorktreeRemoveParams; result: WorktreeRemoveResult };
+  "worktree/abortStory": { params: WorktreeAbortStoryParams; result: WorktreeAbortStoryResult };
+  "worktree/conflicts": { params: WorktreeConflictsParams; result: WorktreeConflictsResult };
 }
 export type RequestMethod = keyof MethodMap;
 
 /** Runtime list of every request method (for tier/ownership checks). */
-export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","observe/sessions","observe/health","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","hook/install","hook/status","hook/remove","hook/pending","trailers/parse","loop.start","loop.stop","loop.status","gate.evaluate","steer.send","trust.summary","trust/detectRejections","trust/classify","trust/rejectionRate","acp/sessionBegin","acp/sessionEnd","acp/permissionDecision"] as const;
+export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","observe/sessions","observe/health","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","hook/install","hook/status","hook/remove","hook/pending","trailers/parse","loop.start","loop.stop","loop.status","gate.evaluate","steer.send","trust.summary","trust/detectRejections","trust/classify","trust/rejectionRate","acp/sessionBegin","acp/sessionEnd","acp/permissionDecision","worktree/create","worktree/list","worktree/remove","worktree/abortStory","worktree/conflicts"] as const;
 
 /** Runtime list of every notification method. */
 export const NOTIFICATION_METHODS = ["tiers/set","$/cancel"] as const;

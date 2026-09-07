@@ -42,6 +42,7 @@ from . import rejection as rejection_mod
 from .ledger import core as ledger_core
 from .ledger import keys as ledger_keys
 from .ledger import wire as ledger_wire
+from .worktree import manager as worktree_mod
 from .observers import claude as observer_claude
 from .observers import copilot as observer_copilot
 from .observers import manager as observer_manager
@@ -127,6 +128,15 @@ class SidecarServer:
             "acp/sessionBegin": SidecarServer._handle_acp_session_begin,
             "acp/sessionEnd": SidecarServer._handle_acp_session_end,
             "acp/permissionDecision": SidecarServer._handle_acp_permission_decision,
+            # FR-M18-01..08 (F1 Workstream A task 5): worktree isolation for
+            # hosted agents — creation/removal/abort are ledger-recorded with
+            # worktree_ref set; conflicts is the pre-flight report (FR-M18-03)
+            # the RunRequest/preflight flow (M40) consumes before a packet.
+            "worktree/create": SidecarServer._handle_worktree_create,
+            "worktree/list": SidecarServer._handle_worktree_list,
+            "worktree/remove": SidecarServer._handle_worktree_remove,
+            "worktree/abortStory": SidecarServer._handle_worktree_abort_story,
+            "worktree/conflicts": SidecarServer._handle_worktree_conflicts,
         }
         # The registry must exactly cover the contracted request methods.
         assert set(self._handlers) == set(bus_types.REQUEST_METHODS), (
@@ -1191,6 +1201,208 @@ class SidecarServer:
             entry["rework_reason"] = params["reason"]
         self._append_acp_entry(entry, detail)
         return {"recorded": True}
+
+    # -- worktree isolation (FR-M18-01..08; F1 Workstream A task 5) -----------
+
+    def _worktree_manager(self, params: dict[str, Any]) -> worktree_mod.WorktreeManager:
+        repo = (params or {}).get("repoPath") or self._workspace_dir
+        if not repo:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "worktree methods need repoPath (or a workspaceDir handshake)",
+            )
+        try:
+            return worktree_mod.WorktreeManager(Path(repo))
+        except AttributionError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+
+    @staticmethod
+    def _worktree_error(error: worktree_mod.WorktreeError) -> _RpcError:
+        return _RpcError(protocol.INVALID_PARAMS, str(error))
+
+    @staticmethod
+    def _worktree_info_to_wire(info: worktree_mod.WorktreeInfo) -> bus_types.WorktreeInfo:
+        return {
+            "storyId": info.story_id,
+            "branch": info.branch,
+            "path": str(info.path),
+            "worktreeRef": info.worktree_ref,
+            "baseBranch": info.base_branch,
+            "baseCommit": info.base_commit,
+            "headCommit": info.head_commit,
+            "adapterId": info.adapter_id,
+            "dirty": info.dirty,
+            "unpushedCommits": info.unpushed_commits,
+        }
+
+    def _append_worktree_entry(
+        self,
+        action_type: str,
+        story_id: str,
+        worktree_ref: str,
+        actor_id: str,
+        detail: dict[str, Any],
+    ) -> None:
+        """Task 5f: every create/remove/abort lands in the ledger with
+        worktree_ref set, so the worktree's lifecycle is provenance too."""
+        ledger = self._ensure_ledger()
+        ledger.append(
+            {
+                "ts_utc": ledger_core.utc_now(),
+                "story_id": story_id,
+                "phase": "build",
+                "loop_id": "worktree",
+                "loop_iteration": 1,
+                "actor_id": actor_id,
+                "actor_version": "0",
+                "actor_kind": "meta",
+                "policy_version": "f1-worktrees",
+                "action_type": action_type,
+                "vendor": "meridian",
+                "observation_confidence": "direct",
+                "worktree_ref": worktree_ref,
+                "input": json.dumps(detail, ensure_ascii=False),
+            }
+        )
+        self._trust_cache.invalidate()
+
+    def _handle_worktree_create(
+        self, params: bus_types.WorktreeCreateParams
+    ) -> bus_types.WorktreeCreateResult:
+        params = params or {}
+        manager = self._worktree_manager(params)
+        try:
+            info = manager.create(
+                params["storyId"],
+                params["adapterId"],
+                base_branch=params.get("baseBranch")
+                or worktree_mod.DEFAULT_BASE_BRANCH,
+            )
+        except worktree_mod.WorktreeError as error:
+            raise self._worktree_error(error) from error
+        except AttributionError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        self._append_worktree_entry(
+            "worktree_create",
+            info.story_id,
+            info.worktree_ref,
+            params["adapterId"],
+            {
+                "branch": info.branch,
+                "path": str(info.path),
+                "baseBranch": info.base_branch,
+                "baseCommit": info.base_commit,
+                "identity": list(worktree_mod.agent_identity(params["adapterId"])),
+                "trailer": worktree_mod.TRAILER_KEY,
+            },
+        )
+        return {"worktree": self._worktree_info_to_wire(info)}
+
+    def _handle_worktree_list(
+        self, params: bus_types.WorktreeListParams
+    ) -> bus_types.WorktreeListResult:
+        manager = self._worktree_manager(params)
+        try:
+            return {
+                "worktrees": [
+                    self._worktree_info_to_wire(info) for info in manager.list()
+                ]
+            }
+        except worktree_mod.WorktreeError as error:
+            raise self._worktree_error(error) from error
+        except AttributionError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+
+    def _handle_worktree_remove(
+        self, params: bus_types.WorktreeRemoveParams
+    ) -> bus_types.WorktreeRemoveResult:
+        params = params or {}
+        manager = self._worktree_manager(params)
+        try:
+            info = manager.remove(params["storyId"], force=bool(params.get("force")))
+        except worktree_mod.WorktreeError as error:
+            raise self._worktree_error(error) from error
+        except AttributionError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        self._append_worktree_entry(
+            "worktree_remove",
+            info.story_id,
+            info.worktree_ref,
+            "worktree-manager",
+            {
+                "branch": info.branch,
+                "force": bool(params.get("force")),
+                "reason": params.get("reason"),
+                "headCommit": info.head_commit,
+            },
+        )
+        return {
+            "removed": True,
+            "storyId": info.story_id,
+            "branch": info.branch,
+            "worktreeRef": info.worktree_ref,
+        }
+
+    def _handle_worktree_abort_story(
+        self, params: bus_types.WorktreeAbortStoryParams
+    ) -> bus_types.WorktreeAbortStoryResult:
+        params = params or {}
+        manager = self._worktree_manager(params)
+        try:
+            info, branch_deleted, kept_reason = manager.abort(params["storyId"])
+        except worktree_mod.WorktreeError as error:
+            raise self._worktree_error(error) from error
+        except AttributionError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        # FR-M18-04: the abort itself is ledger-recorded; actor 'human'
+        # (D9's identity source lands later and upgrades this attribution).
+        self._append_worktree_entry(
+            "story_abort",
+            info.story_id,
+            info.worktree_ref,
+            "human",
+            {
+                "branch": info.branch,
+                "branchDeleted": branch_deleted,
+                "branchKeptReason": kept_reason,
+                "headCommit": info.head_commit,
+                "dirtyAtAbort": info.dirty,
+            },
+        )
+        return {
+            "removed": True,
+            "storyId": info.story_id,
+            "branch": info.branch,
+            "branchDeleted": branch_deleted,
+            **({"branchKeptReason": kept_reason} if kept_reason else {}),
+            "worktreeRef": info.worktree_ref,
+        }
+
+    def _handle_worktree_conflicts(
+        self, params: bus_types.WorktreeConflictsParams
+    ) -> bus_types.WorktreeConflictsResult:
+        params = params or {}
+        manager = self._worktree_manager(params)
+        try:
+            report = manager.conflicts(
+                story_id=params.get("storyId"),
+                base_branch=params.get("baseBranch")
+                or worktree_mod.DEFAULT_BASE_BRANCH,
+                target_paths=params.get("targetPaths"),
+            )
+        except worktree_mod.WorktreeError as error:
+            raise self._worktree_error(error) from error
+        except AttributionError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        return {
+            "repoPath": str(report.repo),
+            "baseBranch": report.base_branch,
+            "blocked": report.blocked,
+            "conflicts": [
+                {"kind": c.kind, "path": c.path, "detail": c.detail}
+                for c in report.conflicts
+            ],
+        }
 
 
 class _RpcError(Exception):

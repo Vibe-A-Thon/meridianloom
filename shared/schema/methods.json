@@ -173,6 +173,31 @@
       "params": { "$ref": "#/$defs/AcpPermissionDecisionParams" },
       "result": { "$ref": "#/$defs/AcpSessionRecordResult" }
     },
+    "worktree/create": {
+      "description": "FR-M18-01/02/05/07 (F1 Workstream A task 5): create the story worktree for a hosted agent — a linked git worktree under <repo>/.meridian/worktrees/<story-id>/ on branch meridian/<story-id> (configurable via baseBranch) forked from the base branch, with a worktree-local agent git identity derived from the adapter id and a worktree-local commit-msg hook appending the Meridian-Hosted-Agent trailer to every commit the agent makes. The primary working tree is NEVER the write target. Ledger-recorded (action_type worktree_create, worktree_ref set).",
+      "params": { "$ref": "#/$defs/WorktreeCreateParams" },
+      "result": { "$ref": "#/$defs/WorktreeCreateResult" }
+    },
+    "worktree/list": {
+      "description": "FR-M18-01 (F1 Workstream A task 5): the Meridian-managed story worktrees of this repository (those under .meridian/worktrees/), each with branch, base and head. Read-only; consumed by the open-in-window command (FR-M18-08) among others.",
+      "params": { "$ref": "#/$defs/WorktreeListParams" },
+      "result": { "$ref": "#/$defs/WorktreeListResult" }
+    },
+    "worktree/remove": {
+      "description": "FR-M18-01 (F1 Workstream A task 5): remove a story worktree (git worktree remove; refuses when the worktree is dirty unless force). The branch is NOT deleted here — that is story abort (worktree/abortStory) or post-merge GC (FR-M18-09). Ledger-recorded (action_type worktree_remove, worktree_ref set).",
+      "params": { "$ref": "#/$defs/WorktreeRemoveParams" },
+      "result": { "$ref": "#/$defs/WorktreeRemoveResult" }
+    },
+    "worktree/abortStory": {
+      "description": "FR-M18-04 (F1 Workstream A task 5): story abort — remove the story worktree, delete the story branch when it has never been pushed (a pushed branch is kept and branchKeptReason says why), and ledger-record the abort (action_type story_abort, worktree_ref set). The primary working tree is left byte-identical (AC-14).",
+      "params": { "$ref": "#/$defs/WorktreeAbortStoryParams" },
+      "result": { "$ref": "#/$defs/WorktreeAbortStoryResult" }
+    },
+    "worktree/conflicts": {
+      "description": "FR-M18-03 (F1 Workstream A task 5, AC-13): pre-flight conflict detection before a packet starts — divergence between the story branch and the base branch (unmerged upstream changes), uncommitted changes in the primary tree colliding with the packet's target paths (all dirty files reported when targetPaths is absent), and uncommitted/unpushed state in the story worktree itself. Returns a structured report; blocked=true means the run must not start. The RunRequest/preflight flow (M40, gaps_initiation §7.11) consumes this report.",
+      "params": { "$ref": "#/$defs/WorktreeConflictsParams" },
+      "result": { "$ref": "#/$defs/WorktreeConflictsResult" }
+    },
     "tiers/set": {
       "description": "FR-M36-05: notification carrying the enabled tier set after a meridian.tiers configuration change, so a tier flip needs no reinstall and no window reload. The base tier (flight-recorder) is always enabled regardless of payload.",
       "notification": true,
@@ -1391,6 +1416,137 @@
       "required": ["recorded"],
       "properties": {
         "recorded": { "type": "boolean", "description": "True when the session fact was appended to the ledger." }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeInfo": {
+      "description": "FR-M18-01/02: one Meridian-managed story worktree. `path` is absolute; `worktreeRef` the repo-relative form written to ledger worktree_ref entries.",
+      "type": "object",
+      "required": ["storyId", "branch", "path", "worktreeRef", "baseBranch", "baseCommit", "headCommit", "adapterId", "dirty", "unpushedCommits"],
+      "properties": {
+        "storyId": { "type": "string" },
+        "branch": { "type": "string", "description": "The dedicated story branch (default meridian/<story-id>)." },
+        "path": { "type": "string" },
+        "worktreeRef": { "type": "string" },
+        "baseBranch": { "type": "string" },
+        "baseCommit": { "type": "string" },
+        "headCommit": { "type": "string" },
+        "adapterId": { "type": "string", "description": "The hosted-agent adapter id the worktree-local git identity and commit trailer derive from (FR-M18-05/07)." },
+        "dirty": { "type": "boolean", "description": "True when the worktree has uncommitted or untracked changes." },
+        "unpushedCommits": { "type": "integer", "description": "Commits on the story branch not reachable from the base branch." }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeCreateParams": {
+      "type": "object",
+      "required": ["storyId", "adapterId"],
+      "properties": {
+        "storyId": { "type": "string", "description": "Story (or run) id; the worktree lives at <repo>/.meridian/worktrees/<story-id>/." },
+        "adapterId": { "type": "string", "description": "The hosted agent's adapter id; the worktree-local git identity and Meridian-Hosted-Agent trailer derive deterministically from it. Restricted to [A-Za-z0-9._-]." },
+        "baseBranch": { "type": "string", "description": "Configurable base branch (FR-M18-02), default main." },
+        "repoPath": { "type": "string", "description": "Repository root. Absent means the handshake workspaceDir." }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeCreateResult": {
+      "type": "object",
+      "required": ["worktree"],
+      "properties": {
+        "worktree": { "$ref": "#/$defs/WorktreeInfo" }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeListParams": {
+      "type": "object",
+      "properties": {
+        "repoPath": { "type": "string", "description": "Repository root. Absent means the handshake workspaceDir." }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeListResult": {
+      "type": "object",
+      "required": ["worktrees"],
+      "properties": {
+        "worktrees": { "type": "array", "items": { "$ref": "#/$defs/WorktreeInfo" } }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeRemoveParams": {
+      "type": "object",
+      "required": ["storyId"],
+      "properties": {
+        "storyId": { "type": "string" },
+        "force": { "type": "boolean", "description": "Remove even when the worktree is dirty (the caller asserts the content is expendable). Default false: a dirty worktree is refused with an actionable error so hosted-agent output is never silently destroyed (R14)." },
+        "reason": { "type": "string", "description": "Why the worktree is being removed; recorded in the ledger entry's input blob." },
+        "repoPath": { "type": "string", "description": "Repository root. Absent means the handshake workspaceDir." }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeRemoveResult": {
+      "type": "object",
+      "required": ["removed", "storyId", "branch", "worktreeRef"],
+      "properties": {
+        "removed": { "type": "boolean" },
+        "storyId": { "type": "string" },
+        "branch": { "type": "string", "description": "The story branch — still present; only worktree/abortStory deletes it." },
+        "worktreeRef": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeAbortStoryParams": {
+      "type": "object",
+      "required": ["storyId"],
+      "properties": {
+        "storyId": { "type": "string" },
+        "repoPath": { "type": "string", "description": "Repository root. Absent means the handshake workspaceDir." }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeAbortStoryResult": {
+      "type": "object",
+      "required": ["removed", "storyId", "branch", "branchDeleted", "worktreeRef"],
+      "properties": {
+        "removed": { "type": "boolean" },
+        "storyId": { "type": "string" },
+        "branch": { "type": "string" },
+        "branchDeleted": { "type": "boolean", "description": "True when the (never-pushed) story branch was deleted; false when a pushed branch was kept." },
+        "branchKeptReason": { "type": "string", "description": "Present exactly when branchDeleted is false — the branch exists on a remote, so abort keeps it for the record." },
+        "worktreeRef": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeConflictKind": {
+      "description": "FR-M18-03: one detected conflict class. unmerged_upstream — the story branch has fallen behind the base branch; primary_uncommitted — the human has uncommitted changes in the primary tree colliding with the packet's target paths; worktree_uncommitted — the story worktree carries uncommitted state; worktree_unpushed — the story branch has commits not on the base branch (unpushed work that would be discarded).",
+      "enum": ["unmerged_upstream", "primary_uncommitted", "worktree_uncommitted", "worktree_unpushed"]
+    },
+    "WorktreeConflict": {
+      "type": "object",
+      "required": ["kind", "path", "detail"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/WorktreeConflictKind" },
+        "path": { "type": ["string", "null"], "description": "The colliding worktree-relative file, when the conflict is file-scoped; null for branch-level conflicts." },
+        "detail": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeConflictsParams": {
+      "type": "object",
+      "properties": {
+        "storyId": { "type": "string", "description": "The story about to run; without it, only primary-tree checks run." },
+        "baseBranch": { "type": "string", "description": "The base branch to check divergence against, default main (FR-M18-02 configurable)." },
+        "targetPaths": { "type": "array", "items": { "type": "string" }, "description": "The files the packet targets (FR-M18-03). Absent: every dirty file in the primary tree is reported." },
+        "repoPath": { "type": "string", "description": "Repository root. Absent means the handshake workspaceDir." }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeConflictsResult": {
+      "type": "object",
+      "required": ["repoPath", "baseBranch", "blocked", "conflicts"],
+      "properties": {
+        "repoPath": { "type": "string" },
+        "baseBranch": { "type": "string" },
+        "blocked": { "type": "boolean", "description": "True when at least one conflict was detected — the packet must not start (AC-13)." },
+        "conflicts": { "type": "array", "items": { "$ref": "#/$defs/WorktreeConflict" } }
       },
       "additionalProperties": false
     }

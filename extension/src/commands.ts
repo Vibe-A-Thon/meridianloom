@@ -5,6 +5,8 @@ import type {
   HookRemoveResult,
   HookStatusResult,
   TierName,
+  WorktreeAbortStoryResult,
+  WorktreeListResult,
 } from '../../shared/ts/bus-types';
 import { isCommandEnabled, tierLockMessage } from '../../shared/ts/tiers';
 import { renderDoctorReport } from './doctor';
@@ -27,6 +29,8 @@ export const COMMANDS = [
   { id: 'meridian.steer', title: 'Steer' },
   { id: 'meridian.dryRun', title: 'Dry Run' },
   { id: 'meridian.abortStory', title: 'Abort Story' },
+  // FR-M18-08 (F1 Workstream A task 5): open a story worktree in a new window.
+  { id: 'meridian.openWorktree', title: 'Open Story Worktree in New Window' },
   { id: 'meridian.doctor', title: 'Doctor' },
   { id: 'meridian.installHook', title: 'Provenance Hook (Install / Remove)' },
 ] as const;
@@ -55,6 +59,17 @@ export interface CommandDeps {
   hookInstall?: () => Promise<HookInstallResult>;
   hookRemove?: () => Promise<HookRemoveResult>;
   /**
+   * FR-M18-04 (F1 Workstream A task 5): story abort over worktree/abortStory
+   * — removes the story worktree and its never-pushed branch, ledger-recorded,
+   * leaving the primary working tree byte-identical (AC-14).
+   */
+  abortStory?: (storyId: string) => Promise<WorktreeAbortStoryResult>;
+  /**
+   * FR-M18-08: the Meridian-managed worktrees (worktree/list) — the command
+   * resolves the story's worktree path and opens it in a new window.
+   */
+  listWorktrees?: () => Promise<WorktreeListResult>;
+  /**
    * FR-M36-05: the workspace's enabled tiers, read lazily so a settings
    * change takes effect without re-registration. Absent means "all tiers"
    * so tests that do not care about tiering see the unfiltered behaviour.
@@ -64,7 +79,9 @@ export interface CommandDeps {
 
 export function registerCommands(deps: CommandDeps = {}): vscode.Disposable[] {
   return COMMANDS.map(({ id }) =>
-    vscode.commands.registerCommand(id, () => runCommand(id, deps)),
+    vscode.commands.registerCommand(id, (...args: unknown[]) =>
+      runCommand(id, deps, args),
+    ),
   );
 }
 
@@ -72,7 +89,7 @@ export function registerCommands(deps: CommandDeps = {}): vscode.Disposable[] {
  * All real work is delegated to the sidecar (Workstream B). Until a client
  * is connected, a command reports instead of silently succeeding.
  */
-async function runCommand(id: CommandId, deps: CommandDeps): Promise<void> {
+async function runCommand(id: CommandId, deps: CommandDeps, args: unknown[] = []): Promise<void> {
   // FR-M36-05 / X-28: a command whose tier is disabled discloses the lock
   // instead of acting. The palette entry is hidden via `when` clauses; this
   // guard is the programmatic backstop so a disabled tier leaves no scar.
@@ -97,6 +114,14 @@ async function runCommand(id: CommandId, deps: CommandDeps): Promise<void> {
   }
   if (id === 'meridian.installHook') {
     await runHookCommand(deps);
+    return;
+  }
+  if (id === 'meridian.abortStory') {
+    await runAbortStoryCommand(deps, args[0]);
+    return;
+  }
+  if (id === 'meridian.openWorktree') {
+    await runOpenWorktreeCommand(deps, args[0]);
     return;
   }
   await vscode.window.showWarningMessage(
@@ -264,4 +289,93 @@ async function showGitHooksDoctorResult(deps: CommandDeps): Promise<void> {
   } catch {
     // Doctor reports its own failures via meridian.doctor; not duplicated here.
   }
+}
+
+
+// -- meridian.abortStory (FR-M18-04; F1 Workstream A task 5) ------------------
+
+/**
+ * Story abort: removes the story worktree and deletes the never-pushed story
+ * branch (sidecar worktree/abortStory, ledger-recorded), leaving the primary
+ * working tree byte-identical (AC-14). Always confirms — abort discards
+ * in-flight agent output. Never throws: failures become messages.
+ */
+async function runAbortStoryCommand(deps: CommandDeps, rawStoryId: unknown): Promise<void> {
+  if (!deps.abortStory) {
+    await vscode.window.showWarningMessage(
+      "Meridian Loom: 'meridian.abortStory' needs the extension runtime, which is not started yet.",
+    );
+    return;
+  }
+  if (typeof rawStoryId !== 'string' || rawStoryId === '') {
+    await vscode.window.showWarningMessage(
+      'Meridian Loom: abort needs a story id (invoke it with a story selected).',
+    );
+    return;
+  }
+  const confirmed = await vscode.window.showWarningMessage(
+    `Abort story '${rawStoryId}'? Its worktree and never-pushed branch will be removed; ` +
+      'the primary working tree is untouched. The abort is recorded in the ledger.',
+    { modal: true },
+    'Abort Story',
+  );
+  if (confirmed === undefined) {
+    return;
+  }
+  try {
+    const result = await deps.abortStory(rawStoryId);
+    const branchNote = result.branchDeleted
+      ? `branch '${result.branch}' deleted`
+      : `branch '${result.branch}' kept (${result.branchKeptReason})`;
+    await vscode.window.showInformationMessage(
+      `Meridian Loom: story '${result.storyId}' aborted — worktree removed, ${branchNote}.`,
+    );
+  } catch (error) {
+    await vscode.window.showErrorMessage(
+      `Meridian Loom could not abort story '${rawStoryId}': ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+// -- meridian.openWorktree (FR-M18-08; F1 Workstream A task 5) ----------------
+
+/**
+ * Open the story worktree in a new VS Code window. The sidecar resolves the
+ * worktree path (worktree/list — the RPC half of FR-M18-08); this command is
+ * the window-management half. Never throws: failures become messages.
+ */
+async function runOpenWorktreeCommand(deps: CommandDeps, rawStoryId: unknown): Promise<void> {
+  if (!deps.listWorktrees) {
+    await vscode.window.showWarningMessage(
+      "Meridian Loom: 'meridian.openWorktree' needs the extension runtime, which is not started yet.",
+    );
+    return;
+  }
+  if (typeof rawStoryId !== 'string' || rawStoryId === '') {
+    await vscode.window.showWarningMessage(
+      'Meridian Loom: open worktree needs a story id (invoke it with a story selected).',
+    );
+    return;
+  }
+  let worktrees: WorktreeListResult;
+  try {
+    worktrees = await deps.listWorktrees();
+  } catch (error) {
+    await vscode.window.showErrorMessage(
+      `Meridian Loom could not list worktrees: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return;
+  }
+  const worktree = worktrees.worktrees.find((entry) => entry.storyId === rawStoryId);
+  if (!worktree) {
+    await vscode.window.showWarningMessage(
+      `Meridian Loom: no worktree for story '${rawStoryId}' — the story may not have started yet.`,
+    );
+    return;
+  }
+  await vscode.commands.executeCommand(
+    'vscode.openFolder',
+    vscode.Uri.file(worktree.path),
+    { forceNewWindow: true },
+  );
 }

@@ -753,8 +753,80 @@ class AcpPermissionDecisionParams(TypedDict):
 class AcpSessionRecordResult(TypedDict):
     recorded: bool  # True when the session fact was appended to the ledger.
 
+# FR-M18-01/02: one Meridian-managed story worktree. `path` is absolute; `worktreeRef` the repo-relative form written to ledger worktree_ref entries.
+class WorktreeInfo(TypedDict):
+    storyId: str
+    branch: str  # The dedicated story branch (default meridian/<story-id>).
+    path: str
+    worktreeRef: str
+    baseBranch: str
+    baseCommit: str
+    headCommit: str
+    adapterId: str  # The hosted-agent adapter id the worktree-local git identity and commit trailer derive from (FR-M18-05/07).
+    dirty: bool  # True when the worktree has uncommitted or untracked changes.
+    unpushedCommits: int  # Commits on the story branch not reachable from the base branch.
+
+class WorktreeCreateParams(TypedDict):
+    storyId: str  # Story (or run) id; the worktree lives at <repo>/.meridian/worktrees/<story-id>/.
+    adapterId: str  # The hosted agent's adapter id; the worktree-local git identity and Meridian-Hosted-Agent trailer derive deterministically from it. Restricted to [A-Za-z0-9._-].
+    baseBranch: NotRequired[str]  # Configurable base branch (FR-M18-02), default main.
+    repoPath: NotRequired[str]  # Repository root. Absent means the handshake workspaceDir.
+
+class WorktreeCreateResult(TypedDict):
+    worktree: WorktreeInfo
+
+class WorktreeListParams(TypedDict):
+    repoPath: NotRequired[str]  # Repository root. Absent means the handshake workspaceDir.
+
+class WorktreeListResult(TypedDict):
+    worktrees: list[WorktreeInfo]
+
+class WorktreeRemoveParams(TypedDict):
+    storyId: str
+    force: NotRequired[bool]  # Remove even when the worktree is dirty (the caller asserts the content is expendable). Default false: a dirty worktree is refused with an actionable error so hosted-agent output is never silently destroyed (R14).
+    reason: NotRequired[str]  # Why the worktree is being removed; recorded in the ledger entry's input blob.
+    repoPath: NotRequired[str]  # Repository root. Absent means the handshake workspaceDir.
+
+class WorktreeRemoveResult(TypedDict):
+    removed: bool
+    storyId: str
+    branch: str  # The story branch — still present; only worktree/abortStory deletes it.
+    worktreeRef: str
+
+class WorktreeAbortStoryParams(TypedDict):
+    storyId: str
+    repoPath: NotRequired[str]  # Repository root. Absent means the handshake workspaceDir.
+
+class WorktreeAbortStoryResult(TypedDict):
+    removed: bool
+    storyId: str
+    branch: str
+    branchDeleted: bool  # True when the (never-pushed) story branch was deleted; false when a pushed branch was kept.
+    branchKeptReason: NotRequired[str]  # Present exactly when branchDeleted is false — the branch exists on a remote, so abort keeps it for the record.
+    worktreeRef: str
+
+# FR-M18-03: one detected conflict class. unmerged_upstream — the story branch has fallen behind the base branch; primary_uncommitted — the human has uncommitted changes in the primary tree colliding with the packet's target paths; worktree_uncommitted — the story worktree carries uncommitted state; worktree_unpushed — the story branch has commits not on the base branch (unpushed work that would be discarded).
+WorktreeConflictKind = Literal["unmerged_upstream", "primary_uncommitted", "worktree_uncommitted", "worktree_unpushed"]
+
+class WorktreeConflict(TypedDict):
+    kind: WorktreeConflictKind
+    path: str | None  # The colliding worktree-relative file, when the conflict is file-scoped; null for branch-level conflicts.
+    detail: str
+
+class WorktreeConflictsParams(TypedDict):
+    storyId: NotRequired[str]  # The story about to run; without it, only primary-tree checks run.
+    baseBranch: NotRequired[str]  # The base branch to check divergence against, default main (FR-M18-02 configurable).
+    targetPaths: NotRequired[list[str]]  # The files the packet targets (FR-M18-03). Absent: every dirty file in the primary tree is reported.
+    repoPath: NotRequired[str]  # Repository root. Absent means the handshake workspaceDir.
+
+class WorktreeConflictsResult(TypedDict):
+    repoPath: str
+    baseBranch: str
+    blocked: bool  # True when at least one conflict was detected — the packet must not start (AC-13).
+    conflicts: list[WorktreeConflict]
+
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts"]
 
 # Every notification method on the bus.
 NotificationName = Literal["tiers/set", "$/cancel"]
@@ -817,10 +889,11 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.", "rpcMethods": ["steer.send"]},
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
     {"id": "governor.acp-host", "tier": "governor", "description": "ACP host (FR-M34-01/02/03/04, SEC-28; F1 Workstream A tasks 1–4): the extension-host client that launches ACP-conformant agent subprocesses — initialize handshake and protocol-version negotiation, session lifecycle (new/load), streaming session updates, permission-gated tool execution, and client-provided fs/terminal access rooted at the user's workspace. Implemented in extension/src/acp/ (governor tier; disabled => no hosted sessions, G5). The adapter surface (extension/src/adapters/) re-bases AgentAdapter on ACP: governance manifests (§7.9), three-tier discovery (FR-M31-02), hot plug/unplug (FR-M31-04), probation (FR-M31-07), and the ACP Registry install source (FR-M34-03). The sidecar RPCs record hosted-session facts into the ledger: acp/sessionBegin/acp/sessionEnd (session_begin/session_end entries) and acp/permissionDecision (permission_decision entries — the FR-M34-04/SEC-28 governance trail, written before and independently of the human answer).", "rpcMethods": ["acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision"]},
+    {"id": "governor.worktrees", "tier": "governor", "description": "Worktree isolation for hosted agents (FR-M18-01..08, AC-13/AC-14; F1 Workstream A task 5): a dedicated git worktree per story under .meridian/worktrees/ on branch meridian/<story-id> — never the primary tree — with a worktree-local agent git identity and a commit-msg hook appending the Meridian-Hosted-Agent trailer. worktree/conflicts is the pre-flight conflict report the RunRequest flow (M40) consumes before a packet starts; worktree/abortStory removes worktree + never-pushed branch and leaves the primary tree byte-identical. Creation, removal and abort are ledger-recorded with worktree_ref set.", "rpcMethods": ["worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts"]},
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts")
 NOTIFICATION_METHODS: tuple[str, ...] = ("tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -859,4 +932,9 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "acp/sessionBegin": {"params": AcpSessionBeginParams, "result": AcpSessionRecordResult},
     "acp/sessionEnd": {"params": AcpSessionEndParams, "result": AcpSessionRecordResult},
     "acp/permissionDecision": {"params": AcpPermissionDecisionParams, "result": AcpSessionRecordResult},
+    "worktree/create": {"params": WorktreeCreateParams, "result": WorktreeCreateResult},
+    "worktree/list": {"params": WorktreeListParams, "result": WorktreeListResult},
+    "worktree/remove": {"params": WorktreeRemoveParams, "result": WorktreeRemoveResult},
+    "worktree/abortStory": {"params": WorktreeAbortStoryParams, "result": WorktreeAbortStoryResult},
+    "worktree/conflicts": {"params": WorktreeConflictsParams, "result": WorktreeConflictsResult},
 }

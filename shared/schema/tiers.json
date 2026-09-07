@@ -73,6 +73,12 @@
         "rpcMethods": ["acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision"]
       },
       {
+        "id": "governor.worktrees",
+        "tier": "governor",
+        "description": "Worktree isolation for hosted agents (FR-M18-01..08, AC-13/AC-14; F1 Workstream A task 5): a dedicated git worktree per story under .meridian/worktrees/ on branch meridian/<story-id> — never the primary tree — with a worktree-local agent git identity and a commit-msg hook appending the Meridian-Hosted-Agent trailer. worktree/conflicts is the pre-flight conflict report the RunRequest flow (M40) consumes before a packet starts; worktree/abortStory removes worktree + never-pushed branch and leaves the primary tree byte-identical. Creation, removal and abort are ledger-recorded with worktree_ref set.",
+        "rpcMethods": ["worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts"]
+      },
+      {
         "id": "orchestra.loops",
         "tier": "orchestra",
         "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.",

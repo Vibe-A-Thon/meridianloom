@@ -147,6 +147,28 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         return client.request('hook/remove', {}, new AbortController().signal);
       },
+      // FR-M18-04 (F1 Workstream A task 5): story abort — worktree + branch
+      // removal, ledger-recorded, primary tree untouched (AC-14).
+      abortStory: (storyId) => {
+        const client = supervisor?.currentClient;
+        if (!client) {
+          return Promise.reject(new Error('sidecar is not connected'));
+        }
+        return client.request(
+          'worktree/abortStory',
+          { storyId },
+          new AbortController().signal,
+        );
+      },
+      // FR-M18-08: the open-in-window command resolves the story worktree
+      // path over worktree/list before vscode.openFolder.
+      listWorktrees: () => {
+        const client = supervisor?.currentClient;
+        if (!client) {
+          return Promise.reject(new Error('sidecar is not connected'));
+        }
+        return client.request('worktree/list', {}, new AbortController().signal);
+      },
     }),
     vscode.workspace.onDidChangeConfiguration(onConfigurationChanged),
   );
