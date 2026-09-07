@@ -5,10 +5,10 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** F1 — Governor
-- **Current workstream:** A — ACP host
-- **Current task:** 8 — ACP conformance in CI (NFR-30); tasks 6–7 committed as eeec15a (MCP server, FR-M34-06) and 88a2b32 (upstream tracking, FR-M34-05)
-- **Last commit:** 88a2b32 — feat(f1): upstream-contribution tracking for the ACP host (FR-M34-05)
-- **Orchestrator note:** uncommitted `workbench/` studio changes in the tree belong to a parallel session — never stage or overwrite them; stage by explicit pathspec. FR-M18-06/09 are SHOULD v1.x, out of F1 scope per gaps plan.
+- **Current workstream:** B — Gates over other people's work
+- **Current task:** 9 — policy engine with machine-checkable DoR/DoD (FR-M12-01, FR-M12-08, FR-M12-09); then 10 (merge gate + approver identity FR-M12-05/07), 11 (governance can halt FR-M12-06)
+- **Last commit:** eeec15a — feat(f1): MCP server exposure (FR-M34-06) — **Workstream A complete** (tasks 1–8; 512 pytest + 300 vitest)
+- **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## Mapping of completed S0 work onto the new plan
 
