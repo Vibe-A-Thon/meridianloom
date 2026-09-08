@@ -1050,13 +1050,22 @@ export interface TrustDetectRejectionsParams {
   "actorVersion"?: string;
   "actorKind"?: string;
   "policyVersion"?: string;
+  /** The E-GR-03 taxonomy class to stamp on the recorded rejections (FR-M37-02): wrong-requirement | incorrect-implementation | style-convention | missing-tests | security-concern | agent-conflict | obsolete-superseded | other. Absent or unrecognised values fail closed to other with a free-text note. */
+  "reason"?: string;
+  /** Free-text note carried with the class; required semantics for the other class. */
+  "reasonNote"?: string;
 }
 
 export interface TrustRejection {
   "rejectedCommit": string;
   /** The commit that rejected the change; null for force_amended (the change vanished with the amend). */
   "rejectingCommit": string | null;
+  /** The mechanical detection shape. */
   "reason": "reverted" | "force_amended" | "replaced_within_window";
+  /** The E-GR-03 taxonomy class stamped on the record (FR-M37-02); other when detection had no human classification. */
+  "reworkReason": string;
+  /** The free-text note behind the class (auto-generated for detection-derived rejections). */
+  "reasonNote": string | null;
   "paths": string[];
   "linesRejected": number;
   /** ISO 8601 UTC of the rejecting commit (the rejected commit's date for force_amended). */

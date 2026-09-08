@@ -15,6 +15,7 @@ The three rejection shapes:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -226,7 +227,14 @@ class TestDetectRejectionsRpc:
         assert entry["action_type"] == "rejection"
         assert entry["rejected_commit"] == rejection["rejectedCommit"]
         assert entry["rejecting_commit"] == rejection["rejectingCommit"]
-        assert entry["rework_reason"] == "reverted"
+        # E-GR-03: no human classification supplied -> fail-closed default
+        # with an explanatory note; the mechanical shape stays alongside.
+        assert entry["rework_reason"] == "other"
+        detail = json.loads(entry["tool_calls"])
+        assert detail[0]["shape"] == "reverted"
+        assert "requires human classification" in detail[0]["reasonNote"]
+        assert rejection["reworkReason"] == "other"
+        assert "requires human classification" in rejection["reasonNote"]
         assert entry["decision"] == "rejected"
         assert entry["repo_id"] == "edb"
         assert entry["story_id"] == "untracked"  # no trailer link: caller fallback

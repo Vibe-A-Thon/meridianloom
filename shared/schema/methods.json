@@ -1558,17 +1558,21 @@
         "actorId": { "type": "string", "description": "Fallback actor id (default \"unknown\") for the same case." },
         "actorVersion": { "type": "string" },
         "actorKind": { "type": "string" },
-        "policyVersion": { "type": "string" }
+        "policyVersion": { "type": "string" },
+        "reason": { "type": "string", "description": "The E-GR-03 taxonomy class to stamp on the recorded rejections (FR-M37-02): wrong-requirement | incorrect-implementation | style-convention | missing-tests | security-concern | agent-conflict | obsolete-superseded | other. Absent or unrecognised values fail closed to other with a free-text note." },
+        "reasonNote": { "type": "string", "description": "Free-text note carried with the class; required semantics for the other class." }
       },
       "additionalProperties": false
     },
     "TrustRejection": {
       "type": "object",
-      "required": ["rejectedCommit", "rejectingCommit", "reason", "paths", "linesRejected", "rejectedAt", "rejectedSequence", "recordedSequence", "alreadyRecorded"],
+      "required": ["rejectedCommit", "rejectingCommit", "reason", "reworkReason", "reasonNote", "paths", "linesRejected", "rejectedAt", "rejectedSequence", "recordedSequence", "alreadyRecorded"],
       "properties": {
         "rejectedCommit": { "type": "string" },
         "rejectingCommit": { "type": ["string", "null"], "description": "The commit that rejected the change; null for force_amended (the change vanished with the amend)." },
-        "reason": { "enum": ["reverted", "force_amended", "replaced_within_window"] },
+        "reason": { "enum": ["reverted", "force_amended", "replaced_within_window"], "description": "The mechanical detection shape." },
+        "reworkReason": { "type": "string", "description": "The E-GR-03 taxonomy class stamped on the record (FR-M37-02); other when detection had no human classification." },
+        "reasonNote": { "type": ["string", "null"], "description": "The free-text note behind the class (auto-generated for detection-derived rejections)." },
         "paths": { "type": "array", "items": { "type": "string" } },
         "linesRejected": { "type": "integer" },
         "rejectedAt": { "type": ["string", "null"], "description": "ISO 8601 UTC of the rejecting commit (the rejected commit's date for force_amended)." },

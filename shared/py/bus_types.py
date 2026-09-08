@@ -808,11 +808,15 @@ class TrustDetectRejectionsParams(TypedDict):
     actorVersion: NotRequired[str]
     actorKind: NotRequired[str]
     policyVersion: NotRequired[str]
+    reason: NotRequired[str]  # The E-GR-03 taxonomy class to stamp on the recorded rejections (FR-M37-02): wrong-requirement | incorrect-implementation | style-convention | missing-tests | security-concern | agent-conflict | obsolete-superseded | other. Absent or unrecognised values fail closed to other with a free-text note.
+    reasonNote: NotRequired[str]  # Free-text note carried with the class; required semantics for the other class.
 
 class TrustRejection(TypedDict):
     rejectedCommit: str
     rejectingCommit: str | None  # The commit that rejected the change; null for force_amended (the change vanished with the amend).
-    reason: Literal["reverted", "force_amended", "replaced_within_window"]
+    reason: Literal["reverted", "force_amended", "replaced_within_window"]  # The mechanical detection shape.
+    reworkReason: str  # The E-GR-03 taxonomy class stamped on the record (FR-M37-02); other when detection had no human classification.
+    reasonNote: str | None  # The free-text note behind the class (auto-generated for detection-derived rejections).
     paths: list[str]
     linesRejected: int
     rejectedAt: str | None  # ISO 8601 UTC of the rejecting commit (the rejected commit's date for force_amended).

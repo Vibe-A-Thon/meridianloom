@@ -43,6 +43,7 @@ from .governance import policy as governance_policy
 from . import hooks as provenance_hooks
 from . import metrics as metrics_mod
 from . import rejection as rejection_mod
+from .rejection import taxonomy as rejection_taxonomy
 from .ledger import core as ledger_core
 from .ledger import keys as ledger_keys
 from .ledger import wire as ledger_wire
@@ -1352,8 +1353,16 @@ class SidecarServer:
         conflict: pr_conflicts.Conflict,
     ) -> int:
         """The ledger record of one agent-vs-agent conflict: the distinct
-        rework class agent-conflict (FR-M35-07), stamped with the E-GR-03
-        taxonomy id (task 14)."""
+        rework class agent-conflict (FR-M35-07), stamped through the E-GR-03
+        taxonomy (task 14) — the class is canonical and carries a note."""
+        stamp = rejection_taxonomy.classify_reason(
+            pr_conflicts.AGENT_CONFLICT_REASON,
+            note=(
+                f"{conflict.kind} in {conflict.path} between "
+                f"{conflict.earlier.agent.agent_id} and "
+                f"{conflict.later.agent.agent_id}"
+            ),
+        )
         entry: dict[str, Any] = {
             "ts_utc": ledger_core.utc_now(),
             "story_id": story_id,
@@ -1366,7 +1375,7 @@ class SidecarServer:
             "policy_version": pack.policy_version,
             "action_type": "rejection",
             "decision": "rejected",
-            "rework_reason": pr_conflicts.AGENT_CONFLICT_REASON,
+            "rework_reason": stamp.reason,
             "vendor": conflict.later.agent.vendor,
             "observation_confidence": conflict.later.agent.confidence,
             "rejected_commit": conflict.earlier.commit,
@@ -1375,21 +1384,23 @@ class SidecarServer:
             "input": json.dumps(
                 {
                     "method": "pr/conflicts",
-                    "class": pr_conflicts.AGENT_CONFLICT_REASON,
+                    "class": stamp.reason,
                     "kind": conflict.kind,
                     "path": conflict.path,
                     "agents": list(conflict.agents),
+                    "reasonNote": stamp.note,
                 },
                 ensure_ascii=False,
             ),
             "tool_calls": [
                 {
-                    "class": pr_conflicts.AGENT_CONFLICT_REASON,
+                    "class": stamp.reason,
                     "kind": conflict.kind,
                     "path": conflict.path,
                     "agents": list(conflict.agents),
                     "earlierNewStart": conflict.earlier.new_start,
                     "laterOldStart": conflict.later.old_start,
+                    "reasonNote": stamp.note,
                 }
             ],
         }
@@ -1684,14 +1695,36 @@ class SidecarServer:
 
         ledger = self._ensure_ledger()
         repo_id = params.get("repoId") or repo.name
+        # The taxonomy stamp (E-GR-03, FR-M37-02): the caller's reason class
+        # when supplied, else the fail-closed default with an explanatory
+        # note — a rejection record is never unclassified.
+        caller_reason = params.get("reason")
+        caller_note = params.get("reasonNote")
+        taxonomy = rejection_taxonomy.load_taxonomy()
+
+        def stamp_for(rejection: rejection_mod.Rejection) -> rejection_taxonomy.ReasonStamp:
+            note = caller_note
+            if not isinstance(caller_reason, str) or not caller_reason.strip():
+                # Detection knows the mechanical shape, not WHY a human
+                # rejected the change — the note says exactly that.
+                note = note or (
+                    f"auto-detected rejection (shape: {rejection.reason}); "
+                    "taxonomy reason requires human classification"
+                )
+            return rejection_taxonomy.classify_reason(
+                caller_reason, note=note, taxonomy=taxonomy
+            )
+
         # Idempotency: rejection entries already recorded for this repo.
+        # The key is the mechanical identity (commits + shape), NOT the
+        # taxonomy class — a later human classification must not re-record.
         existing = ledger.query(action_type="rejection", limit=1000)
         known: dict[tuple, int] = {}
         for row in existing:
             key = (
                 row.get("rejected_commit"),
                 row.get("rejecting_commit"),
-                row.get("rework_reason"),
+                self._rejection_shape(row),
                 row.get("repo_id"),
             )
             known[key] = row["seq"]
@@ -1708,8 +1741,16 @@ class SidecarServer:
             )
             if key in known:
                 duplicates += 1
+                row = ledger.get_entry(known[key])
                 wire.append(
-                    self._rejection_wire(rejection, None, known[key], True)
+                    self._rejection_wire(
+                        rejection,
+                        None,
+                        known[key],
+                        True,
+                        rework_reason=row.get("rework_reason") if row else None,
+                        reason_note=self._rejection_note(row) if row else None,
+                    )
                 )
                 continue
             rejected_sequence = rejection_mod.resolve_ledger_sequence(
@@ -1718,6 +1759,7 @@ class SidecarServer:
             source = (
                 ledger.get_entry(rejected_sequence) if rejected_sequence else None
             )
+            stamp = stamp_for(rejection)
             # The rejection entry inherits the rejected entry's story and
             # actor when the trailer link resolves; otherwise the caller's
             # fallbacks (an untracked external change).
@@ -1743,16 +1785,18 @@ class SidecarServer:
                 "vendor": (source or {}).get("vendor") or "meridian",
                 "action_type": "rejection",
                 "decision": "rejected",
-                "rework_reason": rejection.reason,
+                "rework_reason": stamp.reason,
                 "rejected_sequence": rejected_sequence,
                 "rejected_commit": rejection.rejected_commit,
                 "rejecting_commit": rejection.rejecting_commit,
                 "repo_id": repo_id,
                 "tool_calls": [
                     {
+                        "shape": rejection.reason,
                         "paths": list(rejection.paths),
                         "linesRejected": rejection.lines_rejected,
                         "rejectedAt": rejection.rejected_at,
+                        "reasonNote": stamp.note,
                     }
                 ],
             }
@@ -1763,7 +1807,14 @@ class SidecarServer:
             known[key] = result.sequence
             recorded += 1
             wire.append(
-                self._rejection_wire(rejection, rejected_sequence, result.sequence, False)
+                self._rejection_wire(
+                    rejection,
+                    rejected_sequence,
+                    result.sequence,
+                    False,
+                    rework_reason=stamp.reason,
+                    reason_note=stamp.note,
+                )
             )
         return {
             "repoPath": str(repo),
@@ -1775,16 +1826,52 @@ class SidecarServer:
         }
 
     @staticmethod
+    def _rejection_shape(row: dict[str, Any]) -> str | None:
+        """The mechanical detection shape stored in tool_calls (rows from
+        before the taxonomy carried the shape in rework_reason itself)."""
+        raw = row.get("tool_calls")
+        if isinstance(raw, str) and raw:
+            try:
+                detail = json.loads(raw)
+            except ValueError:
+                return None
+            if isinstance(detail, list) and detail and isinstance(detail[0], dict):
+                shape = detail[0].get("shape")
+                if isinstance(shape, str):
+                    return shape
+        return row.get("rework_reason")
+
+    @staticmethod
+    def _rejection_note(row: dict[str, Any] | None) -> str | None:
+        if not row:
+            return None
+        raw = row.get("tool_calls")
+        if isinstance(raw, str) and raw:
+            try:
+                detail = json.loads(raw)
+            except ValueError:
+                return None
+            if isinstance(detail, list) and detail and isinstance(detail[0], dict):
+                note = detail[0].get("reasonNote")
+                return note if isinstance(note, str) else None
+        return None
+
+    @staticmethod
     def _rejection_wire(
         rejection: rejection_mod.Rejection,
         rejected_sequence: int | None,
         recorded_sequence: int | None,
         already_recorded: bool,
+        *,
+        rework_reason: str | None = None,
+        reason_note: str | None = None,
     ) -> bus_types.TrustRejection:
         return {
             "rejectedCommit": rejection.rejected_commit,
             "rejectingCommit": rejection.rejecting_commit,
             "reason": rejection.reason,  # type: ignore[typeddict-item]
+            "reworkReason": rework_reason or "other",
+            "reasonNote": reason_note,
             "paths": list(rejection.paths),
             "linesRejected": rejection.lines_rejected,
             "rejectedAt": rejection.rejected_at,

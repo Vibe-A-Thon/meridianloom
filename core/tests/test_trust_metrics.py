@@ -80,7 +80,7 @@ def _rejection_entry(rejected_sequence, story: str, repo_id: str = "edb"):
         "policy_version": "f0",
         "action_type": "rejection",
         "decision": "rejected",
-        "rework_reason": "reverted",
+        "rework_reason": "other",
         "rejected_sequence": rejected_sequence,
         "rejected_commit": "a" * 40,
         "rejecting_commit": "b" * 40,
