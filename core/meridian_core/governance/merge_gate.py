@@ -161,12 +161,18 @@ def check_merge(
     *,
     subject: str,
     head_commit: str | None = None,
+    requires_approval: bool | None = None,
 ) -> MergeVerdict:
     """FR-M12-05/07: may ``subject`` (branch or PR id) merge at ``head_commit``?
 
     Unprotected branches merge freely. Protected branches need a recorded
     human approval bound to the head commit, and no active halt. A
     fail-closed pack refuses every merge.
+
+    ``requires_approval`` overrides the protected-branch lookup: ``pr/status``
+    passes True when the PR's base branch is protected — a PR subject
+    (``pr:repo#n``) is never itself a protected-branch name, but merging it
+    lands on one (FR-M35-04). None means "decide from protectedBranches".
     """
     if pack.fail_closed:
         return MergeVerdict(
@@ -180,7 +186,11 @@ def check_merge(
             missing=tuple(pack.errors),
         )
 
-    protected = subject in pack.protected_branches
+    protected = (
+        subject in pack.protected_branches
+        if requires_approval is None
+        else bool(requires_approval)
+    )
     halts = active_halts(ledger, subject)
     missing: list[str] = []
     for seq, reason in halts:

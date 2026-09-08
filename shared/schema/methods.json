@@ -158,6 +158,16 @@
       "notification": true,
       "params": { "$ref": "#/$defs/GateHaltNotification" }
     },
+    "pr/ingest": {
+      "description": "FR-M35-04/FR-M35-05 (F1 Workstream B task 12): ingest an external agent's PR as a Meridian story. The payload is the recorded-real gh-api pull-request shape (PR object plus its commits and files arrays — in production sourced from the M23 SCM connectors, in tests from recorded fixtures; never invented field names). The PR becomes the story's ledger origin record (actionType pr_ingest, origin connector), every hunk is attributed to its agent via Co-Authored-By trailers, author markers, or the inferred heuristic fallback (FR-M35-02 confidence labelled), each agent's pass is recorded as a proposed-change entry (actionType diff, vendor + observationConfidence set), and the packet is routed through the requested gate profiles (default verify, security, review — FR-M35-04). Every entry is written BEFORE the response returns (FR-M10-08). Merge permission is NOT granted here: pr/status consults the merge gate, which requires a recorded human approval bound to the head commit when the PR targets a protected branch (FR-M12-05, AC-32).",
+      "params": { "$ref": "#/$defs/PrIngestParams" },
+      "result": { "$ref": "#/$defs/PrIngestResult" }
+    },
+    "pr/status": {
+      "description": "FR-M35-04 (F1 Workstream B task 12): gate state for an ingested PR — the recorded gate evaluations for the PR's story plus the merge-gate verdict for its subject at the recorded head commit (approval required when the base branch is protected; a changed head invalidates the recorded approval). Read-only — decides nothing, records nothing.",
+      "params": { "$ref": "#/$defs/PrStatusParams" },
+      "result": { "$ref": "#/$defs/PrStatusResult" }
+    },
     "steer.send": {
       "description": "Governor tier stub (FR-M25-01; F1): steer a running session. Same tier-enforcement role as gate.evaluate.",
       "params": { "$ref": "#/$defs/SteerSendParams" },
@@ -1325,6 +1335,119 @@
       "properties": {
         "sessionId": { "type": "string" },
         "message": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "PrAgentAttribution": {
+      "type": "object",
+      "required": ["agentId", "vendor", "login", "confidence", "source"],
+      "properties": {
+        "agentId": { "type": "string", "description": "\"<vendor>:<login>\" — the ledger actor_id for this agent." },
+        "vendor": { "type": "string" },
+        "login": { "type": "string" },
+        "confidence": { "enum": ["telemetry", "inferred"], "description": "FR-M35-02 observation confidence for the attribution evidence (trailer/author-marker evidence is telemetry; the heuristic fallback is always inferred)." },
+        "source": { "enum": ["trailer", "author-marker", "heuristic"] }
+      },
+      "additionalProperties": false
+    },
+    "PrHunkAttribution": {
+      "type": "object",
+      "required": ["path", "oldStart", "oldCount", "newStart", "newCount", "agent", "rationale"],
+      "properties": {
+        "path": { "type": "string" },
+        "oldStart": { "type": "integer" },
+        "oldCount": { "type": "integer" },
+        "newStart": { "type": "integer" },
+        "newCount": { "type": "integer" },
+        "agent": { "$ref": "#/$defs/PrAgentAttribution" },
+        "rationale": { "type": "string", "description": "Auditable why: which evidence attributed this hunk, and any ambiguity (multi-agent PRs degrade to inferred rather than overclaiming, G3)." }
+      },
+      "additionalProperties": false
+    },
+    "PrGateResult": {
+      "type": "object",
+      "required": ["gate", "decision", "sequence", "reasons"],
+      "properties": {
+        "gate": { "type": "string" },
+        "decision": { "enum": ["pass", "block"] },
+        "sequence": { "type": "integer", "description": "The ledger sequence of the recorded gate evaluation (FR-M10-08 — written before the response returns)." },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "PrRecordedGate": {
+      "type": "object",
+      "required": ["gate", "decision", "sequence"],
+      "properties": {
+        "gate": { "type": "string" },
+        "decision": { "enum": ["pass", "block"] },
+        "sequence": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "PrIngestSequences": {
+      "type": "object",
+      "required": ["origin", "passes", "gates"],
+      "properties": {
+        "origin": { "type": "integer" },
+        "passes": { "type": "array", "items": { "type": "integer" } },
+        "gates": { "type": "array", "items": { "type": "integer" } }
+      },
+      "additionalProperties": false
+    },
+    "PrIngestParams": {
+      "type": "object",
+      "required": ["pr"],
+      "properties": {
+        "pr": { "type": "object", "description": "The gh-api pull-request payload: the PR object plus its commits (list-commits-for-a-pull shape) and files (list-files shape with per-file patch). Recorded-real field names only." },
+        "linkedTicket": { "type": "string", "description": "The ticket the PR closes (Jira-style ticket key). Absent: derived from the body/title/branch (the ticket-to-PR flow, FR-M35-05); the PR subject is the story id when no key is found." },
+        "gates": { "type": "array", "items": { "type": "string" }, "description": "Gate profile chain to route the packet through (default [verify, security, review])." },
+        "gate": { "type": "string", "description": "Single-gate shorthand for gates." },
+        "evidence": { "type": "array", "items": { "type": "object" }, "description": "Check-run/scan artifacts for the gate criteria (kind/status/criticalFindings), gh-api check-runs shaped." },
+        "approvals": { "type": "array", "items": { "type": "object" }, "description": "Review approvals for the humanApproval criterion (approver name/email, role), gh-api reviews shaped." },
+        "policyPath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "PrIngestResult": {
+      "type": "object",
+      "required": ["storyId", "subject", "repo", "number", "branch", "headCommit", "baseBranch", "agents", "hunks", "gates", "sequences"],
+      "properties": {
+        "storyId": { "type": "string" },
+        "subject": { "type": "string", "description": "The merge-gate subject (pr:<repo>#<number>) — what gate.approve binds." },
+        "repo": { "type": "string" },
+        "number": { "type": "integer" },
+        "branch": { "type": "string" },
+        "headCommit": { "type": "string" },
+        "baseBranch": { "type": "string" },
+        "agents": { "type": "array", "items": { "$ref": "#/$defs/PrAgentAttribution" } },
+        "hunks": { "type": "array", "items": { "$ref": "#/$defs/PrHunkAttribution" } },
+        "gates": { "type": "array", "items": { "$ref": "#/$defs/PrGateResult" } },
+        "sequences": { "$ref": "#/$defs/PrIngestSequences" }
+      },
+      "additionalProperties": false
+    },
+    "PrStatusParams": {      "type": "object",
+      "required": [],
+      "properties": {
+        "subject": { "type": "string", "description": "The merge-gate subject (pr:<repo>#<number>)." },
+        "repo": { "type": "string", "description": "With number: the subject is derived (pr:<repo>#<number>)." },
+        "number": { "type": "integer" },
+        "policyPath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "PrStatusResult": {
+      "type": "object",
+      "required": ["subject", "ingested", "gates", "merge"],
+      "properties": {
+        "subject": { "type": "string" },
+        "ingested": { "type": "boolean" },
+        "storyId": { "type": ["string", "null"] },
+        "headCommit": { "type": ["string", "null"] },
+        "baseBranch": { "type": ["string", "null"] },
+        "gates": { "type": "array", "items": { "$ref": "#/$defs/PrRecordedGate" } },
+        "merge": { "$ref": "#/$defs/GateStatusResult" }
       },
       "additionalProperties": false
     },

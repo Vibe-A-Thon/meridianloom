@@ -46,6 +46,7 @@ from . import rejection as rejection_mod
 from .ledger import core as ledger_core
 from .ledger import keys as ledger_keys
 from .ledger import wire as ledger_wire
+from .pr import ingest as pr_ingest
 from .worktree import manager as worktree_mod
 from .observers import claude as observer_claude
 from .observers import copilot as observer_copilot
@@ -142,6 +143,14 @@ class SidecarServer:
             "gate.approve": SidecarServer._handle_gate_approve,
             "gate.status": SidecarServer._handle_gate_status,
             "gate.halt": SidecarServer._handle_gate_halt,
+            # FR-M35-04/05 (F1 Workstream B task 12): external PR gating —
+            # a PR payload (gh-api shape, sourced from the M23 SCM connectors
+            # in production, injected fixtures in tests) becomes a Meridian
+            # story: origin record, per-agent attributed hunks, and routing
+            # through the Verify/Security/Review gate profiles. Merge is
+            # permitted only via the merge gate with a recorded approval.
+            "pr/ingest": SidecarServer._handle_pr_ingest,
+            "pr/status": SidecarServer._handle_pr_status,
             "steer.send": lambda self, params: self._not_implemented("steer.send", "F1 (Governor)"),
             "trust.summary": lambda self, params: self._not_implemented("trust.summary", "F1 (Governor)"),
             # FR-M34-01/02/04 (F1 Workstream A task 4): hosted-session ledger
@@ -496,6 +505,12 @@ class SidecarServer:
         human_actor: str | None = None,
         human_role: str | None = None,
         rework_reason: str | None = None,
+        actor_kind: str = "meta",
+        vendor: str = "meridian",
+        observation_confidence: str = "direct",
+        run_id: str | None = None,
+        origin: str | None = None,
+        phase: str = "review",
     ) -> int:
         """FR-M10-08: the gate decision is committed to the ledger BEFORE the
         RPC returns; the encrypted input blob carries the full detail."""
@@ -503,17 +518,17 @@ class SidecarServer:
         entry: dict[str, Any] = {
             "ts_utc": ledger_core.utc_now(),
             "story_id": story_id,
-            "phase": "review",
+            "phase": phase,
             "loop_id": "governance",
             "loop_iteration": 1,
             "actor_id": "governor",
             "actor_version": protocol.CORE_VERSION,
-            "actor_kind": "meta",
+            "actor_kind": actor_kind,
             "policy_version": pack.policy_version,
             "action_type": action_type,
             "decision": decision,
-            "vendor": "meridian",
-            "observation_confidence": "direct",
+            "vendor": vendor,
+            "observation_confidence": observation_confidence,
             "input": json.dumps(detail, ensure_ascii=False),
         }
         if human_actor:
@@ -524,6 +539,10 @@ class SidecarServer:
             rework_reason = "; ".join(detail["reasons"])
         if rework_reason:
             entry["rework_reason"] = rework_reason[:4000]
+        if run_id is not None:
+            entry["run_id"] = run_id
+        if origin is not None:
+            entry["origin"] = origin
         result = ledger.append(entry)
         self._trust_cache.invalidate()
         return result.sequence
@@ -828,6 +847,362 @@ class SidecarServer:
         if warning is not None:
             result["warning"] = warning
         return result
+
+    # -- external PR gating (FR-M35-04/05; F1 Workstream B task 12) -----------
+
+    def _handle_pr_ingest(
+        self, params: bus_types.PrIngestParams
+    ) -> bus_types.PrIngestResult:
+        """Ingest a gh-api PR payload as a Meridian story.
+
+        FR-M10-08: every record below is committed to the ledger BEFORE this
+        response returns. The PR does not gain merge permission here — that
+        is the merge gate's job with a recorded human approval (FR-M12-05),
+        checked by pr/status.
+        """
+        params = params or {}
+        raw_pr = params.get("pr")
+        try:
+            pr = pr_ingest.parse_pr(raw_pr)
+        except pr_ingest.IngestError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        pack = self._governance_pack(params)
+
+        ticket = params.get("linkedTicket")
+        if not isinstance(ticket, str) or not ticket.strip():
+            ticket = pr_ingest.ticket_for(pr)
+        story_id = ticket.strip() if isinstance(ticket, str) and ticket.strip() else pr.subject
+
+        gates = params.get("gates")
+        if gates is None:
+            gate = params.get("gate")
+            gates = [gate] if isinstance(gate, str) and gate.strip() else list(pr_ingest.DEFAULT_GATES)
+        if not isinstance(gates, list) or not gates or not all(
+            isinstance(g, str) and g.strip() for g in gates
+        ):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "gates must be a non-empty list of gate profile names",
+            )
+        gates = [g.strip() for g in gates]
+
+        agents = pr_ingest.resolve_agents(pr)
+        hunks = pr_ingest.attribute_hunks(pr)
+        ledger = self._ensure_ledger()
+
+        # 1. The ledger origin record: the PR as the story's origin
+        #    (FR-M35-05). origin "connector" — in production this payload
+        #    arrives from the SCM connectors (M23).
+        origin_sequence = self._append_gate_entry(
+            story_id=story_id,
+            pack=pack,
+            action_type="pr_ingest",
+            decision="proposed",
+            actor_kind="external",
+            vendor=agents[0].vendor,
+            observation_confidence=agents[0].confidence,
+            run_id=pr.subject,
+            origin="connector",
+            phase="intake",
+            detail={
+                "method": "pr/ingest",
+                "subject": pr.subject,
+                "repo": pr.repo,
+                "number": pr.number,
+                "url": pr.url,
+                "title": pr.title,
+                "state": pr.state,
+                "author": {
+                    "login": pr.author_login,
+                    "type": pr.author_type,
+                    "association": pr.author_association,
+                },
+                "branch": pr.branch,
+                "headCommit": pr.head_commit,
+                "baseBranch": pr.base_branch,
+                "baseCommit": pr.base_commit,
+                "linkedTicket": ticket if isinstance(ticket, str) else None,
+                "payload": raw_pr,
+            },
+        )
+
+        # 2. The external agent's pass: one proposed-change entry per agent
+        #    carrying its attributed hunks (AC-32: the agent's pass, the
+        #    gates and the approver land in one ledger range).
+        hunk_sequences: list[int] = []
+        by_agent: dict[str, list[pr_ingest.HunkAttribution]] = {}
+        for hunk in hunks:
+            by_agent.setdefault(hunk.agent.agent_id, []).append(hunk)
+        for agent in agents:
+            agent_hunks = by_agent.get(agent.agent_id, [])
+            sequence = self._append_agent_pass(
+                ledger=ledger,
+                story_id=story_id,
+                pack=pack,
+                pr=pr,
+                agent=agent,
+                hunks=agent_hunks,
+            )
+            hunk_sequences.append(sequence)
+
+        # 3. Gate routing: the packet is evaluated against every requested
+        #    profile and each verdict is recorded (FR-M35-04).
+        packet = self._pr_packet(params, pr, story_id)
+        gate_results: list[dict[str, Any]] = []
+        for gate in gates:
+            verdict = governance_engine.evaluate(packet, gate, pack)
+            sequence = self._append_gate_entry(
+                story_id=story_id,
+                pack=pack,
+                decision="approved" if verdict.passed else "rejected",
+                detail={
+                    "method": "pr/ingest",
+                    "subject": pr.subject,
+                    "gate": gate,
+                    "packet": packet,
+                    "criteria": [
+                        {
+                            "id": c.id,
+                            "kind": c.kind,
+                            "passed": c.passed,
+                            "reason": c.reason,
+                        }
+                        for c in verdict.criteria
+                    ],
+                    "reasons": list(verdict.reasons),
+                    "failClosed": verdict.fail_closed,
+                },
+            )
+            gate_results.append(
+                {
+                    "gate": gate,
+                    "decision": "pass" if verdict.passed else "block",
+                    "sequence": sequence,
+                    "reasons": list(verdict.reasons),
+                }
+            )
+
+        return {
+            "storyId": story_id,
+            "subject": pr.subject,
+            "repo": pr.repo,
+            "number": pr.number,
+            "branch": pr.branch,
+            "headCommit": pr.head_commit,
+            "baseBranch": pr.base_branch,
+            "agents": [self._agent_wire(agent) for agent in agents],
+            "hunks": [self._hunk_wire(h) for h in hunks],
+            "gates": gate_results,
+            "sequences": {
+                "origin": origin_sequence,
+                "passes": hunk_sequences,
+                "gates": [g["sequence"] for g in gate_results],
+            },
+        }
+
+    def _handle_pr_status(
+        self, params: bus_types.PrStatusParams
+    ) -> bus_types.PrStatusResult:
+        """Gate state for an ingested PR: the recorded evaluations plus the
+        merge gate verdict. Read-only — status decides and records nothing.
+        """
+        params = params or {}
+        pack = self._governance_pack(params)
+        subject = params.get("subject")
+        if not isinstance(subject, str) or not subject.strip():
+            repo = params.get("repo")
+            number = params.get("number")
+            if (
+                not isinstance(repo, str)
+                or not repo.strip()
+                or not isinstance(number, int)
+                or isinstance(number, bool)
+            ):
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    "pr/status needs subject or (repo, number)",
+                )
+            subject = pr_ingest.subject_for(repo.strip(), number)
+
+        ledger = self._ensure_ledger()
+        ingest = self._find_pr_ingest(ledger, subject.strip())
+        head_commit: str | None = None
+        base_branch: str | None = None
+        story_id: str | None = None
+        gates: list[dict[str, Any]] = []
+        if ingest is not None:
+            story_id = ingest["row"].get("story_id")
+            head_commit = ingest["detail"].get("headCommit")
+            base_branch = ingest["detail"].get("baseBranch")
+            for row in ledger.query(action_type="gate", story_id=story_id, limit=1000):
+                detail = self._read_entry_detail(ledger, row)
+                if detail.get("subject") != subject.strip():
+                    continue
+                gates.append(
+                    {
+                        "gate": detail.get("gate"),
+                        "decision": "pass" if row.get("decision") == "approved" else "block",
+                        "sequence": row["seq"],
+                    }
+                )
+            gates.sort(key=lambda g: g["sequence"])
+
+        # FR-M35-04: merging the PR lands on its base branch; when that
+        # branch is protected, a recorded human approval bound to the head
+        # commit is required — the merge gate decides, this RPC only asks.
+        requires_approval = None
+        if base_branch is not None:
+            requires_approval = base_branch in pack.protected_branches
+        verdict = governance_merge_gate.check_merge(
+            ledger,
+            pack,
+            subject=subject.strip(),
+            head_commit=head_commit,
+            requires_approval=requires_approval,
+        )
+        merge: bus_types.GateStatusResult = {
+            "status": "approved" if verdict.allowed else "blocked",
+            "subject": verdict.subject,
+            "requiredApproval": verdict.required_approval,
+            "halted": verdict.halted,
+            "missing": list(verdict.missing),
+        }
+        if verdict.approval is not None:
+            merge["approvalSequence"] = verdict.approval.sequence
+            merge["approver"] = {
+                "name": verdict.approval.approver.name,
+                "email": verdict.approval.approver.email,
+            }
+        result: bus_types.PrStatusResult = {
+            "subject": subject.strip(),
+            "ingested": ingest is not None,
+            "storyId": story_id,
+            "headCommit": head_commit,
+            "baseBranch": base_branch,
+            "gates": gates,
+            "merge": merge,
+        }
+        return result
+
+    # -- PR ingest helpers -----------------------------------------------------
+
+    @staticmethod
+    def _agent_wire(agent: pr_ingest.AgentAttribution) -> dict[str, Any]:
+        return {
+            "agentId": agent.agent_id,
+            "vendor": agent.vendor,
+            "login": agent.login,
+            "confidence": agent.confidence,
+            "source": agent.source,
+        }
+
+    @staticmethod
+    def _hunk_wire(hunk: pr_ingest.HunkAttribution) -> dict[str, Any]:
+        return {
+            "path": hunk.path,
+            "oldStart": hunk.old_start,
+            "oldCount": hunk.old_count,
+            "newStart": hunk.new_start,
+            "newCount": hunk.new_count,
+            "agent": SidecarServer._agent_wire(hunk.agent),
+            "rationale": hunk.rationale,
+        }
+
+    def _pr_packet(
+        self, params: dict[str, Any], pr: pr_ingest.PullRequest, story_id: str
+    ) -> dict[str, Any]:
+        """The gate-engine packet for an ingested PR: required fields plus
+        any evidence artifacts and approvals the caller attached (gh-api
+        check-run / review shapes, injected by the connector or the test)."""
+        packet: dict[str, Any] = {
+            "storyId": story_id,
+            "subject": pr.subject,
+            "branch": pr.branch,
+            "headCommit": pr.head_commit,
+            "baseBranch": pr.base_branch,
+        }
+        evidence = params.get("evidence")
+        if isinstance(evidence, list):
+            packet["evidence"] = evidence
+        approvals = params.get("approvals")
+        if isinstance(approvals, list):
+            packet["approvals"] = approvals
+        return packet
+
+    def _append_agent_pass(
+        self,
+        *,
+        ledger: ledger_core.Ledger,
+        story_id: str,
+        pack: governance_policy.PolicyPack,
+        pr: pr_ingest.PullRequest,
+        agent: pr_ingest.AgentAttribution,
+        hunks: list[pr_ingest.HunkAttribution],
+    ) -> int:
+        """One proposed-change entry for an agent's pass on the PR — the
+        entry AC-32 reconciles against the gates and the approver."""
+        entry: dict[str, Any] = {
+            "ts_utc": ledger_core.utc_now(),
+            "story_id": story_id,
+            "phase": "build",
+            "loop_id": "governance",
+            "loop_iteration": 1,
+            "actor_id": agent.agent_id,
+            "actor_version": protocol.CORE_VERSION,
+            "actor_kind": "external",
+            "policy_version": pack.policy_version,
+            "action_type": "diff",
+            "decision": "proposed",
+            "vendor": agent.vendor,
+            "observation_confidence": agent.confidence,
+            "input": json.dumps(
+                {
+                    "method": "pr/ingest",
+                    "subject": pr.subject,
+                    "headCommit": pr.head_commit,
+                    "baseCommit": pr.base_commit,
+                    "source": agent.source,
+                },
+                ensure_ascii=False,
+            ),
+            "repo_id": pr.repo,
+            "run_id": pr.subject,
+            "origin": "connector",
+            "tool_calls": [
+                {
+                    "path": h.path,
+                    "oldStart": h.old_start,
+                    "oldCount": h.old_count,
+                    "newStart": h.new_start,
+                    "newCount": h.new_count,
+                    "rationale": h.rationale,
+                }
+                for h in hunks
+            ],
+        }
+        result = ledger.append(entry)
+        self._trust_cache.invalidate()
+        return result.sequence
+
+    def _find_pr_ingest(
+        self, ledger: ledger_core.Ledger, subject: str
+    ) -> dict[str, Any] | None:
+        """The newest pr_ingest entry for ``subject``: (row, decoded detail)."""
+        for row in reversed(ledger.query(action_type="pr_ingest", limit=1000)):
+            detail = self._read_entry_detail(ledger, row)
+            if detail.get("subject") == subject:
+                return {"row": row, "detail": detail}
+        return None
+
+    def _read_entry_detail(self, ledger: ledger_core.Ledger, row: dict[str, Any]) -> dict[str, Any]:
+        ref = row.get("input_ref")
+        key_id = row.get("blob_key_id")
+        if not ref or not key_id:
+            return {}
+        try:
+            return json.loads(ledger.read_blob(ref, key_id).decode("utf-8"))
+        except (ValueError, KeyError, OSError):
+            return {}
 
     # -- attribution (FR-M33-02 subset, F0 Workstream C) ----------------------
 

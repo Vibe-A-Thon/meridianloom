@@ -79,6 +79,12 @@
         "rpcMethods": ["mcp/invoke"]
       },
       {
+        "id": "governor.pr-gates",
+        "tier": "governor",
+        "description": "External PR gating (FR-M35-04, FR-M35-05; F1 Workstream B task 12): an external agent's PR — sourced in production from the M23 CI/SCM connectors — is ingested as a Meridian story (pr/ingest): ledger origin record, per-agent attributed hunks with FR-M35-02 observation confidence, and routing through the Verify/Security/Review gate profiles. pr/status returns the recorded gate evaluations plus the merge-gate verdict — merge of a PR targeting a protected branch is permitted only with a recorded human approval bound to the head commit (FR-M12-05, AC-32). All records are written before the RPC returns (FR-M10-08).",
+        "rpcMethods": ["pr/ingest", "pr/status"]
+      },
+      {
         "id": "governor.worktrees",
         "tier": "governor",
         "description": "Worktree isolation for hosted agents (FR-M18-01..08, AC-13/AC-14; F1 Workstream A task 5): a dedicated git worktree per story under .meridian/worktrees/ on branch meridian/<story-id> — never the primary tree — with a worktree-local agent git identity and a commit-msg hook appending the Meridian-Hosted-Agent trailer. worktree/conflicts is the pre-flight conflict report the RunRequest flow (M40) consumes before a packet starts; worktree/abortStory removes worktree + never-pushed branch and leaves the primary tree byte-identical. Creation, removal and abort are ledger-recorded with worktree_ref set.",

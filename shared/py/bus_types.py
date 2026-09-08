@@ -676,6 +676,75 @@ class SteerSendParams(TypedDict):
     sessionId: str
     message: str
 
+class PrAgentAttribution(TypedDict):
+    agentId: str  # "<vendor>:<login>" — the ledger actor_id for this agent.
+    vendor: str
+    login: str
+    confidence: Literal["telemetry", "inferred"]  # FR-M35-02 observation confidence for the attribution evidence (trailer/author-marker evidence is telemetry; the heuristic fallback is always inferred).
+    source: Literal["trailer", "author-marker", "heuristic"]
+
+class PrHunkAttribution(TypedDict):
+    path: str
+    oldStart: int
+    oldCount: int
+    newStart: int
+    newCount: int
+    agent: PrAgentAttribution
+    rationale: str  # Auditable why: which evidence attributed this hunk, and any ambiguity (multi-agent PRs degrade to inferred rather than overclaiming, G3).
+
+class PrGateResult(TypedDict):
+    gate: str
+    decision: Literal["pass", "block"]
+    sequence: int  # The ledger sequence of the recorded gate evaluation (FR-M10-08 — written before the response returns).
+    reasons: list[str]
+
+class PrRecordedGate(TypedDict):
+    gate: str
+    decision: Literal["pass", "block"]
+    sequence: int
+
+class PrIngestSequences(TypedDict):
+    origin: int
+    passes: list[int]
+    gates: list[int]
+
+class PrIngestParams(TypedDict):
+    pr: dict[str, Any]  # The gh-api pull-request payload: the PR object plus its commits (list-commits-for-a-pull shape) and files (list-files shape with per-file patch). Recorded-real field names only.
+    linkedTicket: NotRequired[str]  # The ticket the PR closes (Jira-style ticket key). Absent: derived from the body/title/branch (the ticket-to-PR flow, FR-M35-05); the PR subject is the story id when no key is found.
+    gates: NotRequired[list[str]]  # Gate profile chain to route the packet through (default [verify, security, review]).
+    gate: NotRequired[str]  # Single-gate shorthand for gates.
+    evidence: NotRequired[list[dict[str, Any]]]  # Check-run/scan artifacts for the gate criteria (kind/status/criticalFindings), gh-api check-runs shaped.
+    approvals: NotRequired[list[dict[str, Any]]]  # Review approvals for the humanApproval criterion (approver name/email, role), gh-api reviews shaped.
+    policyPath: NotRequired[str]
+
+class PrIngestResult(TypedDict):
+    storyId: str
+    subject: str  # The merge-gate subject (pr:<repo>#<number>) — what gate.approve binds.
+    repo: str
+    number: int
+    branch: str
+    headCommit: str
+    baseBranch: str
+    agents: list[PrAgentAttribution]
+    hunks: list[PrHunkAttribution]
+    gates: list[PrGateResult]
+    sequences: PrIngestSequences
+
+class PrStatusParams(TypedDict):
+    subject: NotRequired[str]  # The merge-gate subject (pr:<repo>#<number>).
+    repo: NotRequired[str]  # With number: the subject is derived (pr:<repo>#<number>).
+    number: NotRequired[int]
+    policyPath: NotRequired[str]
+
+class PrStatusResult(TypedDict):
+    subject: str
+    ingested: bool
+    storyId: NotRequired[str | None]
+    headCommit: NotRequired[str | None]
+    baseBranch: NotRequired[str | None]
+    gates: list[PrRecordedGate]
+    merge: GateStatusResult
+
 class SteerSendResult(TypedDict):
     accepted: bool
 
@@ -920,7 +989,7 @@ class McpInvokeResult(TypedDict):
     result: dict[str, Any] | list[Any] | str | float | bool | None  # The underlying method's result JSON, unmodified.
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke"]
 
 # Every notification method on the bus.
 NotificationName = Literal["gate/halt", "tiers/set", "$/cancel"]
@@ -984,11 +1053,12 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
     {"id": "governor.acp-host", "tier": "governor", "description": "ACP host (FR-M34-01/02/03/04, SEC-28; F1 Workstream A tasks 1–4): the extension-host client that launches ACP-conformant agent subprocesses — initialize handshake and protocol-version negotiation, session lifecycle (new/load), streaming session updates, permission-gated tool execution, and client-provided fs/terminal access rooted at the user's workspace. Implemented in extension/src/acp/ (governor tier; disabled => no hosted sessions, G5). The adapter surface (extension/src/adapters/) re-bases AgentAdapter on ACP: governance manifests (§7.9), three-tier discovery (FR-M31-02), hot plug/unplug (FR-M31-04), probation (FR-M31-07), and the ACP Registry install source (FR-M34-03). The sidecar RPCs record hosted-session facts into the ledger: acp/sessionBegin/acp/sessionEnd (session_begin/session_end entries) and acp/permissionDecision (permission_decision entries — the FR-M34-04/SEC-28 governance trail, written before and independently of the human answer).", "rpcMethods": ["acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision"]},
     {"id": "governor.mcp-server", "tier": "governor", "description": "MCP server exposure of Meridian's governed surfaces (FR-M34-06; F1 Workstream A task 6): a standalone stdio MCP server process (extension/src/mcp/) speaks the MCP protocol to any client (VS Code's native agent mode included) and forwards each tools/call as one mcp/invoke. The sidecar is the permission gate and the provenance trail: the governor tier gate refuses when disabled (G5), each call is ledger-recorded (action_type tool_call, vendor mcp) before it executes, and the tool maps onto the existing read-only ledger/trust handlers.", "rpcMethods": ["mcp/invoke"]},
+    {"id": "governor.pr-gates", "tier": "governor", "description": "External PR gating (FR-M35-04, FR-M35-05; F1 Workstream B task 12): an external agent's PR — sourced in production from the M23 CI/SCM connectors — is ingested as a Meridian story (pr/ingest): ledger origin record, per-agent attributed hunks with FR-M35-02 observation confidence, and routing through the Verify/Security/Review gate profiles. pr/status returns the recorded gate evaluations plus the merge-gate verdict — merge of a PR targeting a protected branch is permitted only with a recorded human approval bound to the head commit (FR-M12-05, AC-32). All records are written before the RPC returns (FR-M10-08).", "rpcMethods": ["pr/ingest", "pr/status"]},
     {"id": "governor.worktrees", "tier": "governor", "description": "Worktree isolation for hosted agents (FR-M18-01..08, AC-13/AC-14; F1 Workstream A task 5): a dedicated git worktree per story under .meridian/worktrees/ on branch meridian/<story-id> — never the primary tree — with a worktree-local agent git identity and a commit-msg hook appending the Meridian-Hosted-Agent trailer. worktree/conflicts is the pre-flight conflict report the RunRequest flow (M40) consumes before a packet starts; worktree/abortStory removes worktree + never-pushed branch and leaves the primary tree byte-identical. Creation, removal and abort are ledger-recorded with worktree_ref set.", "rpcMethods": ["worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts"]},
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke")
 NOTIFICATION_METHODS: tuple[str, ...] = ("gate/halt", "tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -1023,6 +1093,8 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "gate.approve": {"params": GateApproveParams, "result": GateApproveResult},
     "gate.status": {"params": GateStatusParams, "result": GateStatusResult},
     "gate.halt": {"params": GateHaltParams, "result": GateHaltResult},
+    "pr/ingest": {"params": PrIngestParams, "result": PrIngestResult},
+    "pr/status": {"params": PrStatusParams, "result": PrStatusResult},
     "steer.send": {"params": SteerSendParams, "result": SteerSendResult},
     "trust.summary": {"params": TrustSummaryParams, "result": TrustSummaryResult},
     "trust/detectRejections": {"params": TrustDetectRejectionsParams, "result": TrustDetectRejectionsResult},
