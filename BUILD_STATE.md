@@ -4,11 +4,27 @@
 
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
-- **Current phase:** F1 — Governor
-- **Current workstream:** G — Remaining observers — **done**
-- **Current task:** workstream H next — GF1 screens (task 31: 10.1 Command Center, 10.6 Gate Room, 10.27 Decision Stream, 10.28 Steer & Clarify, 10.32 Roles, 10.47 Trust Observatory, 10.49 Cross-Vendor Spend, 10.43 Adapter Bay, 10.16 Inspector, 10.50 Unlock; task 32: X-31 parity check — human-timed, 5 engineers). Webview paths belong to the parallel session; my half is extension-host plumbing incl. the D33 `spend/ceiling` pause handler.
-- **Last commit:** 2289a36 — workstream G done (task 30): Cursor/Codex/Devin observers at telemetry-trailer/inferred floor (D34), never direct, NFR-32 degrade per vendor, pid-scoped X-29 tests; 39 new tests + 74 observer-suite + 106 no-regression all green; no new RPCs (reuse observe/sessions, observe/health). Workstream F complete at 3608ecd (D33 host-side pause OPEN). Workstream E complete at f3cafd3. Decisions D28–D34 in DECISIONS.md. (FR-M25-01/02/03/04/06 + honest observe-only controls NOT_HOSTED; extension vitest 347; note: shared-index incident with the parallel session repaired via plumbing, final tree byte-identical, nothing pushed)
+- **Current phase:** F1 — Governor — **exit-criteria assessment in progress**
+- **Current workstream:** H — GF1 screens + host plumbing — **my half done**
+- **Current task:** F1 exit assessment — full `npm test` + `pytest` running in background; then .vsix, README, tag `f1-complete`
+- **Last commit:** 539e564 — D33 closed end-to-end: `spend/ceiling` notification wired in extension.ts (module-level `SpendCeilingPauseTracker`, dispatched after gate.halt fall-through) + `checkpointGate` passthrough in launch.ts; tsc clean. Handler itself at b4022e9 (turn-boundary pause — ACP has no pause primitive; observed/unbound = advisory only). Workstream G done at 2289a36 (D34). Decisions D24–D34 in DECISIONS.md. (FR-M25-01/02/03/04/06 + honest observe-only controls NOT_HOSTED; extension vitest 347; note: shared-index incident with the parallel session repaired via plumbing, final tree byte-identical, nothing pushed)
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
+
+## Phase F1 exit criteria (from gaps_implementation.md §F1)
+
+| # | Criterion | Status | Proof |
+|---|---|---|---|
+| 1 | AC-31 ACP Registry agent installs via Adapter Bay → probation → packet, permission requests policy-checked before human sees them | pass (engineering) / human-gated (real registry install) | `acp-registry-source.test.ts`, `adapters-probation.test.ts`, `adapters-launch.test.ts`, `acp-permission-gate.test.ts` (FR-M34-04 policy check wraps the approver); a live install from the real ACP Registry is human/CI |
+| 2 | AC-32 external-agent PR ingested, gated (Security+Review), merged only after recorded human approval — one ledger range | pass (engineering) / human-gated (real Copilot-from-Jira PR) | `core/tests/test_pr_ingest.py` — ingest records origin pass + gates in one contiguous range, entries before response (FR-M10-08), merge requires recorded approver identity, changed head invalidates approval; real Copilot/Jira PR is human-gated |
+| 3 | AC-34 rejection rate + reason distribution per agent, greenfield/brownfield, reconciles to ledger (≥20 stories) | pass (engineering) / human-gated (20 real stories) | reconciliation oracle in `test_trust_metrics.py` (recomputes from raw ledger rows, asserts RPC equality); 20-story half is F2's evidence gate |
+| 4 | AC-36 Orchestra disabled → Flight Recorder + Governor fully functional | pass | tiers e2e (4059975) + `tiers-e2e.test.ts`; route-table/command-registry tier gating (H3) |
+| 5 | AC-37 hosted + observed agent's spend by vendor/model, reconciling to ledger | pass (engineering) | `test_spend_series.py` — six dimensions, vendor/model/agent splits, recorded vs estimated cost never blended silently (D32), reconciles to ledger rows |
+| 6 | NFR-30 ACP conformance suite green in CI | pass (local suite) / CI-provisioning remainder documented | `extension/test/acp-conformance.test.ts` — real-subprocess fake wire agent, spec sections: init/version negotiation, session lifecycle, streaming shapes, permission flows, cancellation, fs/terminal methods; upstream-harness-in-CI remainder documented in the test header, not faked |
+| 7 | X-31 Adapter Bay parity with Devin Desktop Agent Command Center, measured | human-gated | five-engineer timed study (GF1 task 32) — cannot be run by the build agent |
+| 8 | No path to merge an external agent's PR without a recorded approver identity | pass | `test_merge_requires_recorded_approval`, `test_status_blocked_without_approval`, `test_changed_head_invalidates_approval` in `test_pr_ingest.py` |
+| 9 | Full `npm test` + `pytest` green | **pending — running in background** | logs /tmp/npm-test-f1.log, /tmp/pytest-f1.log |
+
+Note: the ten GF1 **screens** (10.1, 10.6, 10.27, 10.28, 10.32, 10.43, 10.47, 10.49, 10.16, 10.50) are the parallel GUI session's workstream (gaps_guix_implementation.md GF1), built against real gated external PRs; all their sidecar RPC surfaces (`trust/*`, `spend/*`, gates, steer/clarify, roles) are done and tested on this side. GF1 exit criteria (H7 written findings, snapshots, axe-core, colour-blind) are the GUI session's to close.
 
 ## Mapping of completed S0 work onto the new plan
 
