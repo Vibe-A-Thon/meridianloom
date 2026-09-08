@@ -235,6 +235,13 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
       context.secrets,
     );
     const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    // FR-M20-01 (D9): the identity source of record, read at spawn time so
+    // a supervisor restart picks up a settings change. "git" resolves the
+    // workspace's user.name/user.email (assurance local); "oidc" is the
+    // enterprise stub until the enterprise tier lands.
+    const identityProvider = vscode.workspace
+      .getConfiguration('meridian')
+      .get<string>('identityProvider');
     supervisor = new SidecarSupervisor({
       clientFactory: () =>
         new StdioSidecarClient({
@@ -245,6 +252,7 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
           tiers: readEnabledTiers(),
           ...(workspaceDir ? { workspaceDir } : {}),
           ledgerSigningKey,
+          ...(identityProvider ? { identityProvider } : {}),
           onStderr: (line) => console.debug('[sidecar]', line),
         }),
       onError: (message) => {

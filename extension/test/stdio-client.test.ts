@@ -129,6 +129,45 @@ describe('StdioSidecarClient (FR-M3-01)', () => {
     expect(fake.stdin.written.length).toBeGreaterThanOrEqual(3);
   });
 
+  it('provisions the identity provider over the handshake (FR-M20-01)', async () => {
+    // The host owns the identity source of record (git config today,
+    // SecretStorage OIDC tokens later) and selects it at the handshake,
+    // like the ledger signing key. Without a workspace there is nothing
+    // for the git provider to resolve, so the param stays home.
+    const requests: Array<{ method?: string; params?: Record<string, unknown> }> = [];
+    const spawner = () => {
+      const fake = new FakeSidecarProcess();
+      fake.stdin.write = (data: string) => {
+        fake.respond(data);
+        requests.push(JSON.parse(data) as { method?: string; params?: Record<string, unknown> });
+        return true;
+      };
+      return fake;
+    };
+    const provisioned = new StdioSidecarClient({
+      command: 'python',
+      cwd: '/repo/core',
+      spawner,
+      workspaceDir: '/repo',
+      identityProvider: 'git',
+    });
+    await provisioned.start();
+    expect(requests[0]).toMatchObject({
+      method: 'handshake',
+      params: { workspaceDir: '/repo', identityProvider: 'git' },
+    });
+
+    requests.length = 0;
+    const bare = new StdioSidecarClient({
+      command: 'python',
+      cwd: '/repo/core',
+      spawner,
+    });
+    await bare.start();
+    expect(requests[0].method).toBe('handshake');
+    expect(requests[0].params).not.toHaveProperty('identityProvider');
+  });
+
   it('surfaces JSON-RPC error frames as rejections with code and data', async () => {
     const { client } = makeClient();
     await client.start();

@@ -25,6 +25,7 @@ class HandshakeParams(TypedDict):
     tiers: NotRequired[list[TierName]]  # FR-M36-05: tiers enabled in this workspace (from the meridian.tiers setting). Absent means the sidecar default: flight-recorder only. The base tier is always enabled regardless.
     workspaceDir: NotRequired[str]  # Absolute workspace path. The ledger lives at <workspaceDir>/.meridian/ledger (FR-M10-01). Absent: ledger RPCs answer LEDGER_UNAVAILABLE until configured.
     ledgerSigningKey: NotRequired[str]  # Base64-encoded 32-byte Ed25519 seed (FR-M10-04), sourced from the extension host's OS-keychain-backed SecretStorage (SEC-06) and provisioned over this handshake. Held in memory only; never persisted to disk or written into the ledger. Absent: the sidecar signs tree heads with an ephemeral key and doctor reports the missing keychain key.
+    identityProvider: NotRequired[str]  # FR-M20-01 (D9; F1 Workstream C task 15): selects the human identity source — "git" (default; user.name/user.email in the workspace, assurance local) or "oidc" (enterprise OIDC; contracted stub raising NOT_IMPLEMENTED with the FR id until the enterprise tier lands). Selected over the handshake like the ledger signing key: the extension host owns the choice it can later back with SecretStorage OIDC tokens. Unknown names are refused with an actionable INVALID_PARAMS. Requires workspaceDir.
 
 class Capabilities(TypedDict):
     methods: list[str]
@@ -725,10 +726,16 @@ class PrIngestResult(TypedDict):
     branch: str
     headCommit: str
     baseBranch: str
+    ingestedBy: IdentityRef  # FR-M20-01: the provider-resolved human who ingested the PR (never a free-text param); FR-M20-03 separation of duties compares the merge approver against this identity.
     agents: list[PrAgentAttribution]
     hunks: list[PrHunkAttribution]
     gates: list[PrGateResult]
     sequences: PrIngestSequences
+
+class IdentityRef(TypedDict):
+    name: str
+    email: str
+    assurance: Literal["local", "verified"]  # FR-M20-01: local = self-asserted git config (never counts as verified); verified = enterprise OIDC attestation (enterprise tier, not v1).
 
 class PrConflictAgent(TypedDict):
     agentId: str  # "<vendor>:<name>" — the ledger actor_id for the commit's agent.

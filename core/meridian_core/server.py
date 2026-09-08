@@ -31,6 +31,7 @@ from typing import Any
 import bus_types
 
 from . import doctor, protocol, tiers
+from . import identity as authenticated_identity
 from .attribution import blame, diff as attribution_diff, wire as attribution_wire
 from .attribution import symbols as symbols_mod
 from .attribution import heuristics
@@ -74,7 +75,7 @@ class SidecarServer:
     def __init__(
         self,
         ledger: ledger_core.Ledger | None = None,
-        identity_provider: governance_identity.IdentityProvider | None = None,
+        identity_provider: Any | None = None,
         notification_sink: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self._started_at = time.monotonic()
@@ -87,9 +88,11 @@ class SidecarServer:
         # signing key is provisioned over the handshake. Either may be
         # injected directly by tests instead.
         self._ledger = ledger
-        # FR-M12-07/D9: approver identity for gate.approve. Defaults to git
-        # user.name/user.email in the workspace; workstream C (FR-M20-01)
-        # swaps this for authenticated identity behind the same interface.
+        # FR-M12-07/FR-M20-01/D9: acting human identity (approver, halting
+        # operator, ingesting human) resolves through the identity
+        # interface — v1 git user.name/email (assurance "local"), the
+        # handshake identityProvider selection, or a test injection. Never
+        # a free-text param (FR-M20-01).
         self._identity_provider = identity_provider
         # FR-M12-06: sidecar -> host notifications (gate/halt dispatch) ride
         # the same framed writer as responses; serve() installs the writer
@@ -368,6 +371,27 @@ class SidecarServer:
                     data={"decodedBytes": len(seed)},
                 )
             self._signing_seed = seed
+        # FR-M20-01/D9: the host selects the identity provider over the
+        # handshake (same pattern as the signing key): the extension host
+        # can see git config today and will hold OIDC tokens in
+        # SecretStorage later. Unknown names are an actionable refusal;
+        # a test-injected provider still wins over the selection.
+        identity_provider = (params or {}).get("identityProvider")
+        if identity_provider is not None:
+            if not self._workspace_dir:
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    "identityProvider needs workspaceDir: the git provider "
+                    "resolves user.name/user.email from the workspace repository",
+                )
+            try:
+                selected = authenticated_identity.provider_from_config(
+                    identity_provider, Path(self._workspace_dir)
+                )
+            except authenticated_identity.IdentityProviderError as error:
+                raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+            if self._identity_provider is None:
+                self._identity_provider = selected
         logger.info("enabled tiers: %s", sorted(self._enabled_tiers))
         return {
             "protocolVersion": protocol.PROTOCOL_VERSION,
@@ -625,24 +649,51 @@ class SidecarServer:
 
     # -- merge gate (FR-M12-05/07; F1 Workstream B task 10) -------------------
 
-    def _approver_identity(self) -> governance_identity.HumanIdentity:
-        """D9: git user.name/user.email in the workspace, or the injected
-        provider. Unavailable identity is a refusal — FR-M12-07 anonymous
-        approval is not possible."""
+    # -- human identity (FR-M20-01/D9; F1 Workstream C task 15) -------------
+
+    def _human_identity(self) -> authenticated_identity.ResolvedIdentity:
+        """The acting human identity, resolved through the provider.
+
+        FR-M20-01: approver, halting operator and ingesting human all come
+        from the identity interface, never a raw string param. Unavailable
+        identity is a refusal (FR-M12-07 forbids anonymous approval); the
+        OIDC stub's NotImplementedError carries the FR id through verbatim.
+        Legacy ``identity()``-shaped providers (governance.identity) are
+        still accepted and map onto local assurance.
+        """
         provider = self._identity_provider
         if provider is None:
             if not self._workspace_dir:
                 raise _RpcError(
                     protocol.INVALID_PARAMS,
-                    "approver identity unavailable: no workspaceDir handshake "
+                    "human identity unavailable: no workspaceDir handshake "
                     "and no identity provider configured (FR-M12-07: anonymous "
                     "approval is not possible)",
                 )
-            provider = governance_identity.GitIdentityProvider(Path(self._workspace_dir))
+            provider = authenticated_identity.GitIdentityProvider(
+                Path(self._workspace_dir)
+            )
+            self._identity_provider = provider
+        resolve = getattr(provider, "resolve", None)
+        if callable(resolve):
+            try:
+                return resolve()
+            except (
+                authenticated_identity.IdentityUnavailableError,
+                NotImplementedError,
+            ) as error:
+                raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        # Legacy provider shape (pre-FR-M20-01 seam): identity() -> HumanIdentity.
         try:
-            return provider.identity()
+            human = provider.identity()
         except governance_identity.IdentityUnavailableError as error:
             raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        return authenticated_identity.ResolvedIdentity(
+            id=human.email or human.name,
+            display_name=human.name or human.email,
+            email=human.email,
+            assurance="local",
+        )
 
     def _handle_gate_approve(
         self, params: bus_types.GateApproveParams
@@ -660,7 +711,7 @@ class SidecarServer:
                 protocol.INVALID_PARAMS,
                 "commit must be the non-empty head digest the approval binds",
             )
-        who = self._approver_identity()
+        who = self._human_identity()
         role = params.get("role")
         pack = self._governance_pack(params)
         # FR-M10-08: the approval is durable BEFORE this response returns.
@@ -676,12 +727,15 @@ class SidecarServer:
                 "subject": subject.strip(),
                 "commit": commit.strip(),
                 "role": role if isinstance(role, str) else None,
+                # FR-M20-01: the full provider-resolved identity (with
+                # assurance) rides the encrypted detail blob.
+                "approver": who.wire(),
             },
         )
         return {
             "recorded": True,
             "sequence": sequence,
-            "approver": {"name": who.name, "email": who.email},
+            "approver": {"name": who.display_name, "email": who.email},
             "subject": subject.strip(),
             "commit": commit.strip(),
         }
@@ -758,7 +812,7 @@ class SidecarServer:
                 protocol.INVALID_PARAMS,
                 "scope hosted-session needs the sessionId to terminate",
             )
-        who = self._approver_identity()
+        who = self._human_identity()
         pack = self._governance_pack(params)
         detail: dict[str, Any] = {
             "method": "gate.halt",
@@ -766,6 +820,8 @@ class SidecarServer:
             "subject": subject.strip() if isinstance(subject, str) else None,
             "sessionId": session_id if isinstance(session_id, str) else None,
             "reason": reason.strip(),
+            # FR-M20-01: the halting operator's provider-resolved identity.
+            "haltedBy": who.wire(),
         }
         # FR-M10-08: the halt is durable BEFORE any action or response.
         sequence = self._append_gate_entry(
@@ -874,6 +930,10 @@ class SidecarServer:
         except pr_ingest.IngestError as error:
             raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
         pack = self._governance_pack(params)
+        # FR-M20-01/FR-M20-03: the ingesting human is recorded with the PR's
+        # origin record — separation of duties compares the merge approver
+        # against this identity, never against a raw string param.
+        ingester = self._human_identity()
 
         ticket = params.get("linkedTicket")
         if not isinstance(ticket, str) or not ticket.strip():
@@ -911,6 +971,7 @@ class SidecarServer:
             run_id=pr.subject,
             origin="connector",
             phase="intake",
+            human_actor=ingester.display(),
             detail={
                 "method": "pr/ingest",
                 "subject": pr.subject,
@@ -929,6 +990,7 @@ class SidecarServer:
                 "baseBranch": pr.base_branch,
                 "baseCommit": pr.base_commit,
                 "linkedTicket": ticket if isinstance(ticket, str) else None,
+                "ingestedBy": ingester.wire(),
                 "payload": raw_pr,
             },
         )
@@ -997,6 +1059,11 @@ class SidecarServer:
             "branch": pr.branch,
             "headCommit": pr.head_commit,
             "baseBranch": pr.base_branch,
+            "ingestedBy": {
+                "name": ingester.display_name,
+                "email": ingester.email,
+                "assurance": ingester.assurance,
+            },
             "agents": [self._agent_wire(agent) for agent in agents],
             "hunks": [self._hunk_wire(h) for h in hunks],
             "gates": gate_results,

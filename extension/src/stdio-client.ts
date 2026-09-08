@@ -35,6 +35,13 @@ export interface StdioSidecarOptions {
   /** FR-M10-04/SEC-06: base64 Ed25519 seed from SecretStorage, provisioned
    * to the sidecar in-memory only (never persisted by it). */
   ledgerSigningKey?: string;
+  /** FR-M20-01 (D9): the human identity source the sidecar resolves
+   * approver/halting/ingesting identity through — "git" (default; the
+   * workspace's user.name/user.email, assurance local) or "oidc"
+   * (enterprise stub until the enterprise tier lands). Provisioned over
+   * the handshake like the ledger signing key; only meaningful alongside
+   * workspaceDir. */
+  identityProvider?: string;
 }
 
 export class SidecarSpawnError extends Error {
@@ -181,6 +188,12 @@ export class StdioSidecarClient extends EventEmitter implements SidecarClient {
           ...(this.options.workspaceDir ? { workspaceDir: this.options.workspaceDir } : {}),
           ...(this.options.ledgerSigningKey
             ? { ledgerSigningKey: this.options.ledgerSigningKey }
+            : {}),
+          // FR-M20-01/D9: the identity source of record, provisioned with
+          // the handshake (the host owns the choice it can later back with
+          // SecretStorage OIDC tokens). Only meaningful with a workspace.
+          ...(this.options.workspaceDir && this.options.identityProvider
+            ? { identityProvider: this.options.identityProvider }
             : {}),
         }).then((result) => {
           const handshake = result as HandshakeResult;

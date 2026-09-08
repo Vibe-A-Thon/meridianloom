@@ -29,6 +29,8 @@ export interface HandshakeParams {
   "workspaceDir"?: string;
   /** Base64-encoded 32-byte Ed25519 seed (FR-M10-04), sourced from the extension host's OS-keychain-backed SecretStorage (SEC-06) and provisioned over this handshake. Held in memory only; never persisted to disk or written into the ledger. Absent: the sidecar signs tree heads with an ephemeral key and doctor reports the missing keychain key. */
   "ledgerSigningKey"?: string;
+  /** FR-M20-01 (D9; F1 Workstream C task 15): selects the human identity source — "git" (default; user.name/user.email in the workspace, assurance local) or "oidc" (enterprise OIDC; contracted stub raising NOT_IMPLEMENTED with the FR id until the enterprise tier lands). Selected over the handshake like the ledger signing key: the extension host owns the choice it can later back with SecretStorage OIDC tokens. Unknown names are refused with an actionable INVALID_PARAMS. Requires workspaceDir. */
+  "identityProvider"?: string;
 }
 
 export interface Capabilities {
@@ -940,10 +942,19 @@ export interface PrIngestResult {
   "branch": string;
   "headCommit": string;
   "baseBranch": string;
+  /** FR-M20-01: the provider-resolved human who ingested the PR (never a free-text param); FR-M20-03 separation of duties compares the merge approver against this identity. */
+  "ingestedBy": IdentityRef;
   "agents": PrAgentAttribution[];
   "hunks": PrHunkAttribution[];
   "gates": PrGateResult[];
   "sequences": PrIngestSequences;
+}
+
+export interface IdentityRef {
+  "name": string;
+  "email": string;
+  /** FR-M20-01: local = self-asserted git config (never counts as verified); verified = enterprise OIDC attestation (enterprise tier, not v1). */
+  "assurance": "local" | "verified";
 }
 
 export interface PrConflictAgent {

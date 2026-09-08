@@ -139,7 +139,7 @@
       "result": { "$ref": "#/$defs/GateProfilesResult" }
     },
     "gate.approve": {
-      "description": "FR-M12-05/FR-M12-07 (F1 Workstream B task 10): record a human approval for a merge subject (protected branch or PR id) bound to a commit digest. The approver identity comes from the identity interface (git user.name/email per D9, swappable); anonymous approval is refused, never recorded. The approval lands in the ledger (actionType approval, humanActor/humanRole set) BEFORE the RPC returns (FR-M10-08).",
+      "description": "FR-M12-05/FR-M12-07 (F1 Workstream B task 10; FR-M20-01 task 15): record a human approval for a merge subject (protected branch or PR id) bound to a commit digest. The approver identity comes from the identity provider (FR-M20-01 — git user.name/email with assurance local by default, OIDC stub behind the same interface), never a free-text param; anonymous approval is refused, never recorded. The full provider-resolved identity (id, displayName, email, assurance) rides the encrypted entry detail. The approval lands in the ledger (actionType approval, humanActor/humanRole set) BEFORE the RPC returns (FR-M10-08).",
       "params": { "$ref": "#/$defs/GateApproveParams" },
       "result": { "$ref": "#/$defs/GateApproveResult" }
     },
@@ -276,6 +276,10 @@
         "ledgerSigningKey": {
           "type": "string",
           "description": "Base64-encoded 32-byte Ed25519 seed (FR-M10-04), sourced from the extension host's OS-keychain-backed SecretStorage (SEC-06) and provisioned over this handshake. Held in memory only; never persisted to disk or written into the ledger. Absent: the sidecar signs tree heads with an ephemeral key and doctor reports the missing keychain key."
+        },
+        "identityProvider": {
+          "type": "string",
+          "description": "FR-M20-01 (D9; F1 Workstream C task 15): selects the human identity source — \"git\" (default; user.name/user.email in the workspace, assurance local) or \"oidc\" (enterprise OIDC; contracted stub raising NOT_IMPLEMENTED with the FR id until the enterprise tier lands). Selected over the handshake like the ledger signing key: the extension host owns the choice it can later back with SecretStorage OIDC tokens. Unknown names are refused with an actionable INVALID_PARAMS. Requires workspaceDir."
         }
       },
       "additionalProperties": false
@@ -1416,7 +1420,7 @@
     },
     "PrIngestResult": {
       "type": "object",
-      "required": ["storyId", "subject", "repo", "number", "branch", "headCommit", "baseBranch", "agents", "hunks", "gates", "sequences"],
+      "required": ["storyId", "subject", "repo", "number", "branch", "headCommit", "baseBranch", "agents", "hunks", "gates", "sequences", "ingestedBy"],
       "properties": {
         "storyId": { "type": "string" },
         "subject": { "type": "string", "description": "The merge-gate subject (pr:<repo>#<number>) — what gate.approve binds." },
@@ -1425,10 +1429,21 @@
         "branch": { "type": "string" },
         "headCommit": { "type": "string" },
         "baseBranch": { "type": "string" },
+        "ingestedBy": { "$ref": "#/$defs/IdentityRef", "description": "FR-M20-01: the provider-resolved human who ingested the PR (never a free-text param); FR-M20-03 separation of duties compares the merge approver against this identity." },
         "agents": { "type": "array", "items": { "$ref": "#/$defs/PrAgentAttribution" } },
         "hunks": { "type": "array", "items": { "$ref": "#/$defs/PrHunkAttribution" } },
         "gates": { "type": "array", "items": { "$ref": "#/$defs/PrGateResult" } },
         "sequences": { "$ref": "#/$defs/PrIngestSequences" }
+      },
+      "additionalProperties": false
+    },
+    "IdentityRef": {
+      "type": "object",
+      "required": ["name", "email", "assurance"],
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "assurance": { "enum": ["local", "verified"], "description": "FR-M20-01: local = self-asserted git config (never counts as verified); verified = enterprise OIDC attestation (enterprise tier, not v1)." }
       },
       "additionalProperties": false
     },

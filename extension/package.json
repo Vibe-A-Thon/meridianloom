@@ -220,6 +220,15 @@
           "minimum": 1,
           "maximum": 36500,
           "description": "FR-M37-06 (F0 Workstream F): a story/session is greenfield when the median age of the code it touched (per-line git history age) is below this many days. Passed to trust/classify and trust/rejectionRate as maxMedianAgeDays."
+        },
+        "meridian.identityProvider": {
+          "type": "string",
+          "enum": [
+            "git",
+            "oidc"
+          ],
+          "default": "git",
+          "description": "FR-M20-01 (D9; F1 Workstream C): the human identity source of record the sidecar resolves approver/halting/ingesting identity through. \"git\" (default) reads user.name/user.email from the workspace repository — assurance local, never verified. \"oidc\" is the enterprise SSO/OIDC provider (verified assurance); contracted stub until the enterprise tier lands. Provisioned to the sidecar over the handshake."
         }
       }
     }
