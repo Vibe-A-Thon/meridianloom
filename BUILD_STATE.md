@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** F1 — Governor
-- **Current workstream:** D — Steer & clarify — **done**
-- **Current task:** workstream E next — trust analytics (19 rejection rate full FR-M37-01, 20 reason distribution FR-M37-02, 21 trust score decomposition FR-M37-03, 22 agent-vs-agent FR-M37-04, 23 J-curve FR-M37-05, 24 tokenmaxxing FR-M37-07, 25 DORA export FR-M37-08)
-- **Last commit:** 61298aa — steer & clarify extension half (65e57c0 sidecar half) — **Workstream D complete** (FR-M25-01/02/03/04/06 + honest observe-only controls NOT_HOSTED; extension vitest 347; note: shared-index incident with the parallel session repaired via plumbing, final tree byte-identical, nothing pushed)
+- **Current workstream:** E — Trust analytics — tasks 19–21 done
+- **Current task:** 22 — agent-vs-agent comparison (FR-M37-04), then 23 J-curve (FR-M37-05), 24 tokenmaxxing detector (FR-M37-07), 25 DORA export (FR-M37-08)
+- **Last commit:** 1e2f94b — tasks 19–21 landed (rejection rate full FR-M37-01, reason distribution FR-M37-02, trust score decomposition FR-M37-03): `core/meridian_core/metrics/{reasons,score,trust}.py`, server.py handlers, shared schema; trust RPCs `trust/classify`, `trust/detectRejections`, `trust/reasonDistribution`, `trust/rejectionRate`, `trust/score`, `trust/scoreDecomposition`; verified `test_trust_metrics.py + test_tiers.py + test_bus_types.py` 35 passed. Workstream D complete at 61298aa (65e57c0 sidecar half) (FR-M25-01/02/03/04/06 + honest observe-only controls NOT_HOSTED; extension vitest 347; note: shared-index incident with the parallel session repaired via plumbing, final tree byte-identical, nothing pushed)
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## Mapping of completed S0 work onto the new plan
