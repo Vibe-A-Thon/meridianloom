@@ -32,9 +32,16 @@ from .greenfield import (
     Classification,
     classify,
 )
+from .budget import (
+    DEFAULT_WINDOW_MONTHS,
+    check_spend_ceiling,
+    forecast_monthly_spend,
+    monthly_spend_totals,
+)
 from .compare import compute_agent_comparison
 from .dora import compute_dora_metrics, export_otlp
 from .jcurve import compute_jcurve, parse_utc
+from .pricing import PricingPack, load_pricing_pack, parse_pricing_pack
 from .reasons import compute_reason_distribution, detection_shape
 from .score import SCORE_WEIGHTS, compute_trust_score
 from .spend import (
@@ -45,6 +52,17 @@ from .spend import (
     YieldPoint,
     detect_tokenmaxxing,
 )
+from .spendfeed import (
+    DIMENSIONS,
+    UNKNOWN,
+    LedgerSpendSeries,
+    StoryMetadata,
+    load_story_metadata,
+    parse_story_metadata,
+    period_label,
+    spend_by_dimension,
+    spend_records,
+)
 from .trust import TrustMetricsCache, compute_rejection_rate
 
 __all__ = [
@@ -54,12 +72,19 @@ __all__ = [
     "DEFAULT_MIN_PERIODS",
     "DEFAULT_NEW_FILE_RATIO_THRESHOLD",
     "DEFAULT_SPEND_RISE_THRESHOLD",
+    "DEFAULT_WINDOW_MONTHS",
+    "DIMENSIONS",
     "GREENFIELD",
+    "LedgerSpendSeries",
+    "PricingPack",
     "SCORE_WEIGHTS",
     "SpendPoint",
     "SpendSeries",
+    "StoryMetadata",
     "TrustMetricsCache",
+    "UNKNOWN",
     "YieldPoint",
+    "check_spend_ceiling",
     "classify",
     "compute_agent_comparison",
     "compute_dora_metrics",
@@ -70,5 +95,14 @@ __all__ = [
     "detect_tokenmaxxing",
     "detection_shape",
     "export_otlp",
+    "forecast_monthly_spend",
+    "load_pricing_pack",
+    "load_story_metadata",
+    "monthly_spend_totals",
+    "parse_pricing_pack",
+    "parse_story_metadata",
     "parse_utc",
+    "period_label",
+    "spend_by_dimension",
+    "spend_records",
 ]
