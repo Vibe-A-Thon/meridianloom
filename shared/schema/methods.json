@@ -168,6 +168,11 @@
       "params": { "$ref": "#/$defs/PrStatusParams" },
       "result": { "$ref": "#/$defs/PrStatusResult" }
     },
+    "pr/conflicts": {
+      "description": "FR-M35-07 (F1 Workstream B task 13): multi-agent conflict detection over a commit range. Every hunk of every non-merge commit in base..ref is attributed to its agent (Co-Authored-By trailers first, author mailbox/name markers next, human authors direct). Agent-vs-agent conflicts — a later agent's hunk whose old-side range intersects an earlier agent's new-side lines (edited or deleted the earlier agent's work), or new-side ranges intersecting (both agents added into the same region) — are surfaced as the DISTINCT rework class agent-conflict, distinct from every human-rejection reason, and recorded in the ledger (actionType rejection, reworkReason agent-conflict) before the response returns (FR-M10-08); re-runs are idempotent. Same-agent pairs are ordinary rework, never conflicts.",
+      "params": { "$ref": "#/$defs/PrConflictsParams" },
+      "result": { "$ref": "#/$defs/PrConflictsResult" }
+    },
     "steer.send": {
       "description": "Governor tier stub (FR-M25-01; F1): steer a running session. Same tier-enforcement role as gate.evaluate.",
       "params": { "$ref": "#/$defs/SteerSendParams" },
@@ -1424,6 +1429,73 @@
         "hunks": { "type": "array", "items": { "$ref": "#/$defs/PrHunkAttribution" } },
         "gates": { "type": "array", "items": { "$ref": "#/$defs/PrGateResult" } },
         "sequences": { "$ref": "#/$defs/PrIngestSequences" }
+      },
+      "additionalProperties": false
+    },
+    "PrConflictAgent": {
+      "type": "object",
+      "required": ["agentId", "vendor", "name", "confidence", "source"],
+      "properties": {
+        "agentId": { "type": "string", "description": "\"<vendor>:<name>\" — the ledger actor_id for the commit's agent." },
+        "vendor": { "type": "string", "description": "The vendor, or \"human\" for commits with no agent evidence." },
+        "name": { "type": "string" },
+        "confidence": { "enum": ["telemetry", "direct"] },
+        "source": { "enum": ["trailer", "author-mailbox", "name-marker", "human"] }
+      },
+      "additionalProperties": false
+    },
+    "PrAgentHunk": {
+      "type": "object",
+      "required": ["path", "oldStart", "oldCount", "newStart", "newCount", "agent", "commit"],
+      "properties": {
+        "path": { "type": "string" },
+        "oldStart": { "type": "integer" },
+        "oldCount": { "type": "integer" },
+        "newStart": { "type": "integer" },
+        "newCount": { "type": "integer" },
+        "agent": { "$ref": "#/$defs/PrConflictAgent" },
+        "commit": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "PrConflict": {
+      "type": "object",
+      "required": ["path", "kind", "agents", "earlier", "later", "recordedSequence", "alreadyRecorded"],
+      "properties": {
+        "path": { "type": "string" },
+        "kind": { "enum": ["edited-over-agent-lines", "added-in-same-region"] },
+        "agents": { "type": "array", "items": { "$ref": "#/$defs/PrConflictAgent" } },
+        "earlier": { "$ref": "#/$defs/PrAgentHunk" },
+        "later": { "$ref": "#/$defs/PrAgentHunk" },
+        "recordedSequence": { "type": ["integer", "null"] },
+        "alreadyRecorded": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "PrConflictsParams": {
+      "type": "object",
+      "properties": {
+        "repoPath": { "type": "string", "description": "Repository root. Absent means the handshake workspaceDir." },
+        "base": { "type": "string", "description": "Range start commit-ish; absent means the whole ref history." },
+        "ref": { "type": "string", "description": "Range endpoint (default HEAD)." },
+        "storyId": { "type": "string", "description": "Story the conflict entries are recorded under (default conflicts:<repoId>)." },
+        "repoId": { "type": "string", "description": "Repository identifier on the recorded entries (default: the repository folder name)." },
+        "policyPath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "PrConflictsResult": {
+      "type": "object",
+      "required": ["repoPath", "base", "ref", "storyId", "hunks", "conflicts", "recorded", "duplicatesSkipped"],
+      "properties": {
+        "repoPath": { "type": "string" },
+        "base": { "type": ["string", "null"] },
+        "ref": { "type": "string" },
+        "storyId": { "type": "string" },
+        "hunks": { "type": "array", "items": { "$ref": "#/$defs/PrAgentHunk" } },
+        "conflicts": { "type": "array", "items": { "$ref": "#/$defs/PrConflict" } },
+        "recorded": { "type": "integer" },
+        "duplicatesSkipped": { "type": "integer" }
       },
       "additionalProperties": false
     },

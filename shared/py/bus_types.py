@@ -730,6 +730,49 @@ class PrIngestResult(TypedDict):
     gates: list[PrGateResult]
     sequences: PrIngestSequences
 
+class PrConflictAgent(TypedDict):
+    agentId: str  # "<vendor>:<name>" — the ledger actor_id for the commit's agent.
+    vendor: str  # The vendor, or "human" for commits with no agent evidence.
+    name: str
+    confidence: Literal["telemetry", "direct"]
+    source: Literal["trailer", "author-mailbox", "name-marker", "human"]
+
+class PrAgentHunk(TypedDict):
+    path: str
+    oldStart: int
+    oldCount: int
+    newStart: int
+    newCount: int
+    agent: PrConflictAgent
+    commit: str
+
+class PrConflict(TypedDict):
+    path: str
+    kind: Literal["edited-over-agent-lines", "added-in-same-region"]
+    agents: list[PrConflictAgent]
+    earlier: PrAgentHunk
+    later: PrAgentHunk
+    recordedSequence: int | None
+    alreadyRecorded: bool
+
+class PrConflictsParams(TypedDict):
+    repoPath: NotRequired[str]  # Repository root. Absent means the handshake workspaceDir.
+    base: NotRequired[str]  # Range start commit-ish; absent means the whole ref history.
+    ref: NotRequired[str]  # Range endpoint (default HEAD).
+    storyId: NotRequired[str]  # Story the conflict entries are recorded under (default conflicts:<repoId>).
+    repoId: NotRequired[str]  # Repository identifier on the recorded entries (default: the repository folder name).
+    policyPath: NotRequired[str]
+
+class PrConflictsResult(TypedDict):
+    repoPath: str
+    base: str | None
+    ref: str
+    storyId: str
+    hunks: list[PrAgentHunk]
+    conflicts: list[PrConflict]
+    recorded: int
+    duplicatesSkipped: int
+
 class PrStatusParams(TypedDict):
     subject: NotRequired[str]  # The merge-gate subject (pr:<repo>#<number>).
     repo: NotRequired[str]  # With number: the subject is derived (pr:<repo>#<number>).
@@ -989,7 +1032,7 @@ class McpInvokeResult(TypedDict):
     result: dict[str, Any] | list[Any] | str | float | bool | None  # The underlying method's result JSON, unmodified.
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke"]
 
 # Every notification method on the bus.
 NotificationName = Literal["gate/halt", "tiers/set", "$/cancel"]
@@ -1053,12 +1096,12 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
     {"id": "governor.acp-host", "tier": "governor", "description": "ACP host (FR-M34-01/02/03/04, SEC-28; F1 Workstream A tasks 1–4): the extension-host client that launches ACP-conformant agent subprocesses — initialize handshake and protocol-version negotiation, session lifecycle (new/load), streaming session updates, permission-gated tool execution, and client-provided fs/terminal access rooted at the user's workspace. Implemented in extension/src/acp/ (governor tier; disabled => no hosted sessions, G5). The adapter surface (extension/src/adapters/) re-bases AgentAdapter on ACP: governance manifests (§7.9), three-tier discovery (FR-M31-02), hot plug/unplug (FR-M31-04), probation (FR-M31-07), and the ACP Registry install source (FR-M34-03). The sidecar RPCs record hosted-session facts into the ledger: acp/sessionBegin/acp/sessionEnd (session_begin/session_end entries) and acp/permissionDecision (permission_decision entries — the FR-M34-04/SEC-28 governance trail, written before and independently of the human answer).", "rpcMethods": ["acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision"]},
     {"id": "governor.mcp-server", "tier": "governor", "description": "MCP server exposure of Meridian's governed surfaces (FR-M34-06; F1 Workstream A task 6): a standalone stdio MCP server process (extension/src/mcp/) speaks the MCP protocol to any client (VS Code's native agent mode included) and forwards each tools/call as one mcp/invoke. The sidecar is the permission gate and the provenance trail: the governor tier gate refuses when disabled (G5), each call is ledger-recorded (action_type tool_call, vendor mcp) before it executes, and the tool maps onto the existing read-only ledger/trust handlers.", "rpcMethods": ["mcp/invoke"]},
-    {"id": "governor.pr-gates", "tier": "governor", "description": "External PR gating (FR-M35-04, FR-M35-05; F1 Workstream B task 12): an external agent's PR — sourced in production from the M23 CI/SCM connectors — is ingested as a Meridian story (pr/ingest): ledger origin record, per-agent attributed hunks with FR-M35-02 observation confidence, and routing through the Verify/Security/Review gate profiles. pr/status returns the recorded gate evaluations plus the merge-gate verdict — merge of a PR targeting a protected branch is permitted only with a recorded human approval bound to the head commit (FR-M12-05, AC-32). All records are written before the RPC returns (FR-M10-08).", "rpcMethods": ["pr/ingest", "pr/status"]},
+    {"id": "governor.pr-gates", "tier": "governor", "description": "External PR gating (FR-M35-04, FR-M35-05; F1 Workstream B task 12): an external agent's PR — sourced in production from the M23 CI/SCM connectors — is ingested as a Meridian story (pr/ingest): ledger origin record, per-agent attributed hunks with FR-M35-02 observation confidence, and routing through the Verify/Security/Review gate profiles. pr/status returns the recorded gate evaluations plus the merge-gate verdict — merge of a PR targeting a protected branch is permitted only with a recorded human approval bound to the head commit (FR-M12-05, AC-32). All records are written before the RPC returns (FR-M10-08).", "rpcMethods": ["pr/ingest", "pr/status", "pr/conflicts"]},
     {"id": "governor.worktrees", "tier": "governor", "description": "Worktree isolation for hosted agents (FR-M18-01..08, AC-13/AC-14; F1 Workstream A task 5): a dedicated git worktree per story under .meridian/worktrees/ on branch meridian/<story-id> — never the primary tree — with a worktree-local agent git identity and a commit-msg hook appending the Meridian-Hosted-Agent trailer. worktree/conflicts is the pre-flight conflict report the RunRequest flow (M40) consumes before a packet starts; worktree/abortStory removes worktree + never-pushed branch and leaves the primary tree byte-identical. Creation, removal and abort are ledger-recorded with worktree_ref set.", "rpcMethods": ["worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts"]},
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke")
 NOTIFICATION_METHODS: tuple[str, ...] = ("gate/halt", "tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -1095,6 +1138,7 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "gate.halt": {"params": GateHaltParams, "result": GateHaltResult},
     "pr/ingest": {"params": PrIngestParams, "result": PrIngestResult},
     "pr/status": {"params": PrStatusParams, "result": PrStatusResult},
+    "pr/conflicts": {"params": PrConflictsParams, "result": PrConflictsResult},
     "steer.send": {"params": SteerSendParams, "result": SteerSendResult},
     "trust.summary": {"params": TrustSummaryParams, "result": TrustSummaryResult},
     "trust/detectRejections": {"params": TrustDetectRejectionsParams, "result": TrustDetectRejectionsResult},

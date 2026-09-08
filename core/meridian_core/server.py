@@ -47,6 +47,7 @@ from .ledger import core as ledger_core
 from .ledger import keys as ledger_keys
 from .ledger import wire as ledger_wire
 from .pr import ingest as pr_ingest
+from .pr import conflicts as pr_conflicts
 from .worktree import manager as worktree_mod
 from .observers import claude as observer_claude
 from .observers import copilot as observer_copilot
@@ -151,6 +152,11 @@ class SidecarServer:
             # permitted only via the merge gate with a recorded approval.
             "pr/ingest": SidecarServer._handle_pr_ingest,
             "pr/status": SidecarServer._handle_pr_status,
+            # FR-M35-07 (F1 Workstream B task 13): multi-agent conflict
+            # detection — per-hunk agent attribution over a commit range,
+            # agent-vs-agent conflicts surfaced as the distinct rework
+            # class agent-conflict and ledger-recorded (FR-M10-08).
+            "pr/conflicts": SidecarServer._handle_pr_conflicts,
             "steer.send": lambda self, params: self._not_implemented("steer.send", "F1 (Governor)"),
             "trust.summary": lambda self, params: self._not_implemented("trust.summary", "F1 (Governor)"),
             # FR-M34-01/02/04 (F1 Workstream A task 4): hosted-session ledger
@@ -1203,6 +1209,193 @@ class SidecarServer:
             return json.loads(ledger.read_blob(ref, key_id).decode("utf-8"))
         except (ValueError, KeyError, OSError):
             return {}
+
+    # -- multi-agent conflict detection (FR-M35-07; task 13) -------------------
+
+    def _handle_pr_conflicts(
+        self, params: bus_types.PrConflictsParams
+    ) -> bus_types.PrConflictsResult:
+        """Attribute every hunk in a commit range to its agent and surface
+        agent-vs-agent conflicts as the distinct rework class agent-conflict.
+
+        FR-M10-08: each newly detected conflict is a ledger entry (actionType
+        rejection, reworkReason agent-conflict) BEFORE the response returns;
+        re-runs are idempotent (already-recorded conflicts are reported, never
+        double-appended).
+        """
+        params = params or {}
+        ref = params.get("ref") or "HEAD"
+        base = params.get("base")
+        try:
+            repo = self._ensure_attrib_repo({"repoPath": params.get("repoPath")})
+            hunks = pr_conflicts.collect_agent_hunks(repo, base=base, ref=ref)
+        except AttributionError as error:
+            raise self._attrib_error(error) from error
+
+        conflicts = pr_conflicts.detect_conflicts(hunks)
+        ledger = self._ensure_ledger()
+        repo_id = params.get("repoId") or repo.name
+        story_id = params.get("storyId") or f"conflicts:{repo_id}"
+        pack = self._governance_pack(params)
+
+        known = self._recorded_conflict_keys(ledger, repo_id)
+        wire_conflicts: list[dict[str, Any]] = []
+        recorded = 0
+        duplicates = 0
+        for conflict in conflicts:
+            key = conflict.idempotency_key
+            already = key in known
+            sequence: int | None = known.get(key)
+            if not already:
+                sequence = self._append_conflict_entry(
+                    ledger=ledger,
+                    story_id=story_id,
+                    pack=pack,
+                    repo_id=repo_id,
+                    conflict=conflict,
+                )
+                known[key] = sequence
+                recorded += 1
+            else:
+                duplicates += 1
+            wire_conflicts.append(
+                {
+                    "path": conflict.path,
+                    "kind": conflict.kind,
+                    "agents": [
+                        self._commit_agent_wire(conflict.earlier.agent),
+                        self._commit_agent_wire(conflict.later.agent),
+                    ],
+                    "earlier": self._agent_hunk_wire(conflict.earlier),
+                    "later": self._agent_hunk_wire(conflict.later),
+                    "recordedSequence": sequence,
+                    "alreadyRecorded": already,
+                }
+            )
+        return {
+            "repoPath": str(repo),
+            "base": base,
+            "ref": ref,
+            "storyId": story_id,
+            "hunks": [self._agent_hunk_wire(h) for h in hunks],
+            "conflicts": wire_conflicts,
+            "recorded": recorded,
+            "duplicatesSkipped": duplicates,
+        }
+
+    @staticmethod
+    def _commit_agent_wire(agent: pr_conflicts.CommitAgent) -> dict[str, Any]:
+        return {
+            "agentId": agent.agent_id,
+            "vendor": agent.vendor,
+            "name": agent.name,
+            "confidence": agent.confidence,
+            "source": agent.source,
+        }
+
+    @staticmethod
+    def _agent_hunk_wire(hunk: pr_conflicts.AgentHunk) -> dict[str, Any]:
+        return {
+            "path": hunk.path,
+            "oldStart": hunk.old_start,
+            "oldCount": hunk.old_count,
+            "newStart": hunk.new_start,
+            "newCount": hunk.new_count,
+            "agent": SidecarServer._commit_agent_wire(hunk.agent),
+            "commit": hunk.commit,
+        }
+
+    @staticmethod
+    def _recorded_conflict_keys(
+        ledger: ledger_core.Ledger, repo_id: str
+    ) -> dict[tuple[str, str, str, int, int], int]:
+        """The conflict idempotency keys already in the ledger for this repo:
+        (earlier commit, later commit, path, new start, old start) -> seq.
+
+        The key round-trips through the rejection-linkage columns
+        (rejected_commit = the earlier agent's commit whose lines were
+        edited, rejecting_commit = the later agent's commit) plus the
+        tool_calls JSON detail.
+        """
+        known: dict[tuple[str, str, str, int, int], int] = {}
+        rows = ledger.query(action_type="rejection", limit=1000)
+        for row in rows:
+            if row.get("repo_id") != repo_id:
+                continue
+            if row.get("rework_reason") != pr_conflicts.AGENT_CONFLICT_REASON:
+                continue
+            detail_raw = row.get("tool_calls")
+            if not isinstance(detail_raw, str) or not detail_raw:
+                continue
+            try:
+                detail = json.loads(detail_raw)
+            except ValueError:
+                continue
+            info = detail[0] if isinstance(detail, list) and detail else {}
+            key = (
+                str(row.get("rejected_commit") or ""),
+                str(row.get("rejecting_commit") or ""),
+                str(info.get("path") or ""),
+                int(info.get("earlierNewStart", -1)),
+                int(info.get("laterOldStart", -1)),
+            )
+            known[key] = row["seq"]
+        return known
+
+    def _append_conflict_entry(
+        self,
+        *,
+        ledger: ledger_core.Ledger,
+        story_id: str,
+        pack: governance_policy.PolicyPack,
+        repo_id: str,
+        conflict: pr_conflicts.Conflict,
+    ) -> int:
+        """The ledger record of one agent-vs-agent conflict: the distinct
+        rework class agent-conflict (FR-M35-07), stamped with the E-GR-03
+        taxonomy id (task 14)."""
+        entry: dict[str, Any] = {
+            "ts_utc": ledger_core.utc_now(),
+            "story_id": story_id,
+            "phase": "review",
+            "loop_id": "governance",
+            "loop_iteration": 0,
+            "actor_id": conflict.later.agent.agent_id,
+            "actor_version": protocol.CORE_VERSION,
+            "actor_kind": "external",
+            "policy_version": pack.policy_version,
+            "action_type": "rejection",
+            "decision": "rejected",
+            "rework_reason": pr_conflicts.AGENT_CONFLICT_REASON,
+            "vendor": conflict.later.agent.vendor,
+            "observation_confidence": conflict.later.agent.confidence,
+            "rejected_commit": conflict.earlier.commit,
+            "rejecting_commit": conflict.later.commit,
+            "repo_id": repo_id,
+            "input": json.dumps(
+                {
+                    "method": "pr/conflicts",
+                    "class": pr_conflicts.AGENT_CONFLICT_REASON,
+                    "kind": conflict.kind,
+                    "path": conflict.path,
+                    "agents": list(conflict.agents),
+                },
+                ensure_ascii=False,
+            ),
+            "tool_calls": [
+                {
+                    "class": pr_conflicts.AGENT_CONFLICT_REASON,
+                    "kind": conflict.kind,
+                    "path": conflict.path,
+                    "agents": list(conflict.agents),
+                    "earlierNewStart": conflict.earlier.new_start,
+                    "laterOldStart": conflict.later.old_start,
+                }
+            ],
+        }
+        result = ledger.append(entry)
+        self._trust_cache.invalidate()
+        return result.sequence
 
     # -- attribution (FR-M33-02 subset, F0 Workstream C) ----------------------
 
