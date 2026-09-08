@@ -1,0 +1,52 @@
+/** Development-only UI fixture. Imported behind import.meta.env.DEV and
+ * excluded from production bundles. It never starts a process or changes a repo. */
+import type { HostMessage } from '../../../shared/ts/webview-messages';
+import { WEBVIEW_PROTOCOL_VERSION } from '../../../shared/ts/webview-messages';
+import type { WorkbenchAgentInput, WorkbenchSnapshot } from '../../../shared/ts/workbench';
+import type { RpcTransport } from '../rpc/client';
+
+export function createPreviewTransport(): RpcTransport {
+  const now = new Date().toISOString();
+  const agents = [
+    ['atlas', 'Atlas', 'Architecture & systems', 'Maps the bigger picture. Turns complex requirements into thoughtful, maintainable systems.', 'active'],
+    ['nova', 'Nova', 'Full-stack development', 'Connects the details. Builds considered interfaces and the services that make them work.', 'active'],
+    ['sentinel', 'Sentinel', 'Quality & code review', 'Asks the difficult questions. Reviews changes, explores edge cases, and protects quality.', 'active'],
+    ['sage', 'Sage', 'Research & documentation', 'Makes knowledge useful. Learns from delivery feedback and keeps the next handoff clear.', 'learning'],
+    ['echo', 'Echo', 'Testing & accessibility', 'Looks for the missing perspective. Builds better checks from the lessons of completed work.', 'learning'],
+    ['quill', 'Quill', 'Developer experience', 'Sweats the small things. Helps every tool, instruction, and workflow feel easier to use.', 'learning'],
+  ];
+  let state: WorkbenchSnapshot = { revision: 1, agents: agents.map(([id, name, role, description, mode]) => ({ id, name, role, description, mode: mode as 'active' | 'learning', vendor: 'Custom ACP', version: '1.0.0', command: 'your-acp-agent', args: ['--stdio'], instructions: 'Stay within the requested scope. Explain changes and verification.', permissions: ['read', 'search', 'think'], trainable: ['memory'], runtime: 'idle', learningState: id === 'sage' ? 'review' : 'waiting', createdAt: now, updatedAt: now })), deliverables: [
+    { id: 'checkout-001', title: 'A more accessible checkout', brief: 'Make the checkout work beautifully with a keyboard and screen reader.\n\nAcceptance criteria\n• Every control has an accessible name.\n• Focus returns to the trigger after a dialog closes.\n• Error messages describe how to recover.', state: 'review', agentIds: ['atlas', 'nova', 'sentinel'], createdAt: now, updatedAt: now },
+    { id: 'search-002', title: 'Thoughtful search, everywhere', brief: 'Bring fast, contextual search to the workspace. Keep the results useful and the interaction predictable.', state: 'draft', agentIds: [], createdAt: now, updatedAt: now },
+    { id: 'tokens-003', title: 'One shared design language', brief: 'Unify the product around reusable design tokens. Verify light, dark, and high contrast themes.', state: 'completed', agentIds: ['nova', 'sentinel'], createdAt: now, updatedAt: now, feedback: 'Use semantic tokens. Test both keyboard navigation and screen reader announcements.' },
+  ], runs: [{ id: 'preview-run', agentId: 'sentinel', agentName: 'Sentinel', deliverableId: 'checkout-001', prompt: 'Review the checkout keyboard interactions.', state: 'completed', startedAt: now, finishedAt: now, stopReason: 'end_turn', output: 'PREVIEW FIXTURE — no code was executed.\n\nThis sample result illustrates where agent output and verification notes appear.' }], learning: [{ id: 'preview-note', agentId: 'sage', deliverableId: 'tokens-003', title: 'Review: One shared design language', content: 'PREVIEW FIXTURE\n\nSource: the completed design-language deliverable.\n\nHuman feedback: Use semantic tokens and test keyboard navigation.\n\nProposed memory: Include a token and accessibility checklist in future handoff documentation.', state: 'pending', createdAt: now, surface: 'memory' }], capabilities: { workspaceOpen: true, trusted: false, governorEnabled: false, executionReady: false, executionBlockedReason: 'Preview mode does not execute agents. Open Meridian in VS Code with a trusted workspace and Governor enabled to run real tasks.' } };
+  let receive: ((message: HostMessage) => void) | undefined;
+  const rpc: Record<string, unknown> = { 'observe/sessions': { sessions: [], warnings: [] }, 'ledger.query': { entries: [] }, 'observe/health': { monitorRunning: false, observers: [] }, 'health': { status: 'degraded', uptimeSeconds: 0, pid: 0, activeLoops: 0 }, 'doctor/run': { status: 'warn', checks: [{ id: 'preview', name: 'Development preview', status: 'warn', detail: 'The preview has no extension host or sidecar.', remediation: 'Launch the extension in VS Code for actual diagnostics.' }] } };
+  return { onMessage(handler) { receive = handler; return () => { receive = undefined; }; }, postMessage(message) {
+    queueMicrotask(() => {
+      if (message.type === 'ready') { receive?.({ type: 'init', init: { protocolVersion: WEBVIEW_PROTOCOL_VERSION, enabledTiers: ['flight-recorder'], workspaceDir: '/workspace/meridian-studio' } }); return; }
+      if (message.type === 'rpc/request') { if (message.method in rpc) receive?.({ type: 'rpc/response', id: message.id, result: rpc[message.method] }); else receive?.({ type: 'rpc/response', id: message.id, error: { code: -32001, message: 'This operation needs the real VS Code extension host.' } }); return; }
+      if (message.type !== 'workbench/request') return;
+      try {
+        const params = (message.params ?? {}) as Record<string, unknown>;
+        let result: unknown;
+        const agent = () => { const found = state.agents.find(a => a.id === params.id); if (!found) throw new Error('Agent not found.'); return found; };
+        switch (message.action) {
+          case 'snapshot': break;
+          case 'agent/save': { const input = params.agent as WorkbenchAgentInput; const existing = state.agents.find(a => a.id === input.id); if (existing) Object.assign(existing, input); else state.agents.push({ ...input, mode: 'learning', runtime: 'idle', learningState: 'waiting', createdAt: now, updatedAt: now }); break; }
+          case 'agent/remove': state.agents = state.agents.filter(a => a.id !== params.id); state.learning = state.learning.filter(note => note.agentId !== params.id); break;
+          case 'agent/mode': agent().mode = params.mode as 'active' | 'learning'; break;
+          case 'agent/export': result = { fileName: `${agent().id}.meridian-agent.json`, content: JSON.stringify({ kind: 'meridian-portable-agent', schemaVersion: 1, agent: agent() }, null, 2) }; break;
+          case 'agent/import': { const document = JSON.parse(String(params.content)); if (document.kind !== 'meridian-portable-agent' || !document.agent?.id || state.agents.some(a => a.id === document.agent.id)) throw new Error('Use a portable agent document with a unique ID.'); state.agents.push({ ...document.agent, mode: 'learning', runtime: 'idle', learningState: 'waiting', createdAt: now, updatedAt: now }); break; }
+          case 'deliverable/save': { const item = state.deliverables.find(d => d.id === params.id); if (item) Object.assign(item, params); else state.deliverables.unshift({ id: crypto.randomUUID(), title: String(params.title), brief: String(params.brief), state: 'draft', agentIds: [], createdAt: now, updatedAt: now }); break; }
+          case 'learning/review': { const note = state.learning.find(n => n.id === params.id); if (!note) throw new Error('Note not found.'); note.state = params.decision as 'accepted' | 'dismissed'; break; }
+          case 'deliverable/complete': { const item = state.deliverables.find(d => d.id === params.id); if (!item || item.state !== 'review') throw new Error('The sample deliverable is not ready for review.'); item.state = 'completed'; item.feedback = String(params.feedback); for (const learner of state.agents.filter(a => a.mode === 'learning' && a.trainable.includes('memory'))) state.learning.push({ id: crypto.randomUUID(), agentId: learner.id, deliverableId: item.id, title: `Review: ${item.title}`, content: `PREVIEW FEEDBACK\n\n${item.feedback}`, state: 'pending', createdAt: now, surface: 'memory' }); break; }
+          default: throw new Error('Preview mode does not execute agents. Use the extension for real work.');
+        }
+        if (message.action !== 'snapshot') state.revision++;
+        state.agents.forEach(a => { a.learningState = state.learning.some(n => n.agentId === a.id && n.state === 'pending') ? 'review' : 'waiting'; });
+        receive?.({ type: 'rpc/response', id: message.id, result: structuredClone(result ?? state) });
+      } catch (error) { receive?.({ type: 'rpc/response', id: message.id, error: { code: -32602, message: (error as Error).message } }); }
+    });
+  } };
+}

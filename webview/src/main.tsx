@@ -34,10 +34,11 @@ function createHostTransport(): RpcTransport {
   };
 }
 
-const client = new WebviewRpcClient(createHostTransport(), { timeoutMs: 30_000 });
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App client={client} />
-  </StrictMode>,
-);
+async function mount() {
+  const preview = import.meta.env.DEV && !(window as { acquireVsCodeApi?: unknown }).acquireVsCodeApi;
+  const transport = preview ? (await import('./workbench/preview')).createPreviewTransport() : createHostTransport();
+  const client = new WebviewRpcClient(transport, { timeoutMs: 30_000 });
+  if (preview) getVsCodeApi().setState({ version: 1, theme: 'indigo-vat', density: 'comfortable' });
+  createRoot(document.getElementById('root')!).render(<StrictMode><App client={client} preview={preview} /></StrictMode>);
+}
+void mount();

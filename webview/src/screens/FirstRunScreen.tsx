@@ -81,8 +81,9 @@ export function FirstRunScreen({
           Start recording in four steps
         </h2>
         <p className={styles.copy}>
-          Meridian Loom is a flight recorder for the agents you already run. It observes, records
-          and proves — it never needs a model credential and never runs an agent of its own.
+          The flight recorder observes your existing agents and records provenance without model
+          calls. You can also configure portable agents in Agent studio and explicitly dispatch
+          them with the Governor tier enabled.
         </p>
       </section>
 

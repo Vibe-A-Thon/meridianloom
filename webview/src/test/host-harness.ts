@@ -84,6 +84,16 @@ export function makeHost(
         requests.push({ id: message.id as number, method: message.method, params: message.params });
         queue.push({ id: message.id as number, method: message.method, params: message.params, result });
       }
+      if (message.type === 'workbench/request') {
+        const key = `workbench/${message.action}`;
+        const scripted = responses[key];
+        const result = typeof scripted === 'function' ? scripted(message.params) : scripted ?? {
+          revision: 0, agents: [], deliverables: [], runs: [], learning: [],
+          capabilities: { workspaceOpen: true, trusted: true, governorEnabled: false, executionReady: false, executionBlockedReason: 'Enable the Governor tier to run agents.' },
+        };
+        queue.push({ id: message.id as number, method: key, params: message.params, result });
+        requests.push({ id: message.id as number, method: key, params: message.params });
+      }
     },
     onMessage(handler) {
       inbound = handler;

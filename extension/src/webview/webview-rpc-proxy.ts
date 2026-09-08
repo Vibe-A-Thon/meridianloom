@@ -41,6 +41,7 @@ export interface ProxyContext {
   /** Local workspace management survives a sidecar reconnect. Execution is
    * separately checked by the service against workspace trust and tiers. */
   workbench?: (request: WorkbenchRequest) => Promise<unknown>;
+  hostAction?: (action: 'open-settings' | 'open-folder') => Promise<void>;
 }
 
 function toErrorObject(error: unknown): WebviewRpcError {
@@ -67,6 +68,7 @@ export async function dispatchWebviewMessage(
     return undefined;
   }
   if (message.type === 'ready') {
+    // Only explicit, allow-listed native actions cross this boundary.
     const workspaceDir = context.workspaceDir?.();
     return {
       type: 'init',
@@ -82,6 +84,10 @@ export async function dispatchWebviewMessage(
     // hands; the host only offers the save dialog. Fire-and-forget — there
     // is nothing to ack, and a save failure surfaces host-side.
     await context.saveFile?.(message.fileName, message.content);
+    return undefined;
+  }
+  if (message.type === 'host/action') {
+    await context.hostAction?.(message.action);
     return undefined;
   }
   if (message.type === 'state/update') {

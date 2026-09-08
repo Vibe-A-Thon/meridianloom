@@ -7,6 +7,18 @@
 :root {
   color-scheme: dark;
 }
+* { box-sizing: border-box; }
+button, input, select, textarea { font: inherit; }
+button { touch-action: manipulation; }
+button:disabled { cursor: not-allowed; }
+kbd { font: 9px var(--ml-font-data); border: 1px solid var(--ml-hairline); padding: 3px 5px; border-radius: 4px; color: var(--ml-text-tertiary); white-space: nowrap; }
+fieldset { margin: 0; border: 0; padding: 0; min-width: 0; }
+legend { font-size: 12px; font-weight: 500; padding: 0 0 12px; }
+dialog :focus-visible { outline-color: var(--ml-accent); }
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-thumb { background: var(--ml-border); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 [data-ml-theme='sized-linen'],
 [data-ml-theme='weld-dawn'] {
   color-scheme: light;

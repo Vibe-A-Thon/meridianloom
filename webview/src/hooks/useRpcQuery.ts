@@ -54,7 +54,7 @@ export function useRpcQuery<M extends RequestMethod>(
       return;
     }
     const mine = ++generation.current;
-    setState({ status: 'loading', data: undefined, error: undefined });
+    setState(previous => previous.status === 'ready' ? previous : { status: 'loading', data: undefined, error: undefined });
     client
       .request(method, params)
       .then((data) => {

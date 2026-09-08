@@ -53,13 +53,14 @@ export function describeRpcError(error: unknown): { what: string; next: string }
   };
 }
 
-export function ErrorState({ error }: { error: unknown }) {
+export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const { what, next } = describeRpcError(error);
   return (
     <div className={`${styles.state} ${styles.error}`} role="alert" data-testid="error-state">
       <h3 className={styles.title}>This view cannot update right now</h3>
       <p className={styles.detail}>{what}</p>
       <p className={styles.detail}>{next}</p>
+      {onRetry && <button type="button" onClick={onRetry}>Retry</button>}
     </div>
   );
 }

@@ -54,7 +54,7 @@ describe('WebviewRpcClient over the postMessage channel', () => {
   it('rejects with the structured error, preserving the JSON-RPC code', async () => {
     const { transport, push } = makeTransport();
     const client = new WebviewRpcClient(transport, { timeoutMs: 1000 });
-    const promise = client.request('gate.evaluate', { storyId: 's', gate: 'security' });
+    const promise = client.request('gate.evaluate', { storyId: 's', gate: 'security', packet: {} });
     push({
       type: 'rpc/response',
       id: 1,

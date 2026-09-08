@@ -122,6 +122,10 @@
    between themes would defeat its purpose. */
 :root {
   --ml-halt: #ff4d3d;
+  --ml-accent: #d5ef9c;
+  --ml-accent-ink: #20261a;
+  --ml-lilac: #b9a8e5;
+  --ml-accent-secondary: var(--ml-lilac);
 }
 
 /* Sized Linen — default light; dyes darkened ~18% for AA on light */
@@ -319,3 +323,28 @@
   --ml-motion-fast: 1ms;
   --ml-motion-med: 1ms;
 }
+
+/* Workbench refinement: quieter ink surfaces, with a reserved brand accent.
+   State dyes and observation-confidence colors keep their existing meaning. */
+[data-ml-theme='indigo-vat'] {
+  --ml-ground-deepest: #111317;
+  --ml-ground-canvas: #17191f;
+  --ml-ground-raised: #1d2027;
+  --ml-ground-card: #252932;
+  --ml-hairline: #30333c;
+  --ml-border: #424650;
+  --ml-text-primary: #efeee9;
+  --ml-text-secondary: #d1d2d4;
+  --ml-text-tertiary: #9d9fa7;
+}
+[data-ml-theme='sized-linen'], [data-ml-theme='weld-dawn'] {
+  --ml-accent: #3a641a;
+  --ml-accent-ink: #fffef5;
+  --ml-lilac: #7553a3;
+}
+[data-ml-theme='follow-vscode'] {
+  --ml-accent: var(--vscode-button-background, #d5ef9c);
+  --ml-accent-ink: var(--vscode-button-foreground, #20261a);
+  --ml-lilac: var(--vscode-textLink-foreground, #b9a8e5);
+}
+[data-ml-theme='iron-gall'] { --ml-accent: #e0ffb2; --ml-accent-ink: #000; --ml-lilac: #d9caff; }

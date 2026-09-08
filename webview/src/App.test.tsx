@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { App } from './App';
 import { WebviewRpcClient, type RpcTransport } from './rpc/client';
@@ -55,8 +55,9 @@ describe('App shell against a scripted host', () => {
       'copilot observer degraded to inferred',
     );
     // X-29: the Crown carries the recording indicator.
-    expect(screen.getByTestId('crown-indicator')).toHaveTextContent('Recording');
-    expect(screen.getByTestId('crown-indicator')).toHaveTextContent('0 model calls by Meridian');
+    expect(screen.getByTestId('crown-indicator')).toHaveTextContent('sessions observed');
+    fireEvent.click(screen.getByRole('button', { name: 'Evidence', exact: true }));
+    await host.settle();
     // FR-M11-01: the Selvage names the verified tip.
     expect(screen.getByTestId('selvage-verified')).toHaveTextContent('Chain verified to 12');
     // §4–6: the resolved theme lands on <html>.
@@ -74,6 +75,8 @@ describe('App shell against a scripted host', () => {
     const client = new WebviewRpcClient(host.transport, { timeoutMs: 1000 });
     render(<App client={client} />);
     await act(async () => {});
+    await host.settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Guided setup' }));
     await host.settle();
     await waitFor(() => expect(screen.getByTestId('first-run')).toBeInTheDocument());
     // Four honest steps, no mock rows.
@@ -121,6 +124,8 @@ describe('App shell against a scripted host', () => {
     });
     const client = new WebviewRpcClient(host.transport, { timeoutMs: 1000 });
     render(<App client={client} />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole('button', { name: 'Evidence', exact: true }));
     await act(async () => {});
     host.replace('ledger.query', new Error('ledger unavailable'));
     await host.settle();

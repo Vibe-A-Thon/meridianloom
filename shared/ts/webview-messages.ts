@@ -62,6 +62,7 @@ export interface WebviewRpcError {
 }
 
 export type WebviewMessage =
+  | { type: 'host/action'; action: 'open-settings' | 'open-folder' }
   | { type: 'ready'; protocolVersion: number }
   | { type: 'rpc/request'; id: RequestId; method: RequestMethod; params?: unknown }
   | { type: 'workbench/request'; id: RequestId; action: WorkbenchAction; params?: unknown }
@@ -86,6 +87,7 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
     return false;
   }
   const message = value as { type?: unknown; method?: unknown; action?: unknown; id?: unknown };
+  if (message.type === 'host/action') return message.action === 'open-settings' || message.action === 'open-folder';
   if (message.type === 'download') {
     const download = value as { fileName?: unknown; mimeType?: unknown; content?: unknown };
     return (

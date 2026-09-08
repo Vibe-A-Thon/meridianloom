@@ -138,7 +138,10 @@ async function renderApp(host: ReturnType<typeof makeHost>) {
 }
 
 async function gotoScreen(host: ReturnType<typeof makeHost>, title: string) {
-  fireEvent.click(screen.getByRole('button', { name: title }));
+  fireEvent.click(screen.getByRole('button', { name: 'Evidence', exact: true }));
+  await host.settle();
+  const label = { 'Flight Recorder': 'Flight recorder', 'External Agents': 'External sessions', 'Ledger': 'Audit ledger' }[title];
+  fireEvent.click(screen.getByRole('tab', { name: new RegExp(label!) }));
   await act(async () => {});
   await host.settle();
 }
@@ -173,9 +176,9 @@ describe('X-28: Loom Bar is registry-generated, tier-filtered, nothing upper lea
       expect(def.tier).toBe('flight-recorder');
     }
 
-    const bar = screen.getByRole('navigation', { name: 'Screens' });
-    const tabs = Array.from(bar.querySelectorAll('button')).map((b) => b.textContent);
-    expect(tabs).toEqual(['Flight Recorder', 'External Agents', 'Ledger']);
+    const bar = screen.getByRole('navigation', { name: 'Workspace navigation' });
+    const tabs = Array.from(bar.querySelectorAll('button')).map((b) => b.getAttribute('aria-label'));
+    expect(tabs).toEqual(['Overview', 'Deliverables', 'Agent studio', 'Learning dojo', 'Evidence', 'Runtime', 'Workspace guide', 'Settings']);
     expect(bar).not.toHaveTextContent('Governor');
     expect(bar).not.toHaveTextContent('Orchestra');
     client.dispose();
@@ -234,6 +237,7 @@ describe('X-30: one provenance card, focus-opened, on every screen', () => {
     const host = fullHost();
     const client = await renderApp(host);
 
+    await gotoScreen(host, 'Flight Recorder');
     // Flight Recorder: the weave's diff pass has no approval on record.
     const weaveRow = screen.getAllByTestId('provenance-target')[0]!;
     fireEvent.focus(weaveRow);

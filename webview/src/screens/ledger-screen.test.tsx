@@ -1,3 +1,4 @@
+import { getVsCodeApi } from '../host/vscode-api';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { App } from '../App';
@@ -117,10 +118,11 @@ const consistencyProof = () => ({
 
 async function renderLedger(host: ReturnType<typeof makeHost>) {
   const client = new WebviewRpcClient(host.transport, { timeoutMs: 1000 });
+  getVsCodeApi().setState({ version: 1, theme: 'follow-vscode', density: 'comfortable', view: { screen: 'ledger' } });
   render(<App client={client} />);
   await act(async () => {});
   await host.settle();
-  fireEvent.click(screen.getByRole('button', { name: 'Ledger' }));
+
   await act(async () => {});
   await host.settle();
   return client;

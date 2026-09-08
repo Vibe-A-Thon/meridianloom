@@ -103,6 +103,7 @@ export class WorkbenchService {
   private readonly output = new Map<string, string>();
   private pumping = false;
   private disposed = false;
+  private changeTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly options: WorkbenchServiceOptions) {}
 
@@ -111,7 +112,13 @@ export class WorkbenchService {
     return { dispose: () => this.listeners.delete(listener) };
   }
 
-  private notify(): void { for (const listener of this.listeners) listener(); }
+  private notify(): void {
+    if (this.disposed || this.changeTimer) return;
+    this.changeTimer = setTimeout(() => {
+      this.changeTimer = undefined;
+      for (const listener of this.listeners) listener();
+    }, 50);
+  }
   private serialize<T>(task: () => Promise<T>): Promise<T> {
     const next = this.tail.then(task, task);
     this.tail = next.catch(() => undefined);
@@ -449,7 +456,9 @@ export class WorkbenchService {
   }
 
   dispose(): void {
+    if (this.disposed) return;
     this.disposed = true;
+    clearTimeout(this.changeTimer);
     for (const run of this.state.runs) this.cancelRun(run, 'Workbench closed.');
     this.listeners.clear();
     if (this.loadedRoot) void this.serialize(async () => { this.state.revision++; await this.persist(); }).catch((error: Error) => this.options.onError?.(error.message));

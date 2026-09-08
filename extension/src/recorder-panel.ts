@@ -2,6 +2,8 @@ import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { dispatchWebviewMessage, type ProxyContext } from './webview/webview-rpc-proxy';
+import type { HostEvent } from '../../shared/ts/webview-messages';
+import type { WorkbenchService } from './workbench';
 
 /**
  * G0c — the Flight Recorder dashboard webview host (VIGUIX_Final §17):
@@ -19,9 +21,10 @@ import { dispatchWebviewMessage, type ProxyContext } from './webview/webview-rpc
  */
 
 export const RECORDER_VIEW_TYPE = 'meridian.recorder';
-export const RECORDER_TITLE = 'Meridian Loom Recorder';
+export const RECORDER_TITLE = 'Meridian Loom';
 
 export interface RecorderPanelDeps {
+  workbench?: WorkbenchService;
   extensionPath: string;
   enabledTiers: ProxyContext['enabledTiers'];
   /** Resolved lazily: the panel outlives individual sidecar connections. */
@@ -112,6 +115,9 @@ export async function resolveWebviewDist(extensionPath: string): Promise<string>
 
 export class RecorderPanel {
   private static current: RecorderPanel | undefined;
+  static broadcast(event: HostEvent): void {
+    if (RecorderPanel.current && !RecorderPanel.current.disposed) void RecorderPanel.current.panel.webview.postMessage({ type: 'event', event });
+  }
 
   static createOrShow(deps: RecorderPanelDeps): RecorderPanel {
     if (RecorderPanel.current) {
@@ -157,6 +163,11 @@ export class RecorderPanel {
     deps: RecorderPanelDeps,
   ) {
     this.context = {
+      workbench: deps.workbench ? request => deps.workbench!.request(request) : undefined,
+      hostAction: async action => {
+        if (action === 'open-settings') await vscode.commands.executeCommand('workbench.action.openSettings', 'meridian');
+        if (action === 'open-folder') await vscode.commands.executeCommand('vscode.openFolder');
+      },
       enabledTiers: deps.enabledTiers,
       get sidecar() {
         return deps.sidecar();
@@ -171,10 +182,14 @@ export class RecorderPanel {
       deps.onError?.(error instanceof Error ? error.message : String(error));
     });
     panel.onDidDispose(() => {
+      workbenchSubscription?.dispose();
       this.disposed = true;
       if (RecorderPanel.current === this) {
         RecorderPanel.current = undefined;
       }
+    });
+    const workbenchSubscription = deps.workbench?.onDidChange(() => {
+      if (!this.disposed) void panel.webview.postMessage({ type: 'event', event: { kind: 'workbench/changed' } });
     });
     panel.webview.onDidReceiveMessage((message: unknown) => {
       void dispatchWebviewMessage(message, this.context)

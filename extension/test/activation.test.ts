@@ -48,7 +48,7 @@ describe('activate', () => {
     // configuration listener (FR-M36-05); +1: the recorder panel serializer
     // (VIGUIX_Final §17 — panel revival after reload).
     expect(context.subscriptions).toHaveLength(
-      TREE_VIEWS.length + COMMANDS.length + 3,
+      TREE_VIEWS.length + COMMANDS.length + 4,
     );
   });
 });

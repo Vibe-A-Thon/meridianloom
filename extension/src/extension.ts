@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import * as path from 'node:path';
+import { WorkbenchService } from './workbench';
+import { createVscodePermissionApprover } from './acp/permissions';
 import { TIERS, type TierName } from '../../shared/ts/bus-types';
 import { normalizeEnabledTiers, TIER_CONTEXT_KEYS } from '../../shared/ts/tiers';
 import { registerCommands } from './commands';
@@ -15,6 +18,7 @@ import { SidecarSupervisor } from './supervisor';
 import { registerViews } from './views';
 
 let supervisor: SidecarSupervisor | undefined;
+let workbench: WorkbenchService | undefined;
 
 /** The workspace folder the sidecar is pointed at (handshake workspaceDir). */
 function workspaceDir(): string | undefined {
@@ -32,7 +36,7 @@ async function saveDownload(request: {
 }): Promise<void> {
   const target = await vscode.window.showSaveDialog({
     defaultUri: vscode.Uri.file(request.fileName),
-    filters: { 'Audit bundle': ['json'] },
+    filters: { 'Meridian JSON document': ['json'] },
   });
   if (!target) {
     return;
@@ -75,6 +79,8 @@ function onConfigurationChanged(event: vscode.ConfigurationChangeEvent): void {
   const enabled = readEnabledTiers();
   applyTierContextKeys(enabled);
   supervisor?.currentClient?.notify?.('tiers/set', { tiers: enabled });
+  RecorderPanel.broadcast({ kind: 'tiers/changed', enabledTiers: enabled });
+  void workbench?.reconcile().catch(error => void vscode.window.showErrorMessage(String(error)));
 }
 
 /**
@@ -83,11 +89,23 @@ function onConfigurationChanged(event: vscode.ConfigurationChangeEvent): void {
  * stack so the extension host thread is never blocked.
  */
 export function activate(context: vscode.ExtensionContext): void {
+  workbench = new WorkbenchService({
+    workspaceDir, trusted: () => vscode.workspace.isTrusted,
+    enabledTiers: readEnabledTiers, sidecar: () => {
+      const client = supervisor?.currentClient;
+      return client ? { request: (method, params) => client.request(method, params, new AbortController().signal) } : undefined;
+    },
+    humanApprover: createVscodePermissionApprover(),
+    policyPath: context.extensionPath ? path.join(context.extensionPath, 'policy', 'acp-permissions.yaml') : undefined,
+    onError: message => void vscode.window.showErrorMessage(message),
+  });
+  context.subscriptions.push(workbench);
   const enabledTiers = readEnabledTiers();
   applyTierContextKeys(enabledTiers);
   context.subscriptions.push(
     ...registerViews(),
     RecorderPanel.registerSerializer(context, {
+      workbench,
       extensionPath: context.extensionPath,
       enabledTiers: readEnabledTiers,
       sidecar: () => supervisor?.currentClient,
@@ -101,6 +119,7 @@ export function activate(context: vscode.ExtensionContext): void {
       // the panel proxies sidecar RPCs with the tier gate applied.
       openRecorder: async () => {
         RecorderPanel.createOrShow({
+          workbench,
           extensionPath: context.extensionPath,
           enabledTiers: readEnabledTiers,
           sidecar: () => supervisor?.currentClient,
@@ -260,6 +279,8 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
  * SIGTERM, then a tree kill). VS Code awaits the returned promise.
  */
 export async function deactivate(): Promise<void> {
+  workbench?.dispose();
+  workbench = undefined;
   const current = supervisor;
   supervisor = undefined;
   await current?.stop();

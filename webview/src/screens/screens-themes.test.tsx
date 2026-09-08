@@ -51,7 +51,7 @@ const ledgerEntries = () => ({
 });
 
 function seedUiState(theme: ThemeName, density: Density = DEFAULT_DENSITY) {
-  getVsCodeApi().setState({ version: 1, theme, density });
+  getVsCodeApi().setState({ version: 1, theme, density, view: { screen: 'flight-recorder' } });
 }
 
 async function renderScreen() {
