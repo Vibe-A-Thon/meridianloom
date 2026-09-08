@@ -36,6 +36,12 @@ export interface LaunchOptions {
   approvePermission?: PermissionApprover;
   /** Test seam, forwarded to the ACP client. */
   spawner?: AcpClientOptions['spawner'];
+  /**
+   * FR-M39-02/D33: consulted at the top of every turn (the checkpoint gate).
+   * Throwing refuses the turn — how a spend-ceiling pause-pending session
+   * stops after its in-flight turn without a mid-flight kill.
+   */
+  checkpointGate?: AcpClientOptions['checkpointGate'];
   onStderr?: (line: string) => void;
   /** Optional streaming output; callers still own storage and presentation. */
   onUpdate?: (notification: SessionNotification) => void;
@@ -57,6 +63,7 @@ export function launchAdapter(
       workspaceDir: options.workspaceDir,
       ...(options.approvePermission ? { approvePermission: options.approvePermission } : {}),
       ...(options.spawner ? { spawner: options.spawner } : {}),
+      ...(options.checkpointGate ? { checkpointGate: options.checkpointGate } : {}),
       ...(options.onStderr ? { onStderr: options.onStderr } : {}),
     },
     options.enabledTiers,

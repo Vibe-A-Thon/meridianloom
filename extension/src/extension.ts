@@ -7,6 +7,9 @@ import { normalizeEnabledTiers, TIER_CONTEXT_KEYS } from '../../shared/ts/tiers'
 import { registerCommands } from './commands';
 import { runDoctor } from './doctor';
 import { handleGateHaltNotification } from './governance/gate-halt';
+import {  handleSpendCeilingNotification,
+  SpendCeilingPauseTracker,
+} from './governance/spend-ceiling';
 import { hostedSessionRegistry } from './governance/session-registry';
 import { resolveInterpreter } from './interpreter';
 import { resolveCoreDir } from './layout';
@@ -19,6 +22,9 @@ import { registerViews } from './views';
 
 let supervisor: SidecarSupervisor | undefined;
 let workbench: WorkbenchService | undefined;
+
+/** FR-M39-02/D33: pause-pending state for hosted sessions that breached a spend ceiling. */
+const spendCeilingPauses = new SpendCeilingPauseTracker();
 
 /** The workspace folder the sidecar is pointed at (handshake workspaceDir). */
 function workspaceDir(): string | undefined {
@@ -273,10 +279,18 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
       onStateChange: state => {
         void workbench?.reconcile().catch(error => void vscode.window.showErrorMessage(String(error)));
         if (state === 'ready') supervisor?.currentClient?.on('notification', (method: string, params: unknown) => {
-          handleGateHaltNotification(method, params, {
+          const handledByGateHalt = handleGateHaltNotification(method, params, {
             registry: hostedSessionRegistry,
             warn: message => void vscode.window.showWarningMessage(message),
           });
+          if (!handledByGateHalt) {
+            handleSpendCeilingNotification(method, params, {
+              registry: hostedSessionRegistry,
+              tracker: spendCeilingPauses,
+              warn: message => void vscode.window.showWarningMessage(message),
+              log: message => console.debug('[spend-ceiling]', message),
+            });
+          }
         });
       },
     });
