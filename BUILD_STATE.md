@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** F1 — Governor
-- **Current workstream:** C — Human identity and roles — **done**
-- **Current task:** workstream D next — steer & clarify for hosted agents (FR-M25-01..06: steer into a running ACP session, clarifying questions with resume, uncertainty escalation, partial acceptance, dry-run; task 18: observed agents say so plainly instead of offering dead controls)
-- **Last commit:** b058238 (swept in task 16) — roles/SoD/N-of-M/delegation/approval hygiene (FR-M20-02..08; 43 role tests); task 15 identity seam 29df871 (FR-M20-01, **D9 closed**)
+- **Current workstream:** D — Steer & clarify — **done**
+- **Current task:** workstream E next — trust analytics (19 rejection rate full FR-M37-01, 20 reason distribution FR-M37-02, 21 trust score decomposition FR-M37-03, 22 agent-vs-agent FR-M37-04, 23 J-curve FR-M37-05, 24 tokenmaxxing FR-M37-07, 25 DORA export FR-M37-08)
+- **Last commit:** 61298aa — steer & clarify extension half (65e57c0 sidecar half) — **Workstream D complete** (FR-M25-01/02/03/04/06 + honest observe-only controls NOT_HOSTED; extension vitest 347; note: shared-index incident with the parallel session repaired via plumbing, final tree byte-identical, nothing pushed)
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## Mapping of completed S0 work onto the new plan
