@@ -1,4 +1,4 @@
-import { readFile, realpath } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { dispatchWebviewMessage, type ProxyContext } from './webview/webview-rpc-proxy';
@@ -163,17 +163,6 @@ export class RecorderPanel {
     deps: RecorderPanelDeps,
   ) {
     this.context = {
-      openEditor: async (file, line) => {
-        const root = deps.workspaceDir?.();
-        if (!root) throw new Error('Open a workspace before opening a source file.');
-        const [realRoot, target] = await Promise.all([realpath(root), realpath(path.resolve(root, file))]);
-        const relative = path.relative(realRoot, target);
-        if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error('Source files must be inside the current workspace.');
-        const editor = await vscode.window.showTextDocument(vscode.Uri.file(target), { preview: true });
-        const position = new vscode.Position(Math.min((line ?? 1) - 1, editor.document.lineCount - 1), 0);
-        editor.selection = new vscode.Selection(position, position);
-        editor.revealRange(new vscode.Range(position, position));
-      },
       workbench: deps.workbench ? request => deps.workbench!.request(request) : undefined,
       hostAction: async action => {
         if (action === 'open-settings') await vscode.commands.executeCommand('workbench.action.openSettings', 'meridian');
@@ -184,8 +173,8 @@ export class RecorderPanel {
         return deps.sidecar();
       },
       workspaceDir: deps.workspaceDir,
-      saveFile: (fileName, content, mimeType) =>
-        deps.onDownload?.({ fileName, mimeType: mimeType ?? 'application/json', content }),
+      saveFile: (fileName, content) =>
+        deps.onDownload?.({ fileName, mimeType: 'application/json', content }),
     };
     // localResourceRoots must pin exactly what the webview may load: the
     // built bundle directory — nothing else on the extension host's disk.

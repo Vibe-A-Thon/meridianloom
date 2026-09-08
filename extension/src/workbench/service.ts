@@ -19,7 +19,6 @@ import { createPolicyGate, type PolicyGateSidecar } from '../adapters/permission
 import { parseAcpPermissionPolicy } from '../adapters/policy';
 import type { PermissionApprover } from '../acp/client';
 import { hostedSessionRegistry } from '../governance/session-registry';
-import { STUDIO_DOCUMENT_KINDS, type StudioDocument } from '../../../shared/ts/studio';
 
 interface StoredState {
   schemaVersion: 1;
@@ -28,8 +27,6 @@ interface StoredState {
   deliverables: WorkbenchDeliverable[];
   runs: WorkbenchRun[];
   learning: LearningArtifact[];
-  documents: StudioDocument[];
-  documentRevisions: StudioDocument[];
 }
 
 export interface WorkbenchServiceOptions {
@@ -46,7 +43,7 @@ export interface WorkbenchServiceOptions {
 }
 
 function blankState(): StoredState {
-  return { schemaVersion: 1, revision: 0, agents: [], deliverables: [], runs: [], learning: [], documents: [], documentRevisions: [] };
+  return { schemaVersion: 1, revision: 0, agents: [], deliverables: [], runs: [], learning: [] };
 }
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -76,14 +73,6 @@ function list(value: unknown, label: string, max = 100): string[] {
   if (!Array.isArray(value) || value.length > max)
     throw new Error(`${label} must be a list of at most ${max} entries.`);
   return value.map((entry) => string(entry, label, 4_000, label === 'Arguments'));
-}
-
-function documentFields(value: unknown): Pick<StudioDocument, 'kind' | 'title' | 'body' | 'tags'> {
-  const raw = record(value);
-  if (!(STUDIO_DOCUMENT_KINDS as readonly unknown[]).includes(raw.kind)) throw new Error('Unknown studio document kind.');
-  return { kind: raw.kind as StudioDocument['kind'], title: string(raw.title, 'Document title', 200).trim(),
-    body: string(raw.body, 'Document body', 250_000, true),
-    tags: list(raw.tags, 'Document tags', 30).map(tag => string(tag, 'Tag', 80).trim()) };
 }
 
 /** The existing ACP adapter schema remains the authoritative launch validator. */
@@ -205,8 +194,6 @@ export class WorkbenchService {
       revision: result.revision,
       deliverables: result.deliverables,
       learning: result.learning,
-      documents: result.documents,
-      documentRevisions: result.documentRevisions,
       agents: result.agents.map((agent) => ({
         ...agent,
         runtime: this.state.runs.some((run) => run.agentId === agent.id && run.state === 'running')
@@ -270,15 +257,6 @@ export class WorkbenchService {
         throw new Error('Invalid stored agent mode.');
     }
     const loaded = raw as unknown as StoredState;
-    for (const key of ['documents', 'documentRevisions'] as const) {
-      if (loaded[key] === undefined) loaded[key] = [];
-      if (!Array.isArray(loaded[key])) throw new Error('Invalid stored studio documents.');
-      for (const entry of loaded[key]) {
-        documentFields(entry); id(entry.id);
-        if (!Number.isSafeInteger(entry.version) || entry.version < 1) throw new Error('Invalid document version.');
-        string(entry.createdAt, 'Document creation date', 40); string(entry.updatedAt, 'Document update date', 40);
-      }
-    }
     for (const run of loaded.runs) {
       if (
         !run ||
@@ -367,11 +345,6 @@ export class WorkbenchService {
     if (!agent) throw new Error(`Agent '${agentId}' does not exist.`);
     return agent;
   }
-  private archiveDocument(document: StudioDocument): void {
-    const prior = this.state.documentRevisions.filter(entry => entry.id === document.id);
-    this.state.documentRevisions = this.state.documentRevisions.filter(entry => entry.id !== document.id);
-    this.state.documentRevisions.push(...prior.slice(-19), structuredClone(document));
-  }
   private deliverable(deliverableId: string): WorkbenchDeliverable {
     const item = this.state.deliverables.find((entry) => entry.id === deliverableId);
     if (!item) throw new Error('Deliverable does not exist.');
@@ -426,11 +399,6 @@ export class WorkbenchService {
       await this.load();
       const params = record(request.params ?? {});
       if (request.action === 'snapshot') return this.snapshot();
-      if (request.action === 'document/export') {
-        const document = this.state.documents.find(entry => entry.id === id(params.id));
-        if (!document) throw new Error('Document no longer exists.');
-        return { fileName: `${document.kind}-${document.id}.meridian-document.json`, content: JSON.stringify({ kind: 'meridian-studio-document', schemaVersion: 1, document }, null, 2) };
-      }
       if (request.action === 'agent/export') {
         const agent = this.agent(id(params.id));
         const portable: PortableAgentDocument = {
@@ -451,42 +419,6 @@ export class WorkbenchService {
       try {
         const now = new Date().toISOString();
         switch (request.action) {
-          case 'document/save': {
-            const raw = record(params.document);
-            const fields = documentFields(raw);
-            const existing = raw.id === undefined ? undefined : this.state.documents.find(entry => entry.id === id(raw.id));
-            if (raw.id !== undefined && !existing) throw new Error('Document no longer exists. Refresh before saving.');
-            if (existing && raw.expectedVersion !== existing.version) throw new Error('This document changed in another view. Refresh before saving your changes.');
-            if (existing && fields.kind !== existing.kind) throw new Error('A document cannot change its kind.');
-            if (existing) this.archiveDocument(existing);
-            const document: StudioDocument = { ...fields, id: existing?.id ?? randomUUID(), version: (existing?.version ?? 0) + 1, createdAt: existing?.createdAt ?? now, updatedAt: now };
-            if (existing) this.state.documents[this.state.documents.indexOf(existing)] = document;
-            else this.state.documents.unshift(document);
-            break;
-          }
-          case 'document/import': {
-            const raw = record(JSON.parse(string(params.content, 'Document JSON', 2_000_000)));
-            if (raw.kind !== 'meridian-studio-document' || raw.schemaVersion !== 1) throw new Error('Expected a Meridian studio document, schema version 1.');
-            this.state.documents.unshift({ ...documentFields(raw.document), id: randomUUID(), version: 1, createdAt: now, updatedAt: now });
-            break;
-          }
-          case 'document/remove': {
-            const existing = this.state.documents.find(entry => entry.id === id(params.id));
-            if (!existing) throw new Error('Document no longer exists.');
-            if (params.expectedVersion !== existing.version) throw new Error('Document changed. Refresh before removing it.');
-            this.state.documents = this.state.documents.filter(entry => entry.id !== existing.id);
-            this.state.documentRevisions = this.state.documentRevisions.filter(entry => entry.id !== existing.id);
-            break;
-          }
-          case 'document/restore': {
-            const existing = this.state.documents.find(entry => entry.id === id(params.id));
-            if (!existing || existing.version !== params.expectedVersion) throw new Error('Document changed. Refresh before restoring it.');
-            const old = this.state.documentRevisions.find(entry => entry.id === existing.id && entry.version === params.version);
-            if (!old) throw new Error('Requested document revision is unavailable.');
-            this.archiveDocument(existing);
-            this.state.documents[this.state.documents.indexOf(existing)] = { ...structuredClone(old), version: existing.version + 1, updatedAt: now };
-            break;
-          }
           case 'agent/save': {
             const input = validateWorkbenchAgent(params.agent);
             const existing = this.state.agents.find((entry) => entry.id === input.id);

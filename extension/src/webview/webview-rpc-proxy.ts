@@ -37,8 +37,7 @@ export interface ProxyContext {
   workspaceDir?: () => string | undefined;
   /** 10.45/10.7 Export: persists a downloaded audit bundle through the
    *  host's save dialog (the webview has no filesystem, VIGUIX_Final §17). */
-  saveFile?: (fileName: string, content: string, mimeType?: string) => void | Promise<void>;
-  openEditor?: (path: string, line?: number) => Promise<void>;
+  saveFile?: (fileName: string, content: string) => void | Promise<void>;
   /** Local workspace management survives a sidecar reconnect. Execution is
    * separately checked by the service against workspace trust and tiers. */
   workbench?: (request: WorkbenchRequest) => Promise<unknown>;
@@ -84,15 +83,11 @@ export async function dispatchWebviewMessage(
     // Export (FR-M36-04): the bundle is already signed and in the webview's
     // hands; the host only offers the save dialog. Fire-and-forget — there
     // is nothing to ack, and a save failure surfaces host-side.
-    await context.saveFile?.(message.fileName, message.content, message.mimeType);
+    await context.saveFile?.(message.fileName, message.content);
     return undefined;
   }
   if (message.type === 'host/action') {
     await context.hostAction?.(message.action);
-    return undefined;
-  }
-  if (message.type === 'editor/open') {
-    await context.openEditor?.(message.path, message.line);
     return undefined;
   }
   if (message.type === 'state/update') {

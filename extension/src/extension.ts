@@ -33,17 +33,10 @@ function workspaceDir(): string | undefined {
 async function saveDownload(request: {
   fileName: string;
   content: string;
-  mimeType?: string;
 }): Promise<void> {
-  const formats: Record<string, Record<string, string[]>> = {
-    'application/json': { 'Meridian JSON document': ['json'] },
-    'image/svg+xml': { 'SVG diagram': ['svg'] },
-    'text/csv': { 'CSV table': ['csv'] },
-    'text/plain': { 'Text document': ['md', 'mmd', 'txt'] },
-  };
   const target = await vscode.window.showSaveDialog({
-    defaultUri: vscode.Uri.file(path.basename(request.fileName)),
-    filters: formats[request.mimeType ?? 'application/json'] ?? formats['application/json'],
+    defaultUri: vscode.Uri.file(request.fileName),
+    filters: { 'Meridian JSON document': ['json'] },
   });
   if (!target) {
     return;
