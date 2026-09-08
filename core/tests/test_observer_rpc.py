@@ -61,7 +61,13 @@ class TestObserveSessionsRpc:
         assert "result" in response
         health = call(self.server, "observe/health")["result"]
         assert health["monitorRunning"] is True
-        assert {o["name"] for o in health["observers"]} == {"claude-code", "copilot"}
+        assert {o["name"] for o in health["observers"]} == {
+            "claude-code",
+            "copilot",
+            "cursor",
+            "codex",
+            "devin",
+        }
         self.server._handle_shutdown({"reason": "test teardown"})
 
     def test_sessions_after_handicap_come_from_the_monitor(self, tmp_path):
@@ -91,11 +97,11 @@ class TestObserveHealthRpc:
     def setup_method(self):
         self.server = SidecarServer()
 
-    def test_health_reports_both_observers_versioned(self):
+    def test_health_reports_all_observers_versioned(self):
         result = call(self.server, "observe/health")["result"]
         assert result["monitorRunning"] is False
         by_name = {o["name"]: o for o in result["observers"]}
-        assert set(by_name) == {"claude-code", "copilot"}
+        assert set(by_name) == {"claude-code", "copilot", "cursor", "codex", "devin"}
         for record in by_name.values():
             assert record["status"] in ("ok", "degraded")
             assert record["vendorRelease"]

@@ -34,13 +34,13 @@ X29_BUDGET_SECONDS = 2.0
 
 HELPER_SOURCE = """\
 import time
-print("fake claude agent helper: idle", flush=True)
+print("fake {vendor} agent helper: idle", flush=True)
 time.sleep(120)
 """
 
 
-def make_claude_exe(tmp_path: Path) -> Path:
-    """A real process IMAGE named claude (python.exe copied).
+def make_agent_exe(tmp_path: Path, process_name: str) -> Path:
+    """A real process IMAGE named after a vendor agent (python.exe copied).
 
     The detection test must be found by the real platform process listing;
     on Windows the fast listing sees image names, so the helper copies the
@@ -48,21 +48,27 @@ def make_claude_exe(tmp_path: Path) -> Path:
     """
     import shutil
 
-    image_dir = tmp_path / "agent-image"
+    image_dir = tmp_path / f"agent-image-{process_name}"
     image_dir.mkdir(exist_ok=True)
-    claude_exe = image_dir / ("claude.exe" if sys.platform == "win32" else "claude")
-    shutil.copy(sys.executable, claude_exe)
+    suffix = ".exe" if sys.platform == "win32" else ""
+    agent_exe = image_dir / f"{process_name}{suffix}"
+    shutil.copy(sys.executable, agent_exe)
     if sys.platform == "win32":
         for dll in Path(sys.executable).parent.glob("python*.dll"):
             shutil.copy(dll, image_dir / dll.name)
-    return claude_exe
+    return agent_exe
+
+
+def make_claude_exe(tmp_path: Path) -> Path:
+    """A real process IMAGE named claude (python.exe copied)."""
+    return make_agent_exe(tmp_path, "claude")
 
 
 @pytest.fixture()
 def claude_helper(tmp_path):
     """A real long-running process whose image name is 'claude'."""
     helper = tmp_path / "claude_probe_helper.py"
-    helper.write_text(HELPER_SOURCE, encoding="utf-8")
+    helper.write_text(HELPER_SOURCE.format(vendor="claude"), encoding="utf-8")
     claude_exe = make_claude_exe(tmp_path)
     proc = subprocess.Popen(
         [str(claude_exe), str(helper)],
@@ -166,7 +172,7 @@ class TestX29DetectionBudget:
 
     def test_session_disappears_within_two_seconds_of_exit(self, tmp_path):
         helper = tmp_path / "claude_probe_helper.py"
-        helper.write_text(HELPER_SOURCE, encoding="utf-8")
+        helper.write_text(HELPER_SOURCE.format(vendor="claude"), encoding="utf-8")
         claude_exe = make_claude_exe(tmp_path)
         proc = subprocess.Popen(
             [str(claude_exe), str(helper)],
@@ -200,6 +206,117 @@ class TestX29DetectionBudget:
             monitor.stop()
             if proc.poll() is None:
                 proc.kill()
+
+
+class TestX29PidScopedVendorDetection:
+    """Cursor / Codex / Devin process detection, scoped by pid (task 30, D20).
+
+    Each vendor's agent process name is matched through the REAL platform
+    process table and the assertion is scoped to the spawned pid — the
+    same X-29 discipline as the claude acceptance test (a real claude.exe
+    may run on this machine; so may a real cursor-agent/codex/devin).
+    """
+
+    @pytest.mark.parametrize(
+        "process_name,vendor",
+        [
+            ("cursor-agent", "cursor"),
+            ("codex", "codex"),
+            ("devin", "devin"),
+        ],
+    )
+    def test_vendor_process_visible_by_pid(self, tmp_path, process_name, vendor):
+        helper = tmp_path / f"{process_name}_probe_helper.py"
+        helper.write_text(HELPER_SOURCE.format(vendor=vendor), encoding="utf-8")
+        agent_exe = make_agent_exe(tmp_path, process_name)
+        proc = subprocess.Popen(
+            [str(agent_exe), str(helper)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        monitor = SessionMonitor(
+            ObserverManager(), tmp_path, processes_factory=list_processes
+        )
+        monitor.start()
+        try:
+            # Sanity: the platform listing itself sees this exact pid.
+            processes = list_processes()
+            assert any(p.pid == proc.pid for p in processes)
+            assert match_vendor(
+                next(p.name for p in processes if p.pid == proc.pid),
+                next(
+                    (p.command_line for p in processes if p.pid == proc.pid), ""
+                ),
+            ) == vendor
+
+            elapsed = wait_for(
+                lambda: any(
+                    s["vendor"] == vendor and s.get("pid") == proc.pid
+                    for s in monitor.snapshot()["sessions"]
+                ),
+                timeout=X29_BUDGET_SECONDS + 2,
+            )
+            print(f"\nX-29 {vendor} detection latency: {elapsed * 1000:.0f} ms")
+            assert elapsed < X29_BUDGET_SECONDS
+            session = next(
+                s
+                for s in monitor.snapshot()["sessions"]
+                if s["vendor"] == vendor and s.get("pid") == proc.pid
+            )
+            assert session["sessionId"] == f"proc:{proc.pid}"
+            assert session["confidence"] == "telemetry"
+            assert session["source"] == "process"
+        finally:
+            monitor.stop()
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait(timeout=10)
+
+    @pytest.mark.parametrize(
+        "process_name,vendor",
+        [
+            ("cursor-agent", "cursor"),
+            ("codex", "codex"),
+            ("devin", "devin"),
+        ],
+    )
+    def test_vendor_process_disappears_by_pid(self, tmp_path, process_name, vendor):
+        helper = tmp_path / f"{process_name}_probe_helper.py"
+        helper.write_text(HELPER_SOURCE.format(vendor=vendor), encoding="utf-8")
+        agent_exe = make_agent_exe(tmp_path, process_name)
+        proc = subprocess.Popen(
+            [str(agent_exe), str(helper)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        monitor = SessionMonitor(
+            ObserverManager(), tmp_path, processes_factory=list_processes
+        )
+        monitor.start()
+        try:
+            wait_for(
+                lambda: any(
+                    s["vendor"] == vendor and s.get("pid") == proc.pid
+                    for s in monitor.snapshot()["sessions"]
+                ),
+                timeout=X29_BUDGET_SECONDS + 2,
+            )
+            proc.terminate()
+            proc.wait(timeout=10)
+            elapsed = wait_for(
+                lambda: not any(
+                    s["vendor"] == vendor and s.get("pid") == proc.pid
+                    for s in monitor.snapshot()["sessions"]
+                ),
+                timeout=X29_BUDGET_SECONDS + 2,
+            )
+            print(f"\nX-29 {vendor} disappearance latency: {elapsed * 1000:.0f} ms")
+            assert elapsed < X29_BUDGET_SECONDS
+        finally:
+            monitor.stop()
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait(timeout=10)
 
 
 class TestSessionMerging:

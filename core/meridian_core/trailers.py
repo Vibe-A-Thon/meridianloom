@@ -33,6 +33,11 @@ VENDOR_EMAILS = {
     "copilot@github.com": "github-copilot",
     "cursor@anysphere.inc": "cursor",
     "cursor@cursor.com": "cursor",
+    # Codex CLI signs its commits with this co-author line.
+    "codex@openai.com": "codex",
+    # Devin's GitHub bot identity, when a human commits Devin's work with
+    # the bot recorded as co-author.
+    "devin-ai-integration[bot]@users.noreply.github.com": "devin",
 }
 MERIDIAN_IDENTITY = "meridian"
 

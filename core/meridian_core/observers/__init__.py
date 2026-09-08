@@ -2,7 +2,8 @@
 
 Public surface: the confidence model and fallback chain (``base``), the
 registry with health reporting (``manager``), and the per-vendor adapters
-(``claude``, ``copilot``).
+(``claude``, ``copilot`` first-class in F0; ``cursor``, ``codex``,
+``devin`` at inferred-confidence floor in F1 per D20).
 
 SEC-27: this package MUST stay free of Meridian credentials, policy and
 ledger key material — observed agents are observed one-way. The tests in

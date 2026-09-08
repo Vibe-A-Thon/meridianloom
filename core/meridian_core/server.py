@@ -54,7 +54,10 @@ from .pr import ingest as pr_ingest
 from .pr import conflicts as pr_conflicts
 from .worktree import manager as worktree_mod
 from .observers import claude as observer_claude
+from .observers import codex as observer_codex
 from .observers import copilot as observer_copilot
+from .observers import cursor as observer_cursor
+from .observers import devin as observer_devin
 from .observers import manager as observer_manager
 from .observers import sessions as observer_sessions
 from .rpc import (
@@ -113,6 +116,12 @@ class SidecarServer:
             [
                 observer_claude.ClaudeCodeObserver(),
                 observer_copilot.CopilotObserver(),
+                # FR-M35-08/D20 (F1 Workstream G task 30): Cursor, Codex and
+                # Devin observe at inferred-confidence floor (telemetry at
+                # best) — no first-party telemetry surface is parseable.
+                observer_cursor.CursorObserver(),
+                observer_codex.CodexObserver(),
+                observer_devin.DevinObserver(),
             ]
         )
         self._session_monitor: observer_sessions.SessionMonitor | None = None
