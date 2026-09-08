@@ -254,6 +254,26 @@
       "params": { "$ref": "#/$defs/TrustScoreParams" },
       "result": { "$ref": "#/$defs/TrustScoreResult" }
     },
+    "trust/compareAgents": {
+      "description": "FR-M37-04 (F1 Workstream E task 22): agent-vs-agent comparison on the same story or packet (shadow mode, FR-M25-07 extended to external agents). Every agent with an in-scope entry on the story (or the actorIds list, when given) is compared side by side on first-pass yield, E-GR-03 rejection reasons, recorded cost (costUsd/tokens) and LLM ratio (the agent's share of the story's recorded token throughput). A component with no ledger evidence reports insufficient_evidence or unknown with a null value — never a fabricated zero and never a missing key. Ledger-derived on demand, in-process-cached, invalidated on append (FR-M17-05). Zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/TrustCompareAgentsParams" },
+      "result": { "$ref": "#/$defs/TrustCompareAgentsResult" }
+    },
+    "trust/jcurve": {
+      "description": "FR-M37-05 (F1 Workstream E task 23): the adoption J-curve — team-level throughput and stability before and after the adoption date, so the initial productivity dip DORA documents is visible as a phase rather than mistaken for failure. Throughput is the in-scope diff count per calendar week (zero-filled weeks count — the dip IS the empty weeks); stability is the F0 rejection notion (linked rejection entry or own rejected|reworked decision) before vs after. The dip is the contiguous below-baseline run of after-adoption weeks from the adoption week itself; depth is the minimum weekly throughput relative to the before-baseline. Split greenfield/brownfield/unclassified (G6) via storyCommits + repoPath as on the other trust metrics. Empty samples report insufficient_evidence, never zero. Ledger-derived on demand, in-process-cached, invalidated on append (FR-M17-05). Zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/TrustJcurveParams" },
+      "result": { "$ref": "#/$defs/TrustJcurveResult" }
+    },
+    "trust/tokenmaxxing": {
+      "description": "FR-M37-07 (F1 Workstream E task 24): tokenmaxxing detection — rising token spend without rising first-pass yield, per agent and per team. The caller supplies the spend series (spendSeries: agentId -> [{period, tokens}]; the M39 spend feed lands in a later task and this interface is deliberately vendor-agnostic); first-pass yield per period is derived from the ledger (per-period diff yield, periods matched by ISO-week labels such as 2026-W01). The detector compares the recent half of the series against the previous half: spend rise >= spendRiseThreshold (default 1.25) with a non-rising yield (mean recent yield <= previous) flags tokenmaxxing. Periods without yield evidence are excluded; an agent whose yield the ledger cannot evidence reports unknown — never flagged on fabricated numbers. Zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/TrustTokenmaxxingParams" },
+      "result": { "$ref": "#/$defs/TrustTokenmaxxingResult" }
+    },
+    "trust/doraExport": {
+      "description": "FR-M37-08 (F1 Workstream E task 25): the DORA four keys — deployment frequency, lead time for changes, change failure rate, time to restore — derived from the ledger and exported as OTLP-friendly JSON (resourceMetrics/scopeMetrics/metrics/gauge/dataPoints with OTel attribute encoding) so Meridian's numbers land in the team's existing engineering-intelligence tooling. Honest derivations, documented in the module: the ledger records no deploy event type, so deployments are the approved-diff shape (a change that passed review); lead time is the median hours from a story's first in-scope diff to its first approved diff; change failure is an approved diff later carried by a rejection entry; time to restore is the median hours from that failure to the story's next approved diff. A key the ledger cannot evidence exports a data point carrying meridian.evidence=unknown and NO value — never an invented number. Python standard library only. Zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/TrustDoraExportParams" },
+      "result": { "$ref": "#/$defs/TrustDoraExportResult" }
+    },
     "acp/sessionBegin": {
       "description": "FR-M34-01/02 (F1 Workstream A task 4): the extension host ACP client reports a hosted agent session starting; the sidecar records a `session_begin` ledger entry (actorKind external, vendor acp, direct confidence) before the agent's first turn.",
       "params": { "$ref": "#/$defs/AcpSessionBeginParams" },
@@ -2075,6 +2095,108 @@
         "byPhase": { "type": "object", "description": "FR-M37-01 (task 19): ledger phase -> bucket, same generalised rejection notion as byActionClass." },
         "byStory": { "type": "object", "description": "FR-M37-01 (task 19): storyId -> bucket, same generalised rejection notion as byActionClass." },
         "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05: derived from the ledger, cached, invalidated on append)." }
+      },
+      "additionalProperties": false
+    },
+    "TrustJcurveParams": {
+      "type": "object",
+      "required": ["adoptionDate"],
+      "properties": {
+        "adoptionDate": { "type": "string", "description": "ISO 8601 UTC timestamp of the adoption cut: weeks before it are the before phase, the adoption week and later the after phase." },
+        "repoId": { "type": "string" },
+        "fromSequence": { "type": "integer" },
+        "toSequence": { "type": "integer" },
+        "repoPath": { "type": "string", "description": "Repository for greenfield/brownfield classification. Absent means the handshake workspaceDir." },
+        "storyCommits": { "type": "object", "description": "storyId -> the story's commits, used to split the curve by greenfield/brownfield (trust/classify). Stories without an entry land in the unclassified bucket." },
+        "newFileRatioThreshold": { "type": "number" },
+        "maxMedianAgeDays": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "TrustJcurveResult": {
+      "type": "object",
+      "required": ["scope", "adoptionDate", "status", "baseline", "dip", "phases", "split"],
+      "properties": {
+        "scope": { "type": "object", "description": "The echoed scope filters." },
+        "adoptionDate": { "type": "string" },
+        "status": { "enum": ["ok", "partial", "insufficient_evidence"], "description": "ok: diffs on both sides of the adoption; partial: only one side has diffs; insufficient_evidence: no in-scope diffs at all." },
+        "baseline": { "type": ["number", "null"], "description": "Mean weekly throughput (in-scope diffs/week) over the before weeks; null when there is no before phase." },
+        "dip": { "type": "object", "description": "The J-curve dip: {startWeek, endWeek, depth, recoveredWeek} — the contiguous below-baseline after-adoption weeks from the adoption week, depth = (min dip throughput - baseline)/baseline, recoveredWeek the first week back at/above baseline (null when not yet recovered). Empty when no dip is evidenced." },
+        "phases": { "type": "object", "description": "before/after -> {weeks, weeklyThroughput (relative-week -> count), throughputPerWeek (mean), stabilityRate (the F0 rejection notion)}." },
+        "split": { "type": "object", "description": "greenfield / brownfield / unclassified -> per-phase throughput and stability (G6: every trust metric reports the split)." },
+        "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
+      },
+      "additionalProperties": false
+    },
+    "TrustTokenmaxxingParams": {
+      "type": "object",
+      "required": ["spendSeries"],
+      "properties": {
+        "spendSeries": { "type": "object", "description": "agentId -> [{period, tokens}]. period is an ISO-week label (2026-W01) matched against the ledger's per-week first-pass yield. The M39 cross-vendor spend feed lands in a later task; this interface is deliberately vendor-agnostic." },
+        "repoId": { "type": "string" },
+        "fromSequence": { "type": "integer" },
+        "toSequence": { "type": "integer" },
+        "spendRiseThreshold": { "type": "number", "description": "Recent-half / previous-half spend ratio at or above which spend counts as rising (default 1.25)." },
+        "minPeriods": { "type": "integer", "description": "Minimum series length the detector needs before it will judge (default 4)." }
+      },
+      "additionalProperties": false
+    },
+    "TrustTokenmaxxingResult": {
+      "type": "object",
+      "required": ["scope", "byAgent", "team"],
+      "properties": {
+        "scope": { "type": "object", "description": "The echoed scope filters." },
+        "byAgent": { "type": "object", "description": "agentId -> {status, flagged, periods, spendTrend, yieldTrend, note}: tokenmaxxing verdict per agent. status ok means both halves of the series had spend and the ledger evidenced yield for at least one period per half; insufficient_evidence/unknown otherwise — never flagged on fabricated numbers." },
+        "team": { "type": "object", "description": "The same verdict over the team-aggregated series (tokens summed per period; yield pooled over every agent's diffs per period)." }
+      },
+      "additionalProperties": false
+    },
+    "TrustDoraExportParams": {
+      "type": "object",
+      "properties": {
+        "repoId": { "type": "string" },
+        "fromSequence": { "type": "integer" },
+        "toSequence": { "type": "integer" },
+        "exportedAt": { "type": "string", "description": "ISO 8601 UTC export timestamp; absent means now. Deterministic under tests." },
+        "resourceAttributes": { "type": "object", "description": "Extra OTLP resource attributes (key -> string value) merged over the meridian-loom defaults, e.g. the team's engineering-intelligence routing labels." }
+      },
+      "additionalProperties": false
+    },
+    "TrustDoraExportResult": {
+      "type": "object",
+      "required": ["status", "metrics", "export"],
+      "properties": {
+        "status": { "type": "object", "description": "The four DORA keys -> ok | unknown — an unknown key is one the ledger cannot evidence, exported with meridian.evidence=unknown and no value, never an invented number." },
+        "metrics": { "type": "object", "description": "The four DORA keys with their values, units and evidence notes: deploymentFrequency ({value per week, status}), leadTimeForChanges ({value median hours, status}), changeFailureRate ({value, status}), timeToRestore ({value median hours, status})." },
+        "export": { "type": "object", "description": "The OTLP/JSON encoding of the four keys (resourceMetrics -> scopeMetrics -> metrics -> gauge -> dataPoints, OTel attribute encoding), ready to POST to an OTLP/HTTP metrics endpoint or drop into engineering-intelligence tooling." }
+      },
+      "additionalProperties": false
+    },
+    "TrustCompareAgentsParams": {
+      "type": "object",
+      "required": ["storyId"],
+      "properties": {
+        "storyId": { "type": "string", "description": "The story (packet) both agents ran — the comparison unit of FR-M37-04." },
+        "actorIds": { "type": "array", "items": { "type": "string" }, "description": "Restrict (and order) the comparison to these agents. Absent means every actor with an in-scope entry on the story." },
+        "repoId": { "type": "string" },
+        "fromSequence": { "type": "integer" },
+        "toSequence": { "type": "integer" },
+        "repoPath": { "type": "string", "description": "Repository for greenfield/brownfield classification of the story. Absent means the handshake workspaceDir." },
+        "storyCommits": { "type": "object", "description": "storyId -> the story's commits, used to classify the story (trust/classify). Without commit data the story reports unclassified, never dropped." },
+        "newFileRatioThreshold": { "type": "number" },
+        "maxMedianAgeDays": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "TrustCompareAgentsResult": {
+      "type": "object",
+      "required": ["scope", "storyId", "storyClassification", "agents"],
+      "properties": {
+        "scope": { "type": "object", "description": "The echoed scope filters." },
+        "storyId": { "type": "string" },
+        "storyClassification": { "type": "string", "description": "The story's greenfield/brownfield classification (G6), or unclassified when it has no commit data." },
+        "agents": { "type": "object", "description": "actorId -> the four FR-M37-04 components, each {status: ok|insufficient_evidence|unknown, value, ...}: yield (first-pass yield over the agent's diffs on the story), rejectionReasons (E-GR-03 classes attributed to the agent, resolved through rejectedSequence), cost (costUsd/tokensIn/tokensOut summed over the agent's in-scope entries), llmRatio (the agent's share of the story's recorded tokens). Components without evidence carry status insufficient_evidence/unknown and value null — never fabricated." },
+        "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
       },
       "additionalProperties": false
     },

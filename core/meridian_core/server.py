@@ -145,6 +145,10 @@ class SidecarServer:
             "trust/reasonDistribution": SidecarServer._handle_trust_reason_distribution,
             "trust/score": SidecarServer._handle_trust_score,
             "trust/scoreDecomposition": SidecarServer._handle_trust_score,
+            "trust/compareAgents": SidecarServer._handle_trust_compare_agents,
+            "trust/jcurve": SidecarServer._handle_trust_jcurve,
+            "trust/tokenmaxxing": SidecarServer._handle_trust_tokenmaxxing,
+            "trust/doraExport": SidecarServer._handle_trust_dora_export,
             "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
             "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
@@ -2561,6 +2565,317 @@ class SidecarServer:
             to_sequence=params.get("toSequence"),
         )
         result["cacheHit"] = False
+        self._trust_cache.put(cache_key, result)
+        return result  # type: ignore[return-value]
+
+    # -- agent-vs-agent comparison (FR-M37-04, task 22) ----------------------
+
+    def _handle_trust_compare_agents(
+        self, params: bus_types.TrustCompareAgentsParams
+    ) -> bus_types.TrustCompareAgentsResult:
+        params = params or {}
+        story_id = params.get("storyId")
+        if not isinstance(story_id, str) or not story_id.strip():
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "trust/compareAgents needs the storyId"
+            )
+        ledger = self._ensure_ledger()
+        story_commits = params.get("storyCommits") or {}
+        ratio_threshold = params.get("newFileRatioThreshold")
+        max_age_days = params.get("maxMedianAgeDays")
+
+        cache_key = json.dumps(
+            {
+                "scope": {
+                    "storyId": story_id,
+                    "repoId": params.get("repoId"),
+                    "actorIds": params.get("actorIds"),
+                    "fromSequence": params.get("fromSequence"),
+                    "toSequence": params.get("toSequence"),
+                },
+                "storyCommits": story_commits,
+                "thresholds": [ratio_threshold, max_age_days],
+                "tip": ledger.last_sequence,  # append-invalidation backstop
+            },
+            sort_keys=True,
+        )
+        cached = self._trust_cache.get(cache_key)
+        if cached is not None:
+            result = dict(cached)
+            result["cacheHit"] = True
+            return result  # type: ignore[return-value]
+
+        classify_fn = self._trust_classifier(
+            params, story_commits, ratio_threshold, max_age_days
+        )
+        result = metrics_mod.compute_agent_comparison(
+            ledger,
+            story_id=story_id,
+            actor_ids=params.get("actorIds"),
+            repo_id=params.get("repoId"),
+            from_sequence=params.get("fromSequence"),
+            to_sequence=params.get("toSequence"),
+            classify=classify_fn,
+        )
+        result["cacheHit"] = False
+        self._trust_cache.put(cache_key, result)
+        return result  # type: ignore[return-value]
+
+    # -- J-curve (FR-M37-05, task 23) -----------------------------------------
+
+    def _handle_trust_jcurve(
+        self, params: bus_types.TrustJcurveParams
+    ) -> bus_types.TrustJcurveResult:
+        params = params or {}
+        adoption_date = params.get("adoptionDate")
+        if not isinstance(adoption_date, str) or not adoption_date.strip():
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "trust/jcurve needs the adoptionDate"
+            )
+        ledger = self._ensure_ledger()
+        story_commits = params.get("storyCommits") or {}
+        ratio_threshold = params.get("newFileRatioThreshold")
+        max_age_days = params.get("maxMedianAgeDays")
+
+        cache_key = json.dumps(
+            {
+                "scope": {
+                    "adoptionDate": adoption_date,
+                    "repoId": params.get("repoId"),
+                    "fromSequence": params.get("fromSequence"),
+                    "toSequence": params.get("toSequence"),
+                },
+                "storyCommits": story_commits,
+                "thresholds": [ratio_threshold, max_age_days],
+                "tip": ledger.last_sequence,  # append-invalidation backstop
+            },
+            sort_keys=True,
+        )
+        cached = self._trust_cache.get(cache_key)
+        if cached is not None:
+            result = dict(cached)
+            result["cacheHit"] = True
+            return result  # type: ignore[return-value]
+
+        classify_fn = self._trust_classifier(
+            params, story_commits, ratio_threshold, max_age_days
+        )
+        try:
+            result = metrics_mod.compute_jcurve(
+                ledger,
+                adoption_date=adoption_date,
+                repo_id=params.get("repoId"),
+                from_sequence=params.get("fromSequence"),
+                to_sequence=params.get("toSequence"),
+                classify=classify_fn,
+            )
+        except ValueError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        result["cacheHit"] = False
+        self._trust_cache.put(cache_key, result)
+        return result  # type: ignore[return-value]
+
+    # -- tokenmaxxing detector (FR-M37-07, task 24) ---------------------------
+
+    def _handle_trust_tokenmaxxing(
+        self, params: bus_types.TrustTokenmaxxingParams
+    ) -> bus_types.TrustTokenmaxxingResult:
+        params = params or {}
+        spend_series = params.get("spendSeries")
+        if not isinstance(spend_series, dict) or not spend_series:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "trust/tokenmaxxing needs the spendSeries object",
+            )
+        ledger = self._ensure_ledger()
+        repo_id = params.get("repoId")
+        from_sequence = params.get("fromSequence")
+        to_sequence = params.get("toSequence")
+        rise_threshold = params.get("spendRiseThreshold")
+        min_periods = params.get("minPeriods")
+        detector_kwargs: dict[str, Any] = {}
+        if rise_threshold is not None:
+            detector_kwargs["spend_rise_threshold"] = rise_threshold
+        if min_periods is not None:
+            detector_kwargs["min_periods"] = min_periods
+
+        cache_key = json.dumps(
+            {
+                "scope": {
+                    "repoId": repo_id,
+                    "fromSequence": from_sequence,
+                    "toSequence": to_sequence,
+                },
+                "spendSeries": spend_series,
+                "detector": [rise_threshold, min_periods],
+                "tip": ledger.last_sequence,  # append-invalidation backstop
+            },
+            sort_keys=True,
+        )
+        cached = self._trust_cache.get(cache_key)
+        if cached is not None:
+            return cached  # type: ignore[return-value]
+
+        # First-pass yield per period comes from the ledger: the agent's
+        # in-scope diffs bucketed by ISO week (the period labels the spend
+        # feed uses), yield = 1 - rejected/proposed per bucket.
+        rows = ledger.query(
+            action_type="diff",
+            from_sequence=from_sequence,
+            to_sequence=to_sequence,
+            limit=1000,
+        )
+        if repo_id is not None:
+            rows = [row for row in rows if row.get("repo_id") == repo_id]
+        rejection_rows = ledger.query(action_type="rejection", limit=1000)
+        if repo_id is not None:
+            rejection_rows = [
+                row for row in rejection_rows if row.get("repo_id") == repo_id
+            ]
+        if from_sequence is not None:
+            rejection_rows = [
+                row for row in rejection_rows if row["seq"] >= from_sequence
+            ]
+        if to_sequence is not None:
+            rejection_rows = [
+                row for row in rejection_rows if row["seq"] <= to_sequence
+            ]
+        rejected_sequences = {
+            row["rejected_sequence"]
+            for row in rejection_rows
+            if row.get("rejected_sequence") is not None
+        }
+
+        def iso_week(ts_utc: str | None) -> str | None:
+            parsed = metrics_mod.parse_utc(ts_utc)
+            if parsed is None:
+                return None
+            year, week, _ = parsed.date().isocalendar()
+            return f"{year}-W{week:02d}"
+
+        def yield_points(actor_id: str | None) -> list[metrics_mod.YieldPoint]:
+            buckets: dict[str, dict[str, int]] = {}
+            for row in rows:
+                if actor_id is not None and row["actor_id"] != actor_id:
+                    continue
+                period = iso_week(row.get("ts_utc"))
+                if period is None:
+                    continue
+                bucket = buckets.setdefault(period, {"proposed": 0, "rejected": 0})
+                bucket["proposed"] += 1
+                if (
+                    row["seq"] in rejected_sequences
+                    or row.get("decision") in ("rejected", "reworked")
+                ):
+                    bucket["rejected"] += 1
+            return [
+                metrics_mod.YieldPoint(
+                    period=period,
+                    first_pass_yield=round(
+                        1 - counts["rejected"] / counts["proposed"], 6
+                    ),
+                )
+                for period, counts in sorted(buckets.items())
+                if counts["proposed"]
+            ]
+
+        by_agent: dict[str, Any] = {}
+        team_spend: dict[str, float] = {}
+        for actor, series in sorted(spend_series.items()):
+            if not isinstance(actor, str) or not isinstance(series, list):
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    "spendSeries maps agentId -> [{period, tokens}]",
+                )
+            points: list[metrics_mod.SpendPoint] = []
+            for raw in series:
+                if not isinstance(raw, dict):
+                    raise _RpcError(
+                        protocol.INVALID_PARAMS,
+                        "spendSeries maps agentId -> [{period, tokens}]",
+                    )
+                period = raw.get("period")
+                tokens = raw.get("tokens")
+                if not isinstance(period, str) or not isinstance(
+                    tokens, (int, float)
+                ):
+                    raise _RpcError(
+                        protocol.INVALID_PARAMS,
+                        "each spend point needs a string period and numeric tokens",
+                    )
+                points.append(metrics_mod.SpendPoint(period=period, tokens=tokens))
+                team_spend[period] = team_spend.get(period, 0.0) + tokens
+            by_agent[actor] = metrics_mod.detect_tokenmaxxing(
+                points, yield_points(actor), **detector_kwargs
+            )
+
+        team = metrics_mod.detect_tokenmaxxing(
+            [
+                metrics_mod.SpendPoint(period=period, tokens=tokens)
+                for period, tokens in sorted(team_spend.items())
+            ],
+            yield_points(None),
+            **detector_kwargs,
+        )
+        result = {
+            "scope": {
+                "repoId": repo_id,
+                "fromSequence": from_sequence,
+                "toSequence": to_sequence,
+            },
+            "byAgent": by_agent,
+            "team": team,
+        }
+        self._trust_cache.put(cache_key, result)
+        return result  # type: ignore[return-value]
+
+    # -- DORA export (FR-M37-08, task 25) -------------------------------------
+
+    def _handle_trust_dora_export(
+        self, params: bus_types.TrustDoraExportParams
+    ) -> bus_types.TrustDoraExportResult:
+        params = params or {}
+        ledger = self._ensure_ledger()
+        resource_attributes = params.get("resourceAttributes") or {}
+        if not isinstance(resource_attributes, dict):
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "resourceAttributes must be an object"
+            )
+        exported_at = params.get("exportedAt")
+
+        cache_key = json.dumps(
+            {
+                "scope": {
+                    "repoId": params.get("repoId"),
+                    "fromSequence": params.get("fromSequence"),
+                    "toSequence": params.get("toSequence"),
+                },
+                "resourceAttributes": resource_attributes,
+                "exportedAt": exported_at,
+                "tip": ledger.last_sequence,  # append-invalidation backstop
+            },
+            sort_keys=True,
+        )
+        cached = self._trust_cache.get(cache_key)
+        if cached is not None:
+            return cached  # type: ignore[return-value]
+
+        computed = metrics_mod.compute_dora_metrics(
+            ledger,
+            repo_id=params.get("repoId"),
+            from_sequence=params.get("fromSequence"),
+            to_sequence=params.get("toSequence"),
+        )
+        export = metrics_mod.export_otlp(
+            computed,
+            exported_at=exported_at if isinstance(exported_at, str) else None,
+            resource_attributes=resource_attributes,
+        )
+        result = {
+            "status": computed["status"],
+            "metrics": computed["metrics"],
+            "export": export,
+        }
         self._trust_cache.put(cache_key, result)
         return result  # type: ignore[return-value]
 

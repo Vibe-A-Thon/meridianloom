@@ -32,21 +32,43 @@ from .greenfield import (
     Classification,
     classify,
 )
+from .compare import compute_agent_comparison
+from .dora import compute_dora_metrics, export_otlp
+from .jcurve import compute_jcurve, parse_utc
 from .reasons import compute_reason_distribution, detection_shape
 from .score import SCORE_WEIGHTS, compute_trust_score
+from .spend import (
+    DEFAULT_MIN_PERIODS,
+    DEFAULT_SPEND_RISE_THRESHOLD,
+    SpendPoint,
+    SpendSeries,
+    YieldPoint,
+    detect_tokenmaxxing,
+)
 from .trust import TrustMetricsCache, compute_rejection_rate
 
 __all__ = [
     "BROWNFIELD",
     "Classification",
     "DEFAULT_MAX_MEDIAN_AGE_DAYS",
+    "DEFAULT_MIN_PERIODS",
     "DEFAULT_NEW_FILE_RATIO_THRESHOLD",
+    "DEFAULT_SPEND_RISE_THRESHOLD",
     "GREENFIELD",
     "SCORE_WEIGHTS",
+    "SpendPoint",
+    "SpendSeries",
     "TrustMetricsCache",
+    "YieldPoint",
     "classify",
+    "compute_agent_comparison",
+    "compute_dora_metrics",
+    "compute_jcurve",
     "compute_reason_distribution",
     "compute_rejection_rate",
     "compute_trust_score",
+    "detect_tokenmaxxing",
     "detection_shape",
+    "export_otlp",
+    "parse_utc",
 ]

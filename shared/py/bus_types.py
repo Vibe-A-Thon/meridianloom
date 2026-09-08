@@ -1054,10 +1054,73 @@ class TrustRejectionRateResult(TypedDict):
     rate: float
     split: dict[str, Any]  # greenfield / brownfield / unclassified buckets (G6: every trust metric reports the split).
     byAgent: dict[str, Any]  # actorId -> bucket, per-agent rejection rates.
-    byActionClass: dict[str, Any]  # FR-M37-01 (task 19): actionType -> bucket over every in-scope entry, where "rejected" generalises the F0 linked-rejection shape to entries whose own decision is rejected|reworked.
+    byActionClass: dict[str, Any]  # FR-M37-01 (task 19): actionType -> bucket over every in-scope entry except the rejection-capture entries themselves, where "rejected" generalises the F0 linked-rejection shape to entries whose own decision is rejected|reworked.
     byPhase: dict[str, Any]  # FR-M37-01 (task 19): ledger phase -> bucket, same generalised rejection notion as byActionClass.
     byStory: dict[str, Any]  # FR-M37-01 (task 19): storyId -> bucket, same generalised rejection notion as byActionClass.
     cacheHit: bool  # True when served from the in-process cache (FR-M17-05: derived from the ledger, cached, invalidated on append).
+
+class TrustJcurveParams(TypedDict):
+    adoptionDate: str  # ISO 8601 UTC timestamp of the adoption cut: weeks before it are the before phase, the adoption week and later the after phase.
+    repoId: NotRequired[str]
+    fromSequence: NotRequired[int]
+    toSequence: NotRequired[int]
+    repoPath: NotRequired[str]  # Repository for greenfield/brownfield classification. Absent means the handshake workspaceDir.
+    storyCommits: NotRequired[dict[str, Any]]  # storyId -> the story's commits, used to split the curve by greenfield/brownfield (trust/classify). Stories without an entry land in the unclassified bucket.
+    newFileRatioThreshold: NotRequired[float]
+    maxMedianAgeDays: NotRequired[float]
+
+class TrustJcurveResult(TypedDict):
+    scope: dict[str, Any]  # The echoed scope filters.
+    adoptionDate: str
+    status: Literal["ok", "partial", "insufficient_evidence"]  # ok: diffs on both sides of the adoption; partial: only one side has diffs; insufficient_evidence: no in-scope diffs at all.
+    baseline: float | None  # Mean weekly throughput (in-scope diffs/week) over the before weeks; null when there is no before phase.
+    dip: dict[str, Any]  # The J-curve dip: {startWeek, endWeek, depth, recoveredWeek} — the contiguous below-baseline after-adoption weeks from the adoption week, depth = (min dip throughput - baseline)/baseline, recoveredWeek the first week back at/above baseline (null when not yet recovered). Empty when no dip is evidenced.
+    phases: dict[str, Any]  # before/after -> {weeks, weeklyThroughput (relative-week -> count), throughputPerWeek (mean), stabilityRate (the F0 rejection notion)}.
+    split: dict[str, Any]  # greenfield / brownfield / unclassified -> per-phase throughput and stability (G6: every trust metric reports the split).
+    cacheHit: NotRequired[bool]  # True when served from the in-process cache (FR-M17-05).
+
+class TrustTokenmaxxingParams(TypedDict):
+    spendSeries: dict[str, Any]  # agentId -> [{period, tokens}]. period is an ISO-week label (2026-W01) matched against the ledger's per-week first-pass yield. The M39 cross-vendor spend feed lands in a later task; this interface is deliberately vendor-agnostic.
+    repoId: NotRequired[str]
+    fromSequence: NotRequired[int]
+    toSequence: NotRequired[int]
+    spendRiseThreshold: NotRequired[float]  # Recent-half / previous-half spend ratio at or above which spend counts as rising (default 1.25).
+    minPeriods: NotRequired[int]  # Minimum series length the detector needs before it will judge (default 4).
+
+class TrustTokenmaxxingResult(TypedDict):
+    scope: dict[str, Any]  # The echoed scope filters.
+    byAgent: dict[str, Any]  # agentId -> {status, flagged, periods, spendTrend, yieldTrend, note}: tokenmaxxing verdict per agent. status ok means both halves of the series had spend and the ledger evidenced yield for at least one period per half; insufficient_evidence/unknown otherwise — never flagged on fabricated numbers.
+    team: dict[str, Any]  # The same verdict over the team-aggregated series (tokens summed per period; yield pooled over every agent's diffs per period).
+
+class TrustDoraExportParams(TypedDict):
+    repoId: NotRequired[str]
+    fromSequence: NotRequired[int]
+    toSequence: NotRequired[int]
+    exportedAt: NotRequired[str]  # ISO 8601 UTC export timestamp; absent means now. Deterministic under tests.
+    resourceAttributes: NotRequired[dict[str, Any]]  # Extra OTLP resource attributes (key -> string value) merged over the meridian-loom defaults, e.g. the team's engineering-intelligence routing labels.
+
+class TrustDoraExportResult(TypedDict):
+    status: dict[str, Any]  # The four DORA keys -> ok | unknown — an unknown key is one the ledger cannot evidence, exported with meridian.evidence=unknown and no value, never an invented number.
+    metrics: dict[str, Any]  # The four DORA keys with their values, units and evidence notes: deploymentFrequency ({value per week, status}), leadTimeForChanges ({value median hours, status}), changeFailureRate ({value, status}), timeToRestore ({value median hours, status}).
+    export: dict[str, Any]  # The OTLP/JSON encoding of the four keys (resourceMetrics -> scopeMetrics -> metrics -> gauge -> dataPoints, OTel attribute encoding), ready to POST to an OTLP/HTTP metrics endpoint or drop into engineering-intelligence tooling.
+
+class TrustCompareAgentsParams(TypedDict):
+    storyId: str  # The story (packet) both agents ran — the comparison unit of FR-M37-04.
+    actorIds: NotRequired[list[str]]  # Restrict (and order) the comparison to these agents. Absent means every actor with an in-scope entry on the story.
+    repoId: NotRequired[str]
+    fromSequence: NotRequired[int]
+    toSequence: NotRequired[int]
+    repoPath: NotRequired[str]  # Repository for greenfield/brownfield classification of the story. Absent means the handshake workspaceDir.
+    storyCommits: NotRequired[dict[str, Any]]  # storyId -> the story's commits, used to classify the story (trust/classify). Without commit data the story reports unclassified, never dropped.
+    newFileRatioThreshold: NotRequired[float]
+    maxMedianAgeDays: NotRequired[float]
+
+class TrustCompareAgentsResult(TypedDict):
+    scope: dict[str, Any]  # The echoed scope filters.
+    storyId: str
+    storyClassification: str  # The story's greenfield/brownfield classification (G6), or unclassified when it has no commit data.
+    agents: dict[str, Any]  # actorId -> the four FR-M37-04 components, each {status: ok|insufficient_evidence|unknown, value, ...}: yield (first-pass yield over the agent's diffs on the story), rejectionReasons (E-GR-03 classes attributed to the agent, resolved through rejectedSequence), cost (costUsd/tokensIn/tokensOut summed over the agent's in-scope entries), llmRatio (the agent's share of the story's recorded tokens). Components without evidence carry status insufficient_evidence/unknown and value null — never fabricated.
+    cacheHit: NotRequired[bool]  # True when served from the in-process cache (FR-M17-05).
 
 class TrustReasonDistributionParams(TypedDict):
     repoId: NotRequired[str]
@@ -1255,7 +1318,7 @@ class McpInvokeResult(TypedDict):
     result: dict[str, Any] | list[Any] | str | float | bool | None  # The underlying method's result JSON, unmodified.
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate"]
 
 # Every notification method on the bus.
 NotificationName = Literal["gate/halt", "tiers/set", "$/cancel"]
@@ -1313,7 +1376,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]},
     {"id": "recorder.observers", "tier": "flight-recorder", "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).", "rpcMethods": ["observe/sessions", "observe/health"]},
     {"id": "recorder.provenance-hooks", "tier": "flight-recorder", "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).", "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse"]},
-    {"id": "recorder.trust-metrics", "tier": "flight-recorder", "description": "Rejection measurement and trust analytics (FR-M37-01/02/03/06, FR-M17-01/05; F0 Workstream F tasks 28-30, F1 Workstream E tasks 19-21): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), the ledger-derived, in-process-cached rejection rate per agent/repository/action-class/phase/story split by that distinction (trust/rejectionRate), the E-GR-03 rejection-reason distribution per agent (trust/reasonDistribution), and the trust score with its full per-component decomposition (trust/score, trust/scoreDecomposition). Zero model calls (FR-M36-07).", "rpcMethods": ["trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition"]},
+    {"id": "recorder.trust-metrics", "tier": "flight-recorder", "description": "Rejection measurement and trust analytics (FR-M37-01/02/03/04/05/06/07/08, FR-M17-01/05; F0 Workstream F tasks 28-30, F1 Workstream E tasks 19-25): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), the ledger-derived, in-process-cached rejection rate per agent/repository/action-class/phase/story split by that distinction (trust/rejectionRate), the E-GR-03 rejection-reason distribution per agent (trust/reasonDistribution), the trust score with its full per-component decomposition (trust/score, trust/scoreDecomposition), same-story agent-vs-agent comparison with unknown-labelled components (trust/compareAgents), the adoption J-curve (trust/jcurve), the tokenmaxxing detector over spend series (trust/tokenmaxxing), and the DORA four-keys export in OTLP-friendly JSON (trust/doraExport). Read-only observability. Zero model calls (FR-M36-07).", "rpcMethods": ["trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport"]},
     {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01/05/07/08/09; F1 Workstream B tasks 9-10): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack, with DoR/DoD as machine-checkable criteria; the merge gate refuses merges to protected branches without a recorded human approval bound to the head commit digest (approver identity in the ledger, FR-M12-07). Every decision is ledger-recorded before the RPC returns (FR-M10-08).", "rpcMethods": ["gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarify over hosted ACP sessions (FR-M25-01/02/03/04/06; F1 Workstream D task 17): steer.send ledger-records a human's guidance (who/what/when, FR-M10-08) before the host injects it into the running session over the real wire (a second session/prompt); steer.question/steer.answer are the clarifying-question protocol — the question is durable before the human sees it, the recorded answer resumes the loop; steer.escalate records uncertainty-triggered escalations below a per-class confidence threshold; steer.accept + steer.acceptanceStatus are partial acceptance of a session's output per file/hunk, ledger-recorded and queryable; steer.plan records dry-run planner output (dry-run denies mutation kinds at the policy gate, FR-M25-06); steer.status (task 18) is the honest capability payload carrying hosted: boolean so an observe-only session can never be offered a dead control. Observed-not-hosted sessions get the structured NOT_HOSTED refusal, never a silent failure.", "rpcMethods": ["steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan"]},
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
@@ -1325,7 +1388,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate")
 NOTIFICATION_METHODS: tuple[str, ...] = ("gate/halt", "tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -1378,6 +1441,10 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "trust/reasonDistribution": {"params": TrustReasonDistributionParams, "result": TrustReasonDistributionResult},
     "trust/score": {"params": TrustScoreParams, "result": TrustScoreResult},
     "trust/scoreDecomposition": {"params": TrustScoreParams, "result": TrustScoreResult},
+    "trust/compareAgents": {"params": TrustCompareAgentsParams, "result": TrustCompareAgentsResult},
+    "trust/jcurve": {"params": TrustJcurveParams, "result": TrustJcurveResult},
+    "trust/tokenmaxxing": {"params": TrustTokenmaxxingParams, "result": TrustTokenmaxxingResult},
+    "trust/doraExport": {"params": TrustDoraExportParams, "result": TrustDoraExportResult},
     "acp/sessionBegin": {"params": AcpSessionBeginParams, "result": AcpSessionRecordResult},
     "acp/sessionEnd": {"params": AcpSessionEndParams, "result": AcpSessionRecordResult},
     "acp/permissionDecision": {"params": AcpPermissionDecisionParams, "result": AcpSessionRecordResult},
