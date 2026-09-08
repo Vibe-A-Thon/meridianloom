@@ -4,11 +4,27 @@
 
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
-- **Current phase:** F1 — Governor — **engineering exit COMPLETE, tagged `f1-complete`**
-- **Current workstream:** H — GF1 screens + host plumbing — **my half done**
-- **Current task:** F1 exit assessment **done** — all 8 exit criteria have proofs (rows below): 7 pass (4 with human-gated measurement halves), 1 cross-session red in the GUI session's webview (row 10). `.vsix` packaged: `dist/meridian-loom-0.0.1.vsix` (966 KB, 135 files, 05:12). Suites: core 900 passed + perf-floor file 10/10 green in isolation (load artifact only); extension 365 passed / 40 files; webview 176/1 (theirs). **Next: F2 (human-run evidence gate — documented as pending-human-evidence), then F3 Orchestra.**
-- **Last commit:** c422872 — exit assessment finalized; D33 closed end-to-end at 539e564 (spend/ceiling wired in extension.ts + checkpointGate in launch.ts). Workstream G done at 2289a36 (D34). Decisions D24–D34 in DECISIONS.md. (note: shared-index incident with the parallel session repaired via plumbing, final tree byte-identical, nothing pushed)
+- **Current phase:** F3 — Orchestra (F2 documented as pending-human-evidence, D35)
+- **Current workstream:** about to start — reading Requirements-implementation.md §C1 for F3 workstream A
+- **Current task:** F3 setup — BUILD_STATE F3 section, then workstream A task 1 per §C1 order
+- **Last commit:** e0a701b — F1 engineering exit COMPLETE, tagged `f1-complete`; `.vsix` at dist/meridian-loom-0.0.1.vsix (966 KB). Decisions D24–D35 in DECISIONS.md.
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
+
+## Phase F2 — Evidence Gate (pending-human-evidence, D35)
+
+Per gaps_implementation.md §F2 this is a decision phase, not a build phase: 20 real stories through F0+F1 over weeks, measured not judged. Exit criterion: a written human decision (go/stop/pivot/kill) with the raw ledger slice attached. **Cannot be executed by the build agent; not faked.** Every measure is already computable from shipped surfaces, so no engineering work is blocked on it:
+
+| F2 measure | Computable from |
+|---|---|
+| Rejection rate before vs after gating, greenfield/brownfield | `trust/rejectionRate`, `trust/reasonDistribution` (FR-M37-01/02), reconciliation oracle |
+| Defects caught by gates the agent missed | gate outcome entries vs PR ingest range (`test_pr_ingest.py` shape) |
+| Change failure rate vs baseline | `trust/doraExport` change_failure_rate (D27 proxies) |
+| Approval hygiene | roles/approver entries, FR-M20-06 rubber-stamp inputs |
+| Time cost per gated PR | ledger timings in the ingest range |
+| Provenance queries actually run | ledger query RPC telemetry |
+| First-value retention (week 8) | human observation |
+
+F3 proceeds per D35 under the user's standing continue instruction.
 
 ## Phase F1 exit criteria (from gaps_implementation.md §F1)
 
