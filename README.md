@@ -15,6 +15,45 @@ Build progress is tracked in `BUILD_STATE.md`; decisions in `DECISIONS.md`.
 
 ## Layout
 
+The new [agent workbench](docs/gui-implementation.md) opens with **Meridian: Open
+Recorder**. It includes Overview, Deliverables, Agent studio, Learning dojo,
+Evidence, Runtime, Workspace guide, and Settings. The sample HTML informed the
+visual direction; the shipped interface is React code connected to the host.
+
+- Create, edit, remove, import, and export independent ACP agent profiles.
+- Activate agents for delivery work; deactivate them into **Learning**. New and
+  imported profiles start in Learning. Activation does not start a process.
+- Run an active agent independently, or explicitly dispatch a brief to the active
+  roster. Runs execute sequentially in the open workspace and expose output and
+  stop controls. Review results before completing a deliverable.
+- Completion feedback creates proposed memory notes for eligible Learning agents.
+  Accepted notes become context for their next task. This does not train model
+  weights or automatically promote skills and policy.
+- Inspect provenance, sessions, ledger verification, and signed exports in
+  Evidence. Choose seven themes, three densities, keyboard search, and focus mode.
+
+Hosted execution requires a trusted workspace, the Governor tier, a connected
+sidecar, and an installed ACP-compatible executable with its own credentials.
+The bundled policy permits read/search on probation; participation marked Active
+does not change permission policy. Overrides live in
+`.meridian/policy/acp-permissions.yaml`; permitted tools still require approval.
+Workbench data is saved in `.meridian/workbench/state.json`. Portable exports
+carry configuration and reviewed memory, not the executable or credentials.
+
+For a browser-only design preview:
+
+```bash
+npm run dev --workspace=webview -- --host 127.0.0.1 --port 5179
+```
+
+The preview is visibly labelled, uses temporary sample data, and executes no
+agents. Its fixture transport is excluded from production builds. Launch the
+extension using the VS Code development configuration or install the VSIX for
+real use. The Workspace guide maps all 51 specified surfaces and describes their
+remaining scope; a connected entry point can implement only part of a surface.
+
+## Project directories
+
 - `extension/` — VS Code extension host (TypeScript, esbuild)
 - `webview/` — React dashboard (Vite, CSS modules, tokens)
 - `shared/` — generated message-bus types (single source for extension, webview, core, simulation)

@@ -5,12 +5,139 @@ import type { ScreenProps } from '../screens/registry';
 import type { WorkbenchController } from './useWorkbench';
 import { Icon } from './Icon';
 import s from './workbench.module.css';
-export function RuntimeStudio({ client, ready, workspaceDir, enabledTiers, controller }: ScreenProps & { controller: WorkbenchController }) {
+export function RuntimeStudio({
+  client,
+  ready,
+  workspaceDir,
+  enabledTiers,
+  controller,
+}: ScreenProps & { controller: WorkbenchController }) {
   const [diagnose, setDiagnose] = useState(false);
   const health = useRpcQuery(ready ? client : undefined, 'health', {});
-  const doctor = useRpcQuery(ready ? client : undefined, 'doctor/run', { ...(workspaceDir ? { workspaceDir } : {}) }, diagnose);
+  const doctor = useRpcQuery(
+    ready ? client : undefined,
+    'doctor/run',
+    { ...(workspaceDir ? { workspaceDir } : {}) },
+    diagnose,
+  );
   const capabilities = controller.snapshot?.capabilities;
-  return <div className={s.page}><header className={s.pageHeading}><div><p className={s.eyebrow}>SYSTEM / RUNTIME</p><h1>Know where things stand.</h1><p>Actual connection health, execution readiness, and actionable diagnostics.</p></div><button className={s.primary} disabled={!ready || (diagnose && doctor.status === 'loading')} onClick={() => { if (diagnose) doctor.refresh(); else setDiagnose(true); }}><Icon name="runtime" size={16} /> {diagnose && doctor.status === 'loading' ? 'Checking…' : 'Run diagnostics'}</button></header><section className={s.panel}><div className={s.panelHeader}><h2>Execution readiness</h2><button className={s.textButton} onClick={() => { health.refresh(); void controller.refresh(); }}>Refresh <Icon name="arrow" size={14} /></button></div>{[
-      ['Workspace', capabilities?.workspaceOpen, workspaceDir ?? 'Open a folder to persist workbench state.'], ['Workspace trust', capabilities?.trusted, capabilities?.trusted ? 'VS Code workspace trust is granted.' : 'Configured executables require a trusted workspace.'], ['Governor tier', capabilities?.governorEnabled, `Enabled tiers: ${enabledTiers.join(', ') || 'waiting for host'}`], ['ACP execution', capabilities?.executionReady, capabilities?.executionBlockedReason ?? (capabilities ? 'Explicit runs can begin. Workspace policy and tool approval apply.' : 'Waiting for workspace state.')],
-    ].map(([label, pass, detail]) => <div className={s.checkRow} key={String(label)} data-state={pass ? 'pass' : 'warn'}><Icon name={pass ? 'check' : 'runtime'} size={18} /><div><strong>{String(label)}</strong><p>{String(detail)}</p></div><span className={s.statusBadge}>{pass === undefined ? 'Unknown' : pass ? 'Ready' : 'Required'}</span></div>)}</section><section className={s.panel}><div className={s.panelHeader}><h2>Sidecar health</h2></div>{health.status === 'error' ? <ErrorState error={health.error} onRetry={health.refresh} /> : health.status === 'loading' ? <LoadingState label="Checking runtime health…" /> : <div className={s.settingRow}><div><h3>{health.data.status === 'ok' ? 'Responding normally' : health.data.status}</h3><p>Process {health.data.pid} · {Math.floor(health.data.uptimeSeconds)} seconds uptime · {health.data.activeLoops} active loops</p></div><span className={s.statusBadge}>{health.data.status}</span></div>}</section>{diagnose && <section className={s.panel}><div className={s.panelHeader}><h2>Diagnostic report</h2></div>{doctor.status === 'loading' ? <LoadingState label="Running diagnostic checks…" /> : doctor.status === 'error' ? <ErrorState error={doctor.error} onRetry={doctor.refresh} /> : doctor.data.checks.map(check => <div className={s.checkRow} key={check.id} data-state={check.status}><Icon name={check.status === 'pass' ? 'check' : 'runtime'} size={18} /><div><strong>{check.name}</strong><p>{check.detail}</p>{check.remediation && <p>{check.remediation}</p>}</div><span className={s.statusBadge}>{check.status}</span></div>)}</section>}</div>;
+  return (
+    <div className={s.page}>
+      <header className={s.pageHeading}>
+        <div>
+          <p className={s.eyebrow}>SYSTEM / RUNTIME</p>
+          <h1>Know where things stand.</h1>
+          <p>Actual connection health, execution readiness, and actionable diagnostics.</p>
+        </div>
+        <button
+          className={s.primary}
+          disabled={!ready || (diagnose && doctor.status === 'loading')}
+          onClick={() => {
+            if (diagnose) doctor.refresh();
+            else setDiagnose(true);
+          }}
+        >
+          <Icon name="runtime" size={16} />{' '}
+          {diagnose && doctor.status === 'loading' ? 'Checking…' : 'Run diagnostics'}
+        </button>
+      </header>
+      <section className={s.panel}>
+        <div className={s.panelHeader}>
+          <h2>Execution readiness</h2>
+          <button
+            className={s.textButton}
+            onClick={() => {
+              health.refresh();
+              void controller.refresh();
+            }}
+          >
+            Refresh <Icon name="arrow" size={14} />
+          </button>
+        </div>
+        {[
+          [
+            'Workspace',
+            capabilities?.workspaceOpen,
+            workspaceDir ?? 'Open a folder to persist workbench state.',
+          ],
+          [
+            'Workspace trust',
+            capabilities?.trusted,
+            capabilities?.trusted
+              ? 'VS Code workspace trust is granted.'
+              : 'Configured executables require a trusted workspace.',
+          ],
+          [
+            'Governor tier',
+            capabilities?.governorEnabled,
+            `Enabled tiers: ${enabledTiers.join(', ') || 'waiting for host'}`,
+          ],
+          [
+            'ACP execution',
+            capabilities?.executionReady,
+            capabilities?.executionBlockedReason ??
+              (capabilities
+                ? 'Explicit runs can begin. Workspace policy and tool approval apply.'
+                : 'Waiting for workspace state.'),
+          ],
+        ].map(([label, pass, detail]) => (
+          <div className={s.checkRow} key={String(label)} data-state={pass ? 'pass' : 'warn'}>
+            <Icon name={pass ? 'check' : 'runtime'} size={18} />
+            <div>
+              <strong>{String(label)}</strong>
+              <p>{String(detail)}</p>
+            </div>
+            <span className={s.statusBadge}>
+              {pass === undefined ? 'Unknown' : pass ? 'Ready' : 'Required'}
+            </span>
+          </div>
+        ))}
+      </section>
+      <section className={s.panel}>
+        <div className={s.panelHeader}>
+          <h2>Sidecar health</h2>
+        </div>
+        {health.status === 'error' ? (
+          <ErrorState error={health.error} onRetry={health.refresh} />
+        ) : health.status === 'loading' ? (
+          <LoadingState label="Checking runtime health…" />
+        ) : (
+          <div className={s.settingRow}>
+            <div>
+              <h3>{health.data.status === 'ok' ? 'Responding normally' : health.data.status}</h3>
+              <p>
+                Process {health.data.pid} · {Math.floor(health.data.uptimeSeconds)} seconds uptime ·{' '}
+                {health.data.activeLoops} active loops
+              </p>
+            </div>
+            <span className={s.statusBadge}>{health.data.status}</span>
+          </div>
+        )}
+      </section>
+      {diagnose && (
+        <section className={s.panel}>
+          <div className={s.panelHeader}>
+            <h2>Diagnostic report</h2>
+          </div>
+          {doctor.status === 'loading' ? (
+            <LoadingState label="Running diagnostic checks…" />
+          ) : doctor.status === 'error' ? (
+            <ErrorState error={doctor.error} onRetry={doctor.refresh} />
+          ) : (
+            doctor.data.checks.map((check) => (
+              <div className={s.checkRow} key={check.id} data-state={check.status}>
+                <Icon name={check.status === 'pass' ? 'check' : 'runtime'} size={18} />
+                <div>
+                  <strong>{check.name}</strong>
+                  <p>{check.detail}</p>
+                  {check.remediation && <p>{check.remediation}</p>}
+                </div>
+                <span className={s.statusBadge}>{check.status}</span>
+              </div>
+            ))
+          )}
+        </section>
+      )}
+    </div>
+  );
 }

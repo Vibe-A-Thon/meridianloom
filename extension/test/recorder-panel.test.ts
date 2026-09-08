@@ -255,7 +255,7 @@ describe('RecorderPanel — host behaviour under the vscode mock', () => {
     });
     await new Promise((resolve) => setImmediate(resolve));
     const webview = vscode.__createdWebviewPanels[0]!.webview;
-    await webview.receiveMessage({ type: 'ready', protocolVersion: 2 });
+    await webview.receiveMessage({ type: 'ready', protocolVersion: 3 });
     await until(() => expect(webview.postedMessages.length).toBeGreaterThan(0));
     expect(webview.postedMessages[0]).toMatchObject({
       type: 'init',

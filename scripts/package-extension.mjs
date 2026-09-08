@@ -8,6 +8,15 @@ const extensionDir = path.join(root, 'extension');
 const outDir = path.join(root, 'dist');
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
+// Only generated directories immediately inside this extension may be cleaned.
+function cleanGeneratedDirectory(target) {
+  const resolved = path.resolve(target);
+  if (path.dirname(resolved) !== extensionDir || !['sidecar', 'webview-dist', 'policy'].includes(path.basename(resolved))) {
+    throw new Error(`Refusing to clean a non-generated directory: ${resolved}`);
+  }
+  rmSync(resolved, { recursive: true, force: true });
+}
+
 // Ship the sidecar Python sources inside the VSIX at extension/sidecar/
 // (see extension/src/layout.ts). FR-M3-05a / D4: we do NOT bundle a Python
 // runtime — the interpreter comes from the workspace via the FR-M3-05
@@ -15,7 +24,7 @@ const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 // --target flag, one universal VSIX. Platform-specific VSIX targets become
 // mandatory only if a bundled runtime is ever shipped.
 const sidecarDir = path.join(extensionDir, 'sidecar');
-rmSync(sidecarDir, { recursive: true, force: true });
+cleanGeneratedDirectory(sidecarDir);
 cpSync(path.join(root, 'core', 'meridian_core'), path.join(sidecarDir, 'meridian_core'), {
   recursive: true,
   filter: (source) => !source.includes('__pycache__'),
@@ -34,7 +43,7 @@ cpSync(path.join(root, 'shared', 'py'), path.join(sidecarDir, 'shared', 'py'), {
 // the VSIX self-contained; development checkouts read ../webview/dist
 // directly (see extension/src/recorder-panel.ts).
 const webviewDist = path.join(extensionDir, 'webview-dist');
-rmSync(webviewDist, { recursive: true, force: true });
+cleanGeneratedDirectory(webviewDist);
 const webviewBuild = spawnSync(
   process.platform === 'win32' ? 'npm.cmd' : 'npm',
   ['run', 'build', '--workspace=webview'],
@@ -44,6 +53,12 @@ if (webviewBuild.status !== 0) {
   process.exit(webviewBuild.status ?? 1);
 }
 cpSync(path.join(root, 'webview', 'dist'), webviewDist, { recursive: true });
+
+// The ACP host loads this conservative floor unless the workspace overrides it.
+const policyDir = path.join(extensionDir, 'policy');
+cleanGeneratedDirectory(policyDir);
+mkdirSync(policyDir);
+cpSync(path.join(root, 'policy', 'acp-permissions.yaml'), path.join(policyDir, 'acp-permissions.yaml'));
 
 try {
   // --no-dependencies: every dependency is a devDependency (the bundle is
@@ -61,7 +76,8 @@ try {
     process.exit(result.status ?? 1);
   }
 } finally {
-  rmSync(sidecarDir, { recursive: true, force: true });
+  cleanGeneratedDirectory(sidecarDir);
+  cleanGeneratedDirectory(policyDir);
 }
 
 const vsix = readdirSync(extensionDir).filter((name) => name.endsWith('.vsix'));

@@ -1,5 +1,12 @@
 # Meridian Loom — implementation and requirements status
 
+**GUI continuation, 8 September 2026:** The new agent workbench implements profile
+CRUD and portability, active-only delivery dispatch, independent ACP runs, and
+Learning-mode memory review. See the [GUI implementation and validation report](docs/gui-implementation.md)
+for current scope, tests, and the 51-surface coverage map. The percentages and
+build evidence below remain the **7 September audit snapshot**; they have not been
+recomputed for this GUI work or the concurrently changing Governor backend.
+
 **Audit date: 7 September 2026.** This is an evidence-based assessment, not a release certification or a time estimate. The source baseline is commit `f22ef6a2dba53cf8b6c3ffc65d8d20b209337074`, with the tracked working edits captured in the build snapshot described below. The live workspace continued changing during this review; later uncommitted Governor policy/permission work is excluded from verified completion. No application implementation was changed by this audit.
 
 **The project has a substantial Flight Recorder foundation and early Governor/ACP libraries. Its complete real-agent recording journey, enforced governance, orchestration and learning capabilities are not finished.** A green bundle build or a component test cannot establish that every event is captured, every approval enforced, or every planned screen usable.

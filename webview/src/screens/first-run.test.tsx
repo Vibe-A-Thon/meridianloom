@@ -102,7 +102,7 @@ describe('10.40 First-Run, rewritten', () => {
     client.dispose();
   });
 
-  it('an observed session flips the panel to the recorder — step 2 completes on real data', async () => {
+  it('an observed session completes step 2 without interrupting guided setup', async () => {
     // Mutable fixtures: the sidecar "learns" a session mid-test.
     let known: { sessions: unknown[]; warnings: string[] } = { sessions: [], warnings: [] };
     let ledgerEntries: unknown[] = [];
@@ -132,7 +132,7 @@ describe('10.40 First-Run, rewritten', () => {
       ],
       warnings: [],
     };
-    // X-29: the host tells us; the app re-queries and leaves first-run.
+    // X-29: the host tells us; setup updates without moving the user's focus.
     host.deliverHostMessage({
       type: 'event',
       event: { kind: 'sessions/changed', detail: 'claude appeared' },
@@ -140,8 +140,10 @@ describe('10.40 First-Run, rewritten', () => {
     await act(async () => {});
     await host.settle();
 
-    await waitFor(() => expect(screen.queryByTestId('first-run')).not.toBeInTheDocument());
-    expect(screen.getByTestId('crown-indicator')).toHaveTextContent('Recording');
+    await waitFor(() => expect(screen.getByTestId('first-run').querySelectorAll('[data-step-state]')[1]).toHaveAttribute('data-step-state', 'done'));
+    expect(screen.getByTestId('crown-indicator')).toHaveTextContent('1 sessions observed');
+    fireEvent.click(screen.getByRole('button', { name: 'Evidence' }));
+    await host.settle();
     expect(screen.getByTestId('vendor-tag')).toHaveAccessibleName('Claude Code, from telemetry');
     client.dispose();
   });
@@ -176,7 +178,7 @@ describe('10.40 First-Run, rewritten', () => {
     client.dispose();
   });
 
-  it('a ledger with entries but no live session is not first-run — the weave shows', async () => {
+  it('ledger entries complete the evidence step even without an observed session', async () => {
     const host = makeHost({
       'observe/sessions': { sessions: [], warnings: [] },
       'ledger.query': () => ({ entries: [{ sequence: 9 }] }),
@@ -186,7 +188,7 @@ describe('10.40 First-Run, rewritten', () => {
     await act(async () => {});
     await host.settle();
 
-    expect(screen.queryByTestId('first-run')).not.toBeInTheDocument();
+    expect(screen.getByTestId('first-run').querySelectorAll('[data-step-state]')[2]).toHaveAttribute('data-step-state', 'done');
     expect(screen.getByTestId('crown-indicator')).toHaveTextContent(
       'Watching for agent sessions',
     );

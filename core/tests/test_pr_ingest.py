@@ -71,6 +71,21 @@ profiles:
 """
 
 APPROVER = {"name": "Ada Lovelace", "email": "ada@example.com"}
+# FR-M20-03: the identity that ingested a change cannot approve it — the
+# approval-half of these flows runs as a DIFFERENT human (the switchable
+# provider below flips between them).
+SECOND_HUMAN = HumanIdentity(name="Grace Hopper", email="grace@example.com")
+
+
+class _SwitchableProvider:
+    """In-test seam: flip the acting human between ingest and approval."""
+
+    def __init__(self, value: HumanIdentity) -> None:
+        self.value = value
+
+    def identity(self) -> HumanIdentity:
+        return self.value
+
 
 
 @pytest.fixture()
@@ -90,7 +105,7 @@ def server(tmp_path: Path, pack_path: Path) -> SidecarServer:
     ledger = Ledger(tmp_path / "ledger", EphemeralSigningKeyProvider())
     instance = SidecarServer(
         ledger=ledger,
-        identity_provider=StaticIdentityProvider(
+        identity_provider=_SwitchableProvider(
             HumanIdentity(name=APPROVER["name"], email=APPROVER["email"])
         ),
     )
@@ -303,6 +318,9 @@ class TestPrStatusRpc:
         subject = "pr:acme/payments#41"
         head = pr_payload["head"]["sha"]
 
+        # FR-M20-03: the ingester (APPROVER) cannot approve her own ingest;
+        # the approval lands from a different human.
+        server._identity_provider.value = SECOND_HUMAN  # noqa: SLF001
         response = call(
             server,
             "gate.approve",
@@ -310,7 +328,7 @@ class TestPrStatusRpc:
                 "subject": subject,
                 "commit": head,
                 "storyId": "PROJ-1234",
-                "role": "lead",
+                "role": "approver",
                 "policyPath": str(pack_path),
             },
         )
@@ -321,13 +339,17 @@ class TestPrStatusRpc:
         )["result"]
         assert status["merge"]["status"] == "approved"
         assert status["merge"]["approvalSequence"] is not None
-        assert status["merge"]["approver"] == APPROVER
+        assert status["merge"]["approver"] == {
+            "name": SECOND_HUMAN.name,
+            "email": SECOND_HUMAN.email,
+        }
 
     def test_changed_head_invalidates_approval(
         self, server: SidecarServer, pack_path: Path, pr_payload: dict
     ):
         ingest(server, pack_path, pr_payload)
         subject = "pr:acme/payments#41"
+        server._identity_provider.value = SECOND_HUMAN  # noqa: SLF001
         call(
             server,
             "gate.approve",
@@ -335,6 +357,7 @@ class TestPrStatusRpc:
                 "subject": subject,
                 "commit": pr_payload["head"]["sha"],
                 "storyId": "PROJ-1234",
+                "role": "approver",
                 "policyPath": str(pack_path),
             },
         )
@@ -387,6 +410,7 @@ class TestAc32Reconciliation:
             ],
             approvals=[{"approver": APPROVER, "role": "maintainer"}],
         )
+        server._identity_provider.value = SECOND_HUMAN  # noqa: SLF001
         approval = call(
             server,
             "gate.approve",
@@ -394,7 +418,7 @@ class TestAc32Reconciliation:
                 "subject": result["subject"],
                 "commit": result["headCommit"],
                 "storyId": result["storyId"],
-                "role": "maintainer",
+                "role": "approver",
                 "policyPath": str(pack_path),
             },
         )["result"]

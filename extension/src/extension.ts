@@ -92,14 +92,18 @@ export function activate(context: vscode.ExtensionContext): void {
   workbench = new WorkbenchService({
     workspaceDir, trusted: () => vscode.workspace.isTrusted,
     enabledTiers: readEnabledTiers, sidecar: () => {
-      const client = supervisor?.currentClient;
+      const client = supervisor?.isRunning ? supervisor.currentClient : undefined;
       return client ? { request: (method, params) => client.request(method, params, new AbortController().signal) } : undefined;
     },
     humanApprover: createVscodePermissionApprover(),
-    policyPath: context.extensionPath ? path.join(context.extensionPath, 'policy', 'acp-permissions.yaml') : undefined,
+    policyPaths: context.extensionPath ? [path.join(context.extensionPath, 'policy', 'acp-permissions.yaml'), path.resolve(context.extensionPath, '..', 'policy', 'acp-permissions.yaml')] : [],
     onError: message => void vscode.window.showErrorMessage(message),
   });
   context.subscriptions.push(workbench);
+  const workspaceListener = vscode.workspace.onDidChangeWorkspaceFolders?.(() => {
+    void workbench?.reconcile().catch(error => void vscode.window.showErrorMessage(String(error)));
+  });
+  if (workspaceListener) context.subscriptions.push(workspaceListener);
   const enabledTiers = readEnabledTiers();
   applyTierContextKeys(enabledTiers);
   context.subscriptions.push(
@@ -259,17 +263,17 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
         statusBar.showFailed(message);
         void vscode.window.showErrorMessage(message);
       },
+      onStateChange: state => {
+        void workbench?.reconcile().catch(error => void vscode.window.showErrorMessage(String(error)));
+        if (state === 'ready') supervisor?.currentClient?.on('notification', (method: string, params: unknown) => {
+          handleGateHaltNotification(method, params, {
+            registry: hostedSessionRegistry,
+            warn: message => void vscode.window.showWarningMessage(message),
+          });
+        });
+      },
     });
     await supervisor.start();
-    // FR-M12-06: governance halt dispatch. The sidecar records the halt in
-    // the ledger, then notifies; the hosted-session registry owns the
-    // process kill, and the halt is always surfaced as a warning.
-    supervisor.currentClient?.on('notification', (method: string, params: unknown) => {
-      handleGateHaltNotification(method, params, {
-        registry: hostedSessionRegistry,
-        warn: (message) => void vscode.window.showWarningMessage(message),
-      });
-    });
     statusBar.showReady(interpreter);
   } catch (error) {
     // supervisor.start() failures are already surfaced via onError; layout

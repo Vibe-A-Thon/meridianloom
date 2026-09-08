@@ -25,6 +25,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,7 @@ from .governance import engine as governance_engine
 from .governance import identity as governance_identity
 from .governance import merge_gate as governance_merge_gate
 from .governance import policy as governance_policy
+from .governance import roles as governance_roles
 from . import hooks as provenance_hooks
 from . import metrics as metrics_mod
 from . import rejection as rejection_mod
@@ -184,6 +186,14 @@ class SidecarServer:
             # is ledger-recorded before it runs, and the tool maps onto the
             # existing read-only handler (see the handler below).
             "mcp/invoke": SidecarServer._handle_mcp_invoke,
+            # FR-M20-02…08 (F1 Workstream C task 16): the role pack — who
+            # may approve/halt/change policy (roles/list, roles/check), and
+            # approval-right delegation with expiry, recorded in the ledger
+            # (roles/delegate). The merge gate consumes the same pack for
+            # N-of-M thresholds, SoD exclusion and role filtering.
+            "roles/list": SidecarServer._handle_roles_list,
+            "roles/check": SidecarServer._handle_roles_check,
+            "roles/delegate": SidecarServer._handle_roles_delegate,
         }
         # The registry must exactly cover the contracted request methods.
         assert set(self._handlers) == set(bus_types.REQUEST_METHODS), (
@@ -525,6 +535,61 @@ class SidecarServer:
             paths.append(workspace / "policy" / "governance.yaml")
         return governance_policy.load_policy_pack(paths)
 
+    def _role_pack(self, params: dict[str, Any]) -> governance_roles.RolePack:
+        """FR-M20-02: the active role pack — an explicit rolePath param, then
+        the workspace override, then the repository policy directory. A
+        missing file yields the built-in default pack; a malformed file
+        fails closed (see governance/roles.py)."""
+        paths: list[Any] = []
+        if params.get("rolePath"):
+            paths.append(params["rolePath"])
+        if self._workspace_dir:
+            workspace = Path(self._workspace_dir)
+            paths.append(workspace / ".meridian" / "policy" / "roles.yaml")
+            paths.append(workspace / "policy" / "roles.yaml")
+        return governance_roles.load_role_pack(paths)
+
+    def _merge_verdict(
+        self,
+        params: dict[str, Any],
+        *,
+        subject: str,
+        head_commit: str | None,
+        requires_approval: bool | None = None,
+        approval_subject: str | None = None,
+    ) -> governance_merge_gate.MergeVerdict:
+        """check_merge with the role pack's mechanics applied (FR-M20-03/04):
+        N-of-M threshold, role filtering, and SoD exclusion of the
+        ingester's own approval. Read-only."""
+        pack = self._governance_pack(params)
+        role_pack = self._role_pack(params)
+        ledger = self._ensure_ledger()
+        n_of_m_subject = approval_subject if approval_subject is not None else subject
+        required = 1
+        permitted = None
+        excluded: set[str] = set()
+        if not role_pack.fail_closed:
+            required = role_pack.n_of_m.get(n_of_m_subject, 1)
+            permitted = role_pack.approving_roles()
+            if role_pack.sod_forbid_self_approval:
+                ingest = self._find_pr_ingest(ledger, subject)
+                if ingest is not None:
+                    ingested_by = ingest["detail"].get("ingestedBy")
+                    if isinstance(ingested_by, dict):
+                        email = str(ingested_by.get("email") or "").strip().lower()
+                        if email:
+                            excluded.add(email)
+        return governance_merge_gate.check_merge(
+            ledger,
+            pack,
+            subject=subject,
+            head_commit=head_commit,
+            requires_approval=requires_approval,
+            required_approvals=required,
+            permitted_roles=permitted,
+            excluded_identities=excluded,
+        )
+
     def _append_gate_entry(
         self,
         *,
@@ -712,8 +777,56 @@ class SidecarServer:
                 "commit must be the non-empty head digest the approval binds",
             )
         who = self._human_identity()
-        role = params.get("role")
         pack = self._governance_pack(params)
+        ledger = self._ensure_ledger()
+        role_pack = self._role_pack(params)
+        role_value = params.get("role")
+        role = (
+            role_value.strip()
+            if isinstance(role_value, str) and role_value.strip()
+            else role_pack.default_role
+        )
+        # FR-M20-02: the acting role must hold the approve permission. An
+        # active, unexpired delegation granting this principal the right
+        # satisfies the check instead (FR-M20-05).
+        permission = governance_roles.check_permission(role_pack, role, "approve")
+        if not permission.permitted:
+            grant = governance_roles.find_active_delegation(
+                ledger, who.email, role, ledger_core.utc_now()
+            )
+            if grant is None:
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    permission.reason,
+                    data={
+                        "code": "ROLE_NOT_PERMITTED",
+                        "role": role,
+                        "action": "approve",
+                        "permittedRoles": sorted(role_pack.approving_roles()),
+                    },
+                )
+        # FR-M20-03 separation of duties: the identity that ingested the
+        # change cannot approve its own merge gate. The refusal names the
+        # rule and records nothing.
+        if not role_pack.fail_closed and role_pack.sod_forbid_self_approval:
+            ingest = self._find_pr_ingest(ledger, subject.strip())
+            if ingest is not None:
+                ingested_by = ingest["detail"].get("ingestedBy")
+                if isinstance(ingested_by, dict) and (
+                    str(ingested_by.get("email") or "").strip().lower()
+                    == who.email.strip().lower()
+                ):
+                    raise _RpcError(
+                        protocol.INVALID_PARAMS,
+                        f"FR-M20-03 separation of duties: {who.display()} "
+                        "ingested this change and cannot approve its own "
+                        "merge gate",
+                        data={
+                            "code": "SOD_SELF_APPROVAL",
+                            "subject": subject.strip(),
+                            "ingester": ingested_by,
+                        },
+                    )
         # FR-M10-08: the approval is durable BEFORE this response returns.
         sequence = self._append_gate_entry(
             story_id=(params.get("storyId") or f"gate:{subject.strip()}"),
@@ -755,13 +868,9 @@ class SidecarServer:
             raise _RpcError(
                 protocol.INVALID_PARAMS, "commit must be a non-empty digest when given"
             )
-        pack = self._governance_pack(params)
         # Read-only: a status query decides and records nothing.
-        verdict = governance_merge_gate.check_merge(
-            self._ensure_ledger(),
-            pack,
-            subject=subject.strip(),
-            head_commit=commit.strip() if isinstance(commit, str) else None,
+        verdict = self._merge_verdict(
+            params, subject=subject.strip(), head_commit=commit.strip() if isinstance(commit, str) else None
         )
         result: bus_types.GateStatusResult = {
             "status": "approved" if verdict.allowed else "blocked",
@@ -769,7 +878,22 @@ class SidecarServer:
             "requiredApproval": verdict.required_approval,
             "halted": verdict.halted,
             "missing": list(verdict.missing),
+            # FR-M20-04: the N-of-M threshold and how many distinct
+            # approvers the ledger currently holds for this subject.
+            "requiredApprovals": verdict.required_approvals,
+            "approvalsReceived": len(
+                {a.approver.email for a in verdict.approvals if a.approver.email}
+            ),
         }
+        # FR-M20-06: rubber-stamping signals ride the status payload — the
+        # F2 measurement hook. Advisory; they never change the verdict.
+        role_pack = self._role_pack(params)
+        if not role_pack.fail_closed:
+            warnings = governance_roles.assess_hygiene(
+                self._ensure_ledger(), role_pack, subject=subject.strip()
+            )
+            if warnings:
+                result["hygieneWarnings"] = warnings
         if verdict.approval is not None:
             result["approvalSequence"] = verdict.approval.sequence
             result["approver"] = {
@@ -910,6 +1034,215 @@ class SidecarServer:
         if warning is not None:
             result["warning"] = warning
         return result
+
+    # -- roles, N-of-M, delegation, hygiene (FR-M20-02…08; task 16) ---------
+
+    def _handle_roles_list(
+        self, params: bus_types.RolesListParams
+    ) -> bus_types.RolesListResult:
+        """FR-M20-02: the active role pack — the five roles, their
+        permissions, and the approval mechanics configuration."""
+        pack = self._role_pack(params or {})
+        return {
+            "policyVersion": pack.policy_version,
+            "source": pack.source,
+            "failClosed": pack.fail_closed,
+            "errors": list(pack.errors),
+            "defaultRole": pack.default_role if not pack.fail_closed else None,
+            "roles": [
+                {
+                    "name": spec.name,
+                    "description": spec.description,
+                    "permissions": sorted(spec.permissions),
+                    "readOnly": spec.read_only,
+                }
+                for spec in pack.roles.values()
+            ],
+            "approvals": {
+                "nOfM": dict(pack.n_of_m),
+                "soD": {"forbidSelfApproval": pack.sod_forbid_self_approval},
+            },
+            "delegation": {
+                "maxChainDepth": pack.delegation_max_chain_depth,
+                "maxTtlDays": pack.delegation_max_ttl_days,
+            },
+            "hygiene": {
+                "approveLatencyFloorSeconds": pack.hygiene_approve_latency_floor_seconds,
+                "bulkWindowMinutes": pack.hygiene_bulk_window_minutes,
+                "bulkMinCount": pack.hygiene_bulk_min_count,
+            },
+        }
+
+    def _handle_roles_check(
+        self, params: bus_types.RolesCheckParams
+    ) -> bus_types.RolesCheckResult:
+        """FR-M20-02/07/08: may ``role`` perform ``action``? The structured
+        answer the Gate Room renders; a fail-closed pack refuses everything
+        with the parse errors as the reason."""
+        params = params or {}
+        role = params.get("role")
+        action = params.get("action")
+        if not isinstance(action, str) or not action.strip():
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "action must be one of: " + ", ".join(governance_roles.ACTIONS),
+                data={"validActions": list(governance_roles.ACTIONS)},
+            )
+        pack = self._role_pack(params)
+        check = governance_roles.check_permission(pack, role, action.strip())
+        return {"permitted": check.permitted, "reason": check.reason}
+
+    def _handle_roles_delegate(
+        self, params: bus_types.RolesDelegateParams
+    ) -> bus_types.RolesDelegateResult:
+        """FR-M20-05: delegate an approval right to another principal with
+        expiry. The delegator is the acting human identity (the provider —
+        FR-M20-01); they must hold the right themselves, by role or through
+        an active delegation chain. Chains are depth-bounded and cycles are
+        refused. The delegation is ledger-recorded BEFORE the response
+        returns (FR-M10-08)."""
+        params = params or {}
+        to = params.get("to")
+        if not isinstance(to, str) or not to.strip():
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "to must name the delegating principal (email or role holder)",
+            )
+        role = params.get("role")
+        if not isinstance(role, str) or not role.strip():
+            raise _RpcError(protocol.INVALID_PARAMS, "role must be a non-empty string")
+        role = role.strip()
+        pack = self._role_pack(params)
+        if pack.fail_closed:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "roles policy is fail-closed: " + "; ".join(pack.errors),
+            )
+        role_spec = pack.roles.get(role)
+        if role_spec is None:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"cannot delegate role '{role}': not defined in {pack.source}; "
+                f"defined roles: {', '.join(sorted(pack.roles))}",
+            )
+        if not role_spec.may("approve"):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"cannot delegate role '{role}': it does not hold the approve "
+                "right, so there is nothing to delegate",
+            )
+        who = self._human_identity()
+        now = ledger_core.utc_now()
+        expires_at: str | None = None
+        raw_expiry = params.get("expiresAt")
+        if raw_expiry is not None:
+            if not isinstance(raw_expiry, str) or not raw_expiry.strip():
+                raise _RpcError(
+                    protocol.INVALID_PARAMS, "expiresAt must be an ISO-8601 UTC timestamp"
+                )
+            expires_at = raw_expiry.strip()
+            parsed = None
+            try:
+                parsed = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+            except ValueError:
+                parsed = None
+            if parsed is None:
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    f"expiresAt '{expires_at}' is not an ISO-8601 timestamp",
+                )
+            if expires_at <= now:
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    f"expiresAt '{expires_at}' is already expired; delegations "
+                    "must outlive their creation",
+                )
+        else:
+            ttl_days = params.get("ttlDays", pack.delegation_max_ttl_days)
+            if not isinstance(ttl_days, int) or isinstance(ttl_days, bool) or ttl_days < 1:
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    f"ttlDays must be an integer >= 1, got {ttl_days!r}",
+                )
+            if ttl_days > pack.delegation_max_ttl_days:
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    f"ttlDays {ttl_days} exceeds the policy maximum "
+                    f"{pack.delegation_max_ttl_days} (delegation.maxTtlDays)",
+                )
+            expires_at = (
+                (datetime.now(timezone.utc) + timedelta(days=ttl_days))
+                .replace(microsecond=0)
+                .isoformat()
+                .replace("+00:00", "Z")
+            )
+        ledger = self._ensure_ledger()
+        # The delegator must hold the right: by their own (declared and
+        # pack-validated) role, or through an active delegation chain. The
+        # new link's depth always builds on the ledger-resolved chain, so
+        # re-delegation cannot launder itself back to depth 1.
+        holder_role = params.get("holderRole")
+        holds_by_role = (
+            isinstance(holder_role, str)
+            and holder_role.strip()
+            and holder_role.strip() == role
+            and governance_roles.check_permission(
+                pack, holder_role.strip(), "approve"
+            ).permitted
+        )
+        chain_depth = governance_roles.delegation_chain_depth(ledger, who.email, role, now)
+        if not holds_by_role and chain_depth == 0:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"{who.display()} does not hold role '{role}' and has no "
+                "active delegation granting it — pass holderRole naming "
+                "the held role, or obtain a delegation first",
+                data={"code": "DELEGATION_NOT_HELD", "role": role},
+            )
+        new_depth = chain_depth + 1
+        if new_depth > pack.delegation_max_chain_depth:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"delegation chain depth {new_depth} exceeds the policy "
+                f"maximum {pack.delegation_max_chain_depth} "
+                "(delegation.maxChainDepth)",
+                data={"code": "DELEGATION_CHAIN_TOO_DEEP", "depth": new_depth},
+            )
+        if governance_roles.delegation_reaches(ledger, to.strip(), who.email, now):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"delegating to '{to.strip()}' would create a delegation "
+                "cycle — that principal already holds through a chain that "
+                "reaches the delegator",
+                data={"code": "DELEGATION_CYCLE"},
+            )
+        detail: dict[str, Any] = {
+            "method": "roles/delegate",
+            "from": who.wire(),
+            "to": to.strip(),
+            "role": role,
+            "expiresAt": expires_at,
+            "depth": new_depth,
+        }
+        sequence = self._append_gate_entry(
+            story_id=f"delegation:{role}",
+            pack=self._governance_pack(params),
+            action_type="delegation",
+            decision="delegated",
+            human_actor=who.display(),
+            detail=detail,
+        )
+        return {
+            "recorded": True,
+            "sequence": sequence,
+            "delegation": {
+                "delegator": {"name": who.display_name, "email": who.email},
+                "to": to.strip(),
+                "role": role,
+                "expiresAt": expires_at,
+                "depth": new_depth,
+            },
+        }
 
     # -- external PR gating (FR-M35-04/05; F1 Workstream B task 12) -----------
 
@@ -1124,15 +1457,16 @@ class SidecarServer:
         # FR-M35-04: merging the PR lands on its base branch; when that
         # branch is protected, a recorded human approval bound to the head
         # commit is required — the merge gate decides, this RPC only asks.
+        # The role pack's N-of-M threshold is looked up by the base branch.
         requires_approval = None
         if base_branch is not None:
             requires_approval = base_branch in pack.protected_branches
-        verdict = governance_merge_gate.check_merge(
-            ledger,
-            pack,
+        verdict = self._merge_verdict(
+            params,
             subject=subject.strip(),
             head_commit=head_commit,
             requires_approval=requires_approval,
+            approval_subject=base_branch,
         )
         merge: bus_types.GateStatusResult = {
             "status": "approved" if verdict.allowed else "blocked",
@@ -1140,7 +1474,18 @@ class SidecarServer:
             "requiredApproval": verdict.required_approval,
             "halted": verdict.halted,
             "missing": list(verdict.missing),
+            "requiredApprovals": verdict.required_approvals,
+            "approvalsReceived": len(
+                {a.approver.email for a in verdict.approvals if a.approver.email}
+            ),
         }
+        role_pack = self._role_pack(params)
+        if not role_pack.fail_closed:
+            warnings = governance_roles.assess_hygiene(
+                self._ensure_ledger(), role_pack, subject=subject.strip()
+            )
+            if warnings:
+                merge["hygieneWarnings"] = warnings
         if verdict.approval is not None:
             merge["approvalSequence"] = verdict.approval.sequence
             merge["approver"] = {

@@ -56,7 +56,7 @@ describe('App shell against a scripted host', () => {
     );
     // X-29: the Crown carries the recording indicator.
     expect(screen.getByTestId('crown-indicator')).toHaveTextContent('sessions observed');
-    fireEvent.click(screen.getByRole('button', { name: 'Evidence', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Evidence' }));
     await host.settle();
     // FR-M11-01: the Selvage names the verified tip.
     expect(screen.getByTestId('selvage-verified')).toHaveTextContent('Chain verified to 12');
@@ -125,7 +125,7 @@ describe('App shell against a scripted host', () => {
     const client = new WebviewRpcClient(host.transport, { timeoutMs: 1000 });
     render(<App client={client} />);
     await act(async () => {});
-    fireEvent.click(screen.getByRole('button', { name: 'Evidence', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Evidence' }));
     await act(async () => {});
     host.replace('ledger.query', new Error('ledger unavailable'));
     await host.settle();

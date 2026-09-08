@@ -1,0 +1,6 @@
+{
+  "check": "packaged sidecar imports and registers its handlers",
+  "passed": true,
+  "stdout": "Packaged sidecar initialized; protocol 1",
+  "stderr": ""
+}

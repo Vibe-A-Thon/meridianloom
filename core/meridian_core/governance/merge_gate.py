@@ -48,6 +48,7 @@ class Approval:
     role: str | None
     subject: str
     commit: str
+    ts: str = ""
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,8 @@ class MergeVerdict:
     halted: bool
     approval: Approval | None
     missing: tuple[str, ...]
+    required_approvals: int  # FR-M20-04: distinct approvers needed (N-of-M)
+    approvals: tuple[Approval, ...]  # the valid approvals the count used
 
 
 def _read_detail(ledger: Ledger, row: dict[str, Any]) -> dict[str, Any]:
@@ -100,6 +103,78 @@ def active_halts(ledger: Ledger, subject: str) -> list[tuple[int, str]]:
             continue
         halts.append((row["seq"], str(row.get("rework_reason") or detail.get("reason") or "halted")))
     return halts
+
+
+def _decode_actor(human_actor: str) -> HumanIdentity:
+    name, _, email = human_actor.rpartition("<")
+    if "<" in human_actor:
+        return HumanIdentity(name=name.strip(), email=email.rstrip(">").strip())
+    return HumanIdentity(name=human_actor, email="")
+
+
+def collect_approvals(
+    ledger: Ledger,
+    subject: str,
+    head_commit: str | None,
+    *,
+    permitted_roles: "set[str] | None" = None,
+    excluded_identities: "set[str] | frozenset[str]" = frozenset(),
+) -> tuple[list[Approval], list[str]]:
+    """Every approval for ``subject`` valid at ``head_commit``, newest
+    first, plus notes explaining the rows that did not count.
+
+    The merge gate consumes this for FR-M20-04 (N-of-M): ``permitted_roles``
+    filters approvals recorded by a role the role pack does not let approve
+    (a role that may not approve never counts — the note says so), and
+    ``excluded_identities`` (lower-cased emails) removes approvals the
+    separation-of-duties rule forbids, e.g. the ingester approving their
+    own change (FR-M20-03).
+    """
+    approvals: list[Approval] = []
+    notes: list[str] = []
+    excluded = {identity.strip().lower() for identity in excluded_identities}
+    for row in _iter_approval_rows(ledger):
+        if row.get("decision") != APPROVED_DECISION:
+            continue
+        human_actor = str(row.get("human_actor") or "").strip()
+        if not human_actor:
+            notes.append(
+                f"approval at seq {row['seq']} is anonymous and cannot count (FR-M12-07)"
+            )
+            continue
+        detail = _read_detail(ledger, row)
+        if detail.get("subject") != subject:
+            continue
+        recorded_commit = str(detail.get("commit") or "")
+        if head_commit is not None and recorded_commit != head_commit:
+            continue
+        identity = _decode_actor(human_actor)
+        if identity.email.strip().lower() in excluded:
+            notes.append(
+                f"approval at seq {row['seq']} by {human_actor} does not count: "
+                "FR-M20-03 separation of duties — the identity that ingested "
+                "the change cannot approve its own merge gate"
+            )
+            continue
+        role = row.get("human_role")
+        role = str(role) if role else None
+        if permitted_roles is not None and role not in permitted_roles:
+            notes.append(
+                f"approval at seq {row['seq']} by {human_actor} holds role "
+                f"'{role or 'none'}', which may not approve — it does not count"
+            )
+            continue
+        approvals.append(
+            Approval(
+                sequence=row["seq"],
+                approver=identity,
+                role=role,
+                subject=subject,
+                commit=recorded_commit,
+                ts=str(row.get("ts_utc") or ""),
+            )
+        )
+    return approvals, notes
 
 
 def find_approval(
@@ -162,12 +237,19 @@ def check_merge(
     subject: str,
     head_commit: str | None = None,
     requires_approval: bool | None = None,
+    required_approvals: int = 1,
+    permitted_roles: "set[str] | None" = None,
+    excluded_identities: "set[str] | frozenset[str]" = frozenset(),
 ) -> MergeVerdict:
-    """FR-M12-05/07: may ``subject`` (branch or PR id) merge at ``head_commit``?
+    """FR-M12-05/07 + FR-M20-03/04: may ``subject`` (branch or PR id) merge
+    at ``head_commit``?
 
-    Unprotected branches merge freely. Protected branches need a recorded
-    human approval bound to the head commit, and no active halt. A
-    fail-closed pack refuses every merge.
+    Unprotected branches merge freely. Protected branches need the recorded
+    human approvals the policy requires — by default one, or N distinct
+    approvers when the role pack's N-of-M threshold says so — each bound to
+    the head commit, none by an identity the role pack excludes (SoD), none
+    holding a role that may not approve, and no active halt. A fail-closed
+    pack refuses every merge.
 
     ``requires_approval`` overrides the protected-branch lookup: ``pr/status``
     passes True when the PR's base branch is protected — a PR subject
@@ -184,6 +266,8 @@ def check_merge(
             halted=False,
             approval=None,
             missing=tuple(pack.errors),
+            required_approvals=max(1, required_approvals),
+            approvals=(),
         )
 
     protected = (
@@ -197,15 +281,37 @@ def check_merge(
         missing.append(f"merge halted by governance (seq {seq}): {reason}")
 
     approval: Approval | None = None
-    required = protected
+    valid: list[Approval] = []
+    required = max(1, required_approvals) if protected else 1
     if protected and not halts:
-        approval, stale_note = find_approval(ledger, subject, head_commit)
-        if approval is None:
-            missing.append(
-                f"no recorded human approval for '{subject}'"
-                + (f" at head {head_commit}" if head_commit else "")
-                + (f"; {stale_note}" if stale_note else "")
-            )
+        valid, notes = collect_approvals(
+            ledger,
+            subject,
+            head_commit,
+            permitted_roles=permitted_roles,
+            excluded_identities=excluded_identities,
+        )
+        distinct = {a.approver.email.strip().lower() for a in valid if a.approver.email.strip()}
+        if len(distinct) < required:
+            if valid:
+                missing.append(
+                    f"{len(distinct)}/{required} distinct recorded human approvals "
+                    f"for '{subject}'"
+                    + (f" at head {head_commit}" if head_commit else "")
+                )
+            else:
+                # Preserve the FR-M12-05/07 report shape: the missing
+                # approval names a stale binding when one exists.
+                stale_approval, stale_note = find_approval(ledger, subject, head_commit)
+                del stale_approval
+                missing.append(
+                    f"no recorded human approval for '{subject}'"
+                    + (f" at head {head_commit}" if head_commit else "")
+                    + (f"; {stale_note}" if stale_note else "")
+                )
+            missing.extend(notes)
+        if valid:
+            approval = valid[0]
 
     allowed = not missing
     return MergeVerdict(
@@ -213,8 +319,10 @@ def check_merge(
         status="approved" if allowed else "blocked",
         subject=subject,
         head_commit=head_commit,
-        required_approval=required,
+        required_approval=protected,
         halted=bool(halts),
         approval=approval,
         missing=tuple(missing),
+        required_approvals=required,
+        approvals=tuple(valid),
     )

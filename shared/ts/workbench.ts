@@ -1,6 +1,15 @@
 /** Extension-host workbench state. This channel does not require the Python sidecar. */
 export type AgentMode = 'active' | 'learning';
-export type AgentPermission = 'read' | 'edit' | 'delete' | 'move' | 'execute' | 'search' | 'think' | 'unknown' | 'other';
+export type AgentPermission =
+  | 'read'
+  | 'edit'
+  | 'delete'
+  | 'move'
+  | 'execute'
+  | 'search'
+  | 'think'
+  | 'unknown'
+  | 'other';
 export type LearningSurface = 'policy' | 'rules' | 'memory' | 'skills' | 'calibration';
 
 export interface WorkbenchAgentInput {
@@ -88,7 +97,7 @@ export interface PortableAgentDocument {
 }
 
 export interface WorkbenchActionMap {
-  'snapshot': { params: Record<string, never>; result: WorkbenchSnapshot };
+  snapshot: { params: Record<string, never>; result: WorkbenchSnapshot };
   'agent/save': { params: { agent: WorkbenchAgentInput }; result: WorkbenchSnapshot };
   'agent/remove': { params: { id: string }; result: WorkbenchSnapshot };
   'agent/mode': { params: { id: string; mode: AgentMode }; result: WorkbenchSnapshot };
@@ -96,10 +105,16 @@ export interface WorkbenchActionMap {
   'agent/export': { params: { id: string }; result: { fileName: string; content: string } };
   'agent/run': { params: { id: string; prompt: string }; result: WorkbenchSnapshot };
   'run/cancel': { params: { id: string }; result: WorkbenchSnapshot };
-  'deliverable/save': { params: { id?: string; title: string; brief: string }; result: WorkbenchSnapshot };
+  'deliverable/save': {
+    params: { id?: string; title: string; brief: string };
+    result: WorkbenchSnapshot;
+  };
   'deliverable/dispatch': { params: { id: string }; result: WorkbenchSnapshot };
   'deliverable/complete': { params: { id: string; feedback: string }; result: WorkbenchSnapshot };
-  'learning/review': { params: { id: string; decision: 'accepted' | 'dismissed' }; result: WorkbenchSnapshot };
+  'learning/review': {
+    params: { id: string; decision: 'accepted' | 'dismissed' };
+    result: WorkbenchSnapshot;
+  };
 }
 
 export type WorkbenchAction = keyof WorkbenchActionMap;

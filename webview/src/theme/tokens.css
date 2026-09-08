@@ -348,3 +348,33 @@
   --ml-lilac: var(--vscode-textLink-foreground, #b9a8e5);
 }
 [data-ml-theme='iron-gall'] { --ml-accent: #e0ffb2; --ml-accent-ink: #000; --ml-lilac: #d9caff; }
+
+/* Text-bearing states retain their hue with sufficient contrast on panels. */
+[data-ml-theme='indigo-vat'], [data-ml-theme='madder-dusk'], [data-ml-theme='iron-gall'] {
+  --ml-dye-rework: #f07c6c;
+  --ml-dye-working: #80aedf;
+  --ml-dye-meta: #ce8fb1;
+  --ml-dye-idle: #9cacc6;
+}
+[data-ml-theme='sized-linen'], [data-ml-theme='weld-dawn'] {
+  --ml-text-tertiary: #545b70;
+  --ml-accent: #315715;
+  --ml-lilac: #65438f;
+  --ml-dye-attention: #775600;
+  --ml-dye-approved: #1f6f61;
+}
+[data-ml-theme='loom-ghost'] {
+  --ml-text-tertiary: #9b9b91;
+  --ml-dye-rework: #c98e85;
+  --ml-dye-working: #95a9cb;
+  --ml-dye-attention: #b8a67c;
+  --ml-dye-approved: #82afa6;
+  --ml-dye-meta: #ba96aa;
+  --ml-dye-idle: #9b9fae;
+}
+[data-ml-theme='follow-vscode'] {
+  --ml-dye-rework: var(--vscode-errorForeground, #f07c6c);
+  --ml-dye-working: var(--vscode-textLink-foreground, #80aedf);
+  --ml-dye-meta: var(--vscode-textLink-foreground, #ce8fb1);
+  --ml-dye-idle: var(--vscode-descriptionForeground, #9cacc6);
+}

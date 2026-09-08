@@ -138,7 +138,7 @@ async function renderApp(host: ReturnType<typeof makeHost>) {
 }
 
 async function gotoScreen(host: ReturnType<typeof makeHost>, title: string) {
-  fireEvent.click(screen.getByRole('button', { name: 'Evidence', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Evidence' }));
   await host.settle();
   const label = { 'Flight Recorder': 'Flight recorder', 'External Agents': 'External sessions', 'Ledger': 'Audit ledger' }[title];
   fireEvent.click(screen.getByRole('tab', { name: new RegExp(label!) }));
@@ -226,7 +226,7 @@ describe('X-29: sessions/changed push re-queries and the Crown updates', () => {
       ),
     );
     await waitFor(() =>
-      expect(screen.getByTestId('crown-indicator')).toHaveTextContent('● Recording'),
+      expect(screen.getByTestId('crown-indicator')).toHaveTextContent('1 sessions observed'),
     );
     client.dispose();
   });

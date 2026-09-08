@@ -324,7 +324,7 @@ class TestGateApproveRpc:
         server = make_server(tmp_path, repo)
         commit = head(repo)
         response = call(
-            server, "gate.approve", {"subject": "main", "commit": commit, "role": "lead"}
+            server, "gate.approve", {"subject": "main", "commit": commit, "role": "approver"}
         )
         result = response["result"]
         assert result["recorded"] is True
@@ -336,7 +336,7 @@ class TestGateApproveRpc:
         assert row["action_type"] == "approval"
         assert row["decision"] == "approved"
         assert row["human_actor"] == APPROVER.display()
-        assert row["human_role"] == "lead"
+        assert row["human_role"] == "approver"
         detail = json.loads(
             server.ledger.read_blob(row["input_ref"], row["blob_key_id"]).decode("utf-8")
         )
@@ -346,7 +346,7 @@ class TestGateApproveRpc:
     def test_approval_unblocks_the_protected_branch(self, tmp_path, repo):
         server = make_server(tmp_path, repo)
         commit = head(repo)
-        call(server, "gate.approve", {"subject": "main", "commit": commit, "role": "lead"})
+        call(server, "gate.approve", {"subject": "main", "commit": commit, "role": "approver"})
         status = call(server, "gate.status", {"subject": "main", "commit": commit})["result"]
         assert status["status"] == "approved"
         assert status["approvalSequence"] > 0

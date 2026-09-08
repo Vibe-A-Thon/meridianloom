@@ -9,4 +9,6 @@ __pycache__/
 /verifier/target/
 webview/dist/
 extension/webview-dist/
+/extension/policy/
+/.meridian/workbench/
 !webview/index.html

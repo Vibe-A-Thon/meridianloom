@@ -15,7 +15,7 @@ import type { WorkbenchAction } from './workbench';
  *  `download` message (audit-bundle export, FR-M36-04). Both sides are
  *  always built from the same commit, so the handshake version check is
  *  the enforcement. */
-export const WEBVIEW_PROTOCOL_VERSION = 2;
+export const WEBVIEW_PROTOCOL_VERSION = 3;
 
 export type { RequestId, RequestMethod };
 

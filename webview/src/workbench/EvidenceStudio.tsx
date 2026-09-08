@@ -14,18 +14,27 @@ export interface EvidenceStudioProps extends ScreenProps {
 
 const TABS: Array<{ id: EvidenceTab; label: string; note: string }> = [
   { id: 'recorder', label: 'Flight recorder', note: 'Trace an edit to its evidence' },
-  { id: 'sessions', label: 'External sessions', note: 'Inspect source coverage and attributed changes' },
+  {
+    id: 'sessions',
+    label: 'External sessions',
+    note: 'Inspect source coverage and attributed changes',
+  },
   { id: 'ledger', label: 'Audit ledger', note: 'Read records, inspect proofs, export a bundle' },
 ];
 
 /** A single evidence workspace over the existing, real sidecar-backed screens. */
-export function EvidenceStudio({ initialTab = 'recorder', onNavigate: _onNavigate, ...screenProps }: EvidenceStudioProps) {
+export function EvidenceStudio({
+  initialTab = 'recorder',
+  onNavigate: _onNavigate,
+  ...screenProps
+}: EvidenceStudioProps) {
   const [tab, setTab] = useState<EvidenceTab>(initialTab);
   const prefix = useId();
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
   useEffect(() => setTab(initialTab), [initialTab]);
   const selected = TABS.find((item) => item.id === tab)!;
-  const observed = screenProps.sessions.status === 'ready' ? screenProps.sessions.data.sessions : undefined;
+  const observed =
+    screenProps.sessions.status === 'ready' ? screenProps.sessions.data.sessions : undefined;
   const sources = observed ? new Set(observed.map((session) => session.vendor)).size : undefined;
 
   return (
@@ -34,11 +43,20 @@ export function EvidenceStudio({ initialTab = 'recorder', onNavigate: _onNavigat
         <div>
           <p className={styles.eyebrow}>Evidence / inspect & understand</p>
           <h1 className={styles.title}>Every change has a story.</h1>
-          <p className={styles.intro}>Follow the source, inspect what was recorded, and take the evidence with you.</p>
+          <p className={styles.intro}>
+            Follow the source, inspect what was recorded, and take the evidence with you.
+          </p>
         </div>
-        <span className={styles.connection} data-connected={screenProps.ready}>
+        <span
+          className={styles.connection}
+          data-connected={screenProps.sessions.status === 'ready'}
+        >
           <span aria-hidden="true" className={styles.dot} />
-          {screenProps.ready ? 'Recorder connected' : 'Connecting to recorder'}
+          {screenProps.sessions.status === 'ready'
+            ? 'Observations loaded'
+            : screenProps.sessions.status === 'error'
+              ? 'Observations unavailable'
+              : 'Loading observations'}
         </span>
       </header>
 
@@ -54,10 +72,15 @@ export function EvidenceStudio({ initialTab = 'recorder', onNavigate: _onNavigat
           <span className={styles.muted}>Vendor names preserved in every record</span>
         </div>
         <div className={styles.assurance}>
-          <span className={styles.assuranceIcon} aria-hidden="true">◇</span>
+          <span className={styles.assuranceIcon} aria-hidden="true">
+            ◇
+          </span>
           <div>
             <strong>Evidence before confidence.</strong>
-            <p>Detection, attribution, and chain integrity are separate signals. Missing observations stay visible; a valid chain does not establish that an agent’s output is correct.</p>
+            <p>
+              Detection, attribution, and chain integrity are separate signals. Missing observations
+              stay visible; a valid chain does not establish that an agent’s output is correct.
+            </p>
           </div>
         </div>
       </section>
@@ -66,7 +89,9 @@ export function EvidenceStudio({ initialTab = 'recorder', onNavigate: _onNavigat
         {TABS.map((item, index) => (
           <button
             key={item.id}
-            ref={(element) => { buttons.current[index] = element; }}
+            ref={(element) => {
+              buttons.current[index] = element;
+            }}
             id={`${prefix}-${item.id}-tab`}
             type="button"
             role="tab"

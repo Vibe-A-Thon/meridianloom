@@ -243,6 +243,21 @@
       "params": { "$ref": "#/$defs/McpInvokeParams" },
       "result": { "$ref": "#/$defs/McpInvokeResult" }
     },
+    "roles/list": {
+      "description": "FR-M20-02 (F1 Workstream C task 16): the active role pack — the FR-M20-02 roles (Engineer, Reviewer, Approver, Governor, Auditor), each with its permitted gate actions and read-only flag, plus the approval mechanics configuration: N-of-M thresholds per protected branch (FR-M20-04), the separation-of-duties flag (FR-M20-03), delegation bounds (FR-M20-05) and the approval-hygiene thresholds (FR-M20-06). Fail-closed packs report their errors and an empty role list.",
+      "params": { "$ref": "#/$defs/RolesListParams" },
+      "result": { "$ref": "#/$defs/RolesListResult" }
+    },
+    "roles/check": {
+      "description": "FR-M20-02/07/08 (F1 Workstream C task 16): may `role` perform `action` (approve | halt | policy-change | delegate | export-audit)? Returns a structured {permitted, reason}; the reason names the permitted roles on refusal — only Governor may policy-change (FR-M20-07), Auditor is read-only and holds only export-audit (FR-M20-08). A fail-closed roles policy refuses every check with the parse errors as the reason.",
+      "params": { "$ref": "#/$defs/RolesCheckParams" },
+      "result": { "$ref": "#/$defs/RolesCheckResult" }
+    },
+    "roles/delegate": {
+      "description": "FR-M20-05 (F1 Workstream C task 16): delegate an approval right to another principal with expiry. The delegator is the acting provider-resolved identity (FR-M20-01) and must hold the right by role or through an active delegation chain; chains are depth-bounded (delegation.maxChainDepth) and cycles are refused. The delegation is ledger-recorded (actionType delegation, from/to/role/expiresAt/depth in the encrypted detail) BEFORE the response returns (FR-M10-08); expiry is enforced at approval time — an expired delegation grants nothing.",
+      "params": { "$ref": "#/$defs/RolesDelegateParams" },
+      "result": { "$ref": "#/$defs/RolesDelegateResult" }
+    },
     "tiers/set": {
       "description": "FR-M36-05: notification carrying the enabled tier set after a meridian.tiers configuration change, so a tier flip needs no reinstall and no window reload. The base tier (flight-recorder) is always enabled regardless of payload.",
       "notification": true,
@@ -1253,8 +1268,9 @@
         "subject": { "type": "string", "description": "The merge subject: protected branch name or PR id." },
         "commit": { "type": "string", "description": "Head commit digest the approval binds. A changed head invalidates the approval." },
         "storyId": { "type": "string" },
-        "role": { "type": "string", "description": "The approver's role (humanRole in the ledger; FR-M20 lands role checks in workstream C)." },
-        "policyPath": { "type": "string" }
+        "role": { "type": "string", "description": "The approver's role (checked against the role pack, FR-M20-02; absent uses the pack's defaultRole)." },
+        "policyPath": { "type": "string" },
+        "rolePath": { "type": "string", "description": "FR-M20-02: role pack override for the permission, SoD and N-of-M checks." }
       },
       "additionalProperties": false
     },
@@ -1276,7 +1292,8 @@
       "properties": {
         "subject": { "type": "string" },
         "commit": { "type": "string", "description": "Current head digest; an approval bound to a different digest is invalidated." },
-        "policyPath": { "type": "string" }
+        "policyPath": { "type": "string" },
+        "rolePath": { "type": "string", "description": "FR-M20-02/04/06: role pack override for the N-of-M count and hygiene warnings." }
       },
       "additionalProperties": false
     },
@@ -1290,7 +1307,10 @@
         "halted": { "type": "boolean", "description": "True when an active governance halt blocks this subject." },
         "approvalSequence": { "type": "integer", "description": "The bound approval's ledger sequence; present only when approved via an approval." },
         "approver": { "$ref": "#/$defs/GateApprover" },
-        "missing": { "type": "array", "items": { "type": "string" }, "description": "The missing-criteria report when blocked." }
+        "missing": { "type": "array", "items": { "type": "string" }, "description": "The missing-criteria report when blocked." },
+        "requiredApprovals": { "type": "integer", "description": "FR-M20-04: distinct recorded approvers required (the N-of-M threshold; 1 unless the role pack names the subject's branch)." },
+        "approvalsReceived": { "type": "integer", "description": "FR-M20-04: how many distinct approvers' valid approvals the ledger currently holds for this subject." },
+        "hygieneWarnings": { "type": "array", "items": { "type": "string" }, "description": "FR-M20-06: advisory rubber-stamping signals measured from ledger history — sub-threshold approve latency, approver == requester, back-to-back bulk approvals. The F2 measurement hook; never changes the verdict." }
       },
       "additionalProperties": false
     },
@@ -1335,6 +1355,126 @@
         "sequence": { "type": "integer", "description": "Ledger sequence of the halt entry." },
         "sessionId": { "type": "string" },
         "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "RolesListParams": {
+      "type": "object",
+      "properties": {
+        "rolePath": { "type": "string", "description": "Explicit role pack path override; absent resolves .meridian/policy/roles.yaml then policy/roles.yaml under the workspace, then the built-in default." }
+      },
+      "additionalProperties": false
+    },
+    "RoleInfo": {
+      "type": "object",
+      "required": ["name", "description", "permissions", "readOnly"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "permissions": { "type": "array", "items": { "enum": ["approve", "halt", "policy-change", "delegate", "export-audit"] }, "description": "The gate actions this role may perform (FR-M20-02 mapping)." },
+        "readOnly": { "type": "boolean", "description": "True for the Auditor: read-only across the ledger (FR-M20-08)." }
+      },
+      "additionalProperties": false
+    },
+    "RolesSoDConfig": {
+      "type": "object",
+      "properties": {
+        "forbidSelfApproval": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "RolesApprovalsConfig": {
+      "type": "object",
+      "properties": {
+        "nOfM": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "FR-M20-04: protected branch -> required count of distinct approvers." },
+        "soD": { "$ref": "#/$defs/RolesSoDConfig" }
+      },
+      "additionalProperties": false
+    },
+    "RolesDelegationConfig": {
+      "type": "object",
+      "properties": {
+        "maxChainDepth": { "type": "integer" },
+        "maxTtlDays": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "RolesHygieneConfig": {
+      "type": "object",
+      "properties": {
+        "approveLatencyFloorSeconds": { "type": "integer" },
+        "bulkWindowMinutes": { "type": "integer" },
+        "bulkMinCount": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "RolesListResult": {
+      "type": "object",
+      "required": ["policyVersion", "source", "failClosed", "errors", "roles", "approvals", "delegation", "hygiene"],
+      "properties": {
+        "policyVersion": { "type": "string" },
+        "source": { "type": "string" },
+        "failClosed": { "type": "boolean" },
+        "errors": { "type": "array", "items": { "type": "string" } },
+        "defaultRole": { "type": "string", "description": "The role gate.approve checks when the caller passes no explicit role; absent on a fail-closed pack." },
+        "roles": { "type": "array", "items": { "$ref": "#/$defs/RoleInfo" } },
+        "approvals": { "$ref": "#/$defs/RolesApprovalsConfig" },
+        "delegation": { "$ref": "#/$defs/RolesDelegationConfig" },
+        "hygiene": { "$ref": "#/$defs/RolesHygieneConfig" }
+      },
+      "additionalProperties": false
+    },
+    "RolesCheckParams": {
+      "type": "object",
+      "required": ["role", "action"],
+      "properties": {
+        "role": { "type": "string" },
+        "action": { "enum": ["approve", "halt", "policy-change", "delegate", "export-audit"] },
+        "rolePath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "RolesCheckResult": {
+      "type": "object",
+      "required": ["permitted", "reason"],
+      "properties": {
+        "permitted": { "type": "boolean" },
+        "reason": { "type": "string", "description": "On refusal, names the rule and the permitted roles." }
+      },
+      "additionalProperties": false
+    },
+    "RolesDelegateParams": {
+      "type": "object",
+      "required": ["to", "role"],
+      "properties": {
+        "to": { "type": "string", "description": "The principal receiving the right (email or named holder)." },
+        "role": { "type": "string", "description": "The approval right being delegated; must hold the approve permission." },
+        "expiresAt": { "type": "string", "description": "ISO-8601 UTC expiry. Absent: computed from ttlDays." },
+        "ttlDays": { "type": "integer", "description": "TTL in days when expiresAt is absent; must be <= delegation.maxTtlDays." },
+        "holderRole": { "type": "string", "description": "The role the delegator holds (validated against the pack). Absent: the delegator must hold via an active delegation chain." },
+        "rolePath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "DelegationRecord": {
+      "type": "object",
+      "required": ["delegator", "to", "role", "expiresAt", "depth"],
+      "properties": {
+        "delegator": { "$ref": "#/$defs/GateApprover" },
+        "to": { "type": "string" },
+        "role": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "depth": { "type": "integer", "description": "1 = direct grant from a role holder; each re-delegation adds one." }
+      },
+      "additionalProperties": false
+    },
+    "RolesDelegateResult": {
+      "type": "object",
+      "required": ["recorded", "sequence", "delegation"],
+      "properties": {
+        "recorded": { "type": "boolean" },
+        "sequence": { "type": "integer", "description": "Ledger sequence of the delegation entry — durable before this response returns." },
+        "delegation": { "$ref": "#/$defs/DelegationRecord" }
       },
       "additionalProperties": false
     },
@@ -1520,7 +1660,8 @@
         "subject": { "type": "string", "description": "The merge-gate subject (pr:<repo>#<number>)." },
         "repo": { "type": "string", "description": "With number: the subject is derived (pr:<repo>#<number>)." },
         "number": { "type": "integer" },
-        "policyPath": { "type": "string" }
+        "policyPath": { "type": "string" },
+        "rolePath": { "type": "string", "description": "FR-M20-02/04/06: role pack override — the N-of-M threshold is looked up by the PR's base branch and hygiene warnings ride the merge verdict." }
       },
       "additionalProperties": false
     },

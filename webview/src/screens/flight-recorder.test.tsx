@@ -461,8 +461,8 @@ describe('10.45 Flight Recorder screen', () => {
 
     // Loom Bar carries only the Flight Recorder — no Governor/Orchestra
     // entries, not even disabled ones (banned 30).
-    const nav = screen.getByRole('navigation', { name: 'Screens' });
-    expect(nav).toHaveTextContent('Flight Recorder');
+    const nav = screen.getByRole('navigation', { name: 'Workspace navigation' });
+    expect(nav).toHaveTextContent('Evidence');
     expect(nav).not.toHaveTextContent('Governor');
     expect(nav).not.toHaveTextContent('Orchestra');
     // The single unlock affordance (X-28) with its one-line statement.
