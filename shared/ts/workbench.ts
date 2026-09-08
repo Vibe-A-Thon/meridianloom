@@ -1,3 +1,4 @@
+import type { StudioDocument, StudioDocumentInput } from './studio';
 /** Extension-host workbench state. This channel does not require the Python sidecar. */
 export type AgentMode = 'active' | 'learning';
 export type AgentPermission =
@@ -79,6 +80,8 @@ export interface WorkbenchSnapshot {
   deliverables: WorkbenchDeliverable[];
   runs: WorkbenchRun[];
   learning: LearningArtifact[];
+  documents?: StudioDocument[];
+  documentRevisions?: StudioDocument[];
   capabilities: {
     workspaceOpen: boolean;
     trusted: boolean;
@@ -97,6 +100,11 @@ export interface PortableAgentDocument {
 }
 
 export interface WorkbenchActionMap {
+  'document/save': { params: { document: StudioDocumentInput }; result: WorkbenchSnapshot };
+  'document/remove': { params: { id: string; expectedVersion: number }; result: WorkbenchSnapshot };
+  'document/export': { params: { id: string }; result: { fileName: string; content: string } };
+  'document/import': { params: { content: string }; result: WorkbenchSnapshot };
+  'document/restore': { params: { id: string; version: number; expectedVersion: number }; result: WorkbenchSnapshot };
   snapshot: { params: Record<string, never>; result: WorkbenchSnapshot };
   'agent/save': { params: { agent: WorkbenchAgentInput }; result: WorkbenchSnapshot };
   'agent/remove': { params: { id: string }; result: WorkbenchSnapshot };

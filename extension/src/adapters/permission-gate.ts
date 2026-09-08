@@ -3,19 +3,22 @@
  * agent's session/request_permission and the human. Every request is checked
  * BEFORE the vscode prompt:
  *
- *  1. SEC-28 memory (in-memory): a kind this gate already denied is
+ *  1. Dry-run (FR-M25-06): in a dry-run session, mutation kinds
+ *     (edit/delete/move/execute) are denied before everything else — the
+ *     human is never asked, the denial is recorded.
+ *  2. SEC-28 memory (in-memory): a kind this gate already denied is
  *     auto-denied, citing the prior decision — the human is never re-asked
  *     and re-requesting cannot escalate.
- *  2. SEC-28 memory (durable): prior `permission_decision` rejections for
+ *  3. SEC-28 memory (durable): prior `permission_decision` rejections for
  *     this adapter are looked up in the ledger ONCE per gate instance (a
  *     restarted host still remembers), and auto-deny with the cited
  *     sequence number.
- *  3. Suspension: a suspended adapter is denied everything.
- *  4. Declared needs: a kind the manifest never declared is denied.
- *  5. Policy allow-list (policy/acp-permissions.yaml): a kind not allowed
+ *  4. Suspension: a suspended adapter is denied everything.
+ *  5. Declared needs: a kind the manifest never declared is denied.
+ *  6. Policy allow-list (policy/acp-permissions.yaml): a kind not allowed
  *     for the adapter's autonomy state is denied.
  *
- * Only a request passing all five reaches `humanApprover` (the vscode
+ * Only a request passing all checks reaches `humanApprover` (the vscode
  * prompt path). Every decision — allow, human answer, policy denial, SEC-28
  * auto-denial — is ledger-recorded via the acp/permissionDecision sidecar
  * RPC before the agent gets its answer. Recording failures are surfaced
@@ -29,6 +32,15 @@ import { PERMISSION_KINDS } from './manifest';
 import type { AdapterState } from './probation';
 import type { AcpPermissionPolicy } from './policy';
 
+/**
+ * Session mode (FR-M25-06): a dry-run session plans and costs but writes
+ * nothing — the gate denies mutation kinds before the human is ever asked.
+ */
+export type SessionMode = 'normal' | 'dry-run';
+
+/** Kinds a dry-run may grant: observation and planning only, never mutation. */
+const DRY_RUN_ALLOWED: readonly PermissionKind[] = ['read', 'search', 'think'];
+
 /** The sidecar surface the gate needs (the extension's sidecar RPC client). */
 export interface PolicyGateSidecar {
   request(method: string, params: unknown): Promise<unknown>;
@@ -41,6 +53,13 @@ export interface PolicyGateOptions {
   adapter: AdapterManifest;
   /** The adapter's current autonomy state (probation/active/suspended). */
   adapterState: AdapterState;
+  /**
+   * FR-M25-06: the session's mode. In 'dry-run' the gate denies every
+   * mutation kind (edit/delete/move/execute) before the human sees the
+   * request — a dry run writes nothing; planning kinds (read/search/think)
+   * still pass through the normal checks.
+   */
+  sessionMode?: SessionMode;
   /** The vscode prompt path; called only when every check passes. */
   humanApprover: PermissionApprover;
   /** Ledger recording + SEC-28 durable memory; absent => decisions still
@@ -85,6 +104,7 @@ function normalizeKind(raw: string | null | undefined): PermissionKind {
 
 export function createPolicyGate(options: PolicyGateOptions): PermissionApprover {
   const { policy, adapter, adapterState, humanApprover, sidecar, onRecordError } = options;
+  const sessionMode = options.sessionMode ?? 'normal';
   const report = onRecordError ?? ((message: string) => console.error(message));
   /** In-memory SEC-28 memory: the base reason for each denied kind. */
   const denied = new Map<PermissionKind, PriorDenial>();
@@ -180,6 +200,19 @@ export function createPolicyGate(options: PolicyGateOptions): PermissionApprover
 
   return async (request, context) => {
     const kind = normalizeKind(request.toolCall.kind);
+
+    // FR-M25-06 (dry-run): mutation kinds are denied before every other
+    // path — including the human prompt. A dry run plans and costs but
+    // writes nothing; the denial is recorded like any policy denial so the
+    // dry run's refusal trail is durable.
+    if (sessionMode === 'dry-run' && !DRY_RUN_ALLOWED.includes(kind)) {
+      return deny(
+        request,
+        kind,
+        `dry-run mode: ${kind} would mutate the workspace, and a dry run writes nothing`,
+        { kind, reason: `dry-run mode denies ${kind}` },
+      );
+    }
 
     // SEC-28 (in-memory): this gate already denied the kind — auto-deny.
     const remembered = denied.get(kind);

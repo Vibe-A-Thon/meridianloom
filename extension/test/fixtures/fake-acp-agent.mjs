@@ -16,6 +16,18 @@
  *   --no-load-session     do not advertise loadSession
  *   --crash               exit(1) mid-turn without answering the prompt
  *   --read-outside P      request fs/read_text_file at path P (escape probe)
+ *   --steerable           the turn idles until a SECOND session/prompt
+ *                         (steering) arrives mid-turn; the steering text is
+ *                         acknowledged, echoed into output.txt, and the
+ *                         original turn then completes (FR-M25-01)
+ *   --ask-question        the turn poses a clarifying question as a
+ *                         tool-permission-style ask: _meta.question with
+ *                         proposed options and a recommendation
+ *                         (FR-M25-02); the selected option is echoed into
+ *                         output.txt
+ *   --low-confidence      the permission request carries the ACP _meta
+ *                         extension point with confidence 0.3 for class
+ *                         execute (FR-M25-03)
  *
  * The turn script: message chunk → plan → tool_call → permission →
  * fs read → fs write → terminal run → final chunk → stopReason.
@@ -35,6 +47,9 @@ const PROTOCOL_VERSION = flag('--refuse-version') ? 999 : Number(opt('--protocol
 const NO_LOAD = flag('--no-load-session');
 const CRASH = flag('--crash');
 const READ_OUTSIDE = opt('--read-outside');
+const STEERABLE = flag('--steerable');
+const ASK_QUESTION = flag('--ask-question');
+const LOW_CONFIDENCE = flag('--low-confidence');
 
 const SEP = process.platform === 'win32' ? '\\' : '/';
 const WORKSPACE = process.cwd();
@@ -44,6 +59,8 @@ const pending = new Map();
 let nextAgentRequestId = 0;
 let currentPrompt = null; // { id, sessionId } of the in-flight session/prompt
 let permissionSettle = null; // settles the in-flight permission request
+const steeringQueue = []; // guidance from a second session/prompt (FR-M25-01)
+const steeringWaiters = [];
 
 const send = (message) => process.stdout.write(JSON.stringify(message) + '\n');
 const respond = (id, result) => send({ jsonrpc: '2.0', id, result });
@@ -120,6 +137,20 @@ async function handleRequest(message) {
     }
     case 'session/prompt': {
       const { sessionId } = message.params;
+      if (currentPrompt) {
+        // FR-M25-01: a prompt arriving while a turn is in flight IS
+        // steering. Acknowledge the steering prompt on its own request,
+        // queue the guidance for the running turn, and let that turn
+        // finish (it echoes the steering into output.txt).
+        const text = promptText(message.params);
+        if (steeringWaiters.length > 0) {
+          steeringWaiters.shift()(text);
+        } else {
+          steeringQueue.push(text);
+        }
+        respond(message.id, { stopReason: 'end_turn' });
+        return;
+      }
       currentPrompt = { id: message.id, sessionId };
       runTurn(sessionId, message.id).catch((error) => {
         respondError(message.id, -32603, String(error?.message ?? error));
@@ -146,6 +177,21 @@ function update(sessionId, update) {
   notify('session/update', { sessionId, update });
 }
 
+function promptText(params) {
+  const blocks = Array.isArray(params?.prompt) ? params.prompt : [];
+  return blocks
+    .map((block) => (block && block.type === 'text' ? block.text : ''))
+    .join('\n');
+}
+
+/** Resolve with the next steering message once one arrives mid-turn. */
+function waitForSteering() {
+  if (steeringQueue.length > 0) {
+    return Promise.resolve(steeringQueue.shift());
+  }
+  return new Promise((resolve) => steeringWaiters.push(resolve));
+}
+
 async function runTurn(sessionId, promptId) {
   const facts = [];
   update(sessionId, {
@@ -157,6 +203,33 @@ async function runTurn(sessionId, promptId) {
     entries: [{ content: 'Do the scripted work', status: 'in_progress', priority: 'medium' }],
   });
 
+  if (STEERABLE) {
+    // FR-M25-01: idle mid-turn until the host steers the running session;
+    // the steering text is the real effect the test asserts on.
+    update(sessionId, {
+      sessionUpdate: 'agent_message_chunk',
+      content: { type: 'text', text: 'Idling; waiting for steering.' },
+    });
+    const steering = await waitForSteering();
+    facts.push(`steered=${steering}`);
+    update(sessionId, {
+      sessionUpdate: 'agent_message_chunk',
+      content: { type: 'text', text: `Steered: ${steering}` },
+    });
+    await request('fs/write_text_file', {
+      sessionId,
+      path: `${WORKSPACE}${SEP}output.txt`,
+      content: facts.join('\n'),
+    });
+    update(sessionId, {
+      sessionUpdate: 'agent_message_chunk',
+      content: { type: 'text', text: 'Done.' },
+    });
+    respond(promptId, { stopReason: 'end_turn' });
+    currentPrompt = null;
+    return;
+  }
+
   // 1. Tool call that requires host approval.
   update(sessionId, {
     sessionUpdate: 'tool_call',
@@ -165,17 +238,46 @@ async function runTurn(sessionId, promptId) {
     kind: 'execute',
     status: 'pending',
   });
+  const permissionRequest = {
+    sessionId,
+    toolCall: { toolCallId: 'tc-permission', title: 'Run the test suite', kind: 'execute' },
+    options: [
+      { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
+      { optionId: 'allow-always', name: 'Always allow', kind: 'allow_always' },
+      { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
+    ],
+  };
+  if (ASK_QUESTION) {
+    // FR-M25-02: a clarifying question posed as a tool-permission-style
+    // ask — proposed options, the recommendation marked on the wire.
+    permissionRequest._meta = {
+      question: true,
+      questionText: 'Which backend should the cache use?',
+      recommendation: 'opt-sqlite',
+    };
+    permissionRequest.options = [
+      {
+        optionId: 'opt-sqlite',
+        name: 'SQLite (recommended)',
+        kind: 'allow_once',
+        _meta: { recommended: true },
+      },
+      { optionId: 'opt-memory', name: 'In-memory only', kind: 'allow_once' },
+      { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
+    ];
+  }
+  if (LOW_CONFIDENCE) {
+    // FR-M25-03: the agent states a below-threshold confidence via the
+    // ACP _meta extension point.
+    permissionRequest._meta = {
+      ...(permissionRequest._meta ?? {}),
+      confidence: 0.3,
+      actionClass: 'execute',
+    };
+  }
   const permissionPromise = (async () => {
     const id = `agent-req-${nextAgentRequestId}`;
-    const promise = request('session/request_permission', {
-      sessionId,
-      toolCall: { toolCallId: 'tc-permission', title: 'Run the test suite', kind: 'execute' },
-      options: [
-        { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
-        { optionId: 'allow-always', name: 'Always allow', kind: 'allow_always' },
-        { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
-      ],
-    });
+    const promise = request('session/request_permission', permissionRequest);
     permissionSettle = { id, entry: pending.get(id) };
     return promise;
   })();
@@ -185,6 +287,9 @@ async function runTurn(sessionId, promptId) {
       ? permission.outcome.optionId
       : 'cancelled';
   facts.push(`permission=${JSON.stringify(permission.outcome)}`);
+  if (ASK_QUESTION && allowed !== 'cancelled') {
+    facts.push(`answer=${allowed}`);
+  }
   if (allowed === 'cancelled') {
     // The host cancelled the turn (session/cancel raced the approval).
     respond(promptId, { stopReason: 'cancelled' });
