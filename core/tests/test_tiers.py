@@ -133,7 +133,11 @@ class TestEnablingTiers:
             )
             is None  # notification: no response
         )
-        assert call(server, "steer.send")["error"]["code"] == protocol.ERROR_NOT_IMPLEMENTED
+        # steer.send is implemented since F1 Workstream D task 17 (it now
+        # passes the tier gate and fails on params — a real handler, not the
+        # NOT_IMPLEMENTED placeholder; core/tests/test_steer.py covers it).
+        assert call(server, "steer.send")["error"]["code"] == protocol.INVALID_PARAMS
+        assert call(server, "trust.summary")["error"]["code"] == protocol.ERROR_NOT_IMPLEMENTED
         assert call(server, "loop.start")["error"]["code"] == protocol.ERROR_TIER_DISABLED
 
     def test_tiers_set_cannot_drop_the_base_tier(self):

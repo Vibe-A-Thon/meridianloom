@@ -174,9 +174,50 @@
       "result": { "$ref": "#/$defs/PrConflictsResult" }
     },
     "steer.send": {
-      "description": "Governor tier stub (FR-M25-01; F1): steer a running session. Same tier-enforcement role as gate.evaluate.",
+      "description": "FR-M25-01 (F1 Workstream D task 17): steer a RUNNING hosted ACP session — a human's guidance is injected into the next iteration's context over the real wire (the extension host sends a second session/prompt on the running session). The steering act is ledger-recorded BEFORE the RPC returns (FR-M10-08): who steered (the resolved human identity, FR-M20-01), what, when, into which session. Refuses with the structured NOT_HOSTED error when no hosted session_begin exists for the sessionId — an observed (not hosted) agent cannot be steered, and the refusal says so plainly (F1 Workstream D task 18). Same tier-enforcement role as gate.evaluate (governor tier, G5).",
       "params": { "$ref": "#/$defs/SteerSendParams" },
-      "result": { "$ref": "#/$defs/SteerSendResult" }
+      "result": { "$ref": "#/$defs/SteerSendResult" },
+      "x-error-codes": ["NOT_HOSTED"]
+    },
+    "steer/question": {
+      "description": "FR-M25-02 (F1 Workstream D task 17): a hosted agent's clarifying question (an ACP tool-permission-style ask carrying proposed options and the agent's own recommendation in _meta) is recorded in the ledger BEFORE the human sees it — question, options, recommendation, session — so the durable question exists before any answer can (FR-M10-08). The extension host surfaces it as a blocking question; the loop resumes on answer (steer/answer). NOT_HOSTED when the session is not hosted.",
+      "params": { "$ref": "#/$defs/SteerQuestionParams" },
+      "result": { "$ref": "#/$defs/SteerQuestionResult" },
+      "x-error-codes": ["NOT_HOSTED"]
+    },
+    "steer/answer": {
+      "description": "FR-M25-02 (F1 Workstream D task 17): the human's answer to a recorded clarifying question. Ledger-recorded (who answered, what was chosen, linked to the question entry by sequence) BEFORE the RPC returns; the extension host then releases the answer to the waiting agent, which resumes the loop. A dismissal/cancellation is recorded honestly as a cancelled answer, never dropped. NOT_HOSTED when the session is not hosted.",
+      "params": { "$ref": "#/$defs/SteerAnswerParams" },
+      "result": { "$ref": "#/$defs/SteerAnswerResult" },
+      "x-error-codes": ["NOT_HOSTED"]
+    },
+    "steer/escalate": {
+      "description": "FR-M25-03 (F1 Workstream D task 17): uncertainty-triggered escalation. When a hosted agent states a confidence for an action class below the per-class threshold (the ACP _meta extension point on session/request_permission), the host records an escalation event — action class, stated confidence, threshold, session — in the ledger BEFORE the RPC returns, and surfaces it to the human (UI surface is F1 Workstream H). The policy gate asks rather than acts: the underlying action does not proceed without a recorded human decision. NOT_HOSTED when the session is not hosted.",
+      "params": { "$ref": "#/$defs/SteerEscalateParams" },
+      "result": { "$ref": "#/$defs/SteerEscalateResult" },
+      "x-error-codes": ["NOT_HOSTED"]
+    },
+    "steer/accept": {
+      "description": "FR-M25-04 (F1 Workstream D task 17): partial acceptance of a hosted session's output. The human accepts some files/hunks and reworks others in one action; the accepted/rejected state per file and hunk is ledger-recorded (who, when, session) BEFORE the RPC returns and is queryable via steer/acceptanceStatus. A later accept for the same session replaces the recorded state for the named files — the ledger carries the history, the status answers with the latest. NOT_HOSTED when the session is not hosted.",
+      "params": { "$ref": "#/$defs/SteerAcceptParams" },
+      "result": { "$ref": "#/$defs/SteerAcceptResult" },
+      "x-error-codes": ["NOT_HOSTED"]
+    },
+    "steer/acceptanceStatus": {
+      "description": "FR-M25-04 (F1 Workstream D task 17): the recorded partial-acceptance state of a hosted session's output, read back from the ledger — per file, per hunk, accepted or rejected, with the deciding human and sequence. Read-only: decides nothing, records nothing. Returns hosted: false for a session Meridian only observes (no hosted session_begin).",
+      "params": { "$ref": "#/$defs/SteerAcceptanceStatusParams" },
+      "result": { "$ref": "#/$defs/SteerAcceptanceStatusResult" }
+    },
+    "steer/status": {
+      "description": "F1 Workstream D task 18: the honest capability payload for session controls. Answers whether a session is hosted (Meridian launched and runs the ACP process) or merely observed, plus its recorded mode and lifecycle sequences. Every steer/clarify/halt control the UI renders MUST be driven by this payload's hosted flag — an observe-only session reports hosted: false so a dead control is impossible by construction. Read-only.",
+      "params": { "$ref": "#/$defs/SteerStatusParams" },
+      "result": { "$ref": "#/$defs/SteerStatusResult" }
+    },
+    "steer/plan": {
+      "description": "FR-M25-06 (F1 Workstream D task 17): dry-run planner output. In a dry-run session the agent plans and costs but writes nothing (the policy gate denies mutation kinds with the dry_run citation, recorded like any policy denial); the packet-graph plan entries and cost estimate it produced are recorded here BEFORE the RPC returns so the dry run has a durable, provable output. NOT_HOSTED when the session is not hosted.",
+      "params": { "$ref": "#/$defs/SteerPlanParams" },
+      "result": { "$ref": "#/$defs/SteerPlanResult" },
+      "x-error-codes": ["NOT_HOSTED"]
     },
     "trust.summary": {
       "description": "Governor tier stub (FR-M37-*; F0 subset/F1 full): trust and rejection analytics summary. Same tier-enforcement role as gate.evaluate.",
@@ -1482,8 +1523,8 @@
       "type": "object",
       "required": ["sessionId", "message"],
       "properties": {
-        "sessionId": { "type": "string" },
-        "message": { "type": "string" }
+        "sessionId": { "type": "string", "description": "The hosted ACP session being steered. Must have a recorded session_begin; otherwise the structured NOT_HOSTED refusal." },
+        "message": { "type": "string", "description": "The human's guidance, injected into the running session's next iteration context." }
       },
       "additionalProperties": false
     },
@@ -1681,9 +1722,201 @@
     },
     "SteerSendResult": {
       "type": "object",
-      "required": ["accepted"],
+      "required": ["accepted", "sequence"],
       "properties": {
-        "accepted": { "type": "boolean" }
+        "accepted": { "type": "boolean", "description": "True when the steering act is durable in the ledger. The wire injection itself is the extension host's follow-up on the running ACP session." },
+        "sequence": { "type": "integer", "description": "Ledger sequence of the steer entry (FR-M10-08: durable before this response)." }
+      },
+      "additionalProperties": false
+    },
+    "SteerQuestionOption": {
+      "type": "object",
+      "required": ["optionId", "name"],
+      "properties": {
+        "optionId": { "type": "string" },
+        "name": { "type": "string" },
+        "recommended": { "type": "boolean", "description": "The agent's own recommendation (FR-M25-02), true on exactly one option when the agent stated one." }
+      },
+      "additionalProperties": false
+    },
+    "SteerQuestionParams": {
+      "type": "object",
+      "required": ["sessionId", "question"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "question": { "type": "string" },
+        "options": { "type": "array", "items": { "$ref": "#/$defs/SteerQuestionOption" }, "description": "Proposed options, per FR-M25-02; may be empty for an open question." },
+        "toolCallId": { "type": "string", "description": "The ACP tool call the question arrived on, when it is a tool-permission-style ask." }
+      },
+      "additionalProperties": false
+    },
+    "SteerQuestionResult": {
+      "type": "object",
+      "required": ["accepted", "sequence"],
+      "properties": {
+        "accepted": { "type": "boolean" },
+        "sequence": { "type": "integer", "description": "Ledger sequence of the clarifying_question entry." }
+      },
+      "additionalProperties": false
+    },
+    "SteerAnswerParams": {
+      "type": "object",
+      "required": ["sessionId", "questionSequence"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "questionSequence": { "type": "integer", "description": "The clarifying_question entry this answers." },
+        "selectedOptionId": { "type": "string", "description": "The chosen option, when one was chosen." },
+        "text": { "type": "string", "description": "Free-text answer for an open question." },
+        "cancelled": { "type": "boolean", "description": "True when the human dismissed the question without answering; recorded honestly, never dropped." }
+      },
+      "additionalProperties": false
+    },
+    "SteerAnswerResult": {
+      "type": "object",
+      "required": ["accepted", "sequence", "resumed"],
+      "properties": {
+        "accepted": { "type": "boolean" },
+        "sequence": { "type": "integer", "description": "Ledger sequence of the clarifying_answer entry." },
+        "resumed": { "type": "boolean", "description": "True when the recorded answer releases the waiting agent — the loop resumes on answer (FR-M25-02). False only when the question sequence does not match a recorded question." }
+      },
+      "additionalProperties": false
+    },
+    "SteerEscalateParams": {
+      "type": "object",
+      "required": ["sessionId", "actionClass", "confidence", "threshold"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "actionClass": { "type": "string", "description": "The action class whose per-class threshold was breached (FR-M25-03)." },
+        "confidence": { "type": "number", "description": "The confidence the agent stated for the action." },
+        "threshold": { "type": "number", "description": "The per-class threshold in force." },
+        "toolCallId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "SteerEscalateResult": {
+      "type": "object",
+      "required": ["accepted", "sequence", "escalated"],
+      "properties": {
+        "accepted": { "type": "boolean" },
+        "sequence": { "type": "integer", "description": "Ledger sequence of the escalation entry." },
+        "escalated": { "type": "boolean", "description": "Always true here — the entry exists, so the escalation was raised." }
+      },
+      "additionalProperties": false
+    },
+    "SteerAcceptHunk": {
+      "type": "object",
+      "required": ["index"],
+      "properties": {
+        "index": { "type": "integer", "description": "Hunk ordinal within the file's proposed diff, 0-based." },
+        "digest": { "type": "string", "description": "Optional content digest binding the decision to the exact hunk bytes." }
+      },
+      "additionalProperties": false
+    },
+    "SteerAcceptFile": {
+      "type": "object",
+      "required": ["file", "hunks"],
+      "properties": {
+        "file": { "type": "string", "description": "Workspace-relative path." },
+        "hunks": { "type": "array", "items": { "$ref": "#/$defs/SteerAcceptHunk" } }
+      },
+      "additionalProperties": false
+    },
+    "SteerAcceptParams": {
+      "type": "object",
+      "required": ["sessionId", "accepted", "rejected"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "accepted": { "type": "array", "items": { "$ref": "#/$defs/SteerAcceptFile" }, "description": "Files/hunks accepted in this action." },
+        "rejected": { "type": "array", "items": { "$ref": "#/$defs/SteerAcceptFile" }, "description": "Files/hunks sent back for rework in the same action (FR-M25-04: one action, both halves)." }
+      },
+      "additionalProperties": false
+    },
+    "SteerAcceptResult": {
+      "type": "object",
+      "required": ["accepted", "sequence"],
+      "properties": {
+        "accepted": { "type": "boolean" },
+        "sequence": { "type": "integer", "description": "Ledger sequence of the partial_acceptance entry." }
+      },
+      "additionalProperties": false
+    },
+    "SteerAcceptanceStatusHunk": {
+      "type": "object",
+      "required": ["index", "state"],
+      "properties": {
+        "index": { "type": "integer" },
+        "state": { "enum": ["accepted", "rejected"] }
+      },
+      "additionalProperties": false
+    },
+    "SteerAcceptanceStatusFile": {
+      "type": "object",
+      "required": ["file", "hunks", "decidedBy", "sequence"],
+      "properties": {
+        "file": { "type": "string" },
+        "hunks": { "type": "array", "items": { "$ref": "#/$defs/SteerAcceptanceStatusHunk" } },
+        "decidedBy": { "type": "string", "description": "The resolved human identity (FR-M20-01) who recorded this state." },
+        "sequence": { "type": "integer", "description": "Ledger sequence of the partial_acceptance entry this state came from." }
+      },
+      "additionalProperties": false
+    },
+    "SteerAcceptanceStatusParams": {
+      "type": "object",
+      "required": ["sessionId"],
+      "properties": {
+        "sessionId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "SteerAcceptanceStatusResult": {
+      "type": "object",
+      "required": ["sessionId", "hosted", "files"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "hosted": { "type": "boolean", "description": "False when no hosted session_begin exists — Meridian observes this session and acceptance state is empty." },
+        "files": { "type": "array", "items": { "$ref": "#/$defs/SteerAcceptanceStatusFile" } }
+      },
+      "additionalProperties": false
+    },
+    "SteerStatusParams": {
+      "type": "object",
+      "required": ["sessionId"],
+      "properties": {
+        "sessionId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "SteerStatusResult": {
+      "type": "object",
+      "required": ["sessionId", "hosted"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "hosted": { "type": "boolean", "description": "True when Meridian launched and runs this session (a hosted session_begin is recorded). False = observe-only: steer/clarify/halt-session controls MUST NOT be rendered (F1 Workstream D task 18)." },
+        "mode": { "enum": ["normal", "dry-run"], "description": "The recorded session mode (FR-M25-06); absent when unknown or ended." },
+        "beganAt": { "type": "string", "description": "Timestamp of the session_begin entry." },
+        "endedAt": { "type": "string", "description": "Timestamp of the session_end entry, when the session has ended." },
+        "beginSequence": { "type": "integer" },
+        "endSequence": { "type": "integer" },
+        "adapterId": { "type": "string", "description": "The adapter (governance manifest id) the hosted session runs under, from the session_begin entry." }
+      },
+      "additionalProperties": false
+    },
+    "SteerPlanParams": {
+      "type": "object",
+      "required": ["sessionId", "entries"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "entries": { "type": "array", "items": { "type": "object" }, "description": "The packet-graph plan entries the dry run produced (ACP plan-entry shape: content/status/priority)." },
+        "costEstimate": { "type": "object", "description": "The dry run's cost estimate, agent-shaped key/value pairs; recorded verbatim." }
+      },
+      "additionalProperties": false
+    },
+    "SteerPlanResult": {
+      "type": "object",
+      "required": ["accepted", "sequence"],
+      "properties": {
+        "accepted": { "type": "boolean" },
+        "sequence": { "type": "integer", "description": "Ledger sequence of the plan_output entry." }
       },
       "additionalProperties": false
     },
@@ -1910,6 +2143,7 @@
         "sessionId": { "type": "string", "description": "The ACP session id the agent issued." },
         "cwd": { "type": "string", "description": "Workspace directory the session runs against." },
         "startedAt": { "type": "string", "description": "ISO 8601 UTC; absent = now." },
+        "mode": { "enum": ["normal", "dry-run"], "description": "FR-M25-06: dry-run sessions plan and cost but write nothing — the policy gate denies mutation kinds with the dry_run citation. Absent = normal." },
         "policyVersion": { "type": "string", "description": "Version/tag of the Meridian policy the host checked the session under (the acp-permissions policy file); absent = sidecar default." }
       },
       "additionalProperties": false

@@ -57,8 +57,8 @@
       {
         "id": "governor.steer",
         "tier": "governor",
-        "description": "Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.",
-        "rpcMethods": ["steer.send"]
+        "description": "Steer and clarify over hosted ACP sessions (FR-M25-01/02/03/04/06; F1 Workstream D task 17): steer.send ledger-records a human's guidance (who/what/when, FR-M10-08) before the host injects it into the running session over the real wire (a second session/prompt); steer.question/steer.answer are the clarifying-question protocol — the question is durable before the human sees it, the recorded answer resumes the loop; steer.escalate records uncertainty-triggered escalations below a per-class confidence threshold; steer.accept + steer.acceptanceStatus are partial acceptance of a session's output per file/hunk, ledger-recorded and queryable; steer.plan records dry-run planner output (dry-run denies mutation kinds at the policy gate, FR-M25-06); steer.status (task 18) is the honest capability payload carrying hosted: boolean so an observe-only session can never be offered a dead control. Observed-not-hosted sessions get the structured NOT_HOSTED refusal, never a silent failure.",
+        "rpcMethods": ["steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan"]
       },
       {
         "id": "governor.trust",

@@ -163,7 +163,22 @@ class SidecarServer:
             # agent-vs-agent conflicts surfaced as the distinct rework
             # class agent-conflict and ledger-recorded (FR-M10-08).
             "pr/conflicts": SidecarServer._handle_pr_conflicts,
-            "steer.send": lambda self, params: self._not_implemented("steer.send", "F1 (Governor)"),
+            # FR-M25-01/02/03/04/06 (F1 Workstream D task 17): steer &
+            # clarify over hosted ACP sessions — the durable half of the
+            # M25 steering surface. The extension host owns the wire; the
+            # sidecar owns the record, and every entry lands BEFORE the
+            # RPC returns (FR-M10-08).
+            "steer.send": SidecarServer._handle_steer_send,
+            "steer/question": SidecarServer._handle_steer_question,
+            "steer/answer": SidecarServer._handle_steer_answer,
+            "steer/escalate": SidecarServer._handle_steer_escalate,
+            "steer/accept": SidecarServer._handle_steer_accept,
+            "steer/acceptanceStatus": SidecarServer._handle_steer_acceptance_status,
+            # F1 Workstream D task 18: the honest capability payload —
+            # hosted: false for observed sessions so a dead control is
+            # impossible by construction.
+            "steer/status": SidecarServer._handle_steer_status,
+            "steer/plan": SidecarServer._handle_steer_plan,
             "trust.summary": lambda self, params: self._not_implemented("trust.summary", "F1 (Governor)"),
             # FR-M34-01/02/04 (F1 Workstream A task 4): hosted-session ledger
             # recording — the extension-host ACP client reports session facts
@@ -2558,7 +2573,13 @@ class SidecarServer:
     ) -> bus_types.AcpSessionRecordResult:
         # The session exists in the ledger BEFORE the agent's first turn:
         # hosted work is governed work from sequence one.
-        detail = {"cwd": params["cwd"], "agentVersion": params.get("agentVersion")}
+        detail = {
+            "cwd": params["cwd"],
+            "agentVersion": params.get("agentVersion"),
+            # FR-M25-06: dry-run sessions plan and cost but write nothing;
+            # the mode is part of the durable session fact.
+            "mode": params.get("mode") or "normal",
+        }
         self._append_acp_entry(
             {
                 "ts_utc": params.get("startedAt") or ledger_core.utc_now(),
@@ -2658,6 +2679,381 @@ class SidecarServer:
             entry["rework_reason"] = params["reason"]
         self._append_acp_entry(entry, detail)
         return {"recorded": True}
+
+    # -- steer & clarify over hosted sessions (FR-M25-01..04/06; F1 D t17) ----
+
+    #: The steering records are governed-work records of their own, not
+    #: acp-permissions policy decisions.
+    STEER_POLICY_VERSION = "governor-steer/v1"
+
+    def _steer_hosted_begin(self, session_id: str) -> dict[str, Any] | None:
+        """The newest session_begin row for a session the extension host
+        reported as hosted. None when Meridian never hosted it — an
+        observed (or unknown) session. Only the host reports session_begin,
+        so the row's existence IS the hosted fact (F1 Workstream D task 18).
+        """
+        ledger = self._ensure_ledger()
+        begins = ledger.query(action_type="session_begin", limit=10_000)
+        for row in reversed(begins):
+            if row.get("external_session_id") == session_id:
+                return row
+        return None
+
+    def _steer_require_hosted(self, session_id: str, method: str) -> dict[str, Any]:
+        """Fail-closed hosted check: every mutating steer RPC refuses an
+        observed session with the structured NOT_HOSTED error — an honest
+        refusal naming the situation, never a silent no-op."""
+        row = self._steer_hosted_begin(session_id)
+        if row is not None:
+            return row
+        raise _RpcError(
+            protocol.ERROR_NOT_HOSTED,
+            f"session '{session_id}' is observed, not hosted — Meridian did "
+            f"not launch this agent and cannot steer, clarify, or halt its "
+            f"session. Observation and merge gating continue; steer/accept "
+            f"apply only to sessions Meridian hosts.",
+            {
+                "method": method,
+                "sessionId": session_id,
+                "hosted": False,
+                "observedOnly": True,
+                "remediation": (
+                    "Steering requires a hosted ACP session (one Meridian "
+                    "launched). For an observed agent, use gate.halt with "
+                    "scope observe-only to block its merge path."
+                ),
+            },
+        )
+
+    def _append_steer_entry(
+        self,
+        *,
+        session_id: str,
+        action_type: str,
+        detail: dict[str, Any],
+        actor_id: str | None = None,
+        human_actor: str | None = None,
+        decision: str | None = None,
+    ) -> int:
+        """FR-M10-08: the steering act is durable BEFORE the RPC returns.
+        The encrypted input blob carries the full wire detail; who steered
+        (FR-M20-01) rides the human_actor column, never a free-text param.
+        """
+        ledger = self._ensure_ledger()
+        entry: dict[str, Any] = {
+            "ts_utc": ledger_core.utc_now(),
+            "story_id": f"acp:{session_id}",
+            "phase": "build",
+            "loop_id": "acp-host",
+            "loop_iteration": 1,
+            "actor_id": actor_id or "acp-host",
+            "actor_version": "0.0.0",
+            "actor_kind": "external" if actor_id else "meta",
+            "policy_version": self.STEER_POLICY_VERSION,
+            "action_type": action_type,
+            "vendor": "acp",
+            "observation_confidence": "direct",
+            "external_session_id": session_id,
+            "input": json.dumps(detail, ensure_ascii=False),
+        }
+        if human_actor:
+            entry["human_actor"] = human_actor
+        if decision:
+            entry["decision"] = decision
+        result = ledger.append(entry)
+        self._trust_cache.invalidate()
+        return result.sequence
+
+    @staticmethod
+    def _steer_session_id(params: dict[str, Any], method: str) -> str:
+        session_id = params.get("sessionId")
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise _RpcError(
+                protocol.INVALID_PARAMS, f"{method} needs a sessionId"
+            )
+        return session_id
+
+    def _handle_steer_send(
+        self, params: bus_types.SteerSendParams
+    ) -> bus_types.SteerSendResult:
+        # FR-M25-01: the steering act is recorded (who steered — the
+        # resolved human identity — what, when) BEFORE the host injects
+        # the guidance into the running session over the wire.
+        session_id = self._steer_session_id(params or {}, "steer.send")
+        message = params.get("message")
+        if not isinstance(message, str) or not message.strip():
+            raise _RpcError(protocol.INVALID_PARAMS, "steer.send needs a message")
+        begin = self._steer_require_hosted(session_id, "steer.send")
+        who = self._human_identity()
+        sequence = self._append_steer_entry(
+            session_id=session_id,
+            action_type="steer",
+            detail={"message": message},
+            actor_id=str(begin["actor_id"]),
+            human_actor=who.display(),
+        )
+        return {"accepted": True, "sequence": sequence}
+
+    def _handle_steer_question(
+        self, params: bus_types.SteerQuestionParams
+    ) -> bus_types.SteerQuestionResult:
+        # FR-M25-02: the question is durable BEFORE the human sees it, so
+        # the answer can always be bound to the question it answers.
+        session_id = self._steer_session_id(params or {}, "steer/question")
+        question = params.get("question")
+        if not isinstance(question, str) or not question.strip():
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "steer/question needs a question"
+            )
+        begin = self._steer_require_hosted(session_id, "steer/question")
+        detail: dict[str, Any] = {"question": question}
+        options = params.get("options")
+        if isinstance(options, list):
+            detail["options"] = options
+        if params.get("toolCallId"):
+            detail["toolCallId"] = params["toolCallId"]
+        sequence = self._append_steer_entry(
+            session_id=session_id,
+            action_type="clarifying_question",
+            detail=detail,
+            actor_id=str(begin["actor_id"]),
+        )
+        return {"accepted": True, "sequence": sequence}
+
+    def _handle_steer_answer(
+        self, params: bus_types.SteerAnswerParams
+    ) -> bus_types.SteerAnswerResult:
+        # FR-M25-02: the recorded answer is what resumes the loop; a
+        # dismissal is recorded honestly as cancelled, never dropped.
+        session_id = self._steer_session_id(params or {}, "steer/answer")
+        question_sequence = params.get("questionSequence")
+        if not isinstance(question_sequence, int):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "steer/answer needs the questionSequence it answers",
+            )
+        self._steer_require_hosted(session_id, "steer/answer")
+        ledger = self._ensure_ledger()
+        question_row = ledger.get_entry(question_sequence)
+        if (
+            question_row is None
+            or question_row.get("action_type") != "clarifying_question"
+            or question_row.get("external_session_id") != session_id
+        ):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"no recorded clarifying question at sequence {question_sequence} "
+                f"for session '{session_id}' — answers bind to a durable question",
+            )
+        who = self._human_identity()
+        detail: dict[str, Any] = {
+            "questionSequence": question_sequence,
+            "cancelled": bool(params.get("cancelled")),
+        }
+        if params.get("selectedOptionId"):
+            detail["selectedOptionId"] = params["selectedOptionId"]
+        if params.get("text"):
+            detail["text"] = params["text"]
+        sequence = self._append_steer_entry(
+            session_id=session_id,
+            action_type="clarifying_answer",
+            detail=detail,
+            human_actor=who.display(),
+            decision="cancelled" if params.get("cancelled") else "answered",
+        )
+        return {"accepted": True, "sequence": sequence, "resumed": True}
+
+    def _handle_steer_escalate(
+        self, params: bus_types.SteerEscalateParams
+    ) -> bus_types.SteerEscalateResult:
+        # FR-M25-03: stated confidence below the per-class threshold — the
+        # escalation is a durable event surfaced to the human; the policy
+        # gate asks rather than acting until a human decides.
+        session_id = self._steer_session_id(params or {}, "steer/escalate")
+        action_class = params.get("actionClass")
+        confidence = params.get("confidence")
+        threshold = params.get("threshold")
+        if (
+            not isinstance(action_class, str)
+            or not action_class.strip()
+            or not isinstance(confidence, (int, float))
+            or not isinstance(threshold, (int, float))
+        ):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "steer/escalate needs actionClass, confidence and threshold",
+            )
+        begin = self._steer_require_hosted(session_id, "steer/escalate")
+        detail: dict[str, Any] = {
+            "actionClass": action_class,
+            "confidence": confidence,
+            "threshold": threshold,
+        }
+        if params.get("toolCallId"):
+            detail["toolCallId"] = params["toolCallId"]
+        sequence = self._append_steer_entry(
+            session_id=session_id,
+            action_type="escalation",
+            detail=detail,
+            actor_id=str(begin["actor_id"]),
+        )
+        return {"accepted": True, "sequence": sequence, "escalated": True}
+
+    def _handle_steer_accept(
+        self, params: bus_types.SteerAcceptParams
+    ) -> bus_types.SteerAcceptResult:
+        # FR-M25-04: one action carries both halves — accepted and
+        # reworked — per file and hunk, recorded before the response.
+        session_id = self._steer_session_id(params or {}, "steer/accept")
+        accepted = params.get("accepted")
+        rejected = params.get("rejected")
+        if not isinstance(accepted, list) or not isinstance(rejected, list):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "steer/accept needs accepted and rejected file lists",
+            )
+        self._steer_require_hosted(session_id, "steer/accept")
+        who = self._human_identity()
+        sequence = self._append_steer_entry(
+            session_id=session_id,
+            action_type="partial_acceptance",
+            detail={"accepted": accepted, "rejected": rejected},
+            human_actor=who.display(),
+        )
+        return {"accepted": True, "sequence": sequence}
+
+    def _steer_acceptance_entries(
+        self, session_id: str
+    ) -> list[dict[str, Any]]:
+        """The decrypted partial_acceptance details, ascending — the
+        fold order for the latest-state answer."""
+        ledger = self._ensure_ledger()
+        rows = ledger.query(
+            story_id=f"acp:{session_id}",
+            action_type="partial_acceptance",
+            limit=1000,
+        )
+        entries: list[dict[str, Any]] = []
+        for row in rows:
+            detail_row = ledger.get_entry(row["seq"])
+            if detail_row is None:
+                continue
+            detail = ledger_wire.row_to_detail(detail_row, ledger.read_blob)
+            if not detail.get("inputAvailable") or not detail.get("input"):
+                continue
+            try:
+                entries.append(json.loads(detail["input"]))
+            except (TypeError, ValueError):
+                continue  # never a crash on a foreign blob
+        return entries
+
+    def _handle_steer_acceptance_status(
+        self, params: bus_types.SteerAcceptanceStatusParams
+    ) -> bus_types.SteerAcceptanceStatusResult:
+        session_id = self._steer_session_id(params or {}, "steer/acceptanceStatus")
+        begin = self._steer_hosted_begin(session_id)
+        if begin is None:
+            # Observed (or unknown) session: nothing accepted, nothing
+            # rejectable — the honest empty answer (task 18).
+            return {"sessionId": session_id, "hosted": False, "files": []}
+        # Fold every recorded acceptance in order; the newest record for a
+        # file wins, the ledger keeps the full history.
+        latest: dict[str, dict[str, Any]] = {}
+        rows = self._ensure_ledger().query(
+            story_id=f"acp:{session_id}", action_type="partial_acceptance", limit=1000
+        )
+        for index, entry in enumerate(self._steer_acceptance_entries(session_id)):
+            row = rows[index] if index < len(rows) else {}
+            decided_by = row.get("human_actor") or "unknown"
+            sequence = row.get("seq", 0)
+            # FR-M25-04: one action accepts some hunks and reworks others,
+            # so both halves of THIS entry merge per file before folding
+            # over any earlier record.
+            per_file: dict[str, list[dict[str, Any]]] = {}
+            for side, state in (("accepted", "accepted"), ("rejected", "rejected")):
+                for file_entry in entry.get(side) or []:
+                    if not isinstance(file_entry, dict):
+                        continue
+                    name = file_entry.get("file")
+                    if not isinstance(name, str):
+                        continue
+                    per_file.setdefault(name, []).extend(
+                        {"index": int(h["index"]), "state": state}
+                        for h in file_entry.get("hunks") or []
+                        if isinstance(h, dict) and isinstance(h.get("index"), int)
+                    )
+            for name, hunks in per_file.items():
+                latest[name] = {
+                    "file": name,
+                    "hunks": hunks,
+                    "decidedBy": str(decided_by),
+                    "sequence": int(sequence),
+                }
+        return {
+            "sessionId": session_id,
+            "hosted": True,
+            "files": [latest[name] for name in sorted(latest)],
+        }
+
+    def _handle_steer_status(
+        self, params: bus_types.SteerStatusParams
+    ) -> bus_types.SteerStatusResult:
+        # Task 18: the capability payload every session control renders
+        # from. hosted comes from the hosted session_begin record — an
+        # observe-only session answers hosted: false and carries no mode,
+        # so the UI cannot construct a dead steer control for it.
+        session_id = self._steer_session_id(params or {}, "steer/status")
+        begin = self._steer_hosted_begin(session_id)
+        if begin is None:
+            return {"sessionId": session_id, "hosted": False}
+        status: dict[str, Any] = {
+            "sessionId": session_id,
+            "hosted": True,
+            "beginSequence": begin["seq"],
+            "beganAt": begin["ts_utc"],
+            "adapterId": str(begin["actor_id"]),
+        }
+        detail_row = self._ensure_ledger().get_entry(begin["seq"])
+        ledger = self._ensure_ledger()
+        if detail_row is not None:
+            detail = ledger_wire.row_to_detail(detail_row, ledger.read_blob)
+            if detail.get("inputAvailable") and detail.get("input"):
+                try:
+                    mode = json.loads(detail["input"]).get("mode", "normal")
+                except (TypeError, ValueError):
+                    mode = "normal"
+                status["mode"] = mode if mode in ("normal", "dry-run") else "normal"
+        ends = ledger.query(action_type="session_end", limit=10_000)
+        for row in reversed(ends):
+            if row.get("external_session_id") == session_id:
+                status["endedAt"] = row["ts_utc"]
+                status["endSequence"] = row["seq"]
+                break
+        return status
+
+    def _handle_steer_plan(
+        self, params: bus_types.SteerPlanParams
+    ) -> bus_types.SteerPlanResult:
+        # FR-M25-06: the dry run's planner output is durable before the
+        # RPC returns — a dry run produces a provable packet graph and
+        # cost estimate, and nothing else.
+        session_id = self._steer_session_id(params or {}, "steer/plan")
+        entries = params.get("entries")
+        if not isinstance(entries, list):
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "steer/plan needs the plan entries"
+            )
+        begin = self._steer_require_hosted(session_id, "steer/plan")
+        detail: dict[str, Any] = {"entries": entries}
+        if isinstance(params.get("costEstimate"), dict):
+            detail["costEstimate"] = params["costEstimate"]
+        sequence = self._append_steer_entry(
+            session_id=session_id,
+            action_type="plan_output",
+            detail=detail,
+            actor_id=str(begin["actor_id"]),
+        )
+        return {"accepted": True, "sequence": sequence}
 
     # -- worktree isolation (FR-M18-01..08; F1 Workstream A task 5) -----------
 

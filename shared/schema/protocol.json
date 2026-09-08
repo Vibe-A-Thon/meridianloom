@@ -12,7 +12,8 @@
     "NOT_IMPLEMENTED": -32001,
     "PROTOCOL_MISMATCH": -32002,
     "TIER_DISABLED": -32003,
-    "LEDGER_UNAVAILABLE": -32004
+    "LEDGER_UNAVAILABLE": -32004,
+    "NOT_HOSTED": -32005
   },
   "$defs": {
     "RequestId": {

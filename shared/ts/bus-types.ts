@@ -15,6 +15,7 @@ export const ErrorCode = {
   PROTOCOL_MISMATCH: -32002,
   TIER_DISABLED: -32003,
   LEDGER_UNAVAILABLE: -32004,
+  NOT_HOSTED: -32005,
 } as const;
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
 
@@ -972,7 +973,9 @@ export interface RolesDelegateResult {
 }
 
 export interface SteerSendParams {
+  /** The hosted ACP session being steered. Must have a recorded session_begin; otherwise the structured NOT_HOSTED refusal. */
   "sessionId": string;
+  /** The human's guidance, injected into the running session's next iteration context. */
   "message": string;
 }
 
@@ -1134,7 +1137,157 @@ export interface PrStatusResult {
 }
 
 export interface SteerSendResult {
+  /** True when the steering act is durable in the ledger. The wire injection itself is the extension host's follow-up on the running ACP session. */
   "accepted": boolean;
+  /** Ledger sequence of the steer entry (FR-M10-08: durable before this response). */
+  "sequence": number;
+}
+
+export interface SteerQuestionOption {
+  "optionId": string;
+  "name": string;
+  /** The agent's own recommendation (FR-M25-02), true on exactly one option when the agent stated one. */
+  "recommended"?: boolean;
+}
+
+export interface SteerQuestionParams {
+  "sessionId": string;
+  "question": string;
+  /** Proposed options, per FR-M25-02; may be empty for an open question. */
+  "options"?: SteerQuestionOption[];
+  /** The ACP tool call the question arrived on, when it is a tool-permission-style ask. */
+  "toolCallId"?: string;
+}
+
+export interface SteerQuestionResult {
+  "accepted": boolean;
+  /** Ledger sequence of the clarifying_question entry. */
+  "sequence": number;
+}
+
+export interface SteerAnswerParams {
+  "sessionId": string;
+  /** The clarifying_question entry this answers. */
+  "questionSequence": number;
+  /** The chosen option, when one was chosen. */
+  "selectedOptionId"?: string;
+  /** Free-text answer for an open question. */
+  "text"?: string;
+  /** True when the human dismissed the question without answering; recorded honestly, never dropped. */
+  "cancelled"?: boolean;
+}
+
+export interface SteerAnswerResult {
+  "accepted": boolean;
+  /** Ledger sequence of the clarifying_answer entry. */
+  "sequence": number;
+  /** True when the recorded answer releases the waiting agent — the loop resumes on answer (FR-M25-02). False only when the question sequence does not match a recorded question. */
+  "resumed": boolean;
+}
+
+export interface SteerEscalateParams {
+  "sessionId": string;
+  /** The action class whose per-class threshold was breached (FR-M25-03). */
+  "actionClass": string;
+  /** The confidence the agent stated for the action. */
+  "confidence": number;
+  /** The per-class threshold in force. */
+  "threshold": number;
+  "toolCallId"?: string;
+}
+
+export interface SteerEscalateResult {
+  "accepted": boolean;
+  /** Ledger sequence of the escalation entry. */
+  "sequence": number;
+  /** Always true here — the entry exists, so the escalation was raised. */
+  "escalated": boolean;
+}
+
+export interface SteerAcceptHunk {
+  /** Hunk ordinal within the file's proposed diff, 0-based. */
+  "index": number;
+  /** Optional content digest binding the decision to the exact hunk bytes. */
+  "digest"?: string;
+}
+
+export interface SteerAcceptFile {
+  /** Workspace-relative path. */
+  "file": string;
+  "hunks": SteerAcceptHunk[];
+}
+
+export interface SteerAcceptParams {
+  "sessionId": string;
+  /** Files/hunks accepted in this action. */
+  "accepted": SteerAcceptFile[];
+  /** Files/hunks sent back for rework in the same action (FR-M25-04: one action, both halves). */
+  "rejected": SteerAcceptFile[];
+}
+
+export interface SteerAcceptResult {
+  "accepted": boolean;
+  /** Ledger sequence of the partial_acceptance entry. */
+  "sequence": number;
+}
+
+export interface SteerAcceptanceStatusHunk {
+  "index": number;
+  "state": "accepted" | "rejected";
+}
+
+export interface SteerAcceptanceStatusFile {
+  "file": string;
+  "hunks": SteerAcceptanceStatusHunk[];
+  /** The resolved human identity (FR-M20-01) who recorded this state. */
+  "decidedBy": string;
+  /** Ledger sequence of the partial_acceptance entry this state came from. */
+  "sequence": number;
+}
+
+export interface SteerAcceptanceStatusParams {
+  "sessionId": string;
+}
+
+export interface SteerAcceptanceStatusResult {
+  "sessionId": string;
+  /** False when no hosted session_begin exists — Meridian observes this session and acceptance state is empty. */
+  "hosted": boolean;
+  "files": SteerAcceptanceStatusFile[];
+}
+
+export interface SteerStatusParams {
+  "sessionId": string;
+}
+
+export interface SteerStatusResult {
+  "sessionId": string;
+  /** True when Meridian launched and runs this session (a hosted session_begin is recorded). False = observe-only: steer/clarify/halt-session controls MUST NOT be rendered (F1 Workstream D task 18). */
+  "hosted": boolean;
+  /** The recorded session mode (FR-M25-06); absent when unknown or ended. */
+  "mode"?: "normal" | "dry-run";
+  /** Timestamp of the session_begin entry. */
+  "beganAt"?: string;
+  /** Timestamp of the session_end entry, when the session has ended. */
+  "endedAt"?: string;
+  "beginSequence"?: number;
+  "endSequence"?: number;
+  /** The adapter (governance manifest id) the hosted session runs under, from the session_begin entry. */
+  "adapterId"?: string;
+}
+
+export interface SteerPlanParams {
+  "sessionId": string;
+  /** The packet-graph plan entries the dry run produced (ACP plan-entry shape: content/status/priority). */
+  "entries": Record<string, unknown>[];
+  /** The dry run's cost estimate, agent-shaped key/value pairs; recorded verbatim. */
+  "costEstimate"?: Record<string, unknown>;
+}
+
+export interface SteerPlanResult {
+  "accepted": boolean;
+  /** Ledger sequence of the plan_output entry. */
+  "sequence": number;
 }
 
 export interface TrustSummaryParams {
@@ -1332,6 +1485,8 @@ export interface AcpSessionBeginParams {
   "cwd": string;
   /** ISO 8601 UTC; absent = now. */
   "startedAt"?: string;
+  /** FR-M25-06: dry-run sessions plan and cost but write nothing — the policy gate denies mutation kinds with the dry_run citation. Absent = normal. */
+  "mode"?: "normal" | "dry-run";
   /** Version/tag of the Meridian policy the host checked the session under (the acp-permissions policy file); absent = sidecar default. */
   "policyVersion"?: string;
 }
@@ -1498,7 +1653,7 @@ export interface McpInvokeResult {
 }
 
 /** Every request/response method on the bus. */
-export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "observe/sessions" | "observe/health" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "hook/install" | "hook/status" | "hook/remove" | "hook/pending" | "trailers/parse" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "gate.profiles" | "gate.approve" | "gate.status" | "gate.halt" | "pr/ingest" | "pr/status" | "pr/conflicts" | "steer.send" | "trust.summary" | "trust/detectRejections" | "trust/classify" | "trust/rejectionRate" | "acp/sessionBegin" | "acp/sessionEnd" | "acp/permissionDecision" | "worktree/create" | "worktree/list" | "worktree/remove" | "worktree/abortStory" | "worktree/conflicts" | "mcp/invoke" | "roles/list" | "roles/check" | "roles/delegate";
+export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "observe/sessions" | "observe/health" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "hook/install" | "hook/status" | "hook/remove" | "hook/pending" | "trailers/parse" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "gate.profiles" | "gate.approve" | "gate.status" | "gate.halt" | "pr/ingest" | "pr/status" | "pr/conflicts" | "steer.send" | "steer/question" | "steer/answer" | "steer/escalate" | "steer/accept" | "steer/acceptanceStatus" | "steer/status" | "steer/plan" | "trust.summary" | "trust/detectRejections" | "trust/classify" | "trust/rejectionRate" | "acp/sessionBegin" | "acp/sessionEnd" | "acp/permissionDecision" | "worktree/create" | "worktree/list" | "worktree/remove" | "worktree/abortStory" | "worktree/conflicts" | "mcp/invoke" | "roles/list" | "roles/check" | "roles/delegate";
 
 /** Every notification method on the bus. */
 export type NotificationName = "gate/halt" | "tiers/set" | "$/cancel";
@@ -1554,7 +1709,7 @@ export const TIERS = ["flight-recorder","governor","orchestra"] as const;
 export const DEFAULT_ENABLED_TIERS: readonly TierName[] = ["flight-recorder"];
 
 /** FR-M36-05: capability registry; every capability is owned by exactly one tier. */
-export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff","attrib/symbol","attrib/classify"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"recorder.observers","tier":"flight-recorder","description":"External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).","rpcMethods":["observe/sessions","observe/health"]},{"id":"recorder.provenance-hooks","tier":"flight-recorder","description":"Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).","rpcMethods":["hook/install","hook/status","hook/remove","hook/pending","trailers/parse"]},{"id":"recorder.trust-metrics","tier":"flight-recorder","description":"Rejection measurement, minimum (FR-M37-01 subset, FR-M37-06, FR-M17-05; F0 Workstream F tasks 28-30): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), and the ledger-derived, in-process-cached rejection rate per agent/repository split by that distinction (trust/rejectionRate). Zero model calls (FR-M36-07).","rpcMethods":["trust/detectRejections","trust/classify","trust/rejectionRate"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01/05/07/08/09; F1 Workstream B tasks 9-10): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack, with DoR/DoD as machine-checkable criteria; the merge gate refuses merges to protected branches without a recorded human approval bound to the head commit digest (approver identity in the ledger, FR-M12-07). Every decision is ledger-recorded before the RPC returns (FR-M10-08).","rpcMethods":["gate.evaluate","gate.profiles","gate.approve","gate.status","gate.halt"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarifying questions into running sessions (FR-M25-01/02; F1). Stub RPC until F1 lands it.","rpcMethods":["steer.send"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"governor.acp-host","tier":"governor","description":"ACP host (FR-M34-01/02/03/04, SEC-28; F1 Workstream A tasks 1–4): the extension-host client that launches ACP-conformant agent subprocesses — initialize handshake and protocol-version negotiation, session lifecycle (new/load), streaming session updates, permission-gated tool execution, and client-provided fs/terminal access rooted at the user's workspace. Implemented in extension/src/acp/ (governor tier; disabled => no hosted sessions, G5). The adapter surface (extension/src/adapters/) re-bases AgentAdapter on ACP: governance manifests (§7.9), three-tier discovery (FR-M31-02), hot plug/unplug (FR-M31-04), probation (FR-M31-07), and the ACP Registry install source (FR-M34-03). The sidecar RPCs record hosted-session facts into the ledger: acp/sessionBegin/acp/sessionEnd (session_begin/session_end entries) and acp/permissionDecision (permission_decision entries — the FR-M34-04/SEC-28 governance trail, written before and independently of the human answer).","rpcMethods":["acp/sessionBegin","acp/sessionEnd","acp/permissionDecision"]},{"id":"governor.mcp-server","tier":"governor","description":"MCP server exposure of Meridian's governed surfaces (FR-M34-06; F1 Workstream A task 6): a standalone stdio MCP server process (extension/src/mcp/) speaks the MCP protocol to any client (VS Code's native agent mode included) and forwards each tools/call as one mcp/invoke. The sidecar is the permission gate and the provenance trail: the governor tier gate refuses when disabled (G5), each call is ledger-recorded (action_type tool_call, vendor mcp) before it executes, and the tool maps onto the existing read-only ledger/trust handlers.","rpcMethods":["mcp/invoke"]},{"id":"governor.roles","tier":"governor","description":"Human roles and approval mechanics (FR-M20-02…08; F1 Workstream C task 16): the fail-closed role pack (policy/roles.yaml; Engineer, Reviewer, Approver, Governor, Auditor mapped to permitted gate actions) behind roles/list and roles/check, and approval-right delegation with expiry, ledger-recorded, chain-bounded and cycle-free (roles/delegate). The merge gate consumes the same pack: N-of-M thresholds per protected branch, separation of duties (the ingester cannot approve its own change), role filtering of recorded approvals, and FR-M20-06 approval-hygiene warnings (rubber-stamping signals) in the gate status payload — the F2 measurement hook.","rpcMethods":["roles/list","roles/check","roles/delegate"]},{"id":"governor.pr-gates","tier":"governor","description":"External PR gating (FR-M35-04, FR-M35-05; F1 Workstream B task 12): an external agent's PR — sourced in production from the M23 CI/SCM connectors — is ingested as a Meridian story (pr/ingest): ledger origin record, per-agent attributed hunks with FR-M35-02 observation confidence, and routing through the Verify/Security/Review gate profiles. pr/status returns the recorded gate evaluations plus the merge-gate verdict — merge of a PR targeting a protected branch is permitted only with a recorded human approval bound to the head commit (FR-M12-05, AC-32). All records are written before the RPC returns (FR-M10-08).","rpcMethods":["pr/ingest","pr/status","pr/conflicts"]},{"id":"governor.worktrees","tier":"governor","description":"Worktree isolation for hosted agents (FR-M18-01..08, AC-13/AC-14; F1 Workstream A task 5): a dedicated git worktree per story under .meridian/worktrees/ on branch meridian/<story-id> — never the primary tree — with a worktree-local agent git identity and a commit-msg hook appending the Meridian-Hosted-Agent trailer. worktree/conflicts is the pre-flight conflict report the RunRequest flow (M40) consumes before a packet starts; worktree/abortStory removes worktree + never-pushed branch and leaves the primary tree byte-identical. Creation, removal and abort are ledger-recorded with worktree_ref set.","rpcMethods":["worktree/create","worktree/list","worktree/remove","worktree/abortStory","worktree/conflicts"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
+export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff","attrib/symbol","attrib/classify"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"recorder.observers","tier":"flight-recorder","description":"External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).","rpcMethods":["observe/sessions","observe/health"]},{"id":"recorder.provenance-hooks","tier":"flight-recorder","description":"Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).","rpcMethods":["hook/install","hook/status","hook/remove","hook/pending","trailers/parse"]},{"id":"recorder.trust-metrics","tier":"flight-recorder","description":"Rejection measurement, minimum (FR-M37-01 subset, FR-M37-06, FR-M17-05; F0 Workstream F tasks 28-30): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), and the ledger-derived, in-process-cached rejection rate per agent/repository split by that distinction (trust/rejectionRate). Zero model calls (FR-M36-07).","rpcMethods":["trust/detectRejections","trust/classify","trust/rejectionRate"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01/05/07/08/09; F1 Workstream B tasks 9-10): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack, with DoR/DoD as machine-checkable criteria; the merge gate refuses merges to protected branches without a recorded human approval bound to the head commit digest (approver identity in the ledger, FR-M12-07). Every decision is ledger-recorded before the RPC returns (FR-M10-08).","rpcMethods":["gate.evaluate","gate.profiles","gate.approve","gate.status","gate.halt"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarify over hosted ACP sessions (FR-M25-01/02/03/04/06; F1 Workstream D task 17): steer.send ledger-records a human's guidance (who/what/when, FR-M10-08) before the host injects it into the running session over the real wire (a second session/prompt); steer.question/steer.answer are the clarifying-question protocol — the question is durable before the human sees it, the recorded answer resumes the loop; steer.escalate records uncertainty-triggered escalations below a per-class confidence threshold; steer.accept + steer.acceptanceStatus are partial acceptance of a session's output per file/hunk, ledger-recorded and queryable; steer.plan records dry-run planner output (dry-run denies mutation kinds at the policy gate, FR-M25-06); steer.status (task 18) is the honest capability payload carrying hosted: boolean so an observe-only session can never be offered a dead control. Observed-not-hosted sessions get the structured NOT_HOSTED refusal, never a silent failure.","rpcMethods":["steer.send","steer/question","steer/answer","steer/escalate","steer/accept","steer/acceptanceStatus","steer/status","steer/plan"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"governor.acp-host","tier":"governor","description":"ACP host (FR-M34-01/02/03/04, SEC-28; F1 Workstream A tasks 1–4): the extension-host client that launches ACP-conformant agent subprocesses — initialize handshake and protocol-version negotiation, session lifecycle (new/load), streaming session updates, permission-gated tool execution, and client-provided fs/terminal access rooted at the user's workspace. Implemented in extension/src/acp/ (governor tier; disabled => no hosted sessions, G5). The adapter surface (extension/src/adapters/) re-bases AgentAdapter on ACP: governance manifests (§7.9), three-tier discovery (FR-M31-02), hot plug/unplug (FR-M31-04), probation (FR-M31-07), and the ACP Registry install source (FR-M34-03). The sidecar RPCs record hosted-session facts into the ledger: acp/sessionBegin/acp/sessionEnd (session_begin/session_end entries) and acp/permissionDecision (permission_decision entries — the FR-M34-04/SEC-28 governance trail, written before and independently of the human answer).","rpcMethods":["acp/sessionBegin","acp/sessionEnd","acp/permissionDecision"]},{"id":"governor.mcp-server","tier":"governor","description":"MCP server exposure of Meridian's governed surfaces (FR-M34-06; F1 Workstream A task 6): a standalone stdio MCP server process (extension/src/mcp/) speaks the MCP protocol to any client (VS Code's native agent mode included) and forwards each tools/call as one mcp/invoke. The sidecar is the permission gate and the provenance trail: the governor tier gate refuses when disabled (G5), each call is ledger-recorded (action_type tool_call, vendor mcp) before it executes, and the tool maps onto the existing read-only ledger/trust handlers.","rpcMethods":["mcp/invoke"]},{"id":"governor.roles","tier":"governor","description":"Human roles and approval mechanics (FR-M20-02…08; F1 Workstream C task 16): the fail-closed role pack (policy/roles.yaml; Engineer, Reviewer, Approver, Governor, Auditor mapped to permitted gate actions) behind roles/list and roles/check, and approval-right delegation with expiry, ledger-recorded, chain-bounded and cycle-free (roles/delegate). The merge gate consumes the same pack: N-of-M thresholds per protected branch, separation of duties (the ingester cannot approve its own change), role filtering of recorded approvals, and FR-M20-06 approval-hygiene warnings (rubber-stamping signals) in the gate status payload — the F2 measurement hook.","rpcMethods":["roles/list","roles/check","roles/delegate"]},{"id":"governor.pr-gates","tier":"governor","description":"External PR gating (FR-M35-04, FR-M35-05; F1 Workstream B task 12): an external agent's PR — sourced in production from the M23 CI/SCM connectors — is ingested as a Meridian story (pr/ingest): ledger origin record, per-agent attributed hunks with FR-M35-02 observation confidence, and routing through the Verify/Security/Review gate profiles. pr/status returns the recorded gate evaluations plus the merge-gate verdict — merge of a PR targeting a protected branch is permitted only with a recorded human approval bound to the head commit (FR-M12-05, AC-32). All records are written before the RPC returns (FR-M10-08).","rpcMethods":["pr/ingest","pr/status","pr/conflicts"]},{"id":"governor.worktrees","tier":"governor","description":"Worktree isolation for hosted agents (FR-M18-01..08, AC-13/AC-14; F1 Workstream A task 5): a dedicated git worktree per story under .meridian/worktrees/ on branch meridian/<story-id> — never the primary tree — with a worktree-local agent git identity and a commit-msg hook appending the Meridian-Hosted-Agent trailer. worktree/conflicts is the pre-flight conflict report the RunRequest flow (M40) consumes before a packet starts; worktree/abortStory removes worktree + never-pushed branch and leaves the primary tree byte-identical. Creation, removal and abort are ledger-recorded with worktree_ref set.","rpcMethods":["worktree/create","worktree/list","worktree/remove","worktree/abortStory","worktree/conflicts"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
 
 /** Params/result pairing for every request method. */
 export interface MethodMap {
@@ -1592,6 +1747,13 @@ export interface MethodMap {
   "pr/status": { params: PrStatusParams; result: PrStatusResult };
   "pr/conflicts": { params: PrConflictsParams; result: PrConflictsResult };
   "steer.send": { params: SteerSendParams; result: SteerSendResult };
+  "steer/question": { params: SteerQuestionParams; result: SteerQuestionResult };
+  "steer/answer": { params: SteerAnswerParams; result: SteerAnswerResult };
+  "steer/escalate": { params: SteerEscalateParams; result: SteerEscalateResult };
+  "steer/accept": { params: SteerAcceptParams; result: SteerAcceptResult };
+  "steer/acceptanceStatus": { params: SteerAcceptanceStatusParams; result: SteerAcceptanceStatusResult };
+  "steer/status": { params: SteerStatusParams; result: SteerStatusResult };
+  "steer/plan": { params: SteerPlanParams; result: SteerPlanResult };
   "trust.summary": { params: TrustSummaryParams; result: TrustSummaryResult };
   "trust/detectRejections": { params: TrustDetectRejectionsParams; result: TrustDetectRejectionsResult };
   "trust/classify": { params: TrustClassifyParams; result: TrustClassifyResult };
@@ -1612,7 +1774,7 @@ export interface MethodMap {
 export type RequestMethod = keyof MethodMap;
 
 /** Runtime list of every request method (for tier/ownership checks). */
-export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","observe/sessions","observe/health","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","hook/install","hook/status","hook/remove","hook/pending","trailers/parse","loop.start","loop.stop","loop.status","gate.evaluate","gate.profiles","gate.approve","gate.status","gate.halt","pr/ingest","pr/status","pr/conflicts","steer.send","trust.summary","trust/detectRejections","trust/classify","trust/rejectionRate","acp/sessionBegin","acp/sessionEnd","acp/permissionDecision","worktree/create","worktree/list","worktree/remove","worktree/abortStory","worktree/conflicts","mcp/invoke","roles/list","roles/check","roles/delegate"] as const;
+export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","observe/sessions","observe/health","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","hook/install","hook/status","hook/remove","hook/pending","trailers/parse","loop.start","loop.stop","loop.status","gate.evaluate","gate.profiles","gate.approve","gate.status","gate.halt","pr/ingest","pr/status","pr/conflicts","steer.send","steer/question","steer/answer","steer/escalate","steer/accept","steer/acceptanceStatus","steer/status","steer/plan","trust.summary","trust/detectRejections","trust/classify","trust/rejectionRate","acp/sessionBegin","acp/sessionEnd","acp/permissionDecision","worktree/create","worktree/list","worktree/remove","worktree/abortStory","worktree/conflicts","mcp/invoke","roles/list","roles/check","roles/delegate"] as const;
 
 /** Runtime list of every notification method. */
 export const NOTIFICATION_METHODS = ["gate/halt","tiers/set","$/cancel"] as const;
