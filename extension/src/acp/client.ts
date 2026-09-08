@@ -116,6 +116,13 @@ export interface AcpClientOptions {
   killTree?: (pid: number) => void;
   /** ms to wait for the initialize response. */
   handshakeTimeoutMs?: number;
+  /**
+   * Turn-boundary governance gate (FR-M39-02, D33: spend-ceiling pause).
+   * ACP has no pause primitive, so a pause-pending session refuses its
+   * NEXT turn here — an honest checkpoint, never a mid-flight cancel. May
+   * throw (e.g. SpendCeilingPausePendingError) to refuse the turn.
+   */
+  checkpointGate?: (sessionId: string) => void;
 }
 
 interface TerminalRecord {
@@ -383,6 +390,9 @@ export class AcpClient extends EventEmitter {
     if (signal?.aborted) {
       throw new DOMException('prompt aborted', 'AbortError');
     }
+    // FR-M39-02 (D33): the checkpoint gate refuses a new turn for a
+    // pause-pending session before anything goes on the wire.
+    this.options.checkpointGate?.(sessionId);
     const onAbort = () => {
       void this.connection?.cancel({ sessionId });
     };

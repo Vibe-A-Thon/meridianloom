@@ -37,6 +37,11 @@ export class HostedSessionRegistry {
     return true;
   }
 
+  /** True while this host runs the session (the hosted fact, FR-M35-06). */
+  has(id: string): boolean {
+    return this.sessions.has(id);
+  }
+
   ids(): string[] {
     return [...this.sessions.keys()];
   }

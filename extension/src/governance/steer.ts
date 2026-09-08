@@ -31,6 +31,9 @@
  *    session can never be offered a steer/clarify/halt control that does
  *    nothing. Attempts to steer a non-hosted session throw the structured
  *    NotHostedSessionError — an honest refusal, never a silent failure.
+ *    A spend-ceiling pause-pending session (FR-M39-02, D33) is refused at
+ *    the same boundary with SpendCeilingPausePendingError: a steer is a
+ *    new turn, and a paused session starts no new turns;
  *
  * Governor tier (FR-M36-05/G5): beginSession refuses when the governor
  * tier is disabled, mirroring createAcpClient. No model client of any
@@ -42,6 +45,7 @@ import type { RequestPermissionRequest } from '../acp/protocol';
 import type { TierName } from '../../../shared/ts/tiers';
 import type { SessionMode } from '../adapters/permission-gate';
 import type { HostedSessionRegistry } from './session-registry';
+import { assertNotPausePending, type SpendCeilingPauseTracker } from './spend-ceiling';
 
 /** The sidecar surface the controller records through. */
 export interface SteerSidecar {
@@ -198,6 +202,9 @@ export interface HostedSteerControllerOptions {
   onQuestion?: (event: ClarifyingQuestionEvent) => void;
   /** Escalation surface (FR-M25-03; UI is workstream H). */
   onEscalation?: (event: EscalationEvent) => void;
+  /** FR-M39-02 (D33): spend-ceiling pause-pending state; steer is a new
+   * turn, so a pause-pending session refuses it at this checkpoint. */
+  spendPauses?: SpendCeilingPauseTracker;
 }
 
 interface HostedRecord {
@@ -295,6 +302,12 @@ export class HostedSteerController {
     message: string,
   ): Promise<{ accepted: boolean; sequence: number; stopReason: string | undefined }> {
     const record = this.requireHosted(sessionId);
+    // FR-M39-02 (D33): a steer is a new turn on the wire — the checkpoint
+    // where a pause-pending session must refuse, before anything is
+    // ledger-recorded or sent.
+    if (this.options.spendPauses) {
+      assertNotPausePending(this.options.spendPauses, sessionId);
+    }
     const ack = (await this.options.sidecar.request('steer.send', {
       sessionId,
       message,
