@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** F1 — Governor
-- **Current workstream:** C — Human identity and roles
-- **Current task:** 15 — authenticated identity (FR-M20-01, closes D9: git user.name/email v1 via an IdentityProvider interface + OIDC stub); then 16 — roles, SoD, N-of-M, delegation, approval hygiene (FR-M20-02…08)
-- **Last commit:** 910aad8 — E-GR-03 taxonomy — **Workstream B complete** (639 pytest + 317 vitest; webview 4 failures are the parallel session's in-flight refactor, not F1-B code)
+- **Current workstream:** C — Human identity and roles — **done**
+- **Current task:** workstream D next — steer & clarify for hosted agents (FR-M25-01..06: steer into a running ACP session, clarifying questions with resume, uncertainty escalation, partial acceptance, dry-run; task 18: observed agents say so plainly instead of offering dead controls)
+- **Last commit:** b058238 (swept in task 16) — roles/SoD/N-of-M/delegation/approval hygiene (FR-M20-02..08; 43 role tests); task 15 identity seam 29df871 (FR-M20-01, **D9 closed**)
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## Mapping of completed S0 work onto the new plan
