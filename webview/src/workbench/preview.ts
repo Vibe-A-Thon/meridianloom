@@ -4,6 +4,7 @@ import type { HostMessage } from '../../../shared/ts/webview-messages';
 import { WEBVIEW_PROTOCOL_VERSION } from '../../../shared/ts/webview-messages';
 import type { WorkbenchAgentInput, WorkbenchSnapshot } from '../../../shared/ts/workbench';
 import type { RpcTransport } from '../rpc/client';
+import type { StudioDocument, StudioDocumentInput } from '../../../shared/ts/studio';
 
 export function createPreviewTransport(): RpcTransport {
   const now = new Date().toISOString();
@@ -53,6 +54,8 @@ export function createPreviewTransport(): RpcTransport {
   ];
   let state: WorkbenchSnapshot = {
     revision: 1,
+    documents: [],
+    documentRevisions: [],
     agents: agents.map(([id, name, role, description, mode]) => ({
       id,
       name,
@@ -205,6 +208,42 @@ export function createPreviewTransport(): RpcTransport {
             return found;
           };
           switch (message.action) {
+            case 'document/save': {
+              const input = params.document as StudioDocumentInput;
+              const old = state.documents!.find(d => d.id === input.id);
+              if (old && old.version !== input.expectedVersion) throw new Error('Document changed. Refresh before saving.');
+              if (old) state.documentRevisions!.push(structuredClone(old));
+              const next: StudioDocument = { ...input, id: old?.id ?? crypto.randomUUID(), version: (old?.version ?? 0) + 1, createdAt: old?.createdAt ?? now, updatedAt: new Date().toISOString() };
+              if (old) state.documents![state.documents!.indexOf(old)] = next; else state.documents!.unshift(next);
+              break;
+            }
+            case 'document/remove': {
+              const old = state.documents!.find(d => d.id === params.id);
+              if (!old || old.version !== params.expectedVersion) throw new Error('Document changed. Refresh before removing.');
+              state.documents = state.documents!.filter(d => d.id !== params.id);
+              state.documentRevisions = state.documentRevisions!.filter(d => d.id !== params.id);
+              break;
+            }
+            case 'document/export': {
+              const document = state.documents!.find(d => d.id === params.id);
+              if (!document) throw new Error('Document not found.');
+              result = { fileName: `${document.kind}-${document.id}.meridian-document.json`, content: JSON.stringify({ kind: 'meridian-studio-document', schemaVersion: 1, document }, null, 2) };
+              break;
+            }
+            case 'document/import': {
+              const portable = JSON.parse(String(params.content));
+              if (portable.kind !== 'meridian-studio-document' || portable.schemaVersion !== 1) throw new Error('Expected a Meridian studio document.');
+              state.documents!.unshift({ ...portable.document, id: crypto.randomUUID(), version: 1, createdAt: now, updatedAt: now });
+              break;
+            }
+            case 'document/restore': {
+              const old = state.documents!.find(d => d.id === params.id);
+              const revision = state.documentRevisions!.find(d => d.id === params.id && d.version === params.version);
+              if (!old || !revision || old.version !== params.expectedVersion) throw new Error('Revision unavailable or document changed.');
+              state.documentRevisions!.push(structuredClone(old));
+              state.documents![state.documents!.indexOf(old)] = { ...revision, version: old.version + 1, updatedAt: new Date().toISOString() };
+              break;
+            }
             case 'snapshot':
               break;
             case 'agent/save': {
