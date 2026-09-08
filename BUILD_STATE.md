@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** F1 — Governor
-- **Current workstream:** B — Gates over other people's work
-- **Current task:** 12–14 done (7f68ec5 PR ingest as governed story FR-M35-04/05, 4ae3cc7 multi-agent conflict detection FR-M35-07, 910aad8 E-GR-03 rework reason taxonomy); tasks 9–14 committed — **Workstream B core complete**
-- **Last commit:** 910aad8 — feat(f1): rework reason taxonomy defined in policy, fail-closed stamping everywhere (E-GR-03, FR-M37-02)
+- **Current workstream:** C — Human identity and roles
+- **Current task:** 15 — authenticated identity (FR-M20-01, closes D9: git user.name/email v1 via an IdentityProvider interface + OIDC stub); then 16 — roles, SoD, N-of-M, delegation, approval hygiene (FR-M20-02…08)
+- **Last commit:** 910aad8 — E-GR-03 taxonomy — **Workstream B complete** (639 pytest + 317 vitest; webview 4 failures are the parallel session's in-flight refactor, not F1-B code)
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## Mapping of completed S0 work onto the new plan
