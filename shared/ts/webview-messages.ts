@@ -15,7 +15,7 @@ import type { WorkbenchAction } from './workbench';
  *  `download` message (audit-bundle export, FR-M36-04). Both sides are
  *  always built from the same commit, so the handshake version check is
  *  the enforcement. */
-export const WEBVIEW_PROTOCOL_VERSION = 3;
+export const WEBVIEW_PROTOCOL_VERSION = 4;
 
 export type { RequestId, RequestMethod };
 
@@ -62,6 +62,7 @@ export interface WebviewRpcError {
 }
 
 export type WebviewMessage =
+  | { type: 'editor/open'; path: string; line?: number }
   | { type: 'host/action'; action: 'open-settings' | 'open-folder' }
   | { type: 'ready'; protocolVersion: number }
   | { type: 'rpc/request'; id: RequestId; method: RequestMethod; params?: unknown }
@@ -87,6 +88,11 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
     return false;
   }
   const message = value as { type?: unknown; method?: unknown; action?: unknown; id?: unknown };
+  if (message.type === 'editor/open') {
+    const open = value as { path?: unknown; line?: unknown };
+    return typeof open.path === 'string' && open.path.length > 0 && open.path.length <= 4_000 &&
+      (open.line === undefined || (typeof open.line === 'number' && Number.isSafeInteger(open.line) && open.line > 0));
+  }
   if (message.type === 'host/action') return message.action === 'open-settings' || message.action === 'open-folder';
   if (message.type === 'download') {
     const download = value as { fileName?: unknown; mimeType?: unknown; content?: unknown };
