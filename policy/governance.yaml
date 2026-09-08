@@ -35,8 +35,16 @@ permittedTools:
   - npm
 
 # Budget ceilings (FR-M12-08); enforced by the spend surfaces (F1 workstream F).
+# usdPerAgent: cumulative ceiling per agent (FR-M39-02 — a hosted agent is
+# paused at a checkpoint on breach; an observed agent is warned, which is
+# all observation can honestly do, FR-M35-06).
+# usdPerStory: cumulative ceiling per story.
+# usdPerMonth: monthly budget per team; the forecast alert fires when the
+# month-to-date actual or the projection crosses it (FR-M39-03).
 budgetCeilings:
+  usdPerAgent: 50
   usdPerStory: 25
+  usdPerMonth: 200
 
 # Autonomy-tier promotion thresholds (FR-M12-03/04 land v1.x).
 tierThresholds:

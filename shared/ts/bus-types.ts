@@ -1823,11 +1823,132 @@ export interface McpInvokeResult {
   "result": Record<string, unknown> | unknown[] | string | number | boolean | null;
 }
 
+export interface SpendSeriesParams {
+  /** The FR-M39-01 dimension to aggregate over (default vendor). */
+  "dimension"?: "vendor" | "model" | "agent" | "story" | "team" | "costCentre";
+  "actorId"?: string;
+  "storyId"?: string;
+  "vendor"?: string;
+  "repoId"?: string;
+  "fromSequence"?: number;
+  "toSequence"?: number;
+  /** Explicit pricing pack path; then the workspace override, then the repository policy/pricing.yaml. */
+  "pricingPath"?: string;
+  /** Explicit story-metadata pack path; then the workspace override, then the repository policy/stories.yaml. */
+  "storyPath"?: string;
+  /** Inline storyId -> {team, costCentre} attribution merged over the pack (callers with metadata in hand). */
+  "storyMetadata"?: Record<string, unknown>;
+}
+
+export interface SpendSeriesResult {
+  /** The echoed scope filters. */
+  "scope": Record<string, unknown>;
+  "dimension": string;
+  /** The whole-bill rollup: entries, tokensIn/tokensOut/tokens, recordedCostUsd (the ledger's own costUsd), estimatedCostUsd (tokens priced through the pricing pack where cost was absent), costUsd (both summed — the best-known bill). */
+  "totals": Record<string, unknown>;
+  /** dimension value -> the same rollup. Values with no recorded evidence appear as 'unknown', never fabricated; absent from the ledger entirely they do not appear at all. */
+  "byValue": Record<string, unknown>;
+  /** agentId -> [{period, tokens}] with ISO-week periods (2026-W01) — the SpendSeries feed (D26) consumable by trust/tokenmaxxing verbatim. */
+  "spendSeries": Record<string, unknown>;
+  /** True when served from the in-process cache (FR-M17-05). */
+  "cacheHit": boolean;
+}
+
+export interface SpendCeilingCheckParams {
+  /** The agent whose cumulative spend is checked (required unless sessionId is given). */
+  "actorId"?: string;
+  /** Also check the per-story ceiling against this story's spend. */
+  "storyId"?: string;
+  /** The hosted session to pause at checkpoint on breach; its session_begin record is the hosted fact. */
+  "sessionId"?: string;
+  /** Explicit governance pack path; then the workspace override, then the repository policy/governance.yaml. */
+  "policyPath"?: string;
+  "pricingPath"?: string;
+  "fromSequence"?: number;
+  "toSequence"?: number;
+}
+
+export interface SpendCeilingCheckResult {
+  /** The echoed scope filters. */
+  "scope": Record<string, unknown>;
+  /** Cumulative best-known spend in scope: recorded cost plus pack-priced estimates. */
+  "spentUsd": number;
+  /** How much of spentUsd came from pricing-pack estimates rather than recorded cost — the honesty line between recorded and priced. */
+  "estimatedShareUsd": number;
+  /** budgetCeilings key (usdPerAgent/usdPerStory) -> {limitUsd, configured, breached, headroomUsd, note}; unconfigured keys report configured: false and never breach. */
+  "ceilings": Record<string, unknown>;
+  /** paused_at_checkpoint: breach on a hosted/native actor — ledger-recorded (sequence) and dispatched to the extension host, which owns the wire. warned: breach on an observed agent — advisory only, never a fake pause. none: no breach. */
+  "action": "paused_at_checkpoint" | "warned" | "none";
+  /** True when Meridian hosts this actor/session (session_begin on record, or a meridian-native actor). */
+  "hosted": boolean;
+  /** True when the breach could only be warned about (observed agent, FR-M35-06 — observation never intercepts). */
+  "advisory": boolean;
+  /** The spend_ceiling ledger entry recording the breach/warning (FR-M10-08), when one was written. */
+  "sequence"?: number;
+  "note": string;
+}
+
+export interface SpendForecastParams {
+  /** Forecast this team's spend (story -> team via the story-metadata pack). Absent means the whole workspace bill. */
+  "team"?: string;
+  "repoId"?: string;
+  "fromSequence"?: number;
+  "toSequence"?: number;
+  /** Trailing months the least-squares fit covers (default 3). */
+  "windowMonths"?: number;
+  "policyPath"?: string;
+  "pricingPath"?: string;
+  "storyPath"?: string;
+}
+
+export interface SpendForecastResult {
+  /** The echoed scope filters. */
+  "scope": Record<string, unknown>;
+  /** The team forecasted, or null for the whole workspace. */
+  "team": string | null;
+  /** YYYY-MM -> actual best-known USD (recorded + priced). */
+  "months": Record<string, unknown>;
+  /** {status: ok|insufficient_evidence, projectedUsd, slopeUsdPerMonth, windowMonths, evidenceMonths, method, note} — the documented deterministic projection; insufficient_evidence carries no projectedUsd. */
+  "forecast": Record<string, unknown>;
+  /** {limitUsd, source, status: ok|actual_breach|forecast_breach|unconfigured, headroomUsd} — the budgetCeilings.usdPerMonth alert; unconfigured when the pack sets no monthly budget. */
+  "budget": Record<string, unknown>;
+  "status": "ok" | "actual_breach" | "forecast_breach" | "unconfigured" | "insufficient_evidence";
+  /** True when served from the in-process cache (FR-M17-05). */
+  "cacheHit": boolean;
+}
+
+export interface SpendPricingParams {
+  /** Explicit pricing pack path; then the workspace override, then the repository policy/pricing.yaml. */
+  "pricingPath"?: string;
+}
+
+export interface SpendPricingResult {
+  /** The pack file the rates came from (config, never hard-coded). */
+  "source": string;
+  "version": number;
+  /** D12: USD default, configurable per workspace via the pack's currency key. */
+  "currency": string;
+  /** [{vendor, model, tokensInPerMillion, tokensOutPerMillion}] — USD per million tokens; vendor '*' is the wildcard matched by model id alone. */
+  "models": Record<string, unknown>[];
+  /** Fail-closed parse errors; non-empty means the pack prices nothing (unknown, never fabricated). */
+  "errors": string[];
+}
+
+export interface SpendCeilingNotification {
+  /** The spend_ceiling ledger entry, durable before this dispatch (FR-M10-08). */
+  "sequence": number;
+  "sessionId"?: string | null;
+  "actorId"?: string | null;
+  /** The registry pauses the hosted session at its next checkpoint; it owns the wire, the sidecar owns the record. */
+  "action": "pauseAtCheckpoint";
+  "spentUsd"?: number;
+}
+
 /** Every request/response method on the bus. */
-export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "observe/sessions" | "observe/health" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "hook/install" | "hook/status" | "hook/remove" | "hook/pending" | "trailers/parse" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "gate.profiles" | "gate.approve" | "gate.status" | "gate.halt" | "pr/ingest" | "pr/status" | "pr/conflicts" | "steer.send" | "steer/question" | "steer/answer" | "steer/escalate" | "steer/accept" | "steer/acceptanceStatus" | "steer/status" | "steer/plan" | "trust.summary" | "trust/detectRejections" | "trust/classify" | "trust/rejectionRate" | "trust/reasonDistribution" | "trust/score" | "trust/scoreDecomposition" | "trust/compareAgents" | "trust/jcurve" | "trust/tokenmaxxing" | "trust/doraExport" | "acp/sessionBegin" | "acp/sessionEnd" | "acp/permissionDecision" | "worktree/create" | "worktree/list" | "worktree/remove" | "worktree/abortStory" | "worktree/conflicts" | "mcp/invoke" | "roles/list" | "roles/check" | "roles/delegate";
+export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "observe/sessions" | "observe/health" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "hook/install" | "hook/status" | "hook/remove" | "hook/pending" | "trailers/parse" | "loop.start" | "loop.stop" | "loop.status" | "gate.evaluate" | "gate.profiles" | "gate.approve" | "gate.status" | "gate.halt" | "pr/ingest" | "pr/status" | "pr/conflicts" | "steer.send" | "steer/question" | "steer/answer" | "steer/escalate" | "steer/accept" | "steer/acceptanceStatus" | "steer/status" | "steer/plan" | "trust.summary" | "trust/detectRejections" | "trust/classify" | "trust/rejectionRate" | "trust/reasonDistribution" | "trust/score" | "trust/scoreDecomposition" | "trust/compareAgents" | "trust/jcurve" | "trust/tokenmaxxing" | "trust/doraExport" | "spend/series" | "spend/ceilingCheck" | "spend/forecast" | "spend/pricing" | "acp/sessionBegin" | "acp/sessionEnd" | "acp/permissionDecision" | "worktree/create" | "worktree/list" | "worktree/remove" | "worktree/abortStory" | "worktree/conflicts" | "mcp/invoke" | "roles/list" | "roles/check" | "roles/delegate";
 
 /** Every notification method on the bus. */
-export type NotificationName = "gate/halt" | "tiers/set" | "$/cancel";
+export type NotificationName = "gate/halt" | "spend/ceiling" | "tiers/set" | "$/cancel";
 
 /** JSON-RPC 2.0 request id. The extension allocates monotonically increasing integers; strings are accepted for forwards compatibility. */
 export type RequestId = number | string;
@@ -1880,7 +2001,7 @@ export const TIERS = ["flight-recorder","governor","orchestra"] as const;
 export const DEFAULT_ENABLED_TIERS: readonly TierName[] = ["flight-recorder"];
 
 /** FR-M36-05: capability registry; every capability is owned by exactly one tier. */
-export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff","attrib/symbol","attrib/classify"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"recorder.observers","tier":"flight-recorder","description":"External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).","rpcMethods":["observe/sessions","observe/health"]},{"id":"recorder.provenance-hooks","tier":"flight-recorder","description":"Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).","rpcMethods":["hook/install","hook/status","hook/remove","hook/pending","trailers/parse"]},{"id":"recorder.trust-metrics","tier":"flight-recorder","description":"Rejection measurement and trust analytics (FR-M37-01/02/03/04/05/06/07/08, FR-M17-01/05; F0 Workstream F tasks 28-30, F1 Workstream E tasks 19-25): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), the ledger-derived, in-process-cached rejection rate per agent/repository/action-class/phase/story split by that distinction (trust/rejectionRate), the E-GR-03 rejection-reason distribution per agent (trust/reasonDistribution), the trust score with its full per-component decomposition (trust/score, trust/scoreDecomposition), same-story agent-vs-agent comparison with unknown-labelled components (trust/compareAgents), the adoption J-curve (trust/jcurve), the tokenmaxxing detector over spend series (trust/tokenmaxxing), and the DORA four-keys export in OTLP-friendly JSON (trust/doraExport). Read-only observability. Zero model calls (FR-M36-07).","rpcMethods":["trust/detectRejections","trust/classify","trust/rejectionRate","trust/reasonDistribution","trust/score","trust/scoreDecomposition","trust/compareAgents","trust/jcurve","trust/tokenmaxxing","trust/doraExport"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01/05/07/08/09; F1 Workstream B tasks 9-10): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack, with DoR/DoD as machine-checkable criteria; the merge gate refuses merges to protected branches without a recorded human approval bound to the head commit digest (approver identity in the ledger, FR-M12-07). Every decision is ledger-recorded before the RPC returns (FR-M10-08).","rpcMethods":["gate.evaluate","gate.profiles","gate.approve","gate.status","gate.halt"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarify over hosted ACP sessions (FR-M25-01/02/03/04/06; F1 Workstream D task 17): steer.send ledger-records a human's guidance (who/what/when, FR-M10-08) before the host injects it into the running session over the real wire (a second session/prompt); steer.question/steer.answer are the clarifying-question protocol — the question is durable before the human sees it, the recorded answer resumes the loop; steer.escalate records uncertainty-triggered escalations below a per-class confidence threshold; steer.accept + steer.acceptanceStatus are partial acceptance of a session's output per file/hunk, ledger-recorded and queryable; steer.plan records dry-run planner output (dry-run denies mutation kinds at the policy gate, FR-M25-06); steer.status (task 18) is the honest capability payload carrying hosted: boolean so an observe-only session can never be offered a dead control. Observed-not-hosted sessions get the structured NOT_HOSTED refusal, never a silent failure.","rpcMethods":["steer.send","steer/question","steer/answer","steer/escalate","steer/accept","steer/acceptanceStatus","steer/status","steer/plan"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"governor.acp-host","tier":"governor","description":"ACP host (FR-M34-01/02/03/04, SEC-28; F1 Workstream A tasks 1–4): the extension-host client that launches ACP-conformant agent subprocesses — initialize handshake and protocol-version negotiation, session lifecycle (new/load), streaming session updates, permission-gated tool execution, and client-provided fs/terminal access rooted at the user's workspace. Implemented in extension/src/acp/ (governor tier; disabled => no hosted sessions, G5). The adapter surface (extension/src/adapters/) re-bases AgentAdapter on ACP: governance manifests (§7.9), three-tier discovery (FR-M31-02), hot plug/unplug (FR-M31-04), probation (FR-M31-07), and the ACP Registry install source (FR-M34-03). The sidecar RPCs record hosted-session facts into the ledger: acp/sessionBegin/acp/sessionEnd (session_begin/session_end entries) and acp/permissionDecision (permission_decision entries — the FR-M34-04/SEC-28 governance trail, written before and independently of the human answer).","rpcMethods":["acp/sessionBegin","acp/sessionEnd","acp/permissionDecision"]},{"id":"governor.mcp-server","tier":"governor","description":"MCP server exposure of Meridian's governed surfaces (FR-M34-06; F1 Workstream A task 6): a standalone stdio MCP server process (extension/src/mcp/) speaks the MCP protocol to any client (VS Code's native agent mode included) and forwards each tools/call as one mcp/invoke. The sidecar is the permission gate and the provenance trail: the governor tier gate refuses when disabled (G5), each call is ledger-recorded (action_type tool_call, vendor mcp) before it executes, and the tool maps onto the existing read-only ledger/trust handlers.","rpcMethods":["mcp/invoke"]},{"id":"governor.roles","tier":"governor","description":"Human roles and approval mechanics (FR-M20-02…08; F1 Workstream C task 16): the fail-closed role pack (policy/roles.yaml; Engineer, Reviewer, Approver, Governor, Auditor mapped to permitted gate actions) behind roles/list and roles/check, and approval-right delegation with expiry, ledger-recorded, chain-bounded and cycle-free (roles/delegate). The merge gate consumes the same pack: N-of-M thresholds per protected branch, separation of duties (the ingester cannot approve its own change), role filtering of recorded approvals, and FR-M20-06 approval-hygiene warnings (rubber-stamping signals) in the gate status payload — the F2 measurement hook.","rpcMethods":["roles/list","roles/check","roles/delegate"]},{"id":"governor.pr-gates","tier":"governor","description":"External PR gating (FR-M35-04, FR-M35-05; F1 Workstream B task 12): an external agent's PR — sourced in production from the M23 CI/SCM connectors — is ingested as a Meridian story (pr/ingest): ledger origin record, per-agent attributed hunks with FR-M35-02 observation confidence, and routing through the Verify/Security/Review gate profiles. pr/status returns the recorded gate evaluations plus the merge-gate verdict — merge of a PR targeting a protected branch is permitted only with a recorded human approval bound to the head commit (FR-M12-05, AC-32). All records are written before the RPC returns (FR-M10-08).","rpcMethods":["pr/ingest","pr/status","pr/conflicts"]},{"id":"governor.worktrees","tier":"governor","description":"Worktree isolation for hosted agents (FR-M18-01..08, AC-13/AC-14; F1 Workstream A task 5): a dedicated git worktree per story under .meridian/worktrees/ on branch meridian/<story-id> — never the primary tree — with a worktree-local agent git identity and a commit-msg hook appending the Meridian-Hosted-Agent trailer. worktree/conflicts is the pre-flight conflict report the RunRequest flow (M40) consumes before a packet starts; worktree/abortStory removes worktree + never-pushed branch and leaves the primary tree byte-identical. Creation, removal and abort are ledger-recorded with worktree_ref set.","rpcMethods":["worktree/create","worktree/list","worktree/remove","worktree/abortStory","worktree/conflicts"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
+export const CAPABILITIES: readonly CapabilityDefinition[] = [{"id":"recorder.lifecycle","tier":"flight-recorder","description":"Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.","rpcMethods":["handshake","ping","shutdown","health"]},{"id":"recorder.doctor","tier":"flight-recorder","description":"Self-diagnostic check registry (FR-M30-01).","rpcMethods":["doctor/run"]},{"id":"recorder.attribution","tier":"flight-recorder","description":"Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).","rpcMethods":["attrib/blame","attrib/diff","attrib/symbol","attrib/classify"]},{"id":"recorder.ledger","tier":"flight-recorder","description":"Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).","rpcMethods":["ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle"]},{"id":"recorder.observers","tier":"flight-recorder","description":"External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).","rpcMethods":["observe/sessions","observe/health"]},{"id":"recorder.provenance-hooks","tier":"flight-recorder","description":"Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).","rpcMethods":["hook/install","hook/status","hook/remove","hook/pending","trailers/parse"]},{"id":"recorder.trust-metrics","tier":"flight-recorder","description":"Rejection measurement and trust analytics (FR-M37-01/02/03/04/05/06/07/08, FR-M17-01/05; F0 Workstream F tasks 28-30, F1 Workstream E tasks 19-25): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), the ledger-derived, in-process-cached rejection rate per agent/repository/action-class/phase/story split by that distinction (trust/rejectionRate), the E-GR-03 rejection-reason distribution per agent (trust/reasonDistribution), the trust score with its full per-component decomposition (trust/score, trust/scoreDecomposition), same-story agent-vs-agent comparison with unknown-labelled components (trust/compareAgents), the adoption J-curve (trust/jcurve), the tokenmaxxing detector over spend series (trust/tokenmaxxing), and the DORA four-keys export in OTLP-friendly JSON (trust/doraExport). Read-only observability. Zero model calls (FR-M36-07).","rpcMethods":["trust/detectRejections","trust/classify","trust/rejectionRate","trust/reasonDistribution","trust/score","trust/scoreDecomposition","trust/compareAgents","trust/jcurve","trust/tokenmaxxing","trust/doraExport"]},{"id":"recorder.spend","tier":"flight-recorder","description":"Cross-vendor spend and predictable pricing (FR-M39-01/02/03/04, FR-M26-03; F1 Workstream F tasks 26-29): the M39 spend feed adapts recorded ledger token/cost rows onto the SpendSeries protocol (spend/series) — the cross-vendor bill by vendor, model, agent, story, team and cost centre (dimensions without recorded evidence are 'unknown', never fabricated); spend ceilings from the governance pack's budgetCeilings (spend/ceilingCheck) that pause hosted agents at a checkpoint — ledger-recorded and dispatched to the extension host, which owns the wire — and warn honestly on observed agents, which cannot be paused (the same NOT_HOSTED honesty as steer, FR-M35-06); the monthly spend forecast per team with the budget alert (spend/forecast, a documented deterministic least-squares projection over the trailing months, alerting on budgetCeilings.usdPerMonth); and the per-vendor/model pricing table from the pricing pack, USD default (D12), so recorded tokens x configured rate = cost (spend/pricing). Ceiling checks and warnings are ledger-recorded before the RPC returns (FR-M10-08), like gate.halt. Zero model calls (FR-M36-07).","rpcMethods":["spend/series","spend/ceilingCheck","spend/forecast","spend/pricing"]},{"id":"governor.gates","tier":"governor","description":"Policy gates over external and hosted agent work (FR-M12-01/05/07/08/09; F1 Workstream B tasks 9-10): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack, with DoR/DoD as machine-checkable criteria; the merge gate refuses merges to protected branches without a recorded human approval bound to the head commit digest (approver identity in the ledger, FR-M12-07). Every decision is ledger-recorded before the RPC returns (FR-M10-08).","rpcMethods":["gate.evaluate","gate.profiles","gate.approve","gate.status","gate.halt"]},{"id":"governor.steer","tier":"governor","description":"Steer and clarify over hosted ACP sessions (FR-M25-01/02/03/04/06; F1 Workstream D task 17): steer.send ledger-records a human's guidance (who/what/when, FR-M10-08) before the host injects it into the running session over the real wire (a second session/prompt); steer.question/steer.answer are the clarifying-question protocol — the question is durable before the human sees it, the recorded answer resumes the loop; steer.escalate records uncertainty-triggered escalations below a per-class confidence threshold; steer.accept + steer.acceptanceStatus are partial acceptance of a session's output per file/hunk, ledger-recorded and queryable; steer.plan records dry-run planner output (dry-run denies mutation kinds at the policy gate, FR-M25-06); steer.status (task 18) is the honest capability payload carrying hosted: boolean so an observe-only session can never be offered a dead control. Observed-not-hosted sessions get the structured NOT_HOSTED refusal, never a silent failure.","rpcMethods":["steer.send","steer/question","steer/answer","steer/escalate","steer/accept","steer/acceptanceStatus","steer/status","steer/plan"]},{"id":"governor.trust","tier":"governor","description":"Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.","rpcMethods":["trust.summary"]},{"id":"governor.acp-host","tier":"governor","description":"ACP host (FR-M34-01/02/03/04, SEC-28; F1 Workstream A tasks 1–4): the extension-host client that launches ACP-conformant agent subprocesses — initialize handshake and protocol-version negotiation, session lifecycle (new/load), streaming session updates, permission-gated tool execution, and client-provided fs/terminal access rooted at the user's workspace. Implemented in extension/src/acp/ (governor tier; disabled => no hosted sessions, G5). The adapter surface (extension/src/adapters/) re-bases AgentAdapter on ACP: governance manifests (§7.9), three-tier discovery (FR-M31-02), hot plug/unplug (FR-M31-04), probation (FR-M31-07), and the ACP Registry install source (FR-M34-03). The sidecar RPCs record hosted-session facts into the ledger: acp/sessionBegin/acp/sessionEnd (session_begin/session_end entries) and acp/permissionDecision (permission_decision entries — the FR-M34-04/SEC-28 governance trail, written before and independently of the human answer).","rpcMethods":["acp/sessionBegin","acp/sessionEnd","acp/permissionDecision"]},{"id":"governor.mcp-server","tier":"governor","description":"MCP server exposure of Meridian's governed surfaces (FR-M34-06; F1 Workstream A task 6): a standalone stdio MCP server process (extension/src/mcp/) speaks the MCP protocol to any client (VS Code's native agent mode included) and forwards each tools/call as one mcp/invoke. The sidecar is the permission gate and the provenance trail: the governor tier gate refuses when disabled (G5), each call is ledger-recorded (action_type tool_call, vendor mcp) before it executes, and the tool maps onto the existing read-only ledger/trust handlers.","rpcMethods":["mcp/invoke"]},{"id":"governor.roles","tier":"governor","description":"Human roles and approval mechanics (FR-M20-02…08; F1 Workstream C task 16): the fail-closed role pack (policy/roles.yaml; Engineer, Reviewer, Approver, Governor, Auditor mapped to permitted gate actions) behind roles/list and roles/check, and approval-right delegation with expiry, ledger-recorded, chain-bounded and cycle-free (roles/delegate). The merge gate consumes the same pack: N-of-M thresholds per protected branch, separation of duties (the ingester cannot approve its own change), role filtering of recorded approvals, and FR-M20-06 approval-hygiene warnings (rubber-stamping signals) in the gate status payload — the F2 measurement hook.","rpcMethods":["roles/list","roles/check","roles/delegate"]},{"id":"governor.pr-gates","tier":"governor","description":"External PR gating (FR-M35-04, FR-M35-05; F1 Workstream B task 12): an external agent's PR — sourced in production from the M23 CI/SCM connectors — is ingested as a Meridian story (pr/ingest): ledger origin record, per-agent attributed hunks with FR-M35-02 observation confidence, and routing through the Verify/Security/Review gate profiles. pr/status returns the recorded gate evaluations plus the merge-gate verdict — merge of a PR targeting a protected branch is permitted only with a recorded human approval bound to the head commit (FR-M12-05, AC-32). All records are written before the RPC returns (FR-M10-08).","rpcMethods":["pr/ingest","pr/status","pr/conflicts"]},{"id":"governor.worktrees","tier":"governor","description":"Worktree isolation for hosted agents (FR-M18-01..08, AC-13/AC-14; F1 Workstream A task 5): a dedicated git worktree per story under .meridian/worktrees/ on branch meridian/<story-id> — never the primary tree — with a worktree-local agent git identity and a commit-msg hook appending the Meridian-Hosted-Agent trailer. worktree/conflicts is the pre-flight conflict report the RunRequest flow (M40) consumes before a packet starts; worktree/abortStory removes worktree + never-pushed branch and leaves the primary tree byte-identical. Creation, removal and abort are ledger-recorded with worktree_ref set.","rpcMethods":["worktree/create","worktree/list","worktree/remove","worktree/abortStory","worktree/conflicts"]},{"id":"orchestra.loops","tier":"orchestra","description":"The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.","rpcMethods":["loop.start","loop.stop","loop.status"]}];
 
 /** Params/result pairing for every request method. */
 export interface MethodMap {
@@ -1936,6 +2057,10 @@ export interface MethodMap {
   "trust/jcurve": { params: TrustJcurveParams; result: TrustJcurveResult };
   "trust/tokenmaxxing": { params: TrustTokenmaxxingParams; result: TrustTokenmaxxingResult };
   "trust/doraExport": { params: TrustDoraExportParams; result: TrustDoraExportResult };
+  "spend/series": { params: SpendSeriesParams; result: SpendSeriesResult };
+  "spend/ceilingCheck": { params: SpendCeilingCheckParams; result: SpendCeilingCheckResult };
+  "spend/forecast": { params: SpendForecastParams; result: SpendForecastResult };
+  "spend/pricing": { params: SpendPricingParams; result: SpendPricingResult };
   "acp/sessionBegin": { params: AcpSessionBeginParams; result: AcpSessionRecordResult };
   "acp/sessionEnd": { params: AcpSessionEndParams; result: AcpSessionRecordResult };
   "acp/permissionDecision": { params: AcpPermissionDecisionParams; result: AcpSessionRecordResult };
@@ -1952,13 +2077,14 @@ export interface MethodMap {
 export type RequestMethod = keyof MethodMap;
 
 /** Runtime list of every request method (for tier/ownership checks). */
-export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","observe/sessions","observe/health","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","hook/install","hook/status","hook/remove","hook/pending","trailers/parse","loop.start","loop.stop","loop.status","gate.evaluate","gate.profiles","gate.approve","gate.status","gate.halt","pr/ingest","pr/status","pr/conflicts","steer.send","steer/question","steer/answer","steer/escalate","steer/accept","steer/acceptanceStatus","steer/status","steer/plan","trust.summary","trust/detectRejections","trust/classify","trust/rejectionRate","trust/reasonDistribution","trust/score","trust/scoreDecomposition","trust/compareAgents","trust/jcurve","trust/tokenmaxxing","trust/doraExport","acp/sessionBegin","acp/sessionEnd","acp/permissionDecision","worktree/create","worktree/list","worktree/remove","worktree/abortStory","worktree/conflicts","mcp/invoke","roles/list","roles/check","roles/delegate"] as const;
+export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","observe/sessions","observe/health","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","hook/install","hook/status","hook/remove","hook/pending","trailers/parse","loop.start","loop.stop","loop.status","gate.evaluate","gate.profiles","gate.approve","gate.status","gate.halt","pr/ingest","pr/status","pr/conflicts","steer.send","steer/question","steer/answer","steer/escalate","steer/accept","steer/acceptanceStatus","steer/status","steer/plan","trust.summary","trust/detectRejections","trust/classify","trust/rejectionRate","trust/reasonDistribution","trust/score","trust/scoreDecomposition","trust/compareAgents","trust/jcurve","trust/tokenmaxxing","trust/doraExport","spend/series","spend/ceilingCheck","spend/forecast","spend/pricing","acp/sessionBegin","acp/sessionEnd","acp/permissionDecision","worktree/create","worktree/list","worktree/remove","worktree/abortStory","worktree/conflicts","mcp/invoke","roles/list","roles/check","roles/delegate"] as const;
 
 /** Runtime list of every notification method. */
-export const NOTIFICATION_METHODS = ["gate/halt","tiers/set","$/cancel"] as const;
+export const NOTIFICATION_METHODS = ["gate/halt","spend/ceiling","tiers/set","$/cancel"] as const;
 
 export interface NotificationMap {
   "gate/halt": GateHaltNotification;
+  "spend/ceiling": SpendCeilingNotification;
   "tiers/set": TierSetParams;
   "$/cancel": CancelParams;
 }

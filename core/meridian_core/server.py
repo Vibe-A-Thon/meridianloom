@@ -149,6 +149,14 @@ class SidecarServer:
             "trust/jcurve": SidecarServer._handle_trust_jcurve,
             "trust/tokenmaxxing": SidecarServer._handle_trust_tokenmaxxing,
             "trust/doraExport": SidecarServer._handle_trust_dora_export,
+            # FR-M39-01/02/03/04 (F1 Workstream F tasks 26-29): cross-vendor
+            # spend — the real feed onto the SpendSeries protocol, config-
+            # driven ceilings (pause hosted / warn observed), the monthly
+            # forecast + budget alert, and the predictable pricing table.
+            "spend/series": SidecarServer._handle_spend_series,
+            "spend/ceilingCheck": SidecarServer._handle_spend_ceiling_check,
+            "spend/forecast": SidecarServer._handle_spend_forecast,
+            "spend/pricing": SidecarServer._handle_spend_pricing,
             "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
             "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
@@ -2878,6 +2886,417 @@ class SidecarServer:
         }
         self._trust_cache.put(cache_key, result)
         return result  # type: ignore[return-value]
+
+    # -- cross-vendor spend (FR-M39-01/02/03/04; F1 Workstream F tasks 26-29)
+
+    def _spend_pricing_pack(self, params: dict[str, Any]) -> Any:
+        """The active pricing pack: an explicit pricingPath param, then the
+        workspace override, then the repository policy directory (the
+        workspace IS the repository in production)."""
+        paths: list[Any] = []
+        if params.get("pricingPath"):
+            paths.append(params["pricingPath"])
+        if self._workspace_dir:
+            workspace = Path(self._workspace_dir)
+            paths.append(workspace / ".meridian" / "policy" / "pricing.yaml")
+            paths.append(workspace / "policy" / "pricing.yaml")
+        return metrics_mod.load_pricing_pack(paths)
+
+    def _spend_story_meta(self, params: dict[str, Any]) -> Any:
+        """The active story-metadata pack (FR-M26-03 attribution), with an
+        inline storyMetadata param merged over it — callers with story
+        metadata in hand supply it directly; the pack covers the rest.
+        A fail-closed pack yields 'unknown' for everything, never an
+        error, and inline entries apply on top."""
+        paths: list[Any] = []
+        if params.get("storyPath"):
+            paths.append(params["storyPath"])
+        if self._workspace_dir:
+            workspace = Path(self._workspace_dir)
+            paths.append(workspace / ".meridian" / "policy" / "stories.yaml")
+            paths.append(workspace / "policy" / "stories.yaml")
+        meta = metrics_mod.load_story_metadata(paths)
+        inline = params.get("storyMetadata")
+        if isinstance(inline, dict):
+            entries = dict(meta.entries)
+            for story_id, story_meta in inline.items():
+                if isinstance(story_id, str) and isinstance(story_meta, dict):
+                    entry: dict[str, str] = {}
+                    for key in ("team", "costCentre"):
+                        value = story_meta.get(key)
+                        entry[key] = (
+                            value.strip()
+                            if isinstance(value, str) and value.strip()
+                            else "unknown"
+                        )
+                    entries[story_id.strip()] = entry
+            meta = metrics_mod.StoryMetadata(
+                source=f"{meta.source}+inline", entries=entries, errors=list(meta.errors)
+            )
+        return meta
+
+    def _handle_spend_series(
+        self, params: bus_types.SpendSeriesParams
+    ) -> bus_types.SpendSeriesResult:
+        params = params or {}
+        ledger = self._ensure_ledger()
+        dimension = params.get("dimension") or "vendor"
+        if dimension not in metrics_mod.DIMENSIONS:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"dimension must be one of {', '.join(metrics_mod.DIMENSIONS)}",
+            )
+        scope = {
+            "dimension": dimension,
+            "actorId": params.get("actorId"),
+            "storyId": params.get("storyId"),
+            "vendor": params.get("vendor"),
+            "repoId": params.get("repoId"),
+            "fromSequence": params.get("fromSequence"),
+            "toSequence": params.get("toSequence"),
+        }
+        cache_key = json.dumps(
+            {"spendSeries": scope, "tip": ledger.last_sequence}, sort_keys=True
+        )
+        cached = self._trust_cache.get(cache_key)
+        if cached is not None:
+            result = dict(cached)
+            result["cacheHit"] = True
+            return result  # type: ignore[return-value]
+
+        pricing = self._spend_pricing_pack(params)
+        price = None if pricing.fail_closed else pricing.price
+        rows = self._spend_rows(ledger, params)
+        aggregated = metrics_mod.spend_by_dimension(
+            rows,
+            dimension,
+            story_meta=self._spend_story_meta(params),
+            price=price,
+        )
+        series = metrics_mod.LedgerSpendSeries(rows, price)
+        result = {
+            "scope": scope,
+            "dimension": aggregated["dimension"],
+            "totals": aggregated["totals"],
+            "byValue": aggregated["byValue"],
+            "spendSeries": {
+                agent: [
+                    {"period": point.period, "tokens": point.tokens}
+                    for point in series.points(agent)
+                ]
+                for agent in series.agents()
+            },
+            "cacheHit": False,
+        }
+        self._trust_cache.put(cache_key, result)
+        return result  # type: ignore[return-value]
+
+    def _spend_rows(
+        self, ledger: Any, params: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Token/cost-bearing rows in scope, newest-history cap like the
+        other trust metrics (the ledger is the metrics store — FR-M17-05
+        makes derivation on demand, not warehousing)."""
+        rows = ledger.query(
+            actor_id=params.get("actorId"),
+            story_id=params.get("storyId"),
+            vendor=params.get("vendor"),
+            from_sequence=params.get("fromSequence"),
+            to_sequence=params.get("toSequence"),
+            limit=1000,
+        )
+        repo_id = params.get("repoId")
+        if repo_id is not None:
+            rows = [row for row in rows if row.get("repo_id") == repo_id]
+        return rows
+
+    def _handle_spend_ceiling_check(
+        self, params: bus_types.SpendCeilingCheckParams
+    ) -> bus_types.SpendCeilingCheckResult:
+        params = params or {}
+        ledger = self._ensure_ledger()
+        actor_id = params.get("actorId")
+        session_id = params.get("sessionId")
+        story_id = params.get("storyId")
+        if not isinstance(actor_id, str) or not actor_id.strip():
+            if not isinstance(session_id, str) or not session_id.strip():
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    "spend/ceilingCheck needs the actorId (or the sessionId)",
+                )
+            actor_id = None
+        actor_id = actor_id.strip() if actor_id else None
+
+        scope_rows = self._spend_rows(
+            ledger,
+            {
+                "actorId": actor_id,
+                "fromSequence": params.get("fromSequence"),
+                "toSequence": params.get("toSequence"),
+            },
+        )
+        pricing = self._spend_pricing_pack(params)
+        price = None if pricing.fail_closed else pricing.price
+        spent_usd, estimated_usd = 0.0, 0.0
+        for record in metrics_mod.spend_records(scope_rows, price):
+            spent_usd += record["recordedCostUsd"]
+            if record["estimatedCostUsd"] is not None:
+                estimated_usd += record["estimatedCostUsd"]
+        spent_usd = round(spent_usd, 6)
+
+        pack = self._governance_pack(params)
+        ceilings_key = f"{pack.source}#budgetCeilings"
+        ceilings: dict[str, Any] = {}
+        any_breach = False
+        agent_check = metrics_mod.check_spend_ceiling(
+            spent_usd, pack.budget_ceilings.get("usdPerAgent")
+        )
+        ceilings["usdPerAgent"] = agent_check
+        any_breach = any_breach or agent_check["breached"]
+        story_check: dict[str, Any] | None = None
+        if story_id is not None:
+            story_rows = self._spend_rows(
+                ledger,
+                {
+                    "storyId": story_id,
+                    "fromSequence": params.get("fromSequence"),
+                    "toSequence": params.get("toSequence"),
+                },
+            )
+            story_spent = 0.0
+            for record in metrics_mod.spend_records(story_rows, price):
+                story_spent += record["recordedCostUsd"] + (
+                    record["estimatedCostUsd"] or 0.0
+                )
+            story_check = metrics_mod.check_spend_ceiling(
+                round(story_spent, 6), pack.budget_ceilings.get("usdPerStory")
+            )
+            ceilings["usdPerStory"] = story_check
+            any_breach = any_breach or story_check["breached"]
+
+        # What Meridian controls: a hosted session (session_begin on
+        # record — the row IS the hosted fact, F1-D t18) or a
+        # meridian-native actor (Meridian hosts its own loops) can be
+        # paused at a checkpoint; anything else is observed-only and
+        # gets the advisory warning, the same NOT_HOSTED honesty as
+        # steer — never a fake pause.
+        hosted = False
+        if session_id is not None:
+            hosted = self._steer_hosted_begin(session_id) is not None
+        elif actor_id is not None:
+            vendors = {row.get("vendor") or "meridian" for row in scope_rows}
+            sessions = {
+                row.get("external_session_id")
+                for row in scope_rows
+                if row.get("external_session_id")
+            }
+            if any(self._steer_hosted_begin(s) is not None for s in sessions):
+                hosted = True
+            elif vendors and vendors <= {"meridian"}:
+                hosted = True  # Meridian-native: its own runtime pauses.
+
+        action = "none"
+        sequence: int | None = None
+        advisory = False
+        note = "no ceiling breached"
+        if any_breach:
+            if hosted:
+                action = "paused_at_checkpoint"
+                note = (
+                    "ceiling breached on a session Meridian hosts: recorded "
+                    "and dispatched; the extension host pauses the session "
+                    "at its next checkpoint (it owns the wire)"
+                )
+            else:
+                action = "warned"
+                advisory = True
+                note = (
+                    "ceiling breached on an observed agent: Meridian did not "
+                    "launch this agent and cannot pause its session "
+                    "(FR-M35-06 — observation never intercepts); the breach "
+                    "is recorded and the operator warned, the same NOT_HOSTED "
+                    "honesty as the steer surface"
+                )
+            # FR-M10-08: the enforcement/warning is durable BEFORE the RPC
+            # returns; the encrypted blob carries the full detail.
+            detail = {
+                "method": "spend/ceilingCheck",
+                "actorId": actor_id,
+                "storyId": story_id,
+                "sessionId": session_id,
+                "hosted": hosted,
+                "action": action,
+                "spentUsd": spent_usd,
+                "estimatedShareUsd": round(estimated_usd, 6),
+                "ceilings": ceilings,
+                "policySource": ceilings_key,
+                "advisory": advisory,
+            }
+            sequence = ledger.append(
+                {
+                    "story_id": f"spend:ceiling:{actor_id or session_id}",
+                    "phase": "build",
+                    "loop_id": "spend-ceilings",
+                    "loop_iteration": 1,
+                    "actor_id": actor_id or "unknown-agent",
+                    "actor_version": "0.0.0",
+                    "actor_kind": "external" if not hosted else "role",
+                    "policy_version": pack.policy_version,
+                    "action_type": "spend_ceiling",
+                    "decision": "halted" if hosted else None,
+                    "rework_reason": "spend_ceiling",
+                    "vendor": "meridian",
+                    "input": json.dumps(detail, ensure_ascii=False),
+                }
+            ).sequence
+            self._trust_cache.invalidate()
+            if hosted and self._notification_sink is not None:
+                self._notification_sink(
+                    make_notification(
+                        "spend/ceiling",
+                        {
+                            "sequence": sequence,
+                            "sessionId": session_id,
+                            "actorId": actor_id,
+                            "action": "pauseAtCheckpoint",
+                            "spentUsd": spent_usd,
+                        },
+                    )
+                )
+        return {
+            "scope": {
+                "actorId": actor_id,
+                "storyId": story_id,
+                "sessionId": session_id,
+                "fromSequence": params.get("fromSequence"),
+                "toSequence": params.get("toSequence"),
+            },
+            "spentUsd": spent_usd,
+            "estimatedShareUsd": round(estimated_usd, 6),
+            "ceilings": ceilings,
+            "action": action,
+            "hosted": hosted,
+            "advisory": advisory,
+            "sequence": sequence,
+            "note": note,
+        }
+
+    def _handle_spend_forecast(
+        self, params: bus_types.SpendForecastParams
+    ) -> bus_types.SpendForecastResult:
+        params = params or {}
+        ledger = self._ensure_ledger()
+        team = params.get("team")
+        window = params.get("windowMonths")
+        if window is not None and (
+            not isinstance(window, int) or isinstance(window, bool) or window < 2
+        ):
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "windowMonths must be an integer >= 2"
+            )
+        scope = {
+            "team": team,
+            "repoId": params.get("repoId"),
+            "fromSequence": params.get("fromSequence"),
+            "toSequence": params.get("toSequence"),
+            "windowMonths": window,
+        }
+        cache_key = json.dumps(
+            {"spendForecast": scope, "tip": ledger.last_sequence}, sort_keys=True
+        )
+        cached = self._trust_cache.get(cache_key)
+        if cached is not None:
+            result = dict(cached)
+            result["cacheHit"] = True
+            return result  # type: ignore[return-value]
+
+        rows = self._spend_rows(ledger, params)
+        unmapped = 0
+        if isinstance(team, str) and team.strip():
+            meta = self._spend_story_meta(params)
+            mapped = [
+                row
+                for row in rows
+                if meta.lookup(row.get("story_id")).get("team") == team.strip()
+            ]
+            unmapped = len(rows) - len(mapped)
+            rows = mapped
+        pricing = self._spend_pricing_pack(params)
+        price = None if pricing.fail_closed else pricing.price
+        months = metrics_mod.monthly_spend_totals(rows, price)
+        current_month = ledger_core.utc_now()[:7]
+        forecast = metrics_mod.forecast_monthly_spend(
+            months, current_month, window_months=window or 3
+        )
+
+        pack = self._governance_pack(params)
+        budget_limit = pack.budget_ceilings.get("usdPerMonth")
+        actual_month_usd = months.get(current_month)
+        if not isinstance(budget_limit, (int, float)) or isinstance(budget_limit, bool):
+            budget = {
+                "limitUsd": None,
+                "source": pack.source,
+                "status": "unconfigured",
+                "headroomUsd": None,
+            }
+        else:
+            limit = float(budget_limit)
+            if actual_month_usd is not None and actual_month_usd >= limit:
+                budget_status = "actual_breach"
+            elif (
+                forecast["projectedUsd"] is not None
+                and forecast["projectedUsd"] >= limit
+            ):
+                budget_status = "forecast_breach"
+            else:
+                budget_status = "ok"
+            budget = {
+                "limitUsd": limit,
+                "source": pack.source,
+                "status": budget_status,
+                "headroomUsd": round(limit - (actual_month_usd or 0.0), 6),
+            }
+        # An actual or forecast breach is the alert FR-M39-03 exists for —
+        # it outranks forecast evidence insufficiency (the bill is already
+        # over budget; not projecting changes nothing).
+        if budget["status"] in ("actual_breach", "forecast_breach"):
+            status = budget["status"]
+        elif forecast["status"] == "insufficient_evidence":
+            status = "insufficient_evidence"
+        else:
+            status = budget["status"]
+        result = {
+            "scope": {**scope, "unmappedStoriesExcluded": unmapped},
+            "team": team.strip() if isinstance(team, str) and team.strip() else None,
+            "months": months,
+            "forecast": forecast,
+            "budget": budget,
+            "status": status,
+            "cacheHit": False,
+        }
+        self._trust_cache.put(cache_key, result)
+        return result  # type: ignore[return-value]
+
+    def _handle_spend_pricing(
+        self, params: bus_types.SpendPricingParams
+    ) -> bus_types.SpendPricingResult:
+        params = params or {}
+        pack = self._spend_pricing_pack(params)
+        return {
+            "source": pack.source,
+            "version": pack.version,
+            "currency": pack.currency,
+            "models": [
+                {
+                    "vendor": rate.vendor,
+                    "model": rate.model,
+                    "tokensInPerMillion": rate.tokens_in_per_million,
+                    "tokensOutPerMillion": rate.tokens_out_per_million,
+                }
+                for rate in pack.rates
+            ],
+            "errors": list(pack.errors),
+        }
 
     # -- ledger (FR-M10-01/02/07/08/12) -------------------------------------
 

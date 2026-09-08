@@ -158,6 +158,11 @@
       "notification": true,
       "params": { "$ref": "#/$defs/GateHaltNotification" }
     },
+    "spend/ceiling": {
+      "description": "Sidecar -> extension-host notification (FR-M39-02; F1 Workstream F task 27): a spend-ceiling breach on a session Meridian hosts, dispatched to the extension's ACP session registry. The registry pauses the session at its next checkpoint — it owns the wire; the sidecar owns the ledger record (spend_ceiling entry, durable before this dispatch, FR-M10-08). Observed agents never produce this notification: they cannot be paused (FR-M35-06), and the RPC says so in its result instead.",
+      "notification": true,
+      "params": { "$ref": "#/$defs/SpendCeilingNotification" }
+    },
     "pr/ingest": {
       "description": "FR-M35-04/FR-M35-05 (F1 Workstream B task 12): ingest an external agent's PR as a Meridian story. The payload is the recorded-real gh-api pull-request shape (PR object plus its commits and files arrays — in production sourced from the M23 SCM connectors, in tests from recorded fixtures; never invented field names). The PR becomes the story's ledger origin record (actionType pr_ingest, origin connector), every hunk is attributed to its agent via Co-Authored-By trailers, author markers, or the inferred heuristic fallback (FR-M35-02 confidence labelled), each agent's pass is recorded as a proposed-change entry (actionType diff, vendor + observationConfidence set), and the packet is routed through the requested gate profiles (default verify, security, review — FR-M35-04). Every entry is written BEFORE the response returns (FR-M10-08). Merge permission is NOT granted here: pr/status consults the merge gate, which requires a recorded human approval bound to the head commit when the PR targets a protected branch (FR-M12-05, AC-32).",
       "params": { "$ref": "#/$defs/PrIngestParams" },
@@ -273,6 +278,26 @@
       "description": "FR-M37-08 (F1 Workstream E task 25): the DORA four keys — deployment frequency, lead time for changes, change failure rate, time to restore — derived from the ledger and exported as OTLP-friendly JSON (resourceMetrics/scopeMetrics/metrics/gauge/dataPoints with OTel attribute encoding) so Meridian's numbers land in the team's existing engineering-intelligence tooling. Honest derivations, documented in the module: the ledger records no deploy event type, so deployments are the approved-diff shape (a change that passed review); lead time is the median hours from a story's first in-scope diff to its first approved diff; change failure is an approved diff later carried by a rejection entry; time to restore is the median hours from that failure to the story's next approved diff. A key the ledger cannot evidence exports a data point carrying meridian.evidence=unknown and NO value — never an invented number. Python standard library only. Zero model calls (FR-M36-07).",
       "params": { "$ref": "#/$defs/TrustDoraExportParams" },
       "result": { "$ref": "#/$defs/TrustDoraExportResult" }
+    },
+    "spend/series": {
+      "description": "FR-M39-01 (F1 Workstream F task 26): the cross-vendor bill Meridian's customers cannot otherwise see — spend across every agent it observes, native and external, adapted from recorded ledger token/cost rows onto the SpendSeries protocol (D26). Aggregated by dimension: vendor | model | agent | story | team | costCentre (team/cost centre resolve through the story-metadata pack, policy/stories.yaml; dimensions with no recorded evidence report 'unknown', never fabricated). Rows with tokens but no recorded cost are priced through the pricing pack (policy/pricing.yaml) and reported as estimated, separate from recorded cost. Also returns the per-agent spendSeries (agentId -> [{period, tokens}], ISO-week periods) so trust/tokenmaxxing consumes the real feed directly. Ledger-derived on demand, in-process-cached, invalidated on append (FR-M17-05). Zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/SpendSeriesParams" },
+      "result": { "$ref": "#/$defs/SpendSeriesResult" }
+    },
+    "spend/ceilingCheck": {
+      "description": "FR-M39-02 (F1 Workstream F task 27): spend ceilings from the governance pack's budgetCeilings (config, never hard-coded), enforced honestly about what Meridian controls. A hosted agent (a session Meridian launched over ACP — the session_begin record IS the hosted fact) that reaches its ceiling is recorded in the ledger (FR-M10-08: durable before any action) and a pause-at-checkpoint notification is dispatched — the extension host owns the wire and pauses the session at its next checkpoint, the same record/dispatch split as gate.halt. A Meridian-native actor (vendor 'meridian') gets the same pause-at-checkpoint dispatch for Meridian's own loops. An observed external agent gets the ADVISORY WARNING only — the same NOT_HOSTED honesty as steer: observation never intercepts (FR-M35-06), so the result says warned, never a fake pause. The warning is ledger-recorded either way.",
+      "params": { "$ref": "#/$defs/SpendCeilingCheckParams" },
+      "result": { "$ref": "#/$defs/SpendCeilingCheckResult" }
+    },
+    "spend/forecast": {
+      "description": "FR-M39-03 (F1 Workstream F task 28): monthly spend per team forecast from the trailing ledger, so the bill is visible before it arrives. Method (documented, deterministic): an ordinary least-squares line over the trailing windowMonths calendar months (default 3; zero months included — a month with no recorded token activity is real evidence of no spend), evaluated at the current month; fewer than two evidence months reports insufficient_evidence, never a projection on one point. Budget alert: when the month-to-date actual or the projection crosses budgetCeilings.usdPerMonth from the governance pack (config, never hard-coded) the status is actual_breach | forecast_breach | ok; no configured budget reports unconfigured and the forecast is still returned. The team dimension resolves through the story-metadata pack; unmapped stories are excluded and counted, never silently attributed. Ledger-derived on demand, in-process-cached, invalidated on append (FR-M17-05). Zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/SpendForecastParams" },
+      "result": { "$ref": "#/$defs/SpendForecastResult" }
+    },
+    "spend/pricing": {
+      "description": "FR-M39-04 (F1 Workstream F task 29): the pricing table that makes spend predictable — per-vendor/model token rates (USD per million tokens, USD default per D12, currency configurable) from the pricing pack (policy/pricing.yaml, workspace override at .meridian/policy/pricing.yaml; all rates from config, never hard-coded). Recorded tokens x rate = cost wherever the ledger recorded tokens without cost; a model with no rate prices as unknown, never a fabricated number. Meridian's own pricing model is predictable by design: the Flight Recorder tier makes no model calls and has no usage-based cost (meridian rates are 0.0); the Governor and Orchestra tiers report their own model spend in the same ledger as everyone else's. Fail-closed parsing like the governance pack: a malformed pack prices nothing. Zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/SpendPricingParams" },
+      "result": { "$ref": "#/$defs/SpendPricingResult" }
     },
     "acp/sessionBegin": {
       "description": "FR-M34-01/02 (F1 Workstream A task 4): the extension host ACP client reports a hosted agent session starting; the sidecar records a `session_begin` ledger entry (actorKind external, vendor acp, direct confidence) before the agent's first turn.",
@@ -2533,6 +2558,123 @@
       "properties": {
         "tool": { "type": "string" },
         "result": { "type": ["object", "array", "string", "number", "boolean", "null"], "description": "The underlying method's result JSON, unmodified." }      },
+      "additionalProperties": false
+    },
+    "SpendSeriesParams": {
+      "type": "object",
+      "properties": {
+        "dimension": { "type": "string", "enum": ["vendor", "model", "agent", "story", "team", "costCentre"], "description": "The FR-M39-01 dimension to aggregate over (default vendor)." },
+        "actorId": { "type": "string" },
+        "storyId": { "type": "string" },
+        "vendor": { "type": "string" },
+        "repoId": { "type": "string" },
+        "fromSequence": { "type": "integer" },
+        "toSequence": { "type": "integer" },
+        "pricingPath": { "type": "string", "description": "Explicit pricing pack path; then the workspace override, then the repository policy/pricing.yaml." },
+        "storyPath": { "type": "string", "description": "Explicit story-metadata pack path; then the workspace override, then the repository policy/stories.yaml." },
+        "storyMetadata": { "type": "object", "description": "Inline storyId -> {team, costCentre} attribution merged over the pack (callers with metadata in hand)." }
+      },
+      "additionalProperties": false
+    },
+    "SpendSeriesResult": {
+      "type": "object",
+      "required": ["scope", "dimension", "totals", "byValue", "spendSeries", "cacheHit"],
+      "properties": {
+        "scope": { "type": "object", "description": "The echoed scope filters." },
+        "dimension": { "type": "string" },
+        "totals": { "type": "object", "description": "The whole-bill rollup: entries, tokensIn/tokensOut/tokens, recordedCostUsd (the ledger's own costUsd), estimatedCostUsd (tokens priced through the pricing pack where cost was absent), costUsd (both summed — the best-known bill)." },
+        "byValue": { "type": "object", "description": "dimension value -> the same rollup. Values with no recorded evidence appear as 'unknown', never fabricated; absent from the ledger entirely they do not appear at all." },
+        "spendSeries": { "type": "object", "description": "agentId -> [{period, tokens}] with ISO-week periods (2026-W01) — the SpendSeries feed (D26) consumable by trust/tokenmaxxing verbatim." },
+        "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
+      },
+      "additionalProperties": false
+    },
+    "SpendCeilingCheckParams": {
+      "type": "object",
+      "properties": {
+        "actorId": { "type": "string", "description": "The agent whose cumulative spend is checked (required unless sessionId is given)." },
+        "storyId": { "type": "string", "description": "Also check the per-story ceiling against this story's spend." },
+        "sessionId": { "type": "string", "description": "The hosted session to pause at checkpoint on breach; its session_begin record is the hosted fact." },
+        "policyPath": { "type": "string", "description": "Explicit governance pack path; then the workspace override, then the repository policy/governance.yaml." },
+        "pricingPath": { "type": "string" },
+        "fromSequence": { "type": "integer" },
+        "toSequence": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "SpendCeilingCheckResult": {
+      "type": "object",
+      "required": ["scope", "spentUsd", "estimatedShareUsd", "ceilings", "action", "hosted", "advisory", "note"],
+      "properties": {
+        "scope": { "type": "object", "description": "The echoed scope filters." },
+        "spentUsd": { "type": "number", "description": "Cumulative best-known spend in scope: recorded cost plus pack-priced estimates." },
+        "estimatedShareUsd": { "type": "number", "description": "How much of spentUsd came from pricing-pack estimates rather than recorded cost — the honesty line between recorded and priced." },
+        "ceilings": { "type": "object", "description": "budgetCeilings key (usdPerAgent/usdPerStory) -> {limitUsd, configured, breached, headroomUsd, note}; unconfigured keys report configured: false and never breach." },
+        "action": { "type": "string", "enum": ["paused_at_checkpoint", "warned", "none"], "description": "paused_at_checkpoint: breach on a hosted/native actor — ledger-recorded (sequence) and dispatched to the extension host, which owns the wire. warned: breach on an observed agent — advisory only, never a fake pause. none: no breach." },
+        "hosted": { "type": "boolean", "description": "True when Meridian hosts this actor/session (session_begin on record, or a meridian-native actor)." },
+        "advisory": { "type": "boolean", "description": "True when the breach could only be warned about (observed agent, FR-M35-06 — observation never intercepts)." },
+        "sequence": { "type": "integer", "description": "The spend_ceiling ledger entry recording the breach/warning (FR-M10-08), when one was written." },
+        "note": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "SpendForecastParams": {
+      "type": "object",
+      "properties": {
+        "team": { "type": "string", "description": "Forecast this team's spend (story -> team via the story-metadata pack). Absent means the whole workspace bill." },
+        "repoId": { "type": "string" },
+        "fromSequence": { "type": "integer" },
+        "toSequence": { "type": "integer" },
+        "windowMonths": { "type": "integer", "description": "Trailing months the least-squares fit covers (default 3)." },
+        "policyPath": { "type": "string" },
+        "pricingPath": { "type": "string" },
+        "storyPath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "SpendForecastResult": {
+      "type": "object",
+      "required": ["scope", "team", "months", "forecast", "budget", "status", "cacheHit"],
+      "properties": {
+        "scope": { "type": "object", "description": "The echoed scope filters." },
+        "team": { "type": ["string", "null"], "description": "The team forecasted, or null for the whole workspace." },
+        "months": { "type": "object", "description": "YYYY-MM -> actual best-known USD (recorded + priced)." },
+        "forecast": { "type": "object", "description": "{status: ok|insufficient_evidence, projectedUsd, slopeUsdPerMonth, windowMonths, evidenceMonths, method, note} — the documented deterministic projection; insufficient_evidence carries no projectedUsd." },
+        "budget": { "type": "object", "description": "{limitUsd, source, status: ok|actual_breach|forecast_breach|unconfigured, headroomUsd} — the budgetCeilings.usdPerMonth alert; unconfigured when the pack sets no monthly budget." },
+        "status": { "type": "string", "enum": ["ok", "actual_breach", "forecast_breach", "unconfigured", "insufficient_evidence"] },
+        "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
+      },
+      "additionalProperties": false
+    },
+    "SpendPricingParams": {
+      "type": "object",
+      "properties": {
+        "pricingPath": { "type": "string", "description": "Explicit pricing pack path; then the workspace override, then the repository policy/pricing.yaml." }
+      },
+      "additionalProperties": false
+    },
+    "SpendPricingResult": {
+      "type": "object",
+      "required": ["source", "version", "currency", "models", "errors"],
+      "properties": {
+        "source": { "type": "string", "description": "The pack file the rates came from (config, never hard-coded)." },
+        "version": { "type": "integer" },
+        "currency": { "type": "string", "description": "D12: USD default, configurable per workspace via the pack's currency key." },
+        "models": { "type": "array", "items": { "type": "object" }, "description": "[{vendor, model, tokensInPerMillion, tokensOutPerMillion}] — USD per million tokens; vendor '*' is the wildcard matched by model id alone." },
+        "errors": { "type": "array", "items": { "type": "string" }, "description": "Fail-closed parse errors; non-empty means the pack prices nothing (unknown, never fabricated)." }
+      },
+      "additionalProperties": false
+    },
+    "SpendCeilingNotification": {
+      "type": "object",
+      "required": ["sequence", "action"],
+      "properties": {
+        "sequence": { "type": "integer", "description": "The spend_ceiling ledger entry, durable before this dispatch (FR-M10-08)." },
+        "sessionId": { "type": ["string", "null"] },
+        "actorId": { "type": ["string", "null"] },
+        "action": { "type": "string", "const": "pauseAtCheckpoint", "description": "The registry pauses the hosted session at its next checkpoint; it owns the wire, the sidecar owns the record." },
+        "spentUsd": { "type": "number" }
+      },
       "additionalProperties": false
     }
   }

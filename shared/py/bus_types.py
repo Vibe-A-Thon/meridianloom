@@ -1317,11 +1317,87 @@ class McpInvokeResult(TypedDict):
     tool: str
     result: dict[str, Any] | list[Any] | str | float | bool | None  # The underlying method's result JSON, unmodified.
 
+class SpendSeriesParams(TypedDict):
+    dimension: NotRequired[Literal["vendor", "model", "agent", "story", "team", "costCentre"]]  # The FR-M39-01 dimension to aggregate over (default vendor).
+    actorId: NotRequired[str]
+    storyId: NotRequired[str]
+    vendor: NotRequired[str]
+    repoId: NotRequired[str]
+    fromSequence: NotRequired[int]
+    toSequence: NotRequired[int]
+    pricingPath: NotRequired[str]  # Explicit pricing pack path; then the workspace override, then the repository policy/pricing.yaml.
+    storyPath: NotRequired[str]  # Explicit story-metadata pack path; then the workspace override, then the repository policy/stories.yaml.
+    storyMetadata: NotRequired[dict[str, Any]]  # Inline storyId -> {team, costCentre} attribution merged over the pack (callers with metadata in hand).
+
+class SpendSeriesResult(TypedDict):
+    scope: dict[str, Any]  # The echoed scope filters.
+    dimension: str
+    totals: dict[str, Any]  # The whole-bill rollup: entries, tokensIn/tokensOut/tokens, recordedCostUsd (the ledger's own costUsd), estimatedCostUsd (tokens priced through the pricing pack where cost was absent), costUsd (both summed — the best-known bill).
+    byValue: dict[str, Any]  # dimension value -> the same rollup. Values with no recorded evidence appear as 'unknown', never fabricated; absent from the ledger entirely they do not appear at all.
+    spendSeries: dict[str, Any]  # agentId -> [{period, tokens}] with ISO-week periods (2026-W01) — the SpendSeries feed (D26) consumable by trust/tokenmaxxing verbatim.
+    cacheHit: bool  # True when served from the in-process cache (FR-M17-05).
+
+class SpendCeilingCheckParams(TypedDict):
+    actorId: NotRequired[str]  # The agent whose cumulative spend is checked (required unless sessionId is given).
+    storyId: NotRequired[str]  # Also check the per-story ceiling against this story's spend.
+    sessionId: NotRequired[str]  # The hosted session to pause at checkpoint on breach; its session_begin record is the hosted fact.
+    policyPath: NotRequired[str]  # Explicit governance pack path; then the workspace override, then the repository policy/governance.yaml.
+    pricingPath: NotRequired[str]
+    fromSequence: NotRequired[int]
+    toSequence: NotRequired[int]
+
+class SpendCeilingCheckResult(TypedDict):
+    scope: dict[str, Any]  # The echoed scope filters.
+    spentUsd: float  # Cumulative best-known spend in scope: recorded cost plus pack-priced estimates.
+    estimatedShareUsd: float  # How much of spentUsd came from pricing-pack estimates rather than recorded cost — the honesty line between recorded and priced.
+    ceilings: dict[str, Any]  # budgetCeilings key (usdPerAgent/usdPerStory) -> {limitUsd, configured, breached, headroomUsd, note}; unconfigured keys report configured: false and never breach.
+    action: Literal["paused_at_checkpoint", "warned", "none"]  # paused_at_checkpoint: breach on a hosted/native actor — ledger-recorded (sequence) and dispatched to the extension host, which owns the wire. warned: breach on an observed agent — advisory only, never a fake pause. none: no breach.
+    hosted: bool  # True when Meridian hosts this actor/session (session_begin on record, or a meridian-native actor).
+    advisory: bool  # True when the breach could only be warned about (observed agent, FR-M35-06 — observation never intercepts).
+    sequence: NotRequired[int]  # The spend_ceiling ledger entry recording the breach/warning (FR-M10-08), when one was written.
+    note: str
+
+class SpendForecastParams(TypedDict):
+    team: NotRequired[str]  # Forecast this team's spend (story -> team via the story-metadata pack). Absent means the whole workspace bill.
+    repoId: NotRequired[str]
+    fromSequence: NotRequired[int]
+    toSequence: NotRequired[int]
+    windowMonths: NotRequired[int]  # Trailing months the least-squares fit covers (default 3).
+    policyPath: NotRequired[str]
+    pricingPath: NotRequired[str]
+    storyPath: NotRequired[str]
+
+class SpendForecastResult(TypedDict):
+    scope: dict[str, Any]  # The echoed scope filters.
+    team: str | None  # The team forecasted, or null for the whole workspace.
+    months: dict[str, Any]  # YYYY-MM -> actual best-known USD (recorded + priced).
+    forecast: dict[str, Any]  # {status: ok|insufficient_evidence, projectedUsd, slopeUsdPerMonth, windowMonths, evidenceMonths, method, note} — the documented deterministic projection; insufficient_evidence carries no projectedUsd.
+    budget: dict[str, Any]  # {limitUsd, source, status: ok|actual_breach|forecast_breach|unconfigured, headroomUsd} — the budgetCeilings.usdPerMonth alert; unconfigured when the pack sets no monthly budget.
+    status: Literal["ok", "actual_breach", "forecast_breach", "unconfigured", "insufficient_evidence"]
+    cacheHit: bool  # True when served from the in-process cache (FR-M17-05).
+
+class SpendPricingParams(TypedDict):
+    pricingPath: NotRequired[str]  # Explicit pricing pack path; then the workspace override, then the repository policy/pricing.yaml.
+
+class SpendPricingResult(TypedDict):
+    source: str  # The pack file the rates came from (config, never hard-coded).
+    version: int
+    currency: str  # D12: USD default, configurable per workspace via the pack's currency key.
+    models: list[dict[str, Any]]  # [{vendor, model, tokensInPerMillion, tokensOutPerMillion}] — USD per million tokens; vendor '*' is the wildcard matched by model id alone.
+    errors: list[str]  # Fail-closed parse errors; non-empty means the pack prices nothing (unknown, never fabricated).
+
+class SpendCeilingNotification(TypedDict):
+    sequence: int  # The spend_ceiling ledger entry, durable before this dispatch (FR-M10-08).
+    sessionId: NotRequired[str | None]
+    actorId: NotRequired[str | None]
+    action: Literal["pauseAtCheckpoint"]  # The registry pauses the hosted session at its next checkpoint; it owns the wire, the sidecar owns the record.
+    spentUsd: NotRequired[float]
+
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate"]
 
 # Every notification method on the bus.
-NotificationName = Literal["gate/halt", "tiers/set", "$/cancel"]
+NotificationName = Literal["gate/halt", "spend/ceiling", "tiers/set", "$/cancel"]
 
 # JSON-RPC 2.0 request id. The extension allocates monotonically increasing integers; strings are accepted for forwards compatibility.
 RequestId = int | str
@@ -1377,6 +1453,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.observers", "tier": "flight-recorder", "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).", "rpcMethods": ["observe/sessions", "observe/health"]},
     {"id": "recorder.provenance-hooks", "tier": "flight-recorder", "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).", "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse"]},
     {"id": "recorder.trust-metrics", "tier": "flight-recorder", "description": "Rejection measurement and trust analytics (FR-M37-01/02/03/04/05/06/07/08, FR-M17-01/05; F0 Workstream F tasks 28-30, F1 Workstream E tasks 19-25): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), the ledger-derived, in-process-cached rejection rate per agent/repository/action-class/phase/story split by that distinction (trust/rejectionRate), the E-GR-03 rejection-reason distribution per agent (trust/reasonDistribution), the trust score with its full per-component decomposition (trust/score, trust/scoreDecomposition), same-story agent-vs-agent comparison with unknown-labelled components (trust/compareAgents), the adoption J-curve (trust/jcurve), the tokenmaxxing detector over spend series (trust/tokenmaxxing), and the DORA four-keys export in OTLP-friendly JSON (trust/doraExport). Read-only observability. Zero model calls (FR-M36-07).", "rpcMethods": ["trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport"]},
+    {"id": "recorder.spend", "tier": "flight-recorder", "description": "Cross-vendor spend and predictable pricing (FR-M39-01/02/03/04, FR-M26-03; F1 Workstream F tasks 26-29): the M39 spend feed adapts recorded ledger token/cost rows onto the SpendSeries protocol (spend/series) — the cross-vendor bill by vendor, model, agent, story, team and cost centre (dimensions without recorded evidence are 'unknown', never fabricated); spend ceilings from the governance pack's budgetCeilings (spend/ceilingCheck) that pause hosted agents at a checkpoint — ledger-recorded and dispatched to the extension host, which owns the wire — and warn honestly on observed agents, which cannot be paused (the same NOT_HOSTED honesty as steer, FR-M35-06); the monthly spend forecast per team with the budget alert (spend/forecast, a documented deterministic least-squares projection over the trailing months, alerting on budgetCeilings.usdPerMonth); and the per-vendor/model pricing table from the pricing pack, USD default (D12), so recorded tokens x configured rate = cost (spend/pricing). Ceiling checks and warnings are ledger-recorded before the RPC returns (FR-M10-08), like gate.halt. Zero model calls (FR-M36-07).", "rpcMethods": ["spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing"]},
     {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01/05/07/08/09; F1 Workstream B tasks 9-10): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack, with DoR/DoD as machine-checkable criteria; the merge gate refuses merges to protected branches without a recorded human approval bound to the head commit digest (approver identity in the ledger, FR-M12-07). Every decision is ledger-recorded before the RPC returns (FR-M10-08).", "rpcMethods": ["gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarify over hosted ACP sessions (FR-M25-01/02/03/04/06; F1 Workstream D task 17): steer.send ledger-records a human's guidance (who/what/when, FR-M10-08) before the host injects it into the running session over the real wire (a second session/prompt); steer.question/steer.answer are the clarifying-question protocol — the question is durable before the human sees it, the recorded answer resumes the loop; steer.escalate records uncertainty-triggered escalations below a per-class confidence threshold; steer.accept + steer.acceptanceStatus are partial acceptance of a session's output per file/hunk, ledger-recorded and queryable; steer.plan records dry-run planner output (dry-run denies mutation kinds at the policy gate, FR-M25-06); steer.status (task 18) is the honest capability payload carrying hosted: boolean so an observe-only session can never be offered a dead control. Observed-not-hosted sessions get the structured NOT_HOSTED refusal, never a silent failure.", "rpcMethods": ["steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan"]},
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
@@ -1388,8 +1465,8 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate")
-NOTIFICATION_METHODS: tuple[str, ...] = ("gate/halt", "tiers/set", "$/cancel")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate")
+NOTIFICATION_METHODS: tuple[str, ...] = ("gate/halt", "spend/ceiling", "tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
 METHOD_CONTRACT: dict[str, dict[str, Any]] = {
@@ -1445,6 +1522,10 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "trust/jcurve": {"params": TrustJcurveParams, "result": TrustJcurveResult},
     "trust/tokenmaxxing": {"params": TrustTokenmaxxingParams, "result": TrustTokenmaxxingResult},
     "trust/doraExport": {"params": TrustDoraExportParams, "result": TrustDoraExportResult},
+    "spend/series": {"params": SpendSeriesParams, "result": SpendSeriesResult},
+    "spend/ceilingCheck": {"params": SpendCeilingCheckParams, "result": SpendCeilingCheckResult},
+    "spend/forecast": {"params": SpendForecastParams, "result": SpendForecastResult},
+    "spend/pricing": {"params": SpendPricingParams, "result": SpendPricingResult},
     "acp/sessionBegin": {"params": AcpSessionBeginParams, "result": AcpSessionRecordResult},
     "acp/sessionEnd": {"params": AcpSessionEndParams, "result": AcpSessionRecordResult},
     "acp/permissionDecision": {"params": AcpPermissionDecisionParams, "result": AcpSessionRecordResult},
