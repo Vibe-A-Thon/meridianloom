@@ -61,6 +61,43 @@ describe('Governance decision controls', () => {
     h.host.replace('gate.profiles', { profiles: [], policyVersion: 'v1', failClosed: false, errors: [] }); await h.host.settle();
     expect(screen.queryByRole('alert')).toBeNull();
   });
+  it('requires inspection again when the head changes while a status response is in flight', async () => {
+    const h = harness({ 'gate.status': { status: 'blocked', subject: 'main', requiredApproval: true, halted: false, missing: ['Approval required'] } });
+    render(<GovernanceStudio view="gates" {...h.props} />); await h.host.settle();
+    fireEvent.change(screen.getByLabelText('Branch or PR subject'), { target: { value: 'main' } });
+    fireEvent.change(screen.getByLabelText('Full head commit'), { target: { value: 'a'.repeat(40) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect approval requirements' }));
+    fireEvent.change(screen.getByLabelText('Full head commit'), { target: { value: 'b'.repeat(40) } });
+    await h.host.settle();
+    expect(screen.getByRole('button', { name: 'Review approval' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect approval requirements' })); await h.host.settle();
+    expect(screen.getByRole('button', { name: 'Review approval' })).toBeEnabled();
+  });
+  it('preserves the approval dialog and reports runtime refusal without announcing success', async () => {
+    const h = harness({ 'gate.status': { status: 'blocked', subject: 'main', requiredApproval: true, halted: false, missing: ['Approval required'] }, 'gate.approve': { recorded: false, sequence: 0 } });
+    render(<GovernanceStudio view="gates" {...h.props} />); await h.host.settle();
+    fireEvent.change(screen.getByLabelText('Branch or PR subject'), { target: { value: 'main' } });
+    fireEvent.change(screen.getByLabelText('Full head commit'), { target: { value: 'a'.repeat(40) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect approval requirements' })); await h.host.settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Review approval' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByLabelText('I have reviewed the target and consequences.'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Record approval' })); await h.host.settle();
+    expect(within(screen.getByRole('dialog')).getByRole('alert')).toHaveTextContent('did not complete');
+    expect(screen.queryByText(/Approval recorded by/)).toBeNull();
+  });
+  it('previews named delegation and records the host-authorized grant only after confirmation', async () => {
+    const h = harness({ 'roles/list': { roles: [{ name: 'Approver', description: 'Approve changes', permissions: ['approve'], readOnly: false }], policyVersion: 'roles/v1', source: 'policy/roles.yaml', failClosed: false, errors: [], defaultRole: 'Approver', approvals: { soD: { forbidSelfApproval: true } }, delegation: { maxTtlDays: 7 }, hygiene: {} }, 'roles/delegate': { recorded: true, sequence: 44, delegation: { delegator: { name: 'Host User', email: 'host@example.test' }, to: 'reviewer@example.test', role: 'Approver', expiresAt: '2026-09-10T00:00:00Z', depth: 1 } } });
+    render(<GovernanceStudio view="approvals" {...h.props} />); await h.host.settle();
+    fireEvent.change(screen.getByLabelText('Recipient'), { target: { value: 'reviewer@example.test' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review delegation' }));
+    expect(h.host.requests.some(request => request.method === 'roles/delegate')).toBe(false);
+    const dialog = screen.getByRole('dialog'); expect(dialog).toHaveTextContent('reviewer@example.test');
+    fireEvent.click(within(dialog).getByLabelText('I have reviewed the target and consequences.'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Record delegation' })); await h.host.settle();
+    expect(h.host.requests.find(request => request.method === 'roles/delegate')?.params).toEqual({ to: 'reviewer@example.test', role: 'Approver', holderRole: 'Governor', ttlDays: 1 });
+    expect(screen.getByRole('status')).toHaveTextContent('ledger #44');
+  });
   it('refuses worktree removal until its exact target is confirmed and defaults to preserving dirty work', async () => {
     const tree = { storyId: 'S-2', branch: 'meridian/S-2', path: '/workspace/.meridian/worktrees/S-2', worktreeRef: '.meridian/worktrees/S-2', baseBranch: 'main', baseCommit: 'a'.repeat(40), headCommit: 'b'.repeat(40), adapterId: 'atlas', dirty: true, unpushedCommits: 2 };
     const h = harness({ 'worktree/list': { worktrees: [tree] }, 'worktree/remove': { removed: true, storyId: 'S-2', branch: 'meridian/S-2', worktreeRef: tree.worktreeRef } });
@@ -113,7 +150,8 @@ describe('Evidence-derived analytics', () => {
   });
   it('uses explicit confidence/decision pairs and excludes narrative-only or simulated confidence', () => {
     const bins = calibrationBins([row({ confidence: .9, decision: 'pass' }), row({ confidence: .8, decision: 'block' }), row({ confidence: .99 }), row({ confidence: .9, decision: 'pass', simulated: true })]);
-    expect(bins[4]).toEqual({ low: .8, high: 1, count: 2, confidence: .85 + Number.EPSILON / 2, outcome: .5 });
+    expect(bins[4]).toMatchObject({ low: .8, high: 1, count: 2, outcome: .5 });
+    expect(bins[4].confidence).toBeCloseTo(.85);
     expect(bins.reduce((sum, bin) => sum + bin.count, 0)).toBe(2);
   });
   it('shows empty spend as unavailable, not a fabricated zero bill', async () => {

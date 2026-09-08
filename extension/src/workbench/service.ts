@@ -623,6 +623,17 @@ export class WorkbenchService {
             if (item.state !== 'draft')
               throw new Error('Only a draft can be dispatched. Create a new draft to run again.');
             const agents = this.state.agents.filter((agent) => agent.mode === 'active');
+            if (params.expectedBriefUpdatedAt !== undefined && params.expectedBriefUpdatedAt !== item.updatedAt)
+              throw new Error('The brief changed after review. Recheck the launch.');
+            if (params.expectedTeam !== undefined) {
+              if (!Array.isArray(params.expectedTeam)) throw new Error('Expected team must be an array.');
+              const expected = params.expectedTeam.map(entry => {
+                const member = record(entry);
+                return { id: id(member.id), updatedAt: string(member.updatedAt, 'Profile update time', 40) };
+              }).sort((a, b) => a.id.localeCompare(b.id));
+              const actual = agents.map(agent => ({ id: agent.id, updatedAt: agent.updatedAt })).sort((a, b) => a.id.localeCompare(b.id));
+              if (JSON.stringify(expected) !== JSON.stringify(actual)) throw new Error('The participating team changed after review. Recheck the launch.');
+            }
             if (!agents.length)
               throw new Error('Activate at least one agent before dispatching a deliverable.');
             item.agentIds = agents.map((agent) => agent.id);

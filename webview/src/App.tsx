@@ -51,6 +51,8 @@ function useUiTheme() {
   useEffect(() => {
     const sync = () => {
       applyTheme(document.documentElement, theme, density, detectHighContrast(document));
+      document.documentElement.dataset.mlMotion = readUiState(api)?.view?.motionPreference === 'reduce' ? 'reduce' : 'system';
+      document.documentElement.dataset.mlReading = readUiState(api)?.view?.readingPreference === 'large' ? 'large' : 'standard';
       writeUiState(api, { ...readUiState(api), theme, density });
     };
     sync();

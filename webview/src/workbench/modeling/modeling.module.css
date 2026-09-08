@@ -6,7 +6,7 @@
 .toolbar { display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
 .button, .primary, .danger { border:1px solid var(--ml-hairline); border-radius:7px; color:var(--ml-text-primary); background:var(--ml-ground-raised); padding:9px 12px; cursor:pointer; font-size:12px; }
 .primary { background:var(--ml-accent); color:var(--ml-accent-ink); border-color:var(--ml-accent); font-weight:600; }
-.danger { color:var(--ml-danger, #ea8796); }
+.danger { color:var(--ml-dye-rework); }
 .button:hover { border-color:var(--ml-text-tertiary); }
 .button[aria-pressed=true] { border-color:var(--ml-accent); color:var(--ml-accent); }
 .button:disabled, .primary:disabled, .danger:disabled { opacity:.5; cursor:default; }

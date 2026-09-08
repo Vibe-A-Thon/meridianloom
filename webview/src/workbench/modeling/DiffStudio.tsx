@@ -6,6 +6,21 @@ import type { ModelingStudioProps } from './types';
 import s from './modeling.module.css';
 interface HunkReview { state: 'accepted'|'rework'|'edited'; reason: string; edited?: string; evidence: string }
 interface DiffReview { schemaVersion:1; kind:'diff-review'; source:AttribDiffResult; hunks:Record<string,HunkReview> }
+/** A workspace document is editable JSON, so validate restored evidence before rendering it. */
+export function parseDiffReview(text:string):DiffReview {
+  const value=JSON.parse(text) as DiffReview;
+  const invalid=()=>new Error('This document is not a supported diff review.');
+  if(value.schemaVersion!==1||value.kind!=='diff-review'||!value.source||typeof value.source.repoPath!=='string'||!Array.isArray(value.source.files)||!value.hunks||Array.isArray(value.hunks)||typeof value.hunks!=='object')throw invalid();
+  for(const file of value.source.files){
+    if(!file||typeof file.path!=='string'||!['added','modified','deleted','renamed'].includes(file.status)||!Array.isArray(file.hunks))throw invalid();
+    for(const hunk of file.hunks){
+      if(!hunk||![hunk.oldStart,hunk.oldCount,hunk.newStart,hunk.newCount].every(item=>Number.isInteger(item)&&item>=0)||!Array.isArray(hunk.lines))throw invalid();
+      for(const line of hunk.lines)if(!line||!['added','removed','context'].includes(line.kind)||typeof line.content!=='string'||(line.commit!=null&&typeof line.commit!=='string')||(line.authorName!=null&&typeof line.authorName!=='string'))throw invalid();
+    }
+  }
+  for(const review of Object.values(value.hunks))if(!review||!['accepted','rework','edited'].includes(review.state)||typeof review.reason!=='string'||typeof review.evidence!=='string'||(review.edited!==undefined&&typeof review.edited!=='string'))throw invalid();
+  return value;
+}
 export function DiffStudio({client,ready,workspaceDir,controller,onNavigate}:ModelingStudioProps){
   const [base,setBase]=useState('HEAD');const [compare,setCompare]=useState('');const [path,setPath]=useState('');const [staged,setStaged]=useState(false);const [data,setData]=useState<AttribDiffResult>();const [reviews,setReviews]=useState<Record<string,HunkReview>>({});const [record,setRecord]=useState<StudioDocument>();const [fileIndex,setFileIndex]=useState(0);const [layout,setLayout]=useState<'unified'|'split'>('unified');const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');
   const [editing,setEditing]=useState<{key:string;state:HunkReview['state'];reason:string;edited:string;evidence:string;original:string}>();
@@ -14,7 +29,7 @@ export function DiffStudio({client,ready,workspaceDir,controller,onNavigate}:Mod
   const counts=(state:HunkReview['state'])=>Object.values(reviews).filter(item=>item.state===state).length;
   const load=async()=>{setBusy(true);setError('');setNotice('');try{if(!workspaceDir)throw new Error('Open a Git workspace to inspect changes.');if(compare.trim()&&staged)throw new Error('Select either a commit range or the staged index.');const result=await client.request('attrib/diff',{repoPath:workspaceDir,base:base.trim()||undefined,compare:compare.trim()||undefined,staged,paths:path.trim()?[path.trim()]:undefined});setData(result);setReviews({});setRecord(undefined);setFileIndex(0);}catch(cause){setError(cause instanceof Error?cause.message:String(cause));}finally{setBusy(false);}};
   const save=async()=>{if(!data)return;setError('');try{const body:DiffReview={schemaVersion:1,kind:'diff-review',source:data,hunks:reviews};const next=await controller.execute('document/save',{document:{id:record?.id,kind:'verification',title:`Diff review · ${data.base??'HEAD'} → ${data.compare??(data.staged?'index':'worktree')}`,body:JSON.stringify(body),tags:['diff-review'],expectedVersion:record?.version}});const stored=next.documents?.find(item=>record?item.id===record.id:item.body===JSON.stringify(body));if(stored)setRecord(stored);setNotice('Review annotations saved. Source files and Git index have not been changed.');}catch(cause){setError(cause instanceof Error?cause.message:String(cause));}};
-  const restore=(id:string)=>{const item=saved.find(item=>item.id===id);if(!item)return;try{const body=JSON.parse(item.body) as DiffReview;if(body.schemaVersion!==1||body.kind!=='diff-review'||!Array.isArray(body.source?.files)||!body.hunks)throw new Error('This document is not a supported diff review.');setData(body.source);setReviews(body.hunks);setRecord(item);setFileIndex(0);setError('');setNotice('Review snapshot loaded. Reload changes to inspect the current workspace.');}catch(cause){setError(String(cause));}};
+  const restore=(id:string)=>{const item=saved.find(item=>item.id===id);if(!item)return;try{const body=parseDiffReview(item.body);setData(body.source);setReviews(body.hunks);setRecord(item);setFileIndex(0);setError('');setNotice('Review snapshot loaded. Reload changes to inspect the current workspace.');}catch(cause){setError(String(cause));}};
   return <div className={s.page}><header className={s.header}><div><p className={s.eyebrow}>Review / Diff theater</p><h1>Read the change. Capture the decision.</h1><p>Inspect real Git hunks with line attribution. Mark acceptance, request rework with a reason, or draft a correction alongside evidence references.</p></div><button className={s.button} onClick={()=>onNavigate('ledger')}>Open evidence ledger</button></header>
     <div className={s.notice}>Hunk decisions are saved review annotations. Applying edits, staging hunks, submitting rework, and committing require a source-write service that is not connected.</div>
     {error&&<div className={s.error} role="alert">{error}</div>}{notice&&<div className={s.notice} role="status">{notice}</div>}

@@ -11,9 +11,11 @@ export function attributionModel(data: AttribBlameResult, detail: 'modules'|'fil
   const folders = [...new Set(paths.map(path=>path.includes('/')?path.slice(0,path.lastIndexOf('/')):'(root)'))];
   const nodes: DiagramModel['nodes'] = folders.slice(0,100).map((folder,index)=>({id:`folder:${folder}`,label:folder,kind:'directory',detail:`Tracked source grouping at ${data.ref}.`,x:30+index%3*240,y:50+Math.floor(index/3)*140}));
   const edges: DiagramModel['edges'] = [];
+  const byPath = new Map<string, AttribBlameResult['lines']>();
+  for(const line of data.lines){const group=byPath.get(line.path);if(group)group.push(line);else byPath.set(line.path,[line]);}
   if(detail==='files') for(const path of paths.slice(0,Math.max(0,300-nodes.length))){
     const folder=path.includes('/')?path.slice(0,path.lastIndexOf('/')):'(root)'; if(!nodes.some(node=>node.id===`folder:${folder}`))continue;
-    const lines=data.lines.filter(line=>line.path===path);const recent=[...lines].sort((a,b)=>b.authorTime.localeCompare(a.authorTime))[0];
+    const lines=byPath.get(path)??[];const recent=lines.reduce<(typeof lines)[number]|undefined>((latest,line)=>!latest||line.authorTime>latest.authorTime?line:latest,undefined);
     const index=nodes.length;nodes.push({id:`file:${path}`,label:path.split('/').at(-1)!,kind:'file',source:path,owner:recent?.authorName,detail:`${lines.length} recorded lines · ${new Set(lines.map(line=>line.commit)).size} introducing commits · most recent line introduction ${recent?.authorTime ?? 'unknown'}`,x:30+index%3*240,y:50+Math.floor(index/3)*140});
     edges.push({id:`membership:${path}`,from:`folder:${folder}`,to:`file:${path}`,label:'contains',kind:'relation'});
   }

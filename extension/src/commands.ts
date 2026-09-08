@@ -20,6 +20,7 @@ import { renderDoctorReport } from './doctor';
 export const COMMANDS = [
   { id: 'meridian.ingestStory', title: 'Ingest Story' },
   { id: 'meridian.openRecorder', title: 'Open Recorder' },
+  { id: 'meridian.inspectSource', title: 'Inspect Source Provenance' },
   { id: 'meridian.installSkill', title: 'Install Skill' },
   { id: 'meridian.onboardAgent', title: 'Onboard Agent' },
   { id: 'meridian.exportAgent', title: 'Export Agent' },
@@ -38,6 +39,7 @@ export const COMMANDS = [
 export type CommandId = (typeof COMMANDS)[number]['id'];
 
 export interface CommandDeps {
+  inspectSource?: () => Promise<void>;
   /**
    * F0 Workstream G: opens the Flight Recorder dashboard webview panel.
    * Tests may omit it to prove the not-wired path reports instead of
@@ -106,6 +108,10 @@ async function runCommand(id: CommandId, deps: CommandDeps, args: unknown[] = []
       return;
     }
     await deps.openRecorder();
+    return;
+  }
+  if (id === 'meridian.inspectSource' && deps.inspectSource) {
+    await deps.inspectSource();
     return;
   }
   if (id === 'meridian.doctor') {

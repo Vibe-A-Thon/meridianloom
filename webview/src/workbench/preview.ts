@@ -7,6 +7,18 @@ import type { RpcTransport } from '../rpc/client';
 import type { StudioDocument, StudioDocumentInput } from '../../../shared/ts/studio';
 
 export function createPreviewTransport(): RpcTransport {
+  let previewState: unknown;
+  (window as { acquireVsCodeApi?: unknown }).acquireVsCodeApi = () => ({
+    getState: () => previewState,
+    setState: (value: unknown) => { previewState = value; return value; },
+    postMessage: (message: { type?: string; content?: string; mimeType?: string; fileName?: string }) => {
+      if (message.type !== 'download' || typeof message.content !== 'string') return;
+      const url = URL.createObjectURL(new Blob([message.content], { type: message.mimeType ?? 'text/plain' }));
+      const anchor = document.createElement('a'); anchor.href = url; anchor.download = message.fileName ?? 'meridian-export.txt';
+      document.body.append(anchor); anchor.click(); anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+  });
   const now = new Date().toISOString();
   const agents = [
     [

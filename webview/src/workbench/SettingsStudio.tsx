@@ -2,6 +2,8 @@ import { DENSITIES, THEMES, type Density, type ThemeName } from '../theme/themes
 import type { WorkbenchController } from './useWorkbench';
 import { Icon } from './Icon';
 import s from './workbench.module.css';
+import { useViewState } from './operations/shared';
+import { useEffect } from 'react';
 export const THEME_LABELS: Record<ThemeName, string> = {
   'follow-vscode': 'Follow VS Code',
   'indigo-vat': 'Indigo Vat',
@@ -28,6 +30,9 @@ export function SettingsStudio({
   workspaceDir?: string;
   openSettings: () => void;
 }) {
+  const [motion, setMotion] = useViewState('motionPreference', 'system');
+  const [reading, setReading] = useViewState('readingPreference', 'standard');
+  useEffect(() => { document.documentElement.dataset.mlMotion = motion; document.documentElement.dataset.mlReading = reading; }, [motion, reading]);
   return (
     <div className={s.page}>
       <header className={s.pageHeading}>
@@ -80,6 +85,11 @@ export function SettingsStudio({
             ))}
           </select>
         </div>
+      </section>
+      <section className={s.panel}>
+        <div className={s.panelHeader}><h2>Reading and motion</h2></div>
+        <div className={s.settingRow}><div><h3>Text presentation</h3><p>Give prose, forms and evidence tables more room.</p></div><select className={s.select} aria-label="Reading size" value={reading} onChange={event => setReading(event.target.value)}><option value="standard">Standard</option><option value="large">Larger text</option></select></div>
+        <div className={s.settingRow}><div><h3>Motion preference</h3><p>System reduced-motion preferences are always respected.</p></div><select className={s.select} aria-label="Motion preference" value={motion} onChange={event => setMotion(event.target.value)}><option value="system">Follow system</option><option value="reduce">Reduce motion</option></select></div>
       </section>
       <section className={s.panel}>
         <div className={s.panelHeader}>

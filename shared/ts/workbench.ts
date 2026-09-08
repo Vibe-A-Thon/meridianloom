@@ -120,7 +120,7 @@ export interface WorkbenchActionMap {
     params: { id?: string; title: string; brief: string };
     result: WorkbenchSnapshot;
   };
-  'deliverable/dispatch': { params: { id: string }; result: WorkbenchSnapshot };
+  'deliverable/dispatch': { params: { id: string; expectedBriefUpdatedAt?: string; expectedTeam?: Array<{ id: string; updatedAt: string }> }; result: WorkbenchSnapshot };
   'deliverable/complete': { params: { id: string; feedback: string }; result: WorkbenchSnapshot };
   'learning/review': {
     params: { id: string; decision: 'accepted' | 'dismissed' };

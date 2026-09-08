@@ -227,13 +227,13 @@ describe('Delivery and Learning studios', () => {
       }),
     );
   });
-  it('covers all 51 surfaces while clearly separating pending interfaces', () => {
+  it('connects all 51 catalogued surfaces to a dedicated interface', () => {
     expect(SURFACE_COVERAGE.map(([id]) => id)).toEqual(Array.from({ length: 51 }, (_, i) => i + 1));
     render(<GuideStudio onNavigate={() => {}} />);
     fireEvent.change(screen.getByLabelText('Search capability coverage'), {
       target: { value: 'UML Studio' },
     });
-    expect(screen.getByText('Pending')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Explore' })).toBeNull();
+    expect(screen.queryByText('Pending')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Explore' })).toBeInTheDocument();
   });
 });

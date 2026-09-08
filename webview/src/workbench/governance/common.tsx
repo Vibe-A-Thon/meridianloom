@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { Children, cloneElement, isValidElement, useId, useRef, useState, type ReactNode } from 'react';
 import type { MethodMap, RequestMethod } from '../../../../shared/ts/bus-types';
 import type { WebviewRpcClient } from '../../rpc/client';
 import type { WorkbenchController } from '../useWorkbench';
@@ -15,11 +15,20 @@ export function useAction(client: WebviewRpcClient) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
-  async function run<M extends RequestMethod>(method: M, params: MethodMap[M]['params']): Promise<MethodMap[M]['result'] | undefined> {
-    setBusy(true); setError(undefined); setMessage(undefined);
-    try { return await client.request(method, params); }
+  const inFlight = useRef(false);
+  async function run<M extends RequestMethod>(method: M, params: MethodMap[M]['params'], options?: { preserveMessage?: boolean }): Promise<MethodMap[M]['result'] | undefined> {
+    if (inFlight.current) return undefined;
+    inFlight.current = true;
+    setBusy(true); setError(undefined); if (!options?.preserveMessage) setMessage(undefined);
+    try {
+      const result = await client.request(method, params);
+      if (result && typeof result === 'object' && (('recorded' in result && result.recorded === false) || ('removed' in result && result.removed === false))) {
+        throw new Error('The runtime did not complete this action. Inspect the current state before retrying.');
+      }
+      return result;
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); return undefined; }
-    finally { setBusy(false); }
+    finally { inFlight.current = false; setBusy(false); }
   }
   return { busy, error, message, run, setError, setMessage };
 }
@@ -46,7 +55,13 @@ export function Confirm({ title, description, children, onClose, onConfirm, busy
   const [ack, setAck] = useState(false);
   return <Dialog title={title} description={description} onClose={onClose}><div className={s.form}>{children}<label className={s.check}><input type="checkbox" checked={ack} onChange={event => setAck(event.target.checked)} />I have reviewed the target and consequences.</label>{error && <p role="alert" className={s.error}>{error}</p>}<div className={s.actions}><button disabled={busy} onClick={onClose}>Cancel</button><button className={s.primary} disabled={!ack || busy} onClick={onConfirm}>{busy ? 'Working…' : label}</button></div></div></Dialog>;
 }
-export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) { return <label className={s.field}><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>; }
+export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+  const id = useId();
+  return <div className={s.field}><label htmlFor={id}>{label}</label>{Children.map(children, child =>
+    isValidElement<{ id?: string; 'aria-describedby'?: string }>(child) && ['input', 'select', 'textarea'].includes(String(child.type))
+      ? cloneElement(child, { id, ...(hint ? { 'aria-describedby': `${id}-hint` } : {}) }) : child,
+  )}{hint && <small id={`${id}-hint`}>{hint}</small>}</div>;
+}
 export function parseObject(value: string): Record<string, unknown> {
   const parsed: unknown = JSON.parse(value);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Enter a JSON object.');

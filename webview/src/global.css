@@ -22,6 +22,17 @@ button {
 button:disabled {
   cursor: not-allowed;
 }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 kbd {
   font: 9px var(--ml-font-data);
   border: 1px solid var(--ml-hairline);
@@ -62,6 +73,17 @@ dialog :focus-visible {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+[data-ml-motion='reduce'] *,
+[data-ml-motion='reduce'] *::before,
+[data-ml-motion='reduce'] *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+[data-ml-reading='large'] :is(p, li, td, label, input, textarea, select, button) {
+  font-size: max(14px, 1em);
+  line-height: 1.8;
 }
 [data-ml-theme='sized-linen'],
 [data-ml-theme='weld-dawn'] {

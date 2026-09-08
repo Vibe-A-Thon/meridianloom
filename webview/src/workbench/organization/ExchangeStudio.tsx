@@ -5,20 +5,77 @@ import { getVsCodeApi } from '../../host/vscode-api';
 import s from '../studio.module.css';
 import o from './organization.module.css';
 
-interface ImportPreview { kind: 'agent' | 'document'; title: string; details: string[]; source: unknown }
-export function inspectImport(content: string): ImportPreview {
-  if (new TextEncoder().encode(content).length > 2_000_000) throw new Error('The import must be at most 2 MB.');
-  const value = JSON.parse(content);
-  if (value?.schemaVersion !== 1) throw new Error('Unsupported package version. Expected schemaVersion 1.');
-  if (value.kind === 'meridian-portable-agent' && value.agent && typeof value.agent.id === 'string' && typeof value.agent.name === 'string' && typeof value.agent.command === 'string' && Array.isArray(value.agent.args) && value.agent.args.every((arg: unknown) => typeof arg === 'string') && Array.isArray(value.agent.permissions) && value.agent.permissions.every((permission: unknown) => typeof permission === 'string')) {
-    return { kind: 'agent', title: value.agent.name, details: [`Portable ID: ${value.agent.id}`, `Runtime: ${value.agent.command}`, `Declared permissions: ${value.agent.permissions.join(', ')}`, `Memory notes: ${Array.isArray(value.memory) ? value.memory.length : 0}`, 'Starts in Learning. Imported memory requires review before use.', 'Package is unsigned. The extension validates its manifest; no trust or capability grant is inferred.'], source: value };
-  }
-  if (value.kind === 'meridian-studio-document' && value.document && typeof value.document.title === 'string' && typeof value.document.kind === 'string' && typeof value.document.body === 'string' && Array.isArray(value.document.tags) && value.document.tags.every((tag: unknown) => typeof tag === 'string')) {
-    return { kind: 'document', title: value.document.title, details: [`Document type: ${value.document.kind}`, `Tags: ${value.document.tags.join(', ') || 'None'}`, 'Imports as a new workspace document. IDs and revision history are not adopted.', 'Content remains data. Import does not apply instructions, install a runtime, or change policy.'], source: value };
-  }
-  throw new Error('Choose a Meridian portable agent or studio document package.');
+interface ImportPreview {
+  kind: 'agent' | 'document';
+  title: string;
+  details: string[];
+  source: unknown;
 }
-export function ExchangeStudio({ controller, onNavigate }: { controller: WorkbenchController; onNavigate: (view: string) => void }) {
+export function inspectImport(content: string): ImportPreview {
+  if (new TextEncoder().encode(content).length > 2_000_000)
+    throw new Error('The import must be at most 2 MB.');
+  const value = JSON.parse(content);
+  if (value?.schemaVersion !== 1)
+    throw new Error('Unsupported package version. Expected schemaVersion 1.');
+  if (
+    value.kind === 'meridian-portable-agent' &&
+    value.agent &&
+    typeof value.agent.id === 'string' &&
+    typeof value.agent.name === 'string' &&
+    typeof value.agent.command === 'string' &&
+    Array.isArray(value.agent.args) &&
+    value.agent.args.every((arg: unknown) => typeof arg === 'string') &&
+    Array.isArray(value.agent.permissions) &&
+    value.agent.permissions.every(
+      (permission: unknown) => typeof permission === 'string',
+    )
+  ) {
+    return {
+      kind: 'agent',
+      title: value.agent.name,
+      details: [
+        `Portable ID: ${value.agent.id}`,
+        `Runtime: ${value.agent.command}`,
+        `Declared permissions: ${value.agent.permissions.join(', ')}`,
+        `Memory notes: ${Array.isArray(value.memory) ? value.memory.length : 0}`,
+        'Starts in Learning. Imported memory requires review before use.',
+        'Package is unsigned. The extension validates its manifest; no trust or capability grant is inferred.',
+      ],
+      source: value,
+    };
+  }
+  if (
+    value.kind === 'meridian-studio-document' &&
+    value.document &&
+    typeof value.document.title === 'string' &&
+    typeof value.document.kind === 'string' &&
+    typeof value.document.body === 'string' &&
+    Array.isArray(value.document.tags) &&
+    value.document.tags.every((tag: unknown) => typeof tag === 'string')
+  ) {
+    return {
+      kind: 'document',
+      title: value.document.title,
+      details: [
+        `Document type: ${value.document.kind}`,
+        `Tags: ${value.document.tags.join(', ') || 'None'}`,
+        'Imports as a new workspace document. IDs and revision history are not adopted.',
+        'Content remains data. Import does not apply instructions, install a runtime, or change policy.',
+      ],
+      source: value,
+    };
+  }
+  throw new Error(
+    'Choose a Meridian portable agent or studio document package.',
+  );
+}
+export function ExchangeStudio({
+  controller,
+  onNavigate,
+}: {
+  controller: WorkbenchController;
+  onNavigate: (view: string) => void;
+}) {
   const { snapshot, execute, busy } = controller;
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
@@ -26,22 +83,342 @@ export function ExchangeStudio({ controller, onNavigate }: { controller: Workben
   const [content, setContent] = useState('');
   const [preview, setPreview] = useState<ImportPreview>();
   const [reviewed, setReviewed] = useState(false);
-  const [exporting, setExporting] = useState<{ fileName: string; content: string; title: string; kind: 'agent' | 'document' }>();
+  const [exporting, setExporting] = useState<{
+    fileName: string;
+    content: string;
+    title: string;
+    kind: 'agent' | 'document';
+  }>();
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const items = [
-    ...(snapshot?.agents ?? []).map(agent => ({ id: agent.id, title: agent.name, kind: 'agent' as const, detail: `${agent.vendor || 'Custom ACP'} · ${agent.mode === 'active' ? 'Active' : 'Learning'}` })),
-    ...(snapshot?.documents ?? []).map(document => ({ id: document.id, title: document.title, kind: 'document' as const, detail: `${document.kind} · revision ${document.version}` })),
-  ].filter(item => (filter === 'all' || item.kind === filter) && `${item.title} ${item.id} ${item.detail}`.toLowerCase().includes(query.toLowerCase()));
-  const perform = async (task: () => Promise<void>) => { setError(undefined); try { await task(); } catch(cause) { setError(cause instanceof Error ? cause.message : String(cause)); } };
-  return <div className={s.studio}><header className={s.pageHeader}><div><span className={s.eyebrow}>WORKSPACE / EXCHANGE</span><h1>Good work travels.</h1><p className={s.subtitle}>Share portable agent profiles and versioned workspace documents. Review exactly what crosses the boundary before saving or importing a package.</p></div><button className={s.primaryButton} disabled={!snapshot?.capabilities.workspaceOpen} onClick={() => { setImporting(true); setContent(''); setPreview(undefined); setReviewed(false); setError(undefined); }}>Import package</button></header>
-    <div className={s.stats}>{[['Portable agents', snapshot?.agents.length ?? 0], ['Workspace documents', snapshot?.documents?.length ?? 0], ['Accepted memory', snapshot?.learning.filter(note => note.state === 'accepted').length ?? 0], ['Runtime binaries included', 0]].map(([label,value]) => <div key={label} className={s.stat}><span className={s.statLabel}>{label}</span><strong className={s.statValue}>{value}</strong></div>)}</div>
-    <p className={s.notice}>Portable profiles contain launch configuration, instructions, and reviewed memory. Executables, credential-store data, run history, and active state are excluded. Inspect authored instructions and project details before sharing.</p>
-    {error && !importing && !exporting && <p role="alert" className={s.error}>{error}</p>}{notice && <p role="status" className={s.notice}>{notice}</p>}
-    <div className={s.toolbar}><label className={s.search}>Search<input aria-label="Search exchange packages" placeholder="Find an agent or document…" value={query} onChange={e => setQuery(e.target.value)} /></label><div className={s.filters}>{['all','agent','document'].map(value => <button className={s.filter} key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{value === 'all' ? 'All packages' : value === 'agent' ? 'Agents' : 'Documents'}</button>)}</div></div>
-    <div className={s.grid}>{items.map(item => <article className={s.card} key={`${item.kind}-${item.id}`}><div className={s.cardTop}><span className={s.badge}>{item.kind}</span><span className={s.version}>Portable JSON</span></div><div className={s.cardTitle}><h2>{item.title}</h2></div><p className={s.description}>{item.detail}</p><button className={s.button} disabled={busy} aria-label={`Review export ${item.title}`} onClick={() => void perform(async () => { const result = item.kind === 'agent' ? await execute('agent/export', { id: item.id }) : await execute('document/export', { id: item.id }); setExporting({ ...result, title: item.title, kind: item.kind }); setReviewed(false); })}>Review export</button></article>)}</div>
-    {items.length === 0 && <section className={s.empty}><h2>No packages to show.</h2><p>Add an agent or author a document, or import a package from another workspace.</p><button className={s.button} onClick={() => onNavigate('agents')}>Open agent studio</button></section>}
-    {importing && <Dialog title="Review an incoming package" description="The package is validated by the extension after this preview. Import does not execute its content or activate an agent." onClose={() => setImporting(false)} wide><div className={s.form}><label className={s.field}>Choose a JSON package<input type="file" accept=".json,application/json" onChange={e => { const file = e.target.files?.[0]; if (!file) return; setPreview(undefined); setReviewed(false); void perform(async () => { if (file.size > 2_000_000) throw new Error('The import must be at most 2 MB.'); setContent(await file.text()); }); }} /></label><label className={s.field}>Package JSON<textarea rows={8} value={content} maxLength={2_000_000} onChange={e => { setContent(e.target.value); setPreview(undefined); setReviewed(false); }} spellCheck={false} /></label><button className={s.button} disabled={!content.trim()} onClick={() => { setError(undefined); try { setPreview(inspectImport(content)); setReviewed(false); } catch(cause) { setError(cause instanceof Error ? cause.message : String(cause)); setPreview(undefined); } }}>Inspect package</button>{preview && <section className={o.panel}><h3>{preview.title}</h3><ul className={o.muted}>{preview.details.map(detail => <li key={detail}>{detail}</li>)}</ul><details className={o.disclosure}><summary>Full incoming content</summary><pre className={s.code}>{JSON.stringify(preview.source,null,2)}</pre></details><label className={s.checkbox}><input type="checkbox" checked={reviewed} onChange={e => setReviewed(e.target.checked)} />I reviewed this package and its source</label></section>}{error && <p role="alert" className={s.error}>{error}</p>}<div className={s.dialogFooter}><button className={s.button} onClick={() => setImporting(false)}>Cancel</button><button className={s.primaryButton} disabled={busy || !preview || !reviewed || !snapshot?.capabilities.workspaceOpen} onClick={() => preview && void perform(async () => { if (preview.kind === 'agent') await execute('agent/import', { content }); else await execute('document/import', { content }); setImporting(false); setNotice(`${preview.title} imported ${preview.kind === 'agent' ? 'into Learning' : 'as a new workspace document'}.`); })}>Import reviewed package</button></div></div></Dialog>}
-    {exporting && <Dialog title={`Export ${exporting.title}`} description="Review the complete outgoing document. The native save dialog opens only after you choose Export reviewed package." onClose={() => setExporting(undefined)} wide><p className={s.notice}>{exporting.kind === 'agent' ? 'This is a portable launch profile with reviewed memory, not an executable or a signed adapter archive. Review instructions and memory for information you do not want to share.' : 'This includes the saved document body and tags. Review project references and authored content before sharing.'}</p><pre className={s.code}>{exporting.content}</pre><label className={s.checkbox}><input type="checkbox" checked={reviewed} onChange={e => setReviewed(e.target.checked)} />I reviewed the outgoing content</label><div className={s.dialogFooter}><button className={s.button} onClick={() => setExporting(undefined)}>Cancel</button><button className={s.primaryButton} disabled={!reviewed} onClick={() => { getVsCodeApi().postMessage({ type: 'download', fileName: exporting.fileName, content: exporting.content, mimeType: 'application/json' }); setExporting(undefined); setNotice('Package prepared. Choose a destination in the save dialog.'); }}>Export reviewed package</button></div></Dialog>}
-  </div>;
+    ...(snapshot?.agents ?? []).map((agent) => ({
+      id: agent.id,
+      title: agent.name,
+      kind: 'agent' as const,
+      detail: `${agent.vendor || 'Custom ACP'} · ${agent.mode === 'active' ? 'Active' : 'Learning'}`,
+    })),
+    ...(snapshot?.documents ?? []).map((document) => ({
+      id: document.id,
+      title: document.title,
+      kind: 'document' as const,
+      detail: `${document.kind} · revision ${document.version}`,
+    })),
+  ].filter(
+    (item) =>
+      (filter === 'all' || item.kind === filter) &&
+      `${item.title} ${item.id} ${item.detail}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
+  );
+  const perform = async (task: () => Promise<void>) => {
+    setError(undefined);
+    try {
+      await task();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+  return (
+    <div className={s.studio}>
+      <header className={s.pageHeader}>
+        <div>
+          <span className={s.eyebrow}>WORKSPACE / EXCHANGE</span>
+          <h1>Good work travels.</h1>
+          <p className={s.subtitle}>
+            Share portable agent profiles and versioned workspace documents.
+            Review exactly what crosses the boundary before saving or importing
+            a package.
+          </p>
+        </div>
+        <button
+          className={s.primaryButton}
+          disabled={!snapshot?.capabilities.workspaceOpen}
+          onClick={() => {
+            setImporting(true);
+            setContent('');
+            setPreview(undefined);
+            setReviewed(false);
+            setError(undefined);
+          }}
+        >
+          Import package
+        </button>
+      </header>
+      <div className={s.stats}>
+        {[
+          ['Portable agents', snapshot?.agents.length ?? 0],
+          ['Workspace documents', snapshot?.documents?.length ?? 0],
+          [
+            'Accepted memory',
+            snapshot?.learning.filter((note) => note.state === 'accepted')
+              .length ?? 0,
+          ],
+          ['Runtime binaries included', 0],
+        ].map(([label, value]) => (
+          <div key={label} className={s.stat}>
+            <span className={s.statLabel}>{label}</span>
+            <strong className={s.statValue}>{value}</strong>
+          </div>
+        ))}
+      </div>
+      <p className={s.notice}>
+        Portable profiles contain launch configuration, instructions, and
+        reviewed memory. Executables, credential-store data, run history, and
+        active state are excluded. Inspect authored instructions and project
+        details before sharing.
+      </p>
+      {error && !importing && !exporting && (
+        <p role="alert" className={s.error}>
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className={s.notice}>
+          {notice}
+        </p>
+      )}
+      <div className={s.toolbar}>
+        <label className={s.search}>
+          Search
+          <input
+            aria-label="Search exchange packages"
+            placeholder="Find an agent or document…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+        <div className={s.filters}>
+          {['all', 'agent', 'document'].map((value) => (
+            <button
+              className={s.filter}
+              key={value}
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+            >
+              {value === 'all'
+                ? 'All packages'
+                : value === 'agent'
+                  ? 'Agents'
+                  : 'Documents'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className={s.grid}>
+        {items.map((item) => (
+          <article className={s.card} key={`${item.kind}-${item.id}`}>
+            <div className={s.cardTop}>
+              <span className={s.badge}>{item.kind}</span>
+              <span className={s.version}>Portable JSON</span>
+            </div>
+            <div className={s.cardTitle}>
+              <h2>{item.title}</h2>
+            </div>
+            <p className={s.description}>{item.detail}</p>
+            <button
+              className={s.button}
+              disabled={busy}
+              aria-label={`Review export ${item.title}`}
+              onClick={() =>
+                void perform(async () => {
+                  const result =
+                    item.kind === 'agent'
+                      ? await execute('agent/export', { id: item.id })
+                      : await execute('document/export', { id: item.id });
+                  setExporting({
+                    ...result,
+                    title: item.title,
+                    kind: item.kind,
+                  });
+                  setReviewed(false);
+                })
+              }
+            >
+              Review export
+            </button>
+          </article>
+        ))}
+      </div>
+      {items.length === 0 && (
+        <section className={s.empty}>
+          <h2>No packages to show.</h2>
+          <p>
+            Add an agent or author a document, or import a package from another
+            workspace.
+          </p>
+          <button className={s.button} onClick={() => onNavigate('agents')}>
+            Open agent studio
+          </button>
+        </section>
+      )}
+      {importing && (
+        <Dialog
+          title="Review an incoming package"
+          description="The package is validated by the extension after this preview. Import does not execute its content or activate an agent."
+          onClose={() => setImporting(false)}
+          wide
+        >
+          <div className={s.form}>
+            <label className={s.field}>
+              Choose a JSON package
+              <input
+                type="file"
+                accept=".json,application/json"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setPreview(undefined);
+                  setReviewed(false);
+                  void perform(async () => {
+                    if (file.size > 2_000_000)
+                      throw new Error('The import must be at most 2 MB.');
+                    setContent(await file.text());
+                  });
+                }}
+              />
+            </label>
+            <label className={s.field}>
+              Package JSON
+              <textarea
+                rows={8}
+                value={content}
+                maxLength={2_000_000}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  setPreview(undefined);
+                  setReviewed(false);
+                }}
+                spellCheck={false}
+              />
+            </label>
+            <button
+              className={s.button}
+              disabled={!content.trim()}
+              onClick={() => {
+                setError(undefined);
+                try {
+                  setPreview(inspectImport(content));
+                  setReviewed(false);
+                } catch (cause) {
+                  setError(
+                    cause instanceof Error ? cause.message : String(cause),
+                  );
+                  setPreview(undefined);
+                }
+              }}
+            >
+              Inspect package
+            </button>
+            {preview && (
+              <section className={o.panel}>
+                <h3>{preview.title}</h3>
+                <ul className={o.muted}>
+                  {preview.details.map((detail) => (
+                    <li key={detail}>{detail}</li>
+                  ))}
+                </ul>
+                <details className={o.disclosure}>
+                  <summary>Full incoming content</summary>
+                  <pre className={s.code}>
+                    {JSON.stringify(preview.source, null, 2)}
+                  </pre>
+                </details>
+                <label className={s.checkbox}>
+                  <input
+                    type="checkbox"
+                    checked={reviewed}
+                    onChange={(e) => setReviewed(e.target.checked)}
+                  />
+                  I reviewed this package and its source
+                </label>
+              </section>
+            )}
+            {error && (
+              <p role="alert" className={s.error}>
+                {error}
+              </p>
+            )}
+            <div className={s.dialogFooter}>
+              <button className={s.button} onClick={() => setImporting(false)}>
+                Cancel
+              </button>
+              <button
+                className={s.primaryButton}
+                disabled={
+                  busy ||
+                  !preview ||
+                  !reviewed ||
+                  !snapshot?.capabilities.workspaceOpen
+                }
+                onClick={() =>
+                  preview &&
+                  void perform(async () => {
+                    if (preview.kind === 'agent')
+                      await execute('agent/import', { content });
+                    else await execute('document/import', { content });
+                    setImporting(false);
+                    setNotice(
+                      `${preview.title} imported ${preview.kind === 'agent' ? 'into Learning' : 'as a new workspace document'}.`,
+                    );
+                  })
+                }
+              >
+                Import reviewed package
+              </button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+      {exporting && (
+        <Dialog
+          title={`Export ${exporting.title}`}
+          description="Review the complete outgoing document. The native save dialog opens only after you choose Export reviewed package."
+          onClose={() => setExporting(undefined)}
+          wide
+        >
+          <p className={s.notice}>
+            {exporting.kind === 'agent'
+              ? 'This is a portable launch profile with reviewed memory, not an executable or a signed adapter archive. Review instructions and memory for information you do not want to share.'
+              : 'This includes the saved document body and tags. Review project references and authored content before sharing.'}
+          </p>
+          <pre className={s.code}>{exporting.content}</pre>
+          <label className={s.checkbox}>
+            <input
+              type="checkbox"
+              checked={reviewed}
+              onChange={(e) => setReviewed(e.target.checked)}
+            />
+            I reviewed the outgoing content
+          </label>
+          <div className={s.dialogFooter}>
+            <button
+              className={s.button}
+              onClick={() => setExporting(undefined)}
+            >
+              Cancel
+            </button>
+            <button
+              className={s.primaryButton}
+              disabled={!reviewed}
+              onClick={() => {
+                getVsCodeApi().postMessage({
+                  type: 'download',
+                  fileName: exporting.fileName,
+                  content: exporting.content,
+                  mimeType: 'application/json',
+                });
+                setExporting(undefined);
+                setNotice(
+                  'Package prepared. Choose a destination in the save dialog.',
+                );
+              }}
+            >
+              Export reviewed package
+            </button>
+          </div>
+        </Dialog>
+      )}
+    </div>
+  );
 }

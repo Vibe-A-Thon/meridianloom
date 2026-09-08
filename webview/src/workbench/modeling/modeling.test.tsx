@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { AttribDiffResult, LedgerEntry } from '../../../../shared/ts/bus-types';
 import type { WorkbenchExecute, WorkbenchSnapshot } from '../../../../shared/ts/workbench';
 import type { WebviewRpcClient } from '../../rpc/client';
 import { ModelingStudio } from './ModelingStudio';
 import { attributionModel } from './CodeMapStudio';
+import { parseDiffReview } from './DiffStudio';
 import { layoutModel, mermaidExport, parseModel, svgExport, template, tracePath } from './model';
 import type { ModelingStudioProps, ModelingView } from './types';
 
@@ -36,6 +37,9 @@ describe('Diagram schema and exports',()=>{
     const model=template('System context');expect([...tracePath(model,'node-1','node-3')]).toEqual(['node-1','node-2','node-3']);expect(tracePath(model,'node-3','node-1').size).toBe(0);
     const arranged=layoutModel(model,'vertical');expect(arranged.edges).toEqual(model.edges);expect(arranged.nodes[1].x).toBe(arranged.nodes[0].x);expect(arranged.nodes[1].y).toBeGreaterThan(arranged.nodes[0].y);
   });
+  it('rejects malformed saved diff evidence before it reaches the review renderer',()=>{
+    expect(()=>parseDiffReview(JSON.stringify({schemaVersion:1,kind:'diff-review',source:{repoPath:'C:/repo',files:[{path:'src/a.ts',status:'modified',hunks:[null]}]},hunks:{}}))).toThrow('supported diff review');
+  });
 });
 
 describe('Modeling documents',()=>{
@@ -65,6 +69,15 @@ describe('Modeling documents',()=>{
   it('keeps loop planning explicitly separate from unavailable execution',()=>{
     const h=harness('loops');render(<ModelingStudio {...h.props}/>);expect(screen.getByText(/Loop runtime endpoints are not implemented/)).toBeInTheDocument();expect(screen.getByRole('button',{name:'Inspect L6 · Organisation'})).toBeInTheDocument();expect(h.request).not.toHaveBeenCalled();
   });
+  it('replaces a UML model with a chosen type template only after a concrete discard confirmation',()=>{
+    const h=harness('uml');render(<ModelingStudio {...h.props}/>);fireEvent.change(screen.getByLabelText('Diagram type'),{target:{value:'Class'}});fireEvent.click(screen.getByRole('button',{name:'Use type template'}));expect(screen.getByRole('dialog')).toBeInTheDocument();fireEvent.click(screen.getByRole('button',{name:'Discard and continue'}));expect(screen.getByRole('button',{name:'Inspect Entity'})).toBeInTheDocument();expect(screen.queryByRole('button',{name:'Inspect Caller'})).not.toBeInTheDocument();
+  });
+  it('updates a relationship in place instead of duplicating it',()=>{
+    const h=harness('architecture');render(<ModelingStudio {...h.props}/>);fireEvent.click(screen.getAllByRole('button',{name:'Edit relationship relates to'})[0]);fireEvent.change(screen.getByLabelText('Relationship label'),{target:{value:'Submits payment'}});fireEvent.click(screen.getByRole('button',{name:'Update relationship'}));expect(screen.getByRole('button',{name:'Edit relationship Submits payment'})).toBeInTheDocument();expect(screen.getByText(/3 nodes · 2 relationships/)).toBeInTheDocument();
+  });
+  it('retains the unsaved indicator when a diagram changes while its previous snapshot is saving',async()=>{
+    const h=harness('architecture');let finish!:(result:WorkbenchSnapshot)=>void;const pending=new Promise<WorkbenchSnapshot>(resolve=>{finish=resolve;});h.props.controller.execute=vi.fn(()=>pending) as WorkbenchExecute;render(<ModelingStudio {...h.props}/>);fireEvent.click(screen.getByRole('button',{name:'Save model'}));fireEvent.change(screen.getByLabelText('Model title'),{target:{value:'A newer local draft'}});await act(async()=>{finish(h.props.controller.snapshot!);await pending;});expect(screen.getByText('Model snapshot saved. Your newer edits still need saving.')).toBeInTheDocument();expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+  });
 });
 
 describe('Repository evidence surfaces',()=>{
@@ -83,6 +96,9 @@ describe('Repository evidence surfaces',()=>{
   });
   it('requires cited evidence before saving a reviewed comprehension note',async()=>{
     const h=harness('comprehension');render(<ModelingStudio {...h.props}/>);fireEvent.change(screen.getByLabelText('Handover title'),{target:{value:'Checkout invariants'}});fireEvent.change(screen.getByLabelText('Purpose and behavior'),{target:{value:'Idempotent charging.'}});fireEvent.change(screen.getByLabelText('Human review state'),{target:{value:'reviewed'}});fireEvent.click(screen.getByRole('button',{name:'Save handover'}));await screen.findByText('A reviewed note needs explicit evidence references.');expect(h.execute).not.toHaveBeenCalled();fireEvent.change(screen.getByLabelText('Evidence references'),{target:{value:'src/checkout.ts @ abc123; tests/checkout.test.ts'}});fireEvent.click(screen.getByRole('button',{name:'Save handover'}));await waitFor(()=>expect(h.execute).toHaveBeenCalledTimes(1));expect(JSON.parse(h.execute.mock.calls[0][1].document!.body)).toMatchObject({review:'reviewed',purpose:'Idempotent charging.'});
+  });
+  it('keeps an invalid comprehension source request inside the error surface',async()=>{
+    const h=harness('comprehension');render(<ModelingStudio {...h.props}/>);fireEvent.click(screen.getByRole('button',{name:'Inspect source evidence'}));expect(await screen.findByRole('alert')).toHaveTextContent('Enter a repository-relative source path.');expect(h.request).not.toHaveBeenCalled();
   });
   it('surfaces attribution failures instead of drawing an invented map',async()=>{
     const h=harness('codemap',{'attrib/blame':new Error('Reference does not exist')});render(<ModelingStudio {...h.props}/>);fireEvent.click(screen.getByRole('button',{name:'Load repository map'}));expect(await screen.findByRole('alert')).toHaveTextContent('Reference does not exist');expect(screen.queryByRole('group',{name:/Repository attribution map/})).not.toBeInTheDocument();

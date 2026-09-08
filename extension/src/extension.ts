@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { WorkbenchService } from './workbench';
+import { createEditorSurfaces } from './editor-surfaces';
 import { createVscodePermissionApprover } from './acp/permissions';
 import { TIERS, type TierName } from '../../shared/ts/bus-types';
 import { normalizeEnabledTiers, TIER_CONTEXT_KEYS } from '../../shared/ts/tiers';
@@ -119,6 +120,12 @@ export function activate(context: vscode.ExtensionContext): void {
   if (workspaceListener) context.subscriptions.push(workspaceListener);
   const enabledTiers = readEnabledTiers();
   applyTierContextKeys(enabledTiers);
+  const editorSurfaces = createEditorSurfaces({ workspaceDir, request: async (method, params, signal) => {
+    const client = supervisor?.currentClient;
+    if (!client) throw new Error('The sidecar is not connected yet.');
+    return client.request(method, params, signal);
+  } });
+  context.subscriptions.push(...editorSurfaces.disposables);
   context.subscriptions.push(
     ...registerViews(),
     RecorderPanel.registerSerializer(context, {
@@ -131,6 +138,7 @@ export function activate(context: vscode.ExtensionContext): void {
       onError: (message) => void vscode.window.showErrorMessage(message),
     }),
     ...registerCommands({
+      inspectSource: editorSurfaces.inspect,
       enabledTiers: readEnabledTiers,
       // F0 Workstream G: the recorder command opens the dashboard webview;
       // the panel proxies sidecar RPCs with the tier gate applied.
