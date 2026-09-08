@@ -1,4 +1,5 @@
 import type { IconName } from './Icon';
+import { SURFACE_COVERAGE } from './surfaces';
 
 export interface WorkbenchRoute {
   id: string;
@@ -6,6 +7,7 @@ export interface WorkbenchRoute {
   icon: IconName;
   group: 'Workspace' | 'Intelligence' | 'System';
   description: string;
+  pinned?: boolean;
 }
 export const WORKBENCH_ROUTES: readonly WorkbenchRoute[] = [
   {
@@ -64,9 +66,12 @@ export const WORKBENCH_ROUTES: readonly WorkbenchRoute[] = [
     group: 'System',
     description: 'Appearance, density, shortcuts, and workspace configuration',
   },
+  ...SURFACE_COVERAGE.filter(([, , id]) => !['overview', 'learning', 'runtime'].includes(id)).map(([, label, id, description]): WorkbenchRoute => ({
+    id, label, description, group: 'Intelligence', icon: 'layers', pinned: false,
+  })),
 ];
 export const routeLabel = (id: string) =>
-  WORKBENCH_ROUTES.find((route) => route.id === id)?.label ??
+  WORKBENCH_ROUTES.find((route) => route.id === id.split('/')[0])?.label ??
   {
     setup: 'Guided setup',
     'flight-recorder': 'Flight recorder',

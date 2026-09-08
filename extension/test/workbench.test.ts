@@ -68,6 +68,91 @@ const save = (service: WorkbenchService, id: string) =>
   service.request({ action: 'agent/save', params: { agent: input(id) } });
 const activate = (service: WorkbenchService, id: string) =>
   service.request({ action: 'agent/mode', params: { id, mode: 'active' } });
+
+describe('versioned studio documents', () => {
+  const draft = { kind: 'specification', title: 'Keyboard navigation', body: 'Every action is reachable.', tags: ['accessibility'] };
+  it('persists revisions, rejects stale edits, and restores content as a new version', async () => {
+    const { service, root, snapshot } = await setup();
+    await service.request({ action: 'document/save', params: { document: draft } });
+    const first = (await snapshot()).documents![0];
+    await service.request({ action: 'document/save', params: { document: { ...draft, id: first.id, expectedVersion: 1, body: 'Updated acceptance criteria' } } });
+    await expect(service.request({ action: 'document/save', params: { document: { ...draft, id: first.id, expectedVersion: 1, body: 'Stale overwrite' } } })).rejects.toThrow(/changed|version|conflict/i);
+    expect((await snapshot()).documents![0]).toMatchObject({ version: 2, body: 'Updated acceptance criteria' });
+    await service.request({ action: 'document/restore', params: { id: first.id, version: 1, expectedVersion: 2 } });
+    expect((await snapshot()).documents![0]).toMatchObject({ version: 3, body: draft.body });
+    const stored = JSON.parse(await readFile(path.join(root, '.meridian/workbench/state.json'), 'utf8'));
+    expect(stored.documentRevisions.map((doc: { version: number }) => doc.version)).toEqual([1, 2]);
+    const reloaded = await setup({ workspaceDir: () => root });
+    expect((await reloaded.snapshot()).documents![0]).toMatchObject({ version: 3, body: draft.body });
+    await expect(service.request({ action: 'document/remove', params: { id: first.id, expectedVersion: 2 } })).rejects.toThrow();
+    await service.request({ action: 'document/remove', params: { id: first.id, expectedVersion: 3 } });
+    expect((await snapshot()).documents).toEqual([]);
+    expect((await snapshot()).documentRevisions).toEqual([]);
+  });
+  it('round-trips portable documents with a fresh identity and refuses unsupported or malformed content', async () => {
+    const one = await setup(); const two = await setup();
+    await one.service.request({ action: 'document/save', params: { document: draft } });
+    const first = (await one.snapshot()).documents![0];
+    const exported = await one.service.request({ action: 'document/export', params: { id: first.id } }) as { content: string };
+    await two.service.request({ action: 'document/import', params: { content: exported.content } });
+    const imported = (await two.snapshot()).documents![0];
+    expect(imported).toMatchObject({ ...draft, version: 1 });
+    expect(imported.id).not.toBe(first.id);
+    for (const content of ['{}', '{', JSON.stringify({ kind: 'meridian-studio-document', schemaVersion: 2, document: draft }), JSON.stringify({ kind: 'meridian-studio-document', schemaVersion: 1, document: { ...draft, kind: 'executable' } })]) {
+      await expect(two.service.request({ action: 'document/import', params: { content } })).rejects.toThrow();
+    }
+    expect((await two.snapshot()).documents).toHaveLength(1);
+  });
+  it('migrates earlier workspace state and retains a bounded restoration history', async () => {
+    const first = await setup(); await save(first.service, 'existing');
+    const file = path.join(first.root, '.meridian/workbench/state.json');
+    const prior = JSON.parse(await readFile(file, 'utf8'));
+    delete prior.documents; delete prior.documentRevisions;
+    await writeFile(file, JSON.stringify(prior));
+    const next = await setup({ workspaceDir: () => first.root });
+    expect((await next.snapshot()).agents[0].id).toBe('existing');
+    expect((await next.snapshot()).documents).toEqual([]);
+    await next.service.request({ action: 'document/save', params: { document: draft } });
+    const id = (await next.snapshot()).documents![0].id;
+    for (let version = 1; version <= 22; version++) await next.service.request({ action: 'document/save', params: { document: { ...draft, id, expectedVersion: version, body: String(version) } } });
+    expect((await next.snapshot()).documentRevisions).toHaveLength(20);
+    expect((await next.snapshot()).documents![0].version).toBe(23);
+  });
+});
+
+describe('hosted task steering', () => {
+  it('records guidance before delivering a second turn to the same session and rejects finished tasks', async () => {
+    let finishTurn!: (reason: 'end_turn') => void;
+    const prompts: string[] = [];
+    const request = vi.fn(async (method: string) => method === 'steer.send' ? { accepted: true, sequence: 42 } : {});
+    const { service, snapshot } = await setup({
+      sidecar: () => ({ request }),
+      launcher: agent => ({ adapterId: agent.id, pid: undefined,
+        start: async () => ({ protocolVersion: 1, agentCapabilities: {}, authMethods: [] }),
+        newSession: async () => 'wire-session', stop: () => {},
+        prompt: async (sessionId, text) => {
+          expect(sessionId).toBe('wire-session'); prompts.push(text);
+          if (prompts.length === 1) return new Promise(resolve => { finishTurn = resolve; });
+          return 'end_turn';
+        },
+      }),
+    });
+    await save(service, 'atlas'); await activate(service, 'atlas');
+    await service.request({ action: 'agent/run', params: { id: 'atlas', prompt: 'Inspect the code.' } });
+    await until(async () => prompts.length === 1);
+    const run = (await snapshot()).runs[0];
+    await service.request({ action: 'run/steer', params: { id: run.id, message: 'Check keyboard access too.' } });
+    expect(prompts).toHaveLength(1);
+    expect((await snapshot()).runs[0].steering![0]).toMatchObject({ state: 'queued', sequence: 42 });
+    finishTurn('end_turn');
+    await until(async () => (await snapshot()).runs[0].state === 'completed');
+    expect(prompts[1]).toContain('Human steering (ledger #42)');
+    expect(prompts[1]).toContain('Check keyboard access too.');
+    expect((await snapshot()).runs[0].steering![0].state).toBe('sent');
+    expect(request.mock.calls.map(([method]) => method)).toEqual(['acp/sessionBegin', 'steer.send', 'acp/sessionEnd']);
+    await expect(service.request({ action: 'run/steer', params: { id: run.id, message: 'Too late' } })).rejects.toThrow(/accepting guidance/);
+  });
+});
 async function until(check: () => Promise<boolean>) {
   await vi.waitFor(async () => expect(await check()).toBe(true), { timeout: 3000, interval: 15 });
 }

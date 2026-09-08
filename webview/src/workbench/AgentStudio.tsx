@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import type {
   WorkbenchAgent,
   WorkbenchAgentInput,
@@ -37,9 +37,11 @@ const PERMISSIONS: AgentPermission[] = [
 export function AgentStudio({
   controller,
   onNavigate,
+  initialSelection,
 }: {
   controller: WorkbenchController;
   onNavigate?: (route: string) => void;
+  initialSelection?: string;
 }) {
   const { snapshot, busy, execute } = controller;
   const [filter, setFilter] = useState('all');
@@ -77,6 +79,11 @@ export function AgentStudio({
     setEditing({ ...EMPTY, args: [], permissions: [...EMPTY.permissions], trainable: ['memory'] });
     setError(undefined);
   };
+  useEffect(() => {
+    if (initialSelection === 'new') add();
+    else if (initialSelection === 'import') setImporting(true);
+    else if (initialSelection) setSelectedId(initialSelection);
+  }, [initialSelection]);
   return (
     <div className={s.studio}>
       <header className={s.pageHeader}>

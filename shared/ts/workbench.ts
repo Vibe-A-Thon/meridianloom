@@ -48,6 +48,8 @@ export interface WorkbenchRun {
   stopReason?: string;
   error?: string;
   output?: string;
+  sessionId?: string;
+  steering?: { message: string; sequence: number; state: 'queued' | 'sent'; submittedAt: string }[];
 }
 
 export interface WorkbenchDeliverable {
@@ -113,6 +115,7 @@ export interface WorkbenchActionMap {
   'agent/export': { params: { id: string }; result: { fileName: string; content: string } };
   'agent/run': { params: { id: string; prompt: string }; result: WorkbenchSnapshot };
   'run/cancel': { params: { id: string }; result: WorkbenchSnapshot };
+  'run/steer': { params: { id: string; message: string }; result: WorkbenchSnapshot };
   'deliverable/save': {
     params: { id?: string; title: string; brief: string };
     result: WorkbenchSnapshot;

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { StudioDocument, StudioDocumentKind } from '../../../../shared/ts/studio';
 import type { WorkbenchController } from '../useWorkbench';
 import { Dialog } from '../Dialog';
-import { getVsCodeApi } from '../../vscode';
+import { getVsCodeApi } from '../../host/vscode-api';
 import { Confirm, Field, JsonDetail, Notice, Panel, object, string } from './common';
 import s from './governance.module.css';
 
@@ -37,7 +37,7 @@ export function EvidencePlans({ controller, kind }: { controller: WorkbenchContr
       <div className={s.toolbar}><Field label="Find an evidence plan"><input value={filter} onChange={event => setFilter(event.target.value)} placeholder="Title or tags" /></Field><Field label="Record state"><select value={status} onChange={event => setStatus(event.target.value)}>{['all', 'pending', 'pass', 'fail', 'quarantined'].map(value => <option key={value}>{value}</option>)}</select></Field></div>
       <div className={s.list}>{docs.filter(document => `${document.title} ${document.tags.join(' ')}`.toLowerCase().includes(filter.toLowerCase())).map(document => {
         const value = readPlan(document); const gaps = evidenceGaps(value);
-        return <div className={s.card} key={document.id}><h3>{document.title}</h3><p>{value.records.length} evidence records · {value.criteria.length} criteria · {gaps.length} uncovered · v{document.version}</p><div className={s.actions}><button aria-pressed={selected === document.id} onClick={() => setSelected(document.id)}>Inspect {document.title}</button><button onClick={() => setEditor(document)}>Edit plan</button><button disabled={controller.busy} onClick={() => void mutate(async () => { const result = await controller.execute('document/export', { id: document.id }); getVsCodeApi().postMessage({ type: 'download', fileName: result.fileName, content: result.content }); })}>Export</button><button disabled={controller.busy} onClick={() => setRemoving(document)}>Remove plan</button></div></div>;
+        return <div className={s.card} key={document.id}><h3>{document.title}</h3><p>{value.records.length} evidence records · {value.criteria.length} criteria · {gaps.length} uncovered · v{document.version}</p><div className={s.actions}><button aria-pressed={selected === document.id} onClick={() => setSelected(document.id)}>Inspect {document.title}</button><button onClick={() => setEditor(document)}>Edit plan</button><button disabled={controller.busy} onClick={() => void mutate(async () => { const result = await controller.execute('document/export', { id: document.id }); getVsCodeApi().postMessage({ type: 'download', mimeType: 'application/json', fileName: result.fileName, content: result.content }); })}>Export</button><button disabled={controller.busy} onClick={() => setRemoving(document)}>Remove plan</button></div></div>;
       })}</div>{docs.length === 0 && <p className={s.empty}>Create a plan to connect acceptance criteria to evidence, retain review notes, and track unresolved work.</p>}
     </Panel>
     {active && plan && <Panel title={active.title} action={<button onClick={() => setRecordEditor({ document: active })}>Add evidence record</button>}>

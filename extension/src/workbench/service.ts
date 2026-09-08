@@ -143,7 +143,7 @@ export class WorkbenchService {
   private readonly listeners = new Set<() => void>();
   private readonly sessions = new Map<
     string,
-    { session: AdapterSession; controller: AbortController }
+    { session: AdapterSession; controller: AbortController; sessionId?: string; acceptingSteering?: boolean }
   >();
   private readonly output = new Map<string, string>();
   private pumping = false;
@@ -579,6 +579,19 @@ export class WorkbenchService {
             this.cancelRun(run, 'Cancelled by the user.');
             break;
           }
+          case 'run/steer': {
+            const run = this.state.runs.find(entry => entry.id === id(params.id));
+            const handle = run && this.sessions.get(run.id);
+            if (!run || run.state !== 'running' || !handle?.sessionId || !handle.acceptingSteering || handle.controller.signal.aborted) throw new Error('Choose a running workbench session that is accepting guidance. This task may be finishing.');
+            if (!this.capabilities().executionReady) throw new Error(this.capabilities().executionBlockedReason);
+            const message = string(params.message, 'Steering message', 20_000);
+            if ((run.steering?.filter(entry => entry.state === 'queued').length ?? 0) >= 20) throw new Error('This run already has 20 queued steering messages. Wait for the next turn.');
+            const result = await this.options.sidecar()!.request('steer.send', { sessionId: handle.sessionId, message }) as { accepted?: boolean; sequence?: number };
+            if (!result.accepted || !Number.isSafeInteger(result.sequence)) throw new Error('The sidecar did not record the steering message.');
+            run.steering ??= [];
+            run.steering.push({ message, sequence: result.sequence!, state: 'queued', submittedAt: now });
+            break;
+          }
           case 'deliverable/save': {
             const title = string(params.title, 'Title', 200).trim();
             const brief = string(params.brief, 'Brief', 40_000);
@@ -748,6 +761,7 @@ export class WorkbenchService {
     let stopReason: string | undefined;
     let failure: string | undefined;
     let unregister: (() => void) | undefined;
+    let recordedSession: string | undefined;
     try {
       const agent = this.agent(run.agentId);
       const manifest = agentManifest(agent);
@@ -833,6 +847,19 @@ export class WorkbenchService {
       if (controller.signal.aborted) return;
       const sessionId = await session.newSession(workspaceDir);
       if (controller.signal.aborted) return;
+      const recorder = this.options.sidecar();
+      if (!recorder) throw new Error('The sidecar disconnected before the session could be recorded.');
+      await recorder.request('acp/sessionBegin', { agentId: agent.id, agentVersion: agent.version, sessionId, cwd: workspaceDir, startedAt: run.startedAt });
+      recordedSession = sessionId;
+      const handle = this.sessions.get(run.id);
+      if (handle) handle.sessionId = sessionId;
+      await this.serialize(async () => {
+        const current = this.state.runs.find(entry => entry.id === run.id);
+        if (current) current.sessionId = sessionId;
+        if (handle) handle.acceptingSteering = true;
+        this.state.revision++; await this.persist(); this.notify();
+      });
+      if (controller.signal.aborted) return;
       unregister = hostedSessionRegistry.register(sessionId, {
         halt: (reason) => {
           failure = `Governance halted this session: ${reason}`;
@@ -855,12 +882,36 @@ export class WorkbenchService {
         .filter(Boolean)
         .join('\n\n');
       stopReason = await session.prompt(sessionId, prompt, { signal: controller.signal });
+      while (stopReason === 'end_turn' && !controller.signal.aborted && !this.disposed) {
+        const followUp = await this.serialize(async () => {
+          const current = this.state.runs.find(entry => entry.id === run.id);
+          const messages = current?.steering?.filter(entry => entry.state === 'queued') ?? [];
+          if (!messages.length || current?.state !== 'running') {
+            if (handle) handle.acceptingSteering = false;
+            return undefined;
+          }
+          for (const entry of messages) entry.state = 'sent';
+          this.state.revision++; await this.persist(); this.notify();
+          return messages.map(entry => `Human steering (ledger #${entry.sequence}):\n${entry.message}`).join('\n\n');
+        });
+        if (!followUp || controller.signal.aborted) break;
+        stopReason = await session.prompt(sessionId, followUp, { signal: controller.signal });
+      }
     } catch (error) {
       failure = error instanceof Error ? error.message : String(error);
     } finally {
+      const handle = this.sessions.get(run.id);
+      if (handle) handle.acceptingSteering = false;
       unregister?.();
       this.sessions.get(run.id)?.session.stop();
       this.sessions.delete(run.id);
+      if (recordedSession) {
+        try {
+          const recorder = this.options.sidecar();
+          if (!recorder) throw new Error('The sidecar disconnected before the session end could be recorded.');
+          await recorder.request('acp/sessionEnd', { sessionId: recordedSession, agentId: run.agentId, stopReason: controller.signal.aborted ? 'cancelled' : stopReason ?? 'failed', endedAt: new Date().toISOString() });
+        } catch (error) { failure ??= (error as Error).message; this.options.onError?.(failure); }
+      }
       await this.serialize(async () => {
         const current = this.state.runs.find((entry) => entry.id === run.id);
         if (!current) return;

@@ -17,7 +17,11 @@ export interface OperationsProps {
 }
 export function useViewState<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
   const api = getVsCodeApi();
-  const [value, setValue] = useState<T>(() => (readUiState(api)?.view?.[key] as T | undefined) ?? initial);
+  const [value, setValue] = useState<T>(() => {
+    const saved = readUiState(api)?.view?.[key];
+    if (Array.isArray(initial)) return Array.isArray(saved) && saved.every(item => typeof item === 'string') ? saved as T : initial;
+    return typeof saved === typeof initial && saved !== null ? saved as T : initial;
+  });
   useEffect(() => {
     const old = readUiState(api);
     writeUiState(api, { theme: old?.theme ?? DEFAULT_THEME, density: old?.density ?? DEFAULT_DENSITY,

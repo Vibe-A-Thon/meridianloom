@@ -1,4 +1,4 @@
-import { Component, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { WEBVIEW_PROTOCOL_VERSION, type HostInitPayload } from '../../shared/ts/webview-messages';
 import { ErrorState, LoadingState } from './components/AsyncState';
 import { useInterval, useLedgerQuery, useObserveSessions } from './hooks/recorder-hooks';
@@ -28,6 +28,17 @@ import { WORKBENCH_ROUTES, routeLabel } from './workbench/routes';
 import { Dialog } from './workbench/Dialog';
 import { Icon } from './workbench/Icon';
 import s from './workbench/workbench.module.css';
+
+const AgentOperations = lazy(() => import('./workbench/operations/AgentOperations').then(m => ({ default: m.AgentOperations })));
+const WorkspaceOperations = lazy(() => import('./workbench/operations/WorkspaceOperations').then(m => ({ default: m.WorkspaceOperations })));
+const GovernanceStudio = lazy(() => import('./workbench/governance/GovernanceStudio').then(m => ({ default: m.GovernanceStudio })));
+const ModelingStudio = lazy(() => import('./workbench/modeling/ModelingStudio').then(m => ({ default: m.ModelingStudio })));
+const OrganizationStudio = lazy(() => import('./workbench/organization/OrganizationStudio').then(m => ({ default: m.OrganizationStudio })));
+const AGENT_VIEWS = ['floor', 'watch', 'inspector', 'onboarding', 'adapters'];
+const WORKSPACE_VIEWS = ['launch', 'steer', 'notifications', 'editor', 'kpi', 'decisions', 'weave', 'configuration', 'unlock', 'shortcuts'];
+const GOVERNANCE_VIEWS = ['gates', 'approvals', 'verification', 'security', 'pipeline', 'repositories', 'trust', 'calibration', 'spend'];
+const MODELING_VIEWS = ['codemap', 'loops', 'architecture', 'uml', 'flows', 'diff', 'replay', 'comprehension'];
+const ORGANIZATION_VIEWS = ['stories', 'portfolio', 'specifications', 'skills', 'instructions', 'connectors', 'routing', 'exchange', 'reports'];
 
 function useUiTheme() {
   const api = getVsCodeApi();
@@ -134,22 +145,33 @@ export function App({ client, preview = false }: { client: WebviewRpcClient; pre
   const running =
     data?.runs.filter((run) => run.state === 'running' || run.state === 'queued') ?? [];
   const pending = data?.learning.filter((note) => note.state === 'pending').length ?? 0;
+  const [routeBase, routeSelection] = route.split('/');
   const knownRoute =
-    WORKBENCH_ROUTES.some((item) => item.id === route) ||
-    ['setup', 'flight-recorder', 'external-agents', 'ledger'].includes(route)
-      ? route
+    WORKBENCH_ROUTES.some((item) => item.id === routeBase)
+      ? routeBase
       : 'overview';
   const navigationRoute = ['flight-recorder', 'external-agents', 'ledger'].includes(knownRoute)
     ? 'evidence'
     : knownRoute;
   if (protocolError) return <ErrorState error={protocolError} />;
+  const studioProps = { ...screenProps, controller, view: knownRoute, onNavigate: navigate };
   const body =
     knownRoute === 'agents' ? (
-      <AgentStudio controller={controller} onNavigate={navigate} />
-    ) : knownRoute === 'learning' ? (
+      <AgentStudio controller={controller} onNavigate={navigate} initialSelection={routeSelection} />
+    ) : ['learning', 'memory'].includes(knownRoute) ? (
       <LearningStudio controller={controller} onNavigate={navigate} />
-    ) : knownRoute === 'deliverables' ? (
-      <DeliveryStudio controller={controller} onNavigate={navigate} />
+    ) : ['deliverables', 'packets'].includes(knownRoute) ? (
+      <DeliveryStudio controller={controller} onNavigate={navigate} initialSelection={routeSelection} />
+    ) : AGENT_VIEWS.includes(knownRoute) ? (
+      <AgentOperations {...studioProps} />
+    ) : WORKSPACE_VIEWS.includes(knownRoute) ? (
+      <WorkspaceOperations {...studioProps} />
+    ) : GOVERNANCE_VIEWS.includes(knownRoute) ? (
+      <GovernanceStudio {...studioProps} />
+    ) : MODELING_VIEWS.includes(knownRoute) ? (
+      <ModelingStudio {...studioProps} />
+    ) : ORGANIZATION_VIEWS.includes(knownRoute) ? (
+      <OrganizationStudio {...studioProps} />
     ) : navigationRoute === 'evidence' ? (
       <EvidenceStudio
         {...screenProps}
@@ -163,13 +185,13 @@ export function App({ client, preview = false }: { client: WebviewRpcClient; pre
       />
     ) : knownRoute === 'runtime' ? (
       <RuntimeStudio {...screenProps} controller={controller} />
-    ) : knownRoute === 'settings' ? (
-      <SettingsStudio
+    ) : ['settings', 'focus'].includes(knownRoute) ? (
+      <>{knownRoute === 'focus' && <section className={s.panel}><h1>A little more room to think.</h1><p>Hide the sidebar and keep the current task in view. The toolbar and command search remain available.</p><button className={s.secondary} aria-pressed={focused} onClick={() => setFocused(value => !value)}>{focused ? 'Leave focus mode' : 'Enter focus mode'}</button></section>}<SettingsStudio
         {...appearance}
         controller={controller}
         workspaceDir={init?.workspaceDir}
         openSettings={() => client.notify({ type: 'host/action', action: 'open-settings' })}
-      />
+      /></>
     ) : knownRoute === 'guide' ? (
       <GuideStudio onNavigate={navigate} />
     ) : knownRoute === 'setup' ? (
@@ -207,7 +229,7 @@ export function App({ client, preview = false }: { client: WebviewRpcClient; pre
           {(['Workspace', 'Intelligence', 'System'] as const).map((group) => (
             <div className={s.navGroup} key={group}>
               <p>{group}</p>
-              {WORKBENCH_ROUTES.filter((item) => item.group === group).map((item) => (
+              {WORKBENCH_ROUTES.filter((item) => item.group === group && item.pinned !== false).map((item) => (
                 <button
                   key={item.id}
                   className={s.navButton}
@@ -330,8 +352,8 @@ export function App({ client, preview = false }: { client: WebviewRpcClient; pre
         )}
         <main id="workspace-content" ref={mainRef} tabIndex={-1} className={s.main}>
           {!data && !controller.error && <LoadingState label="Connecting to your workspace…" />}
-          <ScreenBoundary key={knownRoute} onReset={() => navigate('overview')}>
-            {body}
+          <ScreenBoundary key={route} onReset={() => navigate('overview')}>
+            <Suspense fallback={<LoadingState label="Opening workspace view…" />}>{body}</Suspense>
           </ScreenBoundary>
         </main>
         <footer className={s.footer}>
@@ -351,7 +373,7 @@ export function App({ client, preview = false }: { client: WebviewRpcClient; pre
         <CommandPalette
           onNavigate={navigate}
           onClose={() => setPalette(false)}
-          agents={data?.agents.map((agent) => ({ name: agent.name, role: agent.role })) ?? []}
+          agents={data?.agents.map((agent) => ({ id: agent.id, name: agent.name, role: agent.role })) ?? []}
         />
       )}
       {activity && (
@@ -451,7 +473,7 @@ function CommandPalette({
 }: {
   onNavigate: (route: string) => void;
   onClose: () => void;
-  agents: { name: string; role: string }[];
+  agents: { id: string; name: string; role: string }[];
 }) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
@@ -462,14 +484,8 @@ function CommandPalette({
       label: agent.name,
       description: agent.role,
       icon: 'agents' as const,
-      route: 'agents',
+      route: `agents/${agent.id}`,
     })),
-    {
-      id: 'setup',
-      label: 'Guided setup',
-      description: 'Connect, observe, inspect, export',
-      icon: 'guide' as const,
-    },
   ].filter((item) =>
     `${item.label} ${item.description}`.toLowerCase().includes(query.toLowerCase()),
   );

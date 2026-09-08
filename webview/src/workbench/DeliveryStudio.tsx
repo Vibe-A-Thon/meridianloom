@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { WorkbenchDeliverable } from '../../../shared/ts/workbench';
 import type { WorkbenchController } from './useWorkbench';
 import { Dialog } from './Dialog';
@@ -15,9 +15,11 @@ const COLUMNS = [
 export function DeliveryStudio({
   controller,
   onNavigate,
+  initialSelection,
 }: {
   controller: WorkbenchController;
   onNavigate?: (route: string) => void;
+  initialSelection?: string;
 }) {
   const { snapshot, execute, busy } = controller;
   const [draft, setDraft] = useState<{ id?: string; title: string; brief: string }>();
@@ -27,6 +29,13 @@ export function DeliveryStudio({
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'board' | 'list'>('board');
   const selected = snapshot?.deliverables.find((item) => item.id === selectedId);
+  useEffect(() => {
+    if (initialSelection === 'new') setDraft({ title: '', brief: '' });
+    else if (initialSelection) {
+      setSelectedId(initialSelection);
+      setFeedback(snapshot?.deliverables.find(item => item.id === initialSelection)?.feedback ?? '');
+    }
+  }, [initialSelection]);
   const active = snapshot?.agents.filter((agent) => agent.mode === 'active') ?? [];
   const deliverables =
     snapshot?.deliverables.filter((item) =>

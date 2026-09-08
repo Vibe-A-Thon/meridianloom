@@ -3,7 +3,7 @@ import type { WebviewRpcClient } from '../../rpc/client';
 import type { WorkbenchController } from '../useWorkbench';
 export type ModelingView = 'codemap' | 'loops' | 'architecture' | 'uml' | 'flows' | 'diff' | 'replay' | 'comprehension';
 export interface ModelingStudioProps {
-  view: ModelingView;
+  view: string;
   client: WebviewRpcClient;
   ready: boolean;
   controller: WorkbenchController;
