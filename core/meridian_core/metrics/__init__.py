@@ -32,6 +32,8 @@ from .greenfield import (
     Classification,
     classify,
 )
+from .reasons import compute_reason_distribution, detection_shape
+from .score import SCORE_WEIGHTS, compute_trust_score
 from .trust import TrustMetricsCache, compute_rejection_rate
 
 __all__ = [
@@ -40,7 +42,11 @@ __all__ = [
     "DEFAULT_MAX_MEDIAN_AGE_DAYS",
     "DEFAULT_NEW_FILE_RATIO_THRESHOLD",
     "GREENFIELD",
+    "SCORE_WEIGHTS",
     "TrustMetricsCache",
     "classify",
+    "compute_reason_distribution",
     "compute_rejection_rate",
+    "compute_trust_score",
+    "detection_shape",
 ]

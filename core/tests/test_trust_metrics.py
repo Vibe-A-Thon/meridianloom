@@ -322,3 +322,135 @@ class TestRejectionRate:
         ]
         assert len(owning) == 1
         assert owning[0]["tier"] == "flight-recorder"
+
+
+def _entry(story, actor, action_type, phase, repo_id="edb", **extra):
+    entry = {
+        "story_id": story,
+        "phase": phase,
+        "loop_id": "L1",
+        "loop_iteration": 1,
+        "actor_id": actor,
+        "actor_version": "0.0.1",
+        "actor_kind": "role",
+        "policy_version": "policy-v1",
+        "action_type": action_type,
+        "repo_id": repo_id,
+    }
+    entry.update(extra)
+    return entry
+
+
+class TestScopedRejectionRate:
+    """FR-M37-01 (F1 Workstream E task 19): the rejection rate extended with
+    per-action-class, per-story, and per-phase scopes.
+
+    Additive wire shape: the F0 keys (scope/proposed/rejected/rate/split/
+    byAgent) keep their F0 meaning; byActionClass/byPhase/byStory generalise
+    "rejected" to entries carrying decision rejected|reworked themselves —
+    the review-time and rework shapes FR-M37-01 names alongside reverts.
+    """
+
+    @pytest.fixture()
+    def world(self, tmp_path):
+        ledger = Ledger(tmp_path / "ledger", EphemeralSigningKeyProvider())
+        server = SidecarServer(ledger=ledger)
+        # Proposed changes (diffs): 3 on story A, 1 on story B.
+        ledger.append(_entry("A", "agent-one", "diff", "build"))
+        ledger.append(_entry("A", "agent-one", "diff", "review", decision="rejected"))
+        seq_b = ledger.append(_entry("B", "agent-two", "diff", "build")).sequence
+        # A rejection entry naming seq_b (the linked-rejection shape).
+        ledger.append(_rejection_entry(seq_b, "B"))
+        # Non-diff entries in scope: a reworked test run, an approved review.
+        ledger.append(_entry("A", "agent-one", "test_run", "verify", decision="reworked"))
+        ledger.append(_entry("A", "agent-one", "review", "review", decision="approved"))
+        yield server, ledger
+        ledger.close()
+
+    def test_by_action_class_phase_story(self, world):
+        server, _ledger = world
+        result = _call(server, "trust/rejectionRate", {"repoId": "edb"})
+
+        # F0 keys unchanged: diffs only, linked-rejection shape.
+        assert result["proposed"] == 3
+        assert result["rejected"] == 1
+        # New scopes generalise over every in-scope entry.
+        assert result["byActionClass"]["diff"] == {
+            "proposed": 3,
+            "rejected": 2,
+            "rate": round(2 / 3, 6),
+        }
+        assert result["byActionClass"]["test_run"] == {
+            "proposed": 1,
+            "rejected": 1,
+            "rate": 1.0,
+        }
+        assert result["byActionClass"]["review"] == {
+            "proposed": 1,
+            "rejected": 0,
+            "rate": 0.0,
+        }
+        assert result["byPhase"]["build"] == {
+            "proposed": 2,
+            "rejected": 1,
+            "rate": 0.5,
+        }
+        assert result["byPhase"]["review"] == {
+            "proposed": 2,
+            "rejected": 1,
+            "rate": 0.5,
+        }
+        assert result["byPhase"]["verify"] == {
+            "proposed": 1,
+            "rejected": 1,
+            "rate": 1.0,
+        }
+        assert result["byStory"]["A"] == {
+            "proposed": 4,
+            "rejected": 2,
+            "rate": 0.5,
+        }
+        assert result["byStory"]["B"] == {
+            "proposed": 1,
+            "rejected": 1,
+            "rate": 1.0,
+        }
+
+    def test_decision_rejected_counts_on_the_diff_itself(self, world):
+        """FR-M37-01: "rejected in review" — the decision-rejected diff is
+        visible on the generalised scopes even without a rejection entry."""
+        server, _ledger = world
+        result = _call(server, "trust/rejectionRate", {"repoId": "edb"})
+        assert result["byStory"]["A"]["rejected"] == 2
+
+    def test_phase_filter_scopes_every_view(self, world):
+        server, _ledger = world
+        result = _call(server, "trust/rejectionRate", {"repoId": "edb", "phase": "build"})
+        assert result["scope"]["phase"] == "build"
+        assert result["proposed"] == 2
+        assert result["rejected"] == 1
+        assert list(result["byPhase"].keys()) == ["build"]
+        assert result["byStory"] == {
+            "A": {"proposed": 1, "rejected": 0, "rate": 0.0},
+            "B": {"proposed": 1, "rejected": 1, "rate": 1.0},
+        }
+
+    def test_action_type_filter(self, world):
+        server, _ledger = world
+        result = _call(
+            server, "trust/rejectionRate", {"repoId": "edb", "actionType": "test_run"}
+        )
+        assert result["scope"]["actionType"] == "test_run"
+        # The F0 aggregate stays diff-based ("proposed" means diffs); the
+        # actionType filter scopes the generalised views.
+        assert result["proposed"] == 3
+        assert result["byActionClass"] == {
+            "test_run": {"proposed": 1, "rejected": 1, "rate": 1.0}
+        }
+
+    def test_f0_result_keys_unchanged(self, world):
+        """Additive guarantee: the F0 wire shape is a subset of the new one."""
+        server, _ledger = world
+        result = _call(server, "trust/rejectionRate", {"repoId": "edb"})
+        for key in ("scope", "proposed", "rejected", "rate", "split", "byAgent", "cacheHit"):
+            assert key in result

@@ -142,6 +142,9 @@ class SidecarServer:
             "trust/detectRejections": SidecarServer._handle_trust_detect_rejections,
             "trust/classify": SidecarServer._handle_trust_classify,
             "trust/rejectionRate": SidecarServer._handle_trust_rejection_rate,
+            "trust/reasonDistribution": SidecarServer._handle_trust_reason_distribution,
+            "trust/score": SidecarServer._handle_trust_score,
+            "trust/scoreDecomposition": SidecarServer._handle_trust_score,
             "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
             "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
@@ -2361,6 +2364,8 @@ class SidecarServer:
                     "repoId": params.get("repoId"),
                     "storyId": params.get("storyId"),
                     "actorId": params.get("actorId"),
+                    "phase": params.get("phase"),
+                    "actionType": params.get("actionType"),
                     "fromSequence": params.get("fromSequence"),
                     "toSequence": params.get("toSequence"),
                 },
@@ -2409,9 +2414,151 @@ class SidecarServer:
             repo_id=params.get("repoId"),
             story_id=params.get("storyId"),
             actor_id=params.get("actorId"),
+            phase=params.get("phase"),
+            action_type=params.get("actionType"),
             from_sequence=params.get("fromSequence"),
             to_sequence=params.get("toSequence"),
             classify=classify_fn,
+        )
+        result["cacheHit"] = False
+        self._trust_cache.put(cache_key, result)
+        return result  # type: ignore[return-value]
+
+    # -- rejection reason distribution (FR-M37-02, task 20) --------------------
+
+    def _trust_classifier(
+        self,
+        params: dict[str, Any],
+        story_commits: dict[str, Any],
+        ratio_threshold: float | None,
+        max_age_days: float | None,
+    ):
+        """The storyCommits -> greenfield/brownfield callable shared by the
+        trust metrics (stories without commit data degrade to unclassified,
+        never to a failed metric)."""
+        if not story_commits:
+            return None
+        try:
+            repo = self._ensure_attrib_repo({"repoPath": params.get("repoPath")})
+        except AttributionError as error:
+            raise self._attrib_error(error) from error
+
+        def classify_fn(story_id: str) -> str | None:
+            commits = story_commits.get(story_id)
+            if not commits:
+                return None
+            try:
+                return metrics_mod.classify(
+                    repo,
+                    commits=list(commits),
+                    new_file_ratio_threshold=ratio_threshold
+                    if ratio_threshold is not None
+                    else metrics_mod.DEFAULT_NEW_FILE_RATIO_THRESHOLD,
+                    max_median_age_days=max_age_days
+                    if max_age_days is not None
+                    else metrics_mod.DEFAULT_MAX_MEDIAN_AGE_DAYS,
+                ).classification
+            except AttributionError:
+                # A story whose commits cannot be classified (rewritten
+                # away, foreign repo) reports unclassified — a metric
+                # degrades, never goes silent.
+                return None
+
+        return classify_fn
+
+    def _handle_trust_reason_distribution(
+        self, params: bus_types.TrustReasonDistributionParams
+    ) -> bus_types.TrustReasonDistributionResult:
+        params = params or {}
+        ledger = self._ensure_ledger()
+        story_commits = params.get("storyCommits") or {}
+        ratio_threshold = params.get("newFileRatioThreshold")
+        max_age_days = params.get("maxMedianAgeDays")
+
+        cache_key = json.dumps(
+            {
+                "scope": {
+                    "repoId": params.get("repoId"),
+                    "actorId": params.get("actorId"),
+                    "fromSequence": params.get("fromSequence"),
+                    "toSequence": params.get("toSequence"),
+                },
+                "storyCommits": story_commits,
+                "thresholds": [ratio_threshold, max_age_days],
+                "tip": ledger.last_sequence,  # append-invalidation backstop
+            },
+            sort_keys=True,
+        )
+        cached = self._trust_cache.get(cache_key)
+        if cached is not None:
+            result = dict(cached)
+            result["cacheHit"] = True
+            return result  # type: ignore[return-value]
+
+        classify_fn = self._trust_classifier(
+            params, story_commits, ratio_threshold, max_age_days
+        )
+        result = metrics_mod.compute_reason_distribution(
+            ledger,
+            repo_id=params.get("repoId"),
+            actor_id=params.get("actorId"),
+            from_sequence=params.get("fromSequence"),
+            to_sequence=params.get("toSequence"),
+            classify=classify_fn,
+        )
+        result["cacheHit"] = False
+        self._trust_cache.put(cache_key, result)
+        return result  # type: ignore[return-value]
+
+    # -- trust score with decomposition (FR-M37-03, task 21) -------------------
+
+    def _handle_trust_score(
+        self, params: bus_types.TrustScoreParams
+    ) -> bus_types.TrustScoreResult:
+        # One implementation behind both trust/score and
+        # trust/scoreDecomposition: the decomposition is always exposed in
+        # full, and the aggregate can never hide a bad component.
+        params = params or {}
+        actor_id = params.get("actorId")
+        if not isinstance(actor_id, str) or not actor_id.strip():
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "trust/score needs the actorId"
+            )
+        ledger = self._ensure_ledger()
+        task_class_by_story = params.get("taskClassByStory") or {}
+        if not isinstance(task_class_by_story, dict):
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "taskClassByStory must be an object"
+            )
+
+        cache_key = json.dumps(
+            {
+                "scope": {
+                    "repoId": params.get("repoId"),
+                    "actorId": actor_id,
+                    "taskClass": params.get("taskClass"),
+                    "fromSequence": params.get("fromSequence"),
+                    "toSequence": params.get("toSequence"),
+                },
+                "taskClassByStory": task_class_by_story,
+                "tip": ledger.last_sequence,  # append-invalidation backstop
+            },
+            sort_keys=True,
+        )
+        cached = self._trust_cache.get(cache_key)
+        if cached is not None:
+            result = dict(cached)
+            result["cacheHit"] = True
+            return result  # type: ignore[return-value]
+
+        result = metrics_mod.compute_trust_score(
+            ledger,
+            actor_id=actor_id,
+            repo_id=params.get("repoId"),
+            task_class=params.get("taskClass"),
+            task_class_by_story=task_class_by_story,
+            from_sequence=params.get("fromSequence"),
+            to_sequence=params.get("toSequence"),
         )
         result["cacheHit"] = False
         self._trust_cache.put(cache_key, result)

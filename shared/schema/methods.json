@@ -235,9 +235,24 @@
       "result": { "$ref": "#/$defs/TrustClassifyResult" }
     },
     "trust/rejectionRate": {
-      "description": "FR-M17-05 + FR-M37-01 (F0 Workstream F task 30): rejection rate per agent, per repository, split greenfield/brownfield (G6), derived from the ledger on demand — proposed changes are ledger entries with actionType \"diff\", rejections are the entries they link to via a rejection entry's rejectedSequence. No separate metrics database: the numbers recompute from ledger entries and cache in-process, invalidated on append. Stories are classified via trust/classify when storyCommits (storyId -> commits) and repoPath are provided; stories without commit data are reported in the unclassified bucket, never silently dropped.",
+      "description": "FR-M17-05 + FR-M37-01 (F0 Workstream F task 30, F1 Workstream E task 19): rejection rate per agent, per repository, split greenfield/brownfield (G6), derived from the ledger on demand — proposed changes are ledger entries with actionType \"diff\", rejections are the entries they link to via a rejection entry's rejectedSequence. Task 19 adds the FR-M37-01 scopes: phase/actionType filters, and byActionClass/byPhase/byStory views over every in-scope entry where \"rejected\" additionally covers entries whose own decision is rejected|reworked (rejected in review, reworked — the shapes a plain diff-link cannot see). No separate metrics database: the numbers recompute from ledger entries and cache in-process, invalidated on append. Stories are classified via trust/classify when storyCommits (storyId -> commits) and repoPath are provided; stories without commit data are reported in the unclassified bucket, never silently dropped.",
       "params": { "$ref": "#/$defs/TrustRejectionRateParams" },
       "result": { "$ref": "#/$defs/TrustRejectionRateResult" }
+    },
+    "trust/reasonDistribution": {
+      "description": "FR-M37-02 (F1 Workstream E task 20): the E-GR-03 rejection-reason distribution — every rejection entry carries a taxonomy class (reworkReason), and this reports per-class counts and rates overall, per agent (the rejected change's author, resolved through rejectedSequence), and per detection shape, split greenfield/brownfield where the stories classify (G6). Ledger-derived on demand, in-process-cached, invalidated on append (FR-M17-05). Zero model calls (FR-M36-07).",
+      "params": { "$ref": "#/$defs/TrustReasonDistributionParams" },
+      "result": { "$ref": "#/$defs/TrustReasonDistributionResult" }
+    },
+    "trust/score": {
+      "description": "FR-M37-03 (F1 Workstream E task 21): the FR-M17-01 trust score per agent per task class, derived from the ledger on demand with its full decomposition exposed — first-pass yield, rejection rate, calibration error (unknown when no in-scope entry carries a confidence value — never fabricated), post-merge revert rate (the rejection detector's reverted shape over approved changes), and incident linkage (unknown: the ledger carries no incident entry type yet). A component with no evidence reports insufficient_evidence/unknown and never feeds the aggregate as zero; the aggregate covers only the components that have evidence and stays null when none do. trust/scoreDecomposition returns the identical shape under a name that reads as the decomposition-first view.",
+      "params": { "$ref": "#/$defs/TrustScoreParams" },
+      "result": { "$ref": "#/$defs/TrustScoreResult" }
+    },
+    "trust/scoreDecomposition": {
+      "description": "FR-M37-03 (F1 Workstream E task 21): alias of trust/score under the decomposition-first name — same params, same result; a bad component is visible in components, never hidden by the aggregate score.",
+      "params": { "$ref": "#/$defs/TrustScoreParams" },
+      "result": { "$ref": "#/$defs/TrustScoreResult" }
     },
     "acp/sessionBegin": {
       "description": "FR-M34-01/02 (F1 Workstream A task 4): the extension host ACP client reports a hosted agent session starting; the sidecar records a `session_begin` ledger entry (actorKind external, vendor acp, direct confidence) before the agent's first turn.",
@@ -2035,6 +2050,8 @@
         "repoId": { "type": "string" },
         "storyId": { "type": "string" },
         "actorId": { "type": "string" },
+        "phase": { "type": "string", "description": "F1 Workstream E task 19 (FR-M37-01): restrict every scope to entries in this ledger phase." },
+        "actionType": { "type": "string", "description": "F1 Workstream E task 19 (FR-M37-01): restrict the generalised scopes to this action class." },
         "fromSequence": { "type": "integer" },
         "toSequence": { "type": "integer" },
         "repoPath": { "type": "string", "description": "Repository for greenfield/brownfield classification. Absent means the handshake workspaceDir." },
@@ -2046,15 +2063,74 @@
     },
     "TrustRejectionRateResult": {
       "type": "object",
-      "required": ["scope", "proposed", "rejected", "rate", "split", "byAgent", "cacheHit"],
+      "required": ["scope", "proposed", "rejected", "rate", "split", "byAgent", "byActionClass", "byPhase", "byStory", "cacheHit"],
       "properties": {
-        "scope": { "type": "object", "description": "The echoed scope filters." },
+        "scope": { "type": "object", "description": "The echoed scope filters (repoId, storyId, actorId, phase, actionType, fromSequence, toSequence)." },
         "proposed": { "type": "integer" },
         "rejected": { "type": "integer" },
         "rate": { "type": "number" },
         "split": { "type": "object", "description": "greenfield / brownfield / unclassified buckets (G6: every trust metric reports the split)." },
         "byAgent": { "type": "object", "description": "actorId -> bucket, per-agent rejection rates." },
+        "byActionClass": { "type": "object", "description": "FR-M37-01 (task 19): actionType -> bucket over every in-scope entry except the rejection-capture entries themselves, where \"rejected\" generalises the F0 linked-rejection shape to entries whose own decision is rejected|reworked." },
+        "byPhase": { "type": "object", "description": "FR-M37-01 (task 19): ledger phase -> bucket, same generalised rejection notion as byActionClass." },
+        "byStory": { "type": "object", "description": "FR-M37-01 (task 19): storyId -> bucket, same generalised rejection notion as byActionClass." },
         "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05: derived from the ledger, cached, invalidated on append)." }
+      },
+      "additionalProperties": false
+    },
+    "TrustReasonDistributionParams": {
+      "type": "object",
+      "properties": {
+        "repoId": { "type": "string" },
+        "actorId": { "type": "string", "description": "Restrict to rejections attributed to this agent (the rejected change's author; FR-M37-02)." },
+        "fromSequence": { "type": "integer" },
+        "toSequence": { "type": "integer" },
+        "repoPath": { "type": "string", "description": "Repository for greenfield/brownfield classification. Absent means the handshake workspaceDir." },
+        "storyCommits": { "type": "object", "description": "storyId -> the story's commits, used to split the distribution by greenfield/brownfield (trust/classify). Stories without an entry land in the unclassified bucket." },
+        "newFileRatioThreshold": { "type": "number" },
+        "maxMedianAgeDays": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "TrustReasonDistributionResult": {
+      "type": "object",
+      "required": ["scope", "total", "byClass", "byShape", "byAgent", "split", "cacheHit"],
+      "properties": {
+        "scope": { "type": "object", "description": "The echoed scope filters." },
+        "total": { "type": "integer", "description": "Rejection entries in scope (FR-M37-02: every one carries an E-GR-03 taxonomy class)." },
+        "byClass": { "type": "object", "description": "E-GR-03 class id -> {count, rate} across all in-scope rejections." },
+        "byShape": { "type": "object", "description": "Detection shape (reverted / force_amended / replaced_within_window) -> {count, rate} when recorded; absent shapes are omitted." },
+        "byAgent": { "type": "object", "description": "actorId -> {total, byClass}: the distribution for the agent whose proposed change was rejected, resolved through the rejection entry's rejectedSequence and falling back to the entry's own actor." },
+        "split": { "type": "object", "description": "greenfield / brownfield / unclassified -> {total, byClass} (G6: every trust metric reports the split)." },
+        "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
+      },
+      "additionalProperties": false
+    },
+    "TrustScoreParams": {
+      "type": "object",
+      "required": ["actorId"],
+      "properties": {
+        "actorId": { "type": "string", "description": "The agent the score is computed for." },
+        "repoId": { "type": "string" },
+        "taskClass": { "type": "string", "description": "FR-M37-03: restrict to this task class (the ledger carries no task-class column; classes come from taskClassByStory or this single-class filter)." },
+        "taskClassByStory": { "type": "object", "description": "storyId -> task class. Stories without an entry land in the \"unclassified\" class." },
+        "fromSequence": { "type": "integer" },
+        "toSequence": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "TrustScoreResult": {
+      "type": "object",
+      "required": ["scope", "agentId", "taskClass", "score", "status", "coverage", "components", "cacheHit"],
+      "properties": {
+        "scope": { "type": "object", "description": "The echoed scope filters." },
+        "agentId": { "type": "string" },
+        "taskClass": { "type": "string", "description": "\"all\" when every class the agent touched is aggregated; otherwise the single class requested." },
+        "score": { "type": ["number", "null"], "description": "FR-M37-03: the weighted combination over the components with evidence (weights in the module docstring); null when no component has evidence — an empty sample is \"insufficient evidence\", never zero." },
+        "status": { "enum": ["ok", "partial", "insufficient_evidence"], "description": "ok: every component has evidence; partial: at least one does (the missing ones stay visible in components); insufficient_evidence: none does." },
+        "coverage": { "type": "array", "items": { "type": "string" }, "description": "The components WITH evidence that fed the score — a bad component is exposed in components, never hidden by the aggregate." },
+        "components": { "type": "object", "description": "The full FR-M37-03 decomposition: firstPassYield, rejectionRate, calibrationError, postMergeRevertRate, incidentLinkage — each {status: ok|insufficient_evidence|unknown, value, sampleSize, ...}." },
+        "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
       },
       "additionalProperties": false
     },

@@ -1038,6 +1038,8 @@ class TrustRejectionRateParams(TypedDict):
     repoId: NotRequired[str]
     storyId: NotRequired[str]
     actorId: NotRequired[str]
+    phase: NotRequired[str]  # F1 Workstream E task 19 (FR-M37-01): restrict every scope to entries in this ledger phase.
+    actionType: NotRequired[str]  # F1 Workstream E task 19 (FR-M37-01): restrict the generalised scopes to this action class.
     fromSequence: NotRequired[int]
     toSequence: NotRequired[int]
     repoPath: NotRequired[str]  # Repository for greenfield/brownfield classification. Absent means the handshake workspaceDir.
@@ -1046,13 +1048,53 @@ class TrustRejectionRateParams(TypedDict):
     maxMedianAgeDays: NotRequired[float]
 
 class TrustRejectionRateResult(TypedDict):
-    scope: dict[str, Any]  # The echoed scope filters.
+    scope: dict[str, Any]  # The echoed scope filters (repoId, storyId, actorId, phase, actionType, fromSequence, toSequence).
     proposed: int
     rejected: int
     rate: float
     split: dict[str, Any]  # greenfield / brownfield / unclassified buckets (G6: every trust metric reports the split).
     byAgent: dict[str, Any]  # actorId -> bucket, per-agent rejection rates.
+    byActionClass: dict[str, Any]  # FR-M37-01 (task 19): actionType -> bucket over every in-scope entry, where "rejected" generalises the F0 linked-rejection shape to entries whose own decision is rejected|reworked.
+    byPhase: dict[str, Any]  # FR-M37-01 (task 19): ledger phase -> bucket, same generalised rejection notion as byActionClass.
+    byStory: dict[str, Any]  # FR-M37-01 (task 19): storyId -> bucket, same generalised rejection notion as byActionClass.
     cacheHit: bool  # True when served from the in-process cache (FR-M17-05: derived from the ledger, cached, invalidated on append).
+
+class TrustReasonDistributionParams(TypedDict):
+    repoId: NotRequired[str]
+    actorId: NotRequired[str]  # Restrict to rejections attributed to this agent (the rejected change's author; FR-M37-02).
+    fromSequence: NotRequired[int]
+    toSequence: NotRequired[int]
+    repoPath: NotRequired[str]  # Repository for greenfield/brownfield classification. Absent means the handshake workspaceDir.
+    storyCommits: NotRequired[dict[str, Any]]  # storyId -> the story's commits, used to split the distribution by greenfield/brownfield (trust/classify). Stories without an entry land in the unclassified bucket.
+    newFileRatioThreshold: NotRequired[float]
+    maxMedianAgeDays: NotRequired[float]
+
+class TrustReasonDistributionResult(TypedDict):
+    scope: dict[str, Any]  # The echoed scope filters.
+    total: int  # Rejection entries in scope (FR-M37-02: every one carries an E-GR-03 taxonomy class).
+    byClass: dict[str, Any]  # E-GR-03 class id -> {count, rate} across all in-scope rejections.
+    byShape: dict[str, Any]  # Detection shape (reverted / force_amended / replaced_within_window) -> {count, rate} when recorded; absent shapes are omitted.
+    byAgent: dict[str, Any]  # actorId -> {total, byClass}: the distribution for the agent whose proposed change was rejected, resolved through the rejection entry's rejectedSequence and falling back to the entry's own actor.
+    split: dict[str, Any]  # greenfield / brownfield / unclassified -> {total, byClass} (G6: every trust metric reports the split).
+    cacheHit: bool  # True when served from the in-process cache (FR-M17-05).
+
+class TrustScoreParams(TypedDict):
+    actorId: str  # The agent the score is computed for.
+    repoId: NotRequired[str]
+    taskClass: NotRequired[str]  # FR-M37-03: restrict to this task class (the ledger carries no task-class column; classes come from taskClassByStory or this single-class filter).
+    taskClassByStory: NotRequired[dict[str, Any]]  # storyId -> task class. Stories without an entry land in the "unclassified" class.
+    fromSequence: NotRequired[int]
+    toSequence: NotRequired[int]
+
+class TrustScoreResult(TypedDict):
+    scope: dict[str, Any]  # The echoed scope filters.
+    agentId: str
+    taskClass: str  # "all" when every class the agent touched is aggregated; otherwise the single class requested.
+    score: float | None  # FR-M37-03: the weighted combination over the components with evidence (weights in the module docstring); null when no component has evidence — an empty sample is "insufficient evidence", never zero.
+    status: Literal["ok", "partial", "insufficient_evidence"]  # ok: every component has evidence; partial: at least one does (the missing ones stay visible in components); insufficient_evidence: none does.
+    coverage: list[str]  # The components WITH evidence that fed the score — a bad component is exposed in components, never hidden by the aggregate.
+    components: dict[str, Any]  # The full FR-M37-03 decomposition: firstPassYield, rejectionRate, calibrationError, postMergeRevertRate, incidentLinkage — each {status: ok|insufficient_evidence|unknown, value, sampleSize, ...}.
+    cacheHit: bool  # True when served from the in-process cache (FR-M17-05).
 
 # FR-M35-02 observation confidence: direct (the agent's own telemetry/ACP session), telemetry (evidence the agent left behind: git trailers, SCM/PR API, OS process listing), inferred (filesystem/git inference — the floor, never silence).
 ObservationConfidence = Literal["direct", "telemetry", "inferred"]
@@ -1213,7 +1255,7 @@ class McpInvokeResult(TypedDict):
     result: dict[str, Any] | list[Any] | str | float | bool | None  # The underlying method's result JSON, unmodified.
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate"]
 
 # Every notification method on the bus.
 NotificationName = Literal["gate/halt", "tiers/set", "$/cancel"]
@@ -1271,7 +1313,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]},
     {"id": "recorder.observers", "tier": "flight-recorder", "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).", "rpcMethods": ["observe/sessions", "observe/health"]},
     {"id": "recorder.provenance-hooks", "tier": "flight-recorder", "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).", "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse"]},
-    {"id": "recorder.trust-metrics", "tier": "flight-recorder", "description": "Rejection measurement, minimum (FR-M37-01 subset, FR-M37-06, FR-M17-05; F0 Workstream F tasks 28-30): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), and the ledger-derived, in-process-cached rejection rate per agent/repository split by that distinction (trust/rejectionRate). Zero model calls (FR-M36-07).", "rpcMethods": ["trust/detectRejections", "trust/classify", "trust/rejectionRate"]},
+    {"id": "recorder.trust-metrics", "tier": "flight-recorder", "description": "Rejection measurement and trust analytics (FR-M37-01/02/03/06, FR-M17-01/05; F0 Workstream F tasks 28-30, F1 Workstream E tasks 19-21): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), the ledger-derived, in-process-cached rejection rate per agent/repository/action-class/phase/story split by that distinction (trust/rejectionRate), the E-GR-03 rejection-reason distribution per agent (trust/reasonDistribution), and the trust score with its full per-component decomposition (trust/score, trust/scoreDecomposition). Zero model calls (FR-M36-07).", "rpcMethods": ["trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition"]},
     {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01/05/07/08/09; F1 Workstream B tasks 9-10): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack, with DoR/DoD as machine-checkable criteria; the merge gate refuses merges to protected branches without a recorded human approval bound to the head commit digest (approver identity in the ledger, FR-M12-07). Every decision is ledger-recorded before the RPC returns (FR-M10-08).", "rpcMethods": ["gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarify over hosted ACP sessions (FR-M25-01/02/03/04/06; F1 Workstream D task 17): steer.send ledger-records a human's guidance (who/what/when, FR-M10-08) before the host injects it into the running session over the real wire (a second session/prompt); steer.question/steer.answer are the clarifying-question protocol — the question is durable before the human sees it, the recorded answer resumes the loop; steer.escalate records uncertainty-triggered escalations below a per-class confidence threshold; steer.accept + steer.acceptanceStatus are partial acceptance of a session's output per file/hunk, ledger-recorded and queryable; steer.plan records dry-run planner output (dry-run denies mutation kinds at the policy gate, FR-M25-06); steer.status (task 18) is the honest capability payload carrying hosted: boolean so an observe-only session can never be offered a dead control. Observed-not-hosted sessions get the structured NOT_HOSTED refusal, never a silent failure.", "rpcMethods": ["steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan"]},
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
@@ -1283,7 +1325,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate")
 NOTIFICATION_METHODS: tuple[str, ...] = ("gate/halt", "tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -1333,6 +1375,9 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "trust/detectRejections": {"params": TrustDetectRejectionsParams, "result": TrustDetectRejectionsResult},
     "trust/classify": {"params": TrustClassifyParams, "result": TrustClassifyResult},
     "trust/rejectionRate": {"params": TrustRejectionRateParams, "result": TrustRejectionRateResult},
+    "trust/reasonDistribution": {"params": TrustReasonDistributionParams, "result": TrustReasonDistributionResult},
+    "trust/score": {"params": TrustScoreParams, "result": TrustScoreResult},
+    "trust/scoreDecomposition": {"params": TrustScoreParams, "result": TrustScoreResult},
     "acp/sessionBegin": {"params": AcpSessionBeginParams, "result": AcpSessionRecordResult},
     "acp/sessionEnd": {"params": AcpSessionEndParams, "result": AcpSessionRecordResult},
     "acp/permissionDecision": {"params": AcpPermissionDecisionParams, "result": AcpSessionRecordResult},

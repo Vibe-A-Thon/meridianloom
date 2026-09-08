@@ -20,6 +20,17 @@ Derivation, deliberately simple and auditable:
   entries group by story, each story is classified by the caller-supplied
   classifier, and the buckets aggregate. Stories the classifier declines
   (no commit data) land in ``unclassified`` — reported, never dropped.
+
+Task 19 (FR-M37-01) extends the scopes the rate is reported over,
+additively — the F0 keys keep their meaning exactly:
+
+* ``phase`` / ``action_type`` parameters restrict every scope;
+* ``byActionClass`` / ``byPhase`` / ``byStory`` generalise "rejected" to
+  every in-scope ledger entry (not only diffs): an entry counts as
+  rejected when its sequence is carried by a rejection entry (the F0
+  shape — post-merge reverts and captured rejections) OR its own
+  ``decision`` is ``rejected``/``reworked`` (rejected in review, sent
+  back for rework — the shapes a diff-link cannot see).
 """
 
 from __future__ import annotations
@@ -88,6 +99,8 @@ def compute_rejection_rate(
     repo_id: str | None = None,
     story_id: str | None = None,
     actor_id: str | None = None,
+    phase: str | None = None,
+    action_type: str | None = None,
     from_sequence: int | None = None,
     to_sequence: int | None = None,
     classify: Callable[[str], str | None] | None = None,
@@ -96,11 +109,18 @@ def compute_rejection_rate(
 
     ``classify`` maps a story id to GREENFIELD/BROWNFIELD or None
     (unclassified); absent entirely, everything lands in unclassified.
+    ``phase`` and ``action_type`` restrict every scope (FR-M37-01, task 19).
+    The result additionally carries ``byActionClass`` / ``byPhase`` /
+    ``byStory`` — the generalised scopes over every in-scope entry, where
+    an entry is rejected on a linked rejection entry OR a
+    rejected/reworked decision of its own.
     """
     scope = {
         "repoId": repo_id,
         "storyId": story_id,
         "actorId": actor_id,
+        "phase": phase,
+        "actionType": action_type,
         "fromSequence": from_sequence,
         "toSequence": to_sequence,
     }
@@ -112,8 +132,21 @@ def compute_rejection_rate(
         to_sequence=to_sequence,
         limit=1000,
     )
+    all_rows = ledger.query(
+        story_id=story_id,
+        actor_id=actor_id,
+        from_sequence=from_sequence,
+        to_sequence=to_sequence,
+        limit=1000,
+    )
     if repo_id is not None:
         rows = [row for row in rows if row.get("repo_id") == repo_id]
+        all_rows = [row for row in all_rows if row.get("repo_id") == repo_id]
+    if phase is not None:
+        rows = [row for row in rows if row.get("phase") == phase]
+        all_rows = [row for row in all_rows if row.get("phase") == phase]
+    if action_type is not None:
+        all_rows = [row for row in all_rows if row.get("action_type") == action_type]
     rejection_rows = ledger.query(action_type="rejection", limit=1000)
     if repo_id is not None:
         rejection_rows = [
@@ -153,6 +186,24 @@ def compute_rejection_rate(
                 kind = UNCLASSIFIED
         _add(split[kind], rejected)
 
+    # Generalised FR-M37-01 scopes: every in-scope entry except the
+    # rejection-capture entries themselves (a "rejection" entry records a
+    # rejection — counting its own decision would double-count), where
+    # "rejected" also covers the entry's own rejected/reworked decision.
+    by_class: dict[str, dict[str, Any]] = {}
+    by_phase: dict[str, dict[str, Any]] = {}
+    by_story: dict[str, dict[str, Any]] = {}
+    for row in all_rows:
+        if row["action_type"] == "rejection":
+            continue
+        rejected = row["seq"] in rejected_sequences or row.get("decision") in (
+            "rejected",
+            "reworked",
+        )
+        _add(by_class.setdefault(row["action_type"], _bucket()), rejected)
+        _add(by_phase.setdefault(row["phase"], _bucket()), rejected)
+        _add(by_story.setdefault(row["story_id"], _bucket()), rejected)
+
     return {
         "scope": scope,
         "proposed": overall["proposed"],
@@ -160,4 +211,9 @@ def compute_rejection_rate(
         "rate": _rates(overall)["rate"],
         "split": {kind: _rates(bucket) for kind, bucket in split.items()},
         "byAgent": {agent: _rates(bucket) for agent, bucket in sorted(by_agent.items())},
+        "byActionClass": {
+            key: _rates(bucket) for key, bucket in sorted(by_class.items())
+        },
+        "byPhase": {key: _rates(bucket) for key, bucket in sorted(by_phase.items())},
+        "byStory": {key: _rates(bucket) for key, bucket in sorted(by_story.items())},
     }
