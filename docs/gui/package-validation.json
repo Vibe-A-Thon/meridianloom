@@ -1,10 +1,9 @@
 {
-  "artifact": "meridian-loom-0.0.1.vsix",
-  "bytes": 851261,
-  "sha256": "e096a1d90de451b42099b381c7556f79d48cf3fd6dc378f48170bd42b52c935b",
+  "artifact": "meridian-loom-0.0.1-workbench-20260908.vsix",
+  "bytes": 851709,
+  "sha256": "b4322f14e4e16a725e349c9c26fc461037a1408b34f3ff33775ae7993d4b5bf7",
   "archiveFiles": 115,
   "packagedPolicy": true,
   "previewFixturesExcluded": true,
-  "dialogFocusTrapIncluded": true,
-  "governanceStopIncluded": true
+  "portableImportLimitAligned": true
 }

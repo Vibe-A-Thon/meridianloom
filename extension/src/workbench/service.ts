@@ -318,7 +318,9 @@ export class WorkbenchService {
     const temporary = path.join(directory, `.state-${randomUUID()}.tmp`);
     const serialized = JSON.stringify(this.state, null, 2);
     if (Buffer.byteLength(serialized, 'utf8') > 20_000_000)
-      throw new Error('Workbench state would exceed 20 MB. Export and remove unused profiles or memory before adding more data.');
+      throw new Error(
+        'Workbench state would exceed 20 MB. Export and remove unused profiles or memory before adding more data.',
+      );
     try {
       await fs.writeFile(temporary, serialized, {
         encoding: 'utf8',

@@ -1,5 +1,6 @@
 {
   "check": "packaged sidecar imports and registers its handlers",
+  "artifactSha256": "b4322f14e4e16a725e349c9c26fc461037a1408b34f3ff33775ae7993d4b5bf7",
   "passed": true,
   "stdout": "Packaged sidecar initialized; protocol 1",
   "stderr": ""

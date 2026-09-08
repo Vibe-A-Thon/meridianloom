@@ -1,4 +1,4 @@
-# Meridian workbench ? implementation and validation
+# Meridian workbench — implementation and validation
 
 Updated 8 September 2026. This report covers the GUI continuation requested by the
 owner; the concurrently evolving Governor backend remains separately tracked in
@@ -29,6 +29,9 @@ the main flows.
 
 Profiles are stored atomically in `.meridian/workbench/state.json`, with a versioned
 schema and recovery that cancels interrupted runs instead of restarting them.
+Import/export share a 20 MB document limit, and exports include all accepted memory
+notes. A regression test round-trips 101 notes and more than 500 KB of content.
+Writes that would exceed the storage limit are refused before replacing the saved file.
 The repository ignores this directory because it contains local prompts, results,
 and memory. Portable exports intentionally omit participation, run history,
 credentials and environment values. They do not bundle an executable or its
@@ -79,7 +82,7 @@ permissions, native exports, and execution.
 
 ![Workbench overview](gui/overview.png)
 
-[Agent studio screenshot](gui/agents.png) ? [Narrow panel screenshot](gui/mobile.png)
+[Agent studio screenshot](gui/agents.png) — [Narrow panel screenshot](gui/mobile.png)
 
 ## Validation
 
@@ -92,13 +95,13 @@ permissions, native exports, and execution.
 - Extension: the broad run reported 322 passed, one timeout and one optional live
   registry skip. The timeout was a durable multi-agent integration test under
   parallel load; a bounded 15-second allowance replaced its 5-second default.
-  The final workbench suite passed all 19 tests, including real ACP stdio execution,
+  The final workbench suite passed all 20 tests, including real ACP stdio execution,
   state recovery, containment, deactivation, governance halt, failed stops, and
-  audit-record failure. These results cover 327 passing extension tests and the
+  audit-record failure. These results cover 328 passing extension tests and the
   existing optional skip across the broad and targeted runs; this is not a claim
   that the complete extension suite was rerun after every final edit.
 - Browser: 10 interaction/layout checks passed in headless Microsoft Edge at
-  1440?1080 and 390?844, with no page errors or horizontal overflow.
+  1440 x 1080 and 390 x 844, with no page errors or horizontal overflow.
 - Accessibility: axe-core 4.10.3 reported zero violations for its WCAG 2 A/AA and
   WCAG 2.1 AA rules in 16 screen/theme/viewport combinations. Manual browser
   automation also verified repeated Tab containment, Escape, and trigger-focus
@@ -113,8 +116,8 @@ permissions, native exports, and execution.
 
 ## Packaged artifact
 
-[`meridian-loom-0.0.1-workbench-20260908.vsix`](../dist/meridian-loom-0.0.1-workbench-20260908.vsix) ? 851,261 bytes, 115 archive entries.
-SHA-256: `e096a1d90de451b42099b381c7556f79d48cf3fd6dc378f48170bd42b52c935b`. The archive includes the host bundle,
+[`meridian-loom-0.0.1-workbench-20260908.vsix`](../dist/meridian-loom-0.0.1-workbench-20260908.vsix) — 851,709 bytes, 115 archive entries.
+SHA-256: `b4322f14e4e16a725e349c9c26fc461037a1408b34f3ff33775ae7993d4b5bf7`. The archive includes the host bundle,
 Python sidecar, generated Python bus types, default ACP permission policy, and
 production webview assets. [Archive checks](gui/package-validation.json) passed.
 
@@ -126,57 +129,57 @@ A connected entry point may cover only the limited behavior stated below.
 
 | Surface | Entry point | Current scope and remaining work |
 |---|---|---|
-| 10.1 ? Command Center | overview | Live roster, deliverables, learning counts, and evidence entry points. Cost forecasts and global orchestration remain pending. |
-| 10.2 ? The Loom Floor | agents | Agent cards expose participation and actual run state. Spatial floor rendering remains pending. |
-| 10.3 ? The Weave | flight-recorder | Existing evidence weave plus the delivery board. Full story and loop visualization remains pending. |
-| 10.4 ? Agents Watch | agents | Searchable roster, independent agent details, participation controls, and run history. |
-| 10.5 ? Agents Dojo | learning | Inactive agents show Learning; human feedback creates reviewable memory notes. Model training and evaluations remain pending. |
-| 10.6 ? Gate Room | Pending | Policy gate services exist; a complete approval inbox and gate configuration interface remain pending. |
-| 10.7 ? Ledger / Selvage Viewer | ledger | Recorded entries, chain verification, provenance inspection, and signed bundle export. |
-| 10.8 ? CodeMap Viewer | flight-recorder | Any-line attribution and symbol lookup are available. Graph exploration remains pending. |
-| 10.9 ? Loop Graph Viewer | Pending | Canonical loop visualization and orchestration services remain pending. |
-| 10.10 ? Architecture & C4 Viewer | Pending | Architecture graph extraction, editing, and validation remain pending. |
-| 10.11 ? UML Studio | Pending | Modeling, code links, synchronization, and diagram export remain pending. |
-| 10.12 ? Flow Diagram Viewer | Pending | Flow generation, editing, and execution overlays remain pending. |
-| 10.13 ? Config Portal | settings | Seven theme choices, density, workspace state, and native extension settings. Full policy/model configuration remains pending. |
-| 10.14 ? Skill Forge | agents | Per-agent instructions can be edited. Versioned skill packages and evaluation tooling remain pending. |
-| 10.15 ? Onboarding Wizard | agents | Validated agent creation and portable import. Automated probation evaluations remain pending. |
-| 10.16 ? Agent Inspector | agents | Identity, mode, instructions, permissions, runtime configuration, independent tasks, and results. |
-| 10.17 ? Diff Theater | external-agents | Existing attributed diffs. Hunk acceptance and merge-conflict editing remain pending. |
-| 10.18 ? Spec Studio | deliverables | Editable delivery briefs and acceptance criteria. Formal requirement extraction and trace matrices remain pending. |
-| 10.19 ? Work Packet Board | deliverables | Draft, dispatch, sequential active roster, review, completion, and failed-run inspection. Full packet orchestration remains pending. |
-| 10.20 ? Verification Board | ledger | Cryptographic evidence verification is available. Product test evidence and acceptance gates remain separate, pending UI work. |
-| 10.21 ? Security Assurance | runtime | Workspace trust, execution readiness, and diagnostic signals. Vulnerability triage and attestation workflows remain pending. |
-| 10.22 ? KPI Observatory | overview | Actual roster, delivery, review, and learning counts. Quality, latency, spend, and calibrated trust metrics remain pending. |
-| 10.23 ? Exchange | agents | Portable profile and reviewed-memory export/import; signed evidence export through the ledger. Full organisation exchange remains pending. |
-| 10.24 ? Focus Mode | settings | Focus toggle in the top bar and keyboard shortcut; restored with the panel. |
-| 10.25 ? Story Hub | deliverables | Local delivery briefs and status board. External story synchronization and full story lifecycle remain pending. |
-| 10.26 ? Portfolio | Pending | Cross-project portfolio and multi-tenant controls remain pending. |
-| 10.27 ? Decision Stream | ledger | Recorded evidence and workbench activity are inspectable. Unified typed decision stream remains pending. |
-| 10.28 ? Steer & Clarify | Pending | Live task steering, checkpoints, and clarification replies remain pending. |
-| 10.29 ? Replay & Time-Travel | Pending | Deterministic replay and historical workspace views remain pending. |
-| 10.30 ? Memory Studio | learning | Source-linked memory review, accept/dismiss, portability, and next-task context. Retrieval tuning and broader memory stores remain pending. |
-| 10.31 ? Model Routing Observatory | Pending | Routing rules, cost allocation, fallbacks, and evaluation-driven selection remain pending. |
-| 10.32 ? Human Roles & Approvals | Pending | Native tool permission prompts remain in place. Organisation role administration and approval queues remain pending. |
-| 10.33 ? Connectors & Write-back | Pending | External connector setup, synchronization, and write-back previews remain pending. |
-| 10.34 ? Delivery Pipeline | Pending | CI evidence, protected-branch merge, promotion, and release workflows remain pending. |
-| 10.35 ? Repositories & Worktrees | runtime | Open workspace and execution readiness are visible. Worktree services exist separately; workbench runs are sequential in the open workspace. |
-| 10.36 ? Documentation & Journey Report | ledger | Portable signed evidence export is available. Narrative journey report generation remains pending. |
-| 10.37 ? Calibration & Trust | external-agents | Observation sources and confidence are retained. Model calibration and trust analytics UI remain pending. |
-| 10.38 ? Runtime & Operations | runtime | Live health, execution readiness, diagnostics, and stop controls for workbench-owned tasks. |
-| 10.39 ? Notification Center | overview | The top-bar activity panel shows run history, errors, and pending learning reviews. |
-| 10.40 ? First-Run & Guided Setup | setup | Persistent, explicitly opened recorder setup: connect, observe, inspect, and export. |
-| 10.41 ? Keyboard Map & Help | settings | Searchable command palette, shortcut reference, keyboard dialogs, and evidence tab navigation. |
-| 10.42 ? Editor-Resident Surfaces | Pending | Inline annotations, lenses, and persistent editor inspectors remain pending. |
-| 10.43 ? Adapter Bay | agents | Portable ACP launch profiles and independent execution. Registry browsing, installation, and automated graduation remain pending. |
-| 10.44 ? Instruction Library | agents | Editable, portable per-agent instructions. Shared versioned instruction packages remain pending. |
-| 10.45 ? Flight Recorder | flight-recorder | Existing real observer, weave, any-line attribution, and export surfaces retained. |
-| 10.46 ? External Agents | external-agents | Existing live session and observer-health view with vendor and observation confidence. |
-| 10.47 ? Trust Observatory | Pending | Rejection-measurement services exist; a full trust dashboard remains pending. |
-| 10.48 ? Comprehension Studio | Pending | Code comprehension, ownership, and handover workflows remain pending. |
-| 10.49 ? Cross-Vendor Spend | Pending | Provider billing inputs, estimates, allocations, and budgets remain pending. |
-| 10.50 ? Unlock | settings | Tier configuration is available through native extension settings; readiness explains prerequisites. |
-| 10.51 ? Launch | deliverables | Brief creation, active-roster preview, explicit dispatch, run inspection, and human completion. Full M40 preflight and isolated execution remain pending. |
+| 10.1 — Command Center | overview | Live roster, deliverables, learning counts, and evidence entry points. Cost forecasts and global orchestration remain pending. |
+| 10.2 — The Loom Floor | agents | Agent cards expose participation and actual run state. Spatial floor rendering remains pending. |
+| 10.3 — The Weave | flight-recorder | Existing evidence weave plus the delivery board. Full story and loop visualization remains pending. |
+| 10.4 — Agents Watch | agents | Searchable roster, independent agent details, participation controls, and run history. |
+| 10.5 — Agents Dojo | learning | Inactive agents show Learning; human feedback creates reviewable memory notes. Model training and evaluations remain pending. |
+| 10.6 — Gate Room | Pending | Policy gate services exist; a complete approval inbox and gate configuration interface remain pending. |
+| 10.7 — Ledger / Selvage Viewer | ledger | Recorded entries, chain verification, provenance inspection, and signed bundle export. |
+| 10.8 — CodeMap Viewer | flight-recorder | Any-line attribution and symbol lookup are available. Graph exploration remains pending. |
+| 10.9 — Loop Graph Viewer | Pending | Canonical loop visualization and orchestration services remain pending. |
+| 10.10 — Architecture & C4 Viewer | Pending | Architecture graph extraction, editing, and validation remain pending. |
+| 10.11 — UML Studio | Pending | Modeling, code links, synchronization, and diagram export remain pending. |
+| 10.12 — Flow Diagram Viewer | Pending | Flow generation, editing, and execution overlays remain pending. |
+| 10.13 — Config Portal | settings | Seven theme choices, density, workspace state, and native extension settings. Full policy/model configuration remains pending. |
+| 10.14 — Skill Forge | agents | Per-agent instructions can be edited. Versioned skill packages and evaluation tooling remain pending. |
+| 10.15 — Onboarding Wizard | agents | Validated agent creation and portable import. Automated probation evaluations remain pending. |
+| 10.16 — Agent Inspector | agents | Identity, mode, instructions, permissions, runtime configuration, independent tasks, and results. |
+| 10.17 — Diff Theater | external-agents | Existing attributed diffs. Hunk acceptance and merge-conflict editing remain pending. |
+| 10.18 — Spec Studio | deliverables | Editable delivery briefs and acceptance criteria. Formal requirement extraction and trace matrices remain pending. |
+| 10.19 — Work Packet Board | deliverables | Draft, dispatch, sequential active roster, review, completion, and failed-run inspection. Full packet orchestration remains pending. |
+| 10.20 — Verification Board | ledger | Cryptographic evidence verification is available. Product test evidence and acceptance gates remain separate, pending UI work. |
+| 10.21 — Security Assurance | runtime | Workspace trust, execution readiness, and diagnostic signals. Vulnerability triage and attestation workflows remain pending. |
+| 10.22 — KPI Observatory | overview | Actual roster, delivery, review, and learning counts. Quality, latency, spend, and calibrated trust metrics remain pending. |
+| 10.23 — Exchange | agents | Portable profile and reviewed-memory export/import; signed evidence export through the ledger. Full organisation exchange remains pending. |
+| 10.24 — Focus Mode | settings | Focus toggle in the top bar and keyboard shortcut; restored with the panel. |
+| 10.25 — Story Hub | deliverables | Local delivery briefs and status board. External story synchronization and full story lifecycle remain pending. |
+| 10.26 — Portfolio | Pending | Cross-project portfolio and multi-tenant controls remain pending. |
+| 10.27 — Decision Stream | ledger | Recorded evidence and workbench activity are inspectable. Unified typed decision stream remains pending. |
+| 10.28 — Steer & Clarify | Pending | Live task steering, checkpoints, and clarification replies remain pending. |
+| 10.29 — Replay & Time-Travel | Pending | Deterministic replay and historical workspace views remain pending. |
+| 10.30 — Memory Studio | learning | Source-linked memory review, accept/dismiss, portability, and next-task context. Retrieval tuning and broader memory stores remain pending. |
+| 10.31 — Model Routing Observatory | Pending | Routing rules, cost allocation, fallbacks, and evaluation-driven selection remain pending. |
+| 10.32 — Human Roles & Approvals | Pending | Native tool permission prompts remain in place. Organisation role administration and approval queues remain pending. |
+| 10.33 — Connectors & Write-back | Pending | External connector setup, synchronization, and write-back previews remain pending. |
+| 10.34 — Delivery Pipeline | Pending | CI evidence, protected-branch merge, promotion, and release workflows remain pending. |
+| 10.35 — Repositories & Worktrees | runtime | Open workspace and execution readiness are visible. Worktree services exist separately; workbench runs are sequential in the open workspace. |
+| 10.36 — Documentation & Journey Report | ledger | Portable signed evidence export is available. Narrative journey report generation remains pending. |
+| 10.37 — Calibration & Trust | external-agents | Observation sources and confidence are retained. Model calibration and trust analytics UI remain pending. |
+| 10.38 — Runtime & Operations | runtime | Live health, execution readiness, diagnostics, and stop controls for workbench-owned tasks. |
+| 10.39 — Notification Center | overview | The top-bar activity panel shows run history, errors, and pending learning reviews. |
+| 10.40 — First-Run & Guided Setup | setup | Persistent, explicitly opened recorder setup: connect, observe, inspect, and export. |
+| 10.41 — Keyboard Map & Help | settings | Searchable command palette, shortcut reference, keyboard dialogs, and evidence tab navigation. |
+| 10.42 — Editor-Resident Surfaces | Pending | Inline annotations, lenses, and persistent editor inspectors remain pending. |
+| 10.43 — Adapter Bay | agents | Portable ACP launch profiles and independent execution. Registry browsing, installation, and automated graduation remain pending. |
+| 10.44 — Instruction Library | agents | Editable, portable per-agent instructions. Shared versioned instruction packages remain pending. |
+| 10.45 — Flight Recorder | flight-recorder | Existing real observer, weave, any-line attribution, and export surfaces retained. |
+| 10.46 — External Agents | external-agents | Existing live session and observer-health view with vendor and observation confidence. |
+| 10.47 — Trust Observatory | Pending | Rejection-measurement services exist; a full trust dashboard remains pending. |
+| 10.48 — Comprehension Studio | Pending | Code comprehension, ownership, and handover workflows remain pending. |
+| 10.49 — Cross-Vendor Spend | Pending | Provider billing inputs, estimates, allocations, and budgets remain pending. |
+| 10.50 — Unlock | settings | Tier configuration is available through native extension settings; readiness explains prerequisites. |
+| 10.51 — Launch | deliverables | Brief creation, active-roster preview, explicit dispatch, run inspection, and human completion. Full M40 preflight and isolated execution remain pending. |
 
 ## Specification basis
 

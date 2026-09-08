@@ -23,24 +23,6 @@ const input = (id: string): WorkbenchAgentInput => ({
   instructions: 'Inspect and explain.',
   permissions: ['read', 'search', 'think'],
   trainable: ['memory'],
-  it('round-trips exported profiles with more than 500 KB and 100 reviewed memory notes', async () => {
-    const one = await setup();
-    const two = await setup();
-    await save(one.service, 'atlas');
-    const file = path.join(one.root, '.meridian/workbench/state.json');
-    const stored = JSON.parse(await readFile(file, 'utf8'));
-    stored.learning = Array.from({ length: 101 }, (_, index) => ({ id: `note-${index}`, agentId: 'atlas', deliverableId: 'source-delivery', title: `Lesson ${index}`, content: 'Portable reviewed context. '.repeat(210), state: 'accepted', createdAt: new Date().toISOString(), surface: 'memory' }));
-    await writeFile(file, JSON.stringify(stored));
-    const source = new WorkbenchService({ workspaceDir: () => one.root, trusted: () => true, enabledTiers: () => [], sidecar: () => undefined });
-    services.push(source);
-    const portable = await source.request({ action: 'agent/export', params: { id: 'atlas' } }) as { content: string };
-    expect(Buffer.byteLength(portable.content)).toBeGreaterThan(500_000);
-    await two.service.request({ action: 'agent/import', params: { content: portable.content } });
-    const imported = await two.snapshot();
-    expect(imported.learning).toHaveLength(101);
-    expect(imported.learning.every(note => note.state === 'pending')).toBe(true);
-    expect(imported.agents[0].mode).toBe('learning');
-  }, 15_000);
 });
 const services: WorkbenchService[] = [];
 afterEach(() => {
@@ -457,4 +439,39 @@ describe('persisted agent workbench', () => {
         .state,
     ).toBe('completed');
   }, 25_000);
+  it('round-trips exported profiles with more than 500 KB and 100 reviewed memory notes', async () => {
+    const one = await setup();
+    const two = await setup();
+    await save(one.service, 'atlas');
+    const file = path.join(one.root, '.meridian/workbench/state.json');
+    const stored = JSON.parse(await readFile(file, 'utf8'));
+    stored.learning = Array.from({ length: 101 }, (_, index) => ({
+      id: `note-${index}`,
+      agentId: 'atlas',
+      deliverableId: 'source-delivery',
+      title: `Lesson ${index}`,
+      content: 'Portable reviewed context. '.repeat(210),
+      state: 'accepted',
+      createdAt: new Date().toISOString(),
+      surface: 'memory',
+    }));
+    await writeFile(file, JSON.stringify(stored));
+    const source = new WorkbenchService({
+      workspaceDir: () => one.root,
+      trusted: () => true,
+      enabledTiers: () => [],
+      sidecar: () => undefined,
+    });
+    services.push(source);
+    const portable = (await source.request({
+      action: 'agent/export',
+      params: { id: 'atlas' },
+    })) as { content: string };
+    expect(Buffer.byteLength(portable.content)).toBeGreaterThan(500_000);
+    await two.service.request({ action: 'agent/import', params: { content: portable.content } });
+    const imported = await two.snapshot();
+    expect(imported.learning).toHaveLength(101);
+    expect(imported.learning.every((note) => note.state === 'pending')).toBe(true);
+    expect(imported.agents[0].mode).toBe('learning');
+  }, 15_000);
 });
