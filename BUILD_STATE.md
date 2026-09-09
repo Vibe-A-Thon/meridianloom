@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** F3 — Orchestra (F2 documented as pending-human-evidence, D35)
-- **Current workstream:** about to start — reading Requirements-implementation.md §C1 for F3 workstream A
-- **Current task:** F3 setup — BUILD_STATE F3 section, then workstream A task 1 per §C1 order
-- **Last commit:** e0a701b — F1 engineering exit COMPLETE, tagged `f1-complete`; `.vsix` at dist/meridian-loom-0.0.1.vsix (966 KB). Decisions D24–D35 in DECISIONS.md.
+- **Current workstream:** F3 M33 Deterministic Engine — slice 1 done, slice 2a (structural capabilities) delegating
+- **Current task:** F3 task 8a — structural capability set (tree-sitter edits, LSP symbols/references, diff/patch, hunk-only editing) into the CapabilityRegistry
+- **Last commit:** 5e7d3c2 — F3 M33 slice 1: `engine/{catalogue,dispatch,capabilities,rules}.py` + `policy/action-classes.yaml` (FR-M33-01/03/06, FR-M8-15; D16 artefact shipped), 100 tests green. F3 order per gaps §F3: M33 full → M8 → M4 → M9/M28 → M7 → M38 → M31 roster → M5/M6/M13/M26. F1 exit at e0a701b (tagged f1-complete). Decisions D24–D35 in DECISIONS.md.
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## Phase F2 — Evidence Gate (pending-human-evidence, D35)
