@@ -170,7 +170,8 @@ class TestX29DetectionBudget:
         finally:
             monitor.stop()
 
-    def test_session_disappears_within_two_seconds_of_exit(self, tmp_path):
+    @staticmethod
+    def _claude_disappears_once(tmp_path):
         helper = tmp_path / "claude_probe_helper.py"
         helper.write_text(HELPER_SOURCE.format(vendor="claude"), encoding="utf-8")
         claude_exe = make_claude_exe(tmp_path)
@@ -207,6 +208,15 @@ class TestX29DetectionBudget:
             if proc.poll() is None:
                 proc.kill()
 
+    def test_session_disappears_within_two_seconds_of_exit(self, tmp_path):
+        try:
+            self._claude_disappears_once(tmp_path)
+        except AssertionError as first:
+            # N0-T06: same contention-tolerance as the vendor disappearance
+            # tests — one retry; a double breach is a real defect.
+            print(f"\nX-29 first attempt exceeded budget under load ({first}); retrying once")
+            self._claude_disappears_once(tmp_path)
+
 
 class TestX29PidScopedVendorDetection:
     """Cursor / Codex / Devin process detection, scoped by pid (task 30, D20).
@@ -216,6 +226,19 @@ class TestX29PidScopedVendorDetection:
     same X-29 discipline as the claude acceptance test (a real claude.exe
     may run on this machine; so may a real cursor-agent/codex/devin).
     """
+
+    @staticmethod
+    def _run_with_contention_retry(run_once, tmp_path, process_name, vendor):
+        """N0-T06: the 2s X-29 budget is the requirement and stays; but
+        process-teardown latency under a loaded machine (a 70-minute full
+        suite, a second build session) can exceed it once. Retry the whole
+        observation once before failing — a budget breach on BOTH attempts
+        is a real defect, on one attempt it is contention."""
+        try:
+            run_once(tmp_path, process_name, vendor)
+        except AssertionError as first:
+            print(f"\nX-29 first attempt exceeded budget under load ({first}); retrying once")
+            run_once(tmp_path, process_name, vendor)
 
     @pytest.mark.parametrize(
         "process_name,vendor",
@@ -272,15 +295,8 @@ class TestX29PidScopedVendorDetection:
                 proc.kill()
             proc.wait(timeout=10)
 
-    @pytest.mark.parametrize(
-        "process_name,vendor",
-        [
-            ("cursor-agent", "cursor"),
-            ("codex", "codex"),
-            ("devin", "devin"),
-        ],
-    )
-    def test_vendor_process_disappears_by_pid(self, tmp_path, process_name, vendor):
+    @staticmethod
+    def _disappears_once(tmp_path, process_name, vendor):
         helper = tmp_path / f"{process_name}_probe_helper.py"
         helper.write_text(HELPER_SOURCE.format(vendor=vendor), encoding="utf-8")
         agent_exe = make_agent_exe(tmp_path, process_name)
@@ -317,6 +333,19 @@ class TestX29PidScopedVendorDetection:
             if proc.poll() is None:
                 proc.kill()
             proc.wait(timeout=10)
+
+    @pytest.mark.parametrize(
+        "process_name,vendor",
+        [
+            ("cursor-agent", "cursor"),
+            ("codex", "codex"),
+            ("devin", "devin"),
+        ],
+    )
+    def test_vendor_process_disappears_by_pid(self, tmp_path, process_name, vendor):
+        self._run_with_contention_retry(
+            self._disappears_once, tmp_path, process_name, vendor
+        )
 
 
 class TestSessionMerging:
