@@ -9,6 +9,7 @@
     "test": "node scripts/run-tests.mjs",
     "build": "node scripts/generate-bus-types.mjs && npm run build --workspace=webview && npm run build --workspace=extension",
     "check:contracts": "node scripts/generate-bus-types.mjs --check",
-    "package": "node scripts/package-extension.mjs"
+    "package": "node scripts/package-extension.mjs",
+    "check:surface": "node scripts/check-surface-coverage.mjs"
   }
 }

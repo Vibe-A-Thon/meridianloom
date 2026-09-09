@@ -28,6 +28,28 @@ if (contracts.status !== 0) {
   process.exit(contracts.status ?? 1);
 }
 
+// FR-M46-01/02 + AC-43 (status.md G-02): the surface-coverage orphan gate.
+// Enumerates the method registry (shared/schema/tiers.json), greps the
+// webview + extension consumers for callers, and fails on an undeclared
+// orphan or a `mustSurface: true` allowlist entry that still has no
+// consumer (shared/schema/unsurfaced.json) — that second class is the
+// blocking gate for the parallel GUI session surfacing the G-02 trust and
+// spend instruments. The JSON report at .meridian/surface-coverage.json is
+// the machine-readable surface the GUI session iterates on.
+const surface = spawnSync(
+  process.execPath,
+  ['scripts/check-surface-coverage.mjs', '--json', '.meridian/surface-coverage.json'],
+  { cwd: root, stdio: 'inherit' },
+);
+if (surface.status !== 0) {
+  console.error(
+    'surface-coverage gate failed (FR-M46-02, AC-43): undeclared orphan methods or ' +
+      'pending mustSurface instruments. See shared/schema/unsurfaced.json and ' +
+      '.meridian/surface-coverage.json.',
+  );
+  process.exit(surface.status ?? 1);
+}
+
 let status = run(['test', '--workspace=extension']);
 if (status !== 0) {
   process.exit(status);
