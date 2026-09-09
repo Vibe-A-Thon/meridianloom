@@ -39,6 +39,10 @@ include = ["meridian_core*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Fixture corpora under tests/fixtures/ contain intentionally-named test
+# files (e.g. coverage-mapping fixtures like test_payments.py); they are
+# capability inputs, not suite members.
+norecursedirs = ["tests/fixtures"]
 # Makes `python -m pytest core/tests` from the repo root work as well as
 # `cd core && python -m pytest -q`: pytest resolves this file as rootdir
 # config and puts core/ (and the generated bus types) on sys.path.
