@@ -99,12 +99,12 @@ Note: the ten GF1 **screens** (10.1, 10.6, 10.27, 10.28, 10.32, 10.43, 10.47, 10
 |---|---|---|
 | A — ACP host | 1–8 | tasks 1–5, 8 done (c4a4805 client; df4b267 adapter re-base; f22ef6a registry; 289d33a permission gate SEC-28; 8ed0bcf conformance; task 5 worktree isolation below); 6–7 done (eeec15a MCP server FR-M34-06; 88a2b32 upstream tracking FR-M34-05) |
 | B — Gates over other people's work | 9–14 | **done** (47e809b policy engine; 0791ec9 merge gate; 3abb236 halt; 7f68ec5 pr/ingest + pr/status FR-M35-04/05 with AC-32 one-range reconciliation; 4ae3cc7 pr/conflicts FR-M35-07; 910aad8 E-GR-03 taxonomy in policy/) |
-| C — Human identity and roles | 15–16 | not started |
-| D — Steer and clarify | 17–18 | not started |
-| E — Trust analytics | 19–25 | not started |
-| F — Cross-vendor spend | 26–29 | not started |
-| G — Remaining observers | 30 | not started |
-| H — Screens (interlock GF1) | 31–32 | not started |
+| C — Human identity and roles | 15–16 | **done** (identity D9 closed; roles FR-M20-02..08) |
+| D — Steer and clarify | 17–18 | **done** (d3521ce + 61298aa, FR-M25-01/02/03/04/06 + NOT_HOSTED honest controls) |
+| E — Trust analytics | 19–25 | **done** (1e2f94b tasks 19–21; 85b555c/104fbf1/ea9ac2e/f3cafd3 tasks 22–25; FR-M37-01..05/07/08; D24–D27) |
+| F — Cross-vendor spend | 26–29 | **done** (8e23fc3/3608ecd, FR-M39-01..04; D28–D33) |
+| G — Remaining observers | 30 | **done** (2289a36 cursor/codex/devin, D34) |
+| H — Screens (interlock GF1) | 31–32 | host half **done** (539e564 D33 wiring); screens are the GUI session's GF1 workstream; X-31 human-gated |
 
 ## Decisions closed
 
