@@ -17,7 +17,7 @@ import {
 } from '../../shared/ts/tiers';
 import { COMMANDS, registerCommands } from '../src/commands';
 import { activate } from '../src/extension';
-import { TREE_VIEWS } from '../src/views';
+import { WORKBENCH_VIEW } from '../src/views';
 
 const mock = vscode as unknown as {
   __reset(): void;
@@ -49,7 +49,7 @@ describe('tier registry data (FR-M36-05)', () => {
 
   it('maps every contributed command and view to a tier (drift guard)', () => {
     expect(Object.keys(COMMAND_TIERS).sort()).toEqual(COMMANDS.map((c) => c.id).sort());
-    expect(Object.keys(VIEW_TIERS).sort()).toEqual(TREE_VIEWS.map((v) => v.id).sort());
+    expect(Object.keys(VIEW_TIERS)).toEqual([WORKBENCH_VIEW.id]);
   });
 });
 
@@ -134,7 +134,9 @@ describe('command and view filtering (FR-M36-05, X-28)', () => {
         'meridian.verifyChain',
       ].sort(),
     );
-    expect(enabledViews(base)).toEqual(['meridianLoom.ledger']);
+    // One view, owned by the base tier: the Activity Bar container always
+    // opens to the workbench, which explains any locked tier from inside.
+    expect(enabledViews(base)).toEqual(['meridianLoom.workbench']);
     expect(isCommandEnabled('meridian.doctor', base)).toBe(true);
     expect(isCommandEnabled('meridian.haltAll', base)).toBe(false);
     expect(tierLockMessage('meridian.haltAll')).toContain('governor');

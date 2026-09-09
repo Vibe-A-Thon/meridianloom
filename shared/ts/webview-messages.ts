@@ -68,6 +68,7 @@ export type WebviewMessage =
   | { type: 'rpc/request'; id: RequestId; method: RequestMethod; params?: unknown }
   | { type: 'workbench/request'; id: RequestId; action: WorkbenchAction; params?: unknown }
   /** UI-state changes the host may persist beyond the panel's life. */
+  | { type: 'file/pick'; id: RequestId }
   | { type: 'state/update'; state: Record<string, unknown> }
   /** 10.45/10.7 Export: the webview cannot write files (VIGUIX_Final §17),
    *  so a signed audit bundle (FR-M36-04) crosses as text and the host
@@ -105,6 +106,8 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
   return (
     message.type === 'ready' ||
     message.type === 'state/update' ||
+    (message.type === 'file/pick' &&
+      (typeof message.id === 'number' || typeof message.id === 'string')) ||
     (message.type === 'workbench/request' &&
       typeof message.action === 'string' &&
       (typeof message.id === 'number' || typeof message.id === 'string')) ||

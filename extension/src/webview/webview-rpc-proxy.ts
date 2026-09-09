@@ -43,6 +43,15 @@ export interface ProxyContext {
    * separately checked by the service against workspace trust and tiers. */
   workbench?: (request: WorkbenchRequest) => Promise<unknown>;
   hostAction?: (action: 'open-settings' | 'open-folder') => Promise<void>;
+  /**
+   * Agent/skill/instruction package import. The webview has no filesystem;
+   * the host owns the picker and reads the bytes, so the webview only ever
+   * receives a file the user deliberately chose. Text arrives as `content`,
+   * archives as base64 `contentBase64`.
+   */
+  pickFile?: () => Promise<
+    { fileName: string; content?: string; contentBase64?: string } | undefined
+  >;
 }
 
 function toErrorObject(error: unknown): WebviewRpcError {
@@ -100,6 +109,17 @@ export async function dispatchWebviewMessage(
     // §17); a host-side mirror is not needed for GF0. Acknowledge nothing —
     // state/update is fire-and-forget.
     return undefined;
+  }
+  if (message.type === 'file/pick') {
+    try {
+      if (!context.pickFile) throw new Error('File import is unavailable in this host.');
+      const picked = await context.pickFile();
+      // A cancelled dialog is a result, not a failure: the interface shows
+      // "nothing selected" rather than an error the user did not cause.
+      return { type: 'rpc/response', id: message.id, result: picked ?? null };
+    } catch (error) {
+      return { type: 'rpc/response', id: message.id, error: toErrorObject(error) };
+    }
   }
   if (message.type === 'workbench/request') {
     try {

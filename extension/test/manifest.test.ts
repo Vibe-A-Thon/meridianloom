@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { COMMANDS } from '../src/commands';
-import { TREE_VIEWS } from '../src/views';
+import { TREE_VIEWS, WORKBENCH_VIEW } from '../src/views';
 
 const manifestPath = path.resolve(__dirname, '..', 'package.json');
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
@@ -18,9 +18,7 @@ describe('extension manifest', () => {
       expect(event).not.toMatch(/^onLanguage$/);
     }
     expect(events).toContain('onStartupFinished');
-    for (const view of TREE_VIEWS) {
-      expect(events).toContain(`onView:${view.id}`);
-    }
+    expect(events).toContain(`onView:${WORKBENCH_VIEW.id}`);
   });
 
   it('contributes one Activity Bar container (FR-M1-02)', () => {
@@ -29,15 +27,19 @@ describe('extension manifest', () => {
     expect(containers[0].id).toBe('meridian-loom');
   });
 
-  it('contributes exactly the five tree views (FR-M1-02)', () => {
+  it('contributes the workbench webview as the only view in the container (FR-M1-02)', () => {
     const views = manifest.contributes.views['meridian-loom'];
-    expect(views).toHaveLength(5);
-    expect(views.map((v: { id: string }) => v.id)).toEqual(
-      TREE_VIEWS.map((v) => v.id),
-    );
-    expect(views.map((v: { name: string }) => v.name)).toEqual(
-      ['Agents', 'Stories', 'Loops', 'Skills', 'Ledger'],
-    );
+    // Selecting the plugin in the Activity Bar must open the product itself.
+    // A single webview-typed view is what makes the container resolve
+    // straight into the workbench, with no command in between.
+    expect(views).toHaveLength(1);
+    expect(views[0]).toMatchObject({
+      type: 'webview',
+      id: WORKBENCH_VIEW.id,
+      name: WORKBENCH_VIEW.name,
+    });
+    // The five placeholder tree views are gone; their content is now tabs.
+    expect(TREE_VIEWS).toHaveLength(0);
   });
 
   it('contributes the twelve FR-M1-03 commands plus provenance hook, worktree and source-inspector commands', () => {
@@ -84,5 +86,28 @@ describe('extension manifest', () => {
     for (const pattern of ['src/**', 'test/**', '**/*.ts', '**/*.map']) {
       expect(ignore).toContain(pattern);
     }
+  });
+});
+
+describe('what the package promises to ship', () => {
+  const packager = readFileSync(
+    path.join(__dirname, '..', '..', 'scripts', 'package-extension.mjs'),
+    'utf8',
+  );
+
+  it('stages the open verifier into the VSIX (FR-M36-06 / SEC-29)', () => {
+    // The product's central claim is that an exported audit bundle verifies
+    // without Meridian installed. That claim was true of the repository and
+    // false of the package: verifier/verify.py existed and was not shipped,
+    // so a user who installed the extension had no way to check anything.
+    // If this staging is ever removed, the README starts lying again.
+    expect(packager).toContain("'verifier', 'verify.py'");
+  });
+
+  it('ships the sidecar sources the extension resolves at runtime', () => {
+    // Same class of promise: extension/src/layout.ts resolves <extension>/
+    // sidecar, and an unstaged sidecar is an extension that cannot start.
+    expect(packager).toContain("'core', 'meridian_core'");
+    expect(packager).toContain("'shared', 'py'");
   });
 });

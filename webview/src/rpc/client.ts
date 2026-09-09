@@ -140,6 +140,28 @@ export class WebviewRpcClient {
     });
   }
 
+  /**
+   * Ask the host to open a file picker and hand back what the user chose.
+   * The webview has no filesystem: importing an agent package is a host act,
+   * and the webview only ever sees a file the user deliberately selected.
+   * Resolves to null when the dialog was cancelled — that is an outcome, not
+   * an error, and the interface says so rather than showing a failure.
+   */
+  pickFile(): Promise<
+    { fileName: string; content?: string; contentBase64?: string } | null
+  > {
+    const id = this.nextId++ as RequestId;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new RpcError(-32010, 'The file picker did not answer. Try again.'));
+        // A picker waits on a human, so it gets a longer leash than an RPC.
+      }, 300_000);
+      this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
+      this.transport.postMessage({ type: 'file/pick', id });
+    });
+  }
+
   /** Tear down timers and subscriptions (tests call this; React unmount too). */
   dispose(): void {
     for (const [id, pending] of this.pending) {

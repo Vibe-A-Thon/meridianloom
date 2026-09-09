@@ -10,7 +10,7 @@ import { layoutModel, mermaidExport, parseModel, svgExport, template, tracePath 
 import type { ModelingStudioProps, ModelingView } from './types';
 
 function harness(view:ModelingView, responses:Record<string,unknown>={}){
-  const snapshot:WorkbenchSnapshot={revision:1,agents:[],deliverables:[],runs:[],learning:[],documents:[],capabilities:{workspaceOpen:true,trusted:true,governorEnabled:true,executionReady:true}};
+  const snapshot:WorkbenchSnapshot={revision:1,agents:[],skills:[],instructions:[],integrations:[],deliverables:[],runs:[],learning:[],documents:[],capabilities:{workspaceOpen:true,trusted:true,governorEnabled:true,executionReady:true}};
   const execute=vi.fn(async(action:string,params:{document?:{id?:string;kind:string;title:string;body:string;tags:string[];expectedVersion?:number}})=>{
     if(action==='document/save'&&params.document){const input=params.document; return {...snapshot,documents:[{...input,id:input.id??'saved-1',version:(input.expectedVersion??0)+1,createdAt:'2026-09-08T10:00:00Z',updatedAt:'2026-09-08T10:00:00Z'}]};}return snapshot;
   });
@@ -82,7 +82,7 @@ describe('Modeling documents',()=>{
 
 describe('Repository evidence surfaces',()=>{
   it('builds only factual directory membership from blame and looks up the selected current symbol',async()=>{
-    const blame={repoPath:'C:/repo',ref:'HEAD',lines:[{path:'src/service.ts',line:1,commit:'abc123',authorName:'Alex',authorEmail:'a@example.com',authorTime:'2026-09-08T10:00:00Z',content:'export function checkout() {}'}]};
+    const blame={repoPath:'C:/repo',ref:'HEAD',provenance:{},lines:[{path:'src/service.ts',line:1,commit:'abc123',authorName:'Alex',authorEmail:'a@example.com',authorTime:'2026-09-08T10:00:00Z',content:'export function checkout() {}'}]};
     const map=attributionModel(blame,'files','');expect(map.edges).toEqual([expect.objectContaining({from:'folder:src',to:'file:src/service.ts',label:'contains'})]);
     const h=harness('codemap',{'attrib/blame':blame,'attrib/symbol':{path:'src/service.ts',line:1,language:'typescript',symbol:'checkout'}});render(<ModelingStudio {...h.props}/>);fireEvent.change(screen.getByLabelText('Source paths'),{target:{value:'src/service.ts'}});fireEvent.click(screen.getByRole('button',{name:'Load repository map'}));await screen.findByRole('button',{name:'Inspect src/service.ts'});expect(h.request).toHaveBeenCalledWith('attrib/blame',{repoPath:'C:/repo',ref:'HEAD',paths:['src/service.ts']});fireEvent.click(screen.getByRole('button',{name:'Inspect src/service.ts'}));fireEvent.click(screen.getByRole('button',{name:'Inspect current symbol'}));await screen.findByText('checkout');expect(h.request).toHaveBeenCalledWith('attrib/symbol',{repoPath:'C:/repo',path:'src/service.ts',line:1});
   });

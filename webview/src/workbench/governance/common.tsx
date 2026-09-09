@@ -35,8 +35,8 @@ export function useAction(client: WebviewRpcClient) {
 export function Page({ title, eyebrow, description, children, actions }: { title: string; eyebrow: string; description: string; children: ReactNode; actions?: ReactNode }) {
   return <div className={s.page}><header className={s.heading}><div><p className={s.eyebrow}>{eyebrow}</p><h1>{title}</h1><p>{description}</p></div>{actions}</header>{children}</div>;
 }
-export function Panel({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
-  return <section className={s.panel}><div className={s.panelHeading}><h2>{title}</h2>{action}</div>{children}</section>;
+export function Panel({ title, description, children, action }: { title: string; description?: string; children: ReactNode; action?: ReactNode }) {
+  return <section className={s.panel}><div className={s.panelHeading}><div><h2>{title}</h2>{description && <p className={s.muted}>{description}</p>}</div>{action}</div>{children}</section>;
 }
 export function Notice({ children }: { children: ReactNode }) { return <p className={s.notice}>{children}</p>; }
 export function Result({ action }: { action: ReturnType<typeof useAction> }) {

@@ -235,6 +235,7 @@ class TestDoraMetrics:
             if line.startswith(("import ", "from "))
         }
         assert imported <= {
+            "bisect",  # NFR-33: the time-to-restore recovery lookup
             "datetime",
             "typing",
             "collections",

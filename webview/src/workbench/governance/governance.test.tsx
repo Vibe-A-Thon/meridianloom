@@ -12,7 +12,7 @@ import type { GovernanceProps } from './common';
 
 function harness(responses: Record<string, unknown> = {}, documents: StudioDocument[] = []) {
   const host = makeHost({ 'gate.profiles': { profiles: [{ name: 'verify', description: 'Tests', criteria: ['tests'] }], policyVersion: 'governance/v1', failClosed: false, errors: [] }, 'ledger.query': { entries: [] }, ...responses });
-  const snapshot: WorkbenchSnapshot = { revision: 1, agents: [], deliverables: [], runs: [], learning: [], documents, capabilities: { workspaceOpen: true, trusted: true, governorEnabled: true, executionReady: true } };
+  const snapshot: WorkbenchSnapshot = { revision: 1, agents: [], skills: [], instructions: [], integrations: [], deliverables: [], runs: [], learning: [], documents, capabilities: { workspaceOpen: true, trusted: true, governorEnabled: true, executionReady: true } };
   const execute = vi.fn(async () => snapshot);
   const props: GovernanceProps = { client: new WebviewRpcClient(host.transport), ready: true, enabledTiers: ['flight-recorder', 'governor'], workspaceDir: '/workspace', onNavigate: vi.fn(), controller: { snapshot, busy: false, error: null, execute: execute as WorkbenchExecute, refresh: async () => {} } };
   return { host, props, execute };
@@ -154,9 +154,21 @@ describe('Evidence-derived analytics', () => {
     expect(bins[4].confidence).toBeCloseTo(.85);
     expect(bins.reduce((sum, bin) => sum + bin.count, 0)).toBe(2);
   });
-  it('shows empty spend as unavailable, not a fabricated zero bill', async () => {
-    const h = harness(); render(<GovernanceStudio view="spend" {...h.props} />); await h.host.settle();
-    expect(screen.getByText(/An empty sample is not evidence of a zero vendor bill/)).toBeInTheDocument();
-    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
+  it('shows empty spend as unattributable, not a fabricated zero bill', async () => {
+    const h = harness({
+      // An empty result from the real instrument, not an absent one: the
+      // sidecar answered and there is genuinely nothing priced in scope.
+      'spend/series': {
+        scope: {}, dimension: 'agent', totals: { cost: 0, tokens: 0, calls: 0 },
+        byValue: {}, spendSeries: {}, cacheHit: false,
+        coverage: { value: null, rowsConsidered: 0, rowsAvailable: 0, truncated: false, sequenceRange: [null, null], coverage: 1, label: 'complete' },
+      },
+    });
+    render(<GovernanceStudio view="spend" {...h.props} />); await h.host.settle();
+    // N1-T25: the spend view now consumes spend/series rather than recomputing
+    // from ledger.query. The invariant is unchanged — an empty sample must
+    // never read as a zero vendor bill — so this asserts the same refusal
+    // against the surface that now makes it.
+    expect(await screen.findByText(/no spend can be attributed/)).toBeInTheDocument();
   });
 });

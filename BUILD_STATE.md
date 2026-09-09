@@ -19,8 +19,60 @@
 3. **Retire the duplicate steer path (AMD-M25/G-03)**: delete `run/steer` from `extension/src/workbench/service.ts` (~line 1059) and its consumers `webview/src/workbench/catalogue/RunsTab.tsx:124`, `webview/src/workbench/operations/WorkspaceOperations.tsx:1122` (+ their tests); move the UI onto the canonical `steer/*` RPCs; instantiate `HostedSteerController` in the launch path. Then flip `extension/test/steer-protocol-surface.test.ts` to `toNotContain` (marked in the test). Exit criterion "exactly one steering implementation" stays FAIL until this lands.
 4. `observe/captureEvidence` is the tested capture surface for observer evidence capture UI (N1-T21 GUI affordance).
 
-**N1 exit criteria status:** AC-41 full-scan equality at 50k PASS (45928f1) · AC-42 three-state attribution PASS (963b1b3, corpus precision 1.0000, floor 0.95) · AC-43 gate live and blocking (61d4788) — FAIL until items 1–2 · AC-44 PASS (ba55d22, four cases) · AC-47 evidence_expired PASS (ba55d22) · NFR-33 figures: rejectionRate 3.48s, score 0.74s, reasonDistribution 0.59s, jcurve 2.01s, doraExport 2.62s, compareAgents 0.29s, spend/series 0.54s, forecast 0.33s at 50k (45928f1) · NFR-34 same-operation disclosure PASS (envelope) · one steering implementation PENDING GUI item 3.
+**N1 exit criteria status:** AC-41 full-scan equality at 50k PASS (45928f1) · AC-42 three-state attribution PASS (963b1b3, corpus precision 1.0000, floor 0.95) · AC-43 gate live and blocking (61d4788) — FAIL until items 1–2 · AC-44 PASS (ba55d22, four cases) · AC-47 evidence_expired PASS (ba55d22) · **NFR-33 re-measured in full on 9 September 2026** (budget 5s at 50k, all inside it): rejectionRate 3.90s, score 1.21s, reasonDistribution 1.26s, jcurve 3.77s, doraExport 3.74s, compareAgents 0.43s, spend/series 0.82s, spend/forecast 0.74s. **These had gone stale and the criterion was recorded PASS while failing.** AMD-M37 (per-bucket computation) and FR-M41-06 (attribution floor) landed after the `45928f1` measurement and nobody re-ran it: rejectionRate had reached 5.81s and doraExport 7.34s, both over budget, for two commits. Fixed by dropping a redundant full ledger scan from `compute_rejection_rate` (the diff population is a subset of a scope already read, and its COUNT was discarded) and by replacing the DORA time-to-restore linear tail scan with a bisect over already-sorted stamps. `core/tests/test_nfr33_budgets_are_current.py` now fails if a budgeted metric is missing from this line, and CI runs the benchmark on every push. · NFR-34 same-operation disclosure PASS (envelope) · one steering implementation PENDING GUI item 3.
 
+
+## N1 GUI items — CLOSED (9 September 2026, GUI session)
+
+All four cross-session items above are done. Evidence:
+
+1. **Ten mustSurface instruments surfaced** — `webview/src/workbench/governance/Observatory.tsx`
+   consumes trust/score, trust/scoreDecomposition, trust/reasonDistribution,
+   trust/compareAgents, trust/jcurve, trust/tokenmaxxing, trust/doraExport,
+   spend/series, spend/forecast and spend/pricing. Every figure renders `null`
+   as "Insufficient evidence" (or "Not measurable" under the FR-M41-06 floor)
+   and never as zero; every chart carries a written finding (N1-T24, A-10/H7);
+   `observatory.test.tsx` (11 tests) asserts those refusals rather than the
+   happy path. **The surface-coverage gate now passes: 62/70, exit 0.**
+2. **Coverage envelope consumed** (N1-T06) — the Cross-Vendor Spend panel is
+   routed to `SpendObservatory`, which reads `coverage.truncated` from the
+   envelope and disables the forecast on it. The legacy `Analytics.tsx` Spend
+   component, which guessed truncation from `entries.length === 1000`, is
+   marked SUPERSEDED and routed nowhere (N1-T25).
+3. **`identity.revoke` surfaced** — a confirmed operator control in the
+   Approvals view (`Gates.tsx`), stating both consequences: the revocation
+   binds immediately, and approvals the identity already gave stop counting at
+   the next gate execution. The undeclared orphan is gone.
+4. **AMD-M25 / G-03 closed — exactly one steering implementation.**
+   `HostedSteerController` is now the only caller of any `steer/*` RPC.
+   Its session dependency was narrowed from `AcpClient` to a structural
+   `SteerableSession` so the workbench (which runs through `AdapterSession`
+   and injects fakes in tests) can share it; `adoptSession`/`release` let the
+   workbench keep owning its own lifecycle while the controller owns the
+   protocol. `run/steer` survives as a workbench action that delegates.
+   Delivery is an explicit policy on the one implementation — `now` for a
+   hosted session, `nextTurn` for the workbench, which is what its interface
+   promises and what a one-turn-at-a-time adapter can accept.
+   `steer-protocol-surface.test.ts` now guards the substance: service.ts makes
+   no steer RPC call of its own.
+
+**Also closed in the same session — a defect this session introduced and then
+found in review.** Skills, instruction files, SDLC phase tags and tool
+connections were catalogued, bound, displayed and exported, and none of them
+reached the running agent, while the interface claimed they did. The agent
+received only `${title}
+
+${brief}
+
+Your role: ${role}`. Fixed by
+`extension/src/workbench/briefing.ts`: `composeBriefing` assembles the whole
+document (brief, role, phase and its purpose, instruction files in precedence
+order, enabled skills, connected systems without credentials, accepted memory)
+and `convene` selects agents phase by phase in SDLC order, falling back to
+every active agent when nobody is tagged. The launch path's second prompt
+composer was deleted — the briefing is composed once, recorded on the run, and
+sent verbatim, so what the history shows is what the agent got.
+`briefing.test.ts` (19 tests) asserts each binding arrives.
 
 ## Phase N0 — Quiesce (COMPLETE)
 

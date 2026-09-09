@@ -3,15 +3,40 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { TierName } from "../../../shared/ts/bus-types";
 import type {
+  ImportReport,
   LearningArtifact,
   PortableAgentDocument,
+  SdlcPhase,
   WorkbenchAgent,
   WorkbenchAgentInput,
   WorkbenchDeliverable,
+  WorkbenchInstruction,
+  WorkbenchInstructionInput,
   WorkbenchRequest,
   WorkbenchRun,
+  WorkbenchSkill,
+  WorkbenchSkillInput,
   WorkbenchSnapshot,
 } from "../../../shared/ts/workbench";
+import { SDLC_PHASES } from "../../../shared/ts/workbench";
+import type {
+  IntegrationConnection,
+  IntegrationConnectionInput,
+  IntegrationReadResult,
+} from "../../../shared/ts/integrations";
+import { integrationById } from "../../../shared/ts/integrations";
+import {
+  defaultTransport,
+  probeIntegration,
+  readIntegration,
+  type IntegrationTransport,
+} from "./integrations";
+import { composeBriefing, convene } from "./briefing";
+import {
+  HostedSteerController,
+  NotHostedSessionError,
+} from "../governance/steer";
+import { parsePackage, slugify } from "./packages";
 import {
   validateAdapterManifest,
   type AdapterManifest,
@@ -38,6 +63,9 @@ interface StoredState {
   schemaVersion: 1;
   revision: number;
   agents: WorkbenchAgent[];
+  skills: WorkbenchSkill[];
+  instructions: WorkbenchInstruction[];
+  integrations: IntegrationConnection[];
   deliverables: WorkbenchDeliverable[];
   runs: WorkbenchRun[];
   learning: LearningArtifact[];
@@ -59,6 +87,18 @@ export interface WorkbenchServiceOptions {
     adapter: DiscoveredAdapter,
     options: LaunchOptions,
   ) => AdapterSession;
+  /**
+   * The OS keychain, for integration credentials. Absent in tests that do not
+   * exercise integrations; when absent, saving a secret is refused rather
+   * than silently written to the workspace.
+   */
+  secrets?: {
+    get(key: string): Thenable<string | undefined> | Promise<string | undefined>;
+    store(key: string, value: string): Thenable<void> | Promise<void>;
+    delete(key: string): Thenable<void> | Promise<void>;
+  };
+  /** Injectable so integration reads are testable without a network. */
+  transport?: IntegrationTransport;
 }
 
 function blankState(): StoredState {
@@ -66,6 +106,9 @@ function blankState(): StoredState {
     schemaVersion: 1,
     revision: 0,
     agents: [],
+    skills: [],
+    instructions: [],
+    integrations: [],
     deliverables: [],
     runs: [],
     learning: [],
@@ -153,6 +196,114 @@ export function agentManifest(agent: WorkbenchAgentInput): AdapterManifest {
   return parsed.manifest;
 }
 
+/**
+ * Emit YAML frontmatter plus a Markdown body. Values are written as quoted
+ * scalars or flow sequences so a name containing a colon cannot break the
+ * document it describes.
+ */
+function frontmatterDocument(
+  data: Record<string, string | string[]>,
+  body: string,
+): string {
+  const quote = (value: string) => `"${value.replace(/(["\\])/g, "\\$1")}"`;
+  const lines = Object.entries(data)
+    .filter(([, value]) => (Array.isArray(value) ? value.length : value !== ""))
+    .map(([key, value]) =>
+      Array.isArray(value)
+        ? `${key}: [${value.map(quote).join(", ")}]`
+        : `${key}: ${quote(value)}`,
+    );
+  return `---\n${lines.join("\n")}\n---\n\n${body}\n`;
+}
+
+/**
+ * Where one credential lives in the OS keychain. Namespaced by connection so
+ * two Jira sites, or a staging and a production cluster, never collide.
+ */
+function secretKey(connectionId: string, field: string): string {
+  return `meridianLoom.integration.${connectionId}.${field}`;
+}
+
+/** SDLC phase tags, closed to the nine of `vision.md` §3. */
+function phaseList(value: unknown): SdlcPhase[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > SDLC_PHASES.length)
+    throw new Error("Phases must be a list of SDLC phase identifiers.");
+  const seen = new Set<SdlcPhase>();
+  for (const entry of value) {
+    if (typeof entry !== "string" || !(SDLC_PHASES as readonly string[]).includes(entry))
+      throw new Error(`'${String(entry)}' is not one of the nine SDLC phases.`);
+    seen.add(entry as SdlcPhase);
+  }
+  return [...seen];
+}
+
+export function validateWorkbenchSkill(value: unknown): WorkbenchSkillInput {
+  const raw = record(value);
+  return {
+    id: id(raw.id),
+    name: string(raw.name, "Skill name", 120).trim(),
+    summary: string(raw.summary, "Summary", 500, true),
+    version: string(raw.version, "Version", 40),
+    tags: list(raw.tags, "Tags", 20),
+    body: string(raw.body, "Skill body", 200_000, true),
+  };
+}
+
+export function validateWorkbenchInstruction(
+  value: unknown,
+): WorkbenchInstructionInput {
+  const raw = record(value);
+  const scope = string(raw.scope, "Scope", 20);
+  if (!["adapter", "workspace", "user", "organisation"].includes(scope))
+    throw new Error(
+      "Instruction scope must be adapter, workspace, user or organisation.",
+    );
+  return {
+    id: id(raw.id),
+    name: string(raw.name, "Instruction name", 120).trim(),
+    summary: string(raw.summary, "Summary", 500, true),
+    scope: scope as WorkbenchInstructionInput["scope"],
+    body: string(raw.body, "Instruction body", 200_000, true),
+  };
+}
+
+/**
+ * A tool connection, minus its credentials. `secrets` is accepted on the way
+ * in and immediately handed to the keychain; it is never part of the stored
+ * or returned shape, so it is validated separately by the save handler.
+ */
+export function validateIntegrationConnection(
+  value: unknown,
+): IntegrationConnectionInput {
+  const raw = record(value);
+  const integrationId = string(raw.integrationId, "Integration", 60);
+  const definition = integrationById(integrationId);
+  if (!definition)
+    throw new Error(`'${integrationId}' is not an integration Meridian knows about.`);
+  const config: Record<string, string> = {};
+  const rawConfig = raw.config === undefined ? {} : record(raw.config);
+  for (const field of definition.fields) {
+    if (field.kind === "secret") continue;
+    const supplied = rawConfig[field.key];
+    const text = supplied === undefined ? "" : string(supplied, field.label, 2_000, true);
+    if (field.required && !text.trim())
+      throw new Error(`${definition.name} needs ${field.label}.`);
+    config[field.key] = text.trim();
+  }
+  // A URL field that is set must be http(s): a connection is a network reach,
+  // and file:// or a shell-ish string has no business being dialled.
+  for (const field of definition.fields)
+    if (field.kind === "url" && config[field.key] && !/^https?:\/\//i.test(config[field.key]))
+      throw new Error(`${field.label} must be an http or https URL.`);
+  return {
+    id: id(raw.id),
+    integrationId,
+    name: string(raw.name, "Connection name", 120).trim(),
+    config,
+  };
+}
+
 export function validateWorkbenchAgent(value: unknown): WorkbenchAgentInput {
   const raw = record(value);
   const agent: WorkbenchAgentInput = {
@@ -175,6 +326,19 @@ export function validateWorkbenchAgent(value: unknown): WorkbenchAgentInput {
       "Trainable surfaces",
       5,
     ) as WorkbenchAgentInput["trainable"],
+    // Absent on agents stored before phase tagging existed: an older
+    // state.json must keep loading, so these default to empty rather than
+    // failing validation.
+    phases: phaseList(raw.phases),
+    skillIds: raw.skillIds === undefined ? [] : list(raw.skillIds, "Skills", 100),
+    instructionIds:
+      raw.instructionIds === undefined
+        ? []
+        : list(raw.instructionIds, "Instructions", 100),
+    integrationIds:
+      raw.integrationIds === undefined
+        ? []
+        : list(raw.integrationIds, "Integrations", 100),
   };
   // Secrets belong in the launched agent's environment/credential store. This
   // service intentionally offers no environment-value persistence surface.
@@ -208,11 +372,35 @@ export class WorkbenchService {
     }
   >();
   private readonly output = new Map<string, string>();
+  /**
+   * AMD-M25 / G-03: the one steering implementation. The workbench used to
+   * call `steer.send` itself and inject the turn itself, which meant the
+   * clarifying-question protocol, uncertainty escalation and partial
+   * acceptance existed on one path and not the other. Runs now register with
+   * the canonical controller, and `run/steer` delegates to it.
+   */
+  private steerController: HostedSteerController | undefined;
   private pumping = false;
   private disposed = false;
   private changeTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly options: WorkbenchServiceOptions) {}
+
+  /**
+   * The canonical steering controller, built on first use because it needs a
+   * connected sidecar. Absent when there is none — in which case a run simply
+   * is not steerable, and `run/steer` says so rather than half-working.
+   */
+  private steering(): HostedSteerController | undefined {
+    const sidecar = this.options.sidecar();
+    if (!sidecar) return undefined;
+    this.steerController ??= new HostedSteerController({
+      registry: hostedSessionRegistry,
+      sidecar: { request: (method, params) => sidecar.request(method, params) },
+      enabledTiers: this.options.enabledTiers,
+    });
+    return this.steerController;
+  }
 
   onDidChange(listener: () => void): { dispose(): void } {
     this.listeners.add(listener);
@@ -268,6 +456,9 @@ export class WorkbenchService {
     });
     return {
       revision: result.revision,
+      skills: result.skills,
+      instructions: result.instructions,
+      integrations: result.integrations,
       deliverables: result.deliverables,
       learning: result.learning,
       documents: result.documents,
@@ -339,6 +530,34 @@ export class WorkbenchService {
         throw new Error("Invalid stored agent mode.");
     }
     const loaded = raw as unknown as StoredState;
+    // Skills and instructions arrived after the first stored schema. An older
+    // state.json simply has no such key; default it rather than refusing to
+    // load a workspace the user has real work in.
+    if (loaded.skills === undefined) loaded.skills = [];
+    if (loaded.instructions === undefined) loaded.instructions = [];
+    if (!Array.isArray(loaded.skills) || !Array.isArray(loaded.instructions))
+      throw new Error("Invalid stored skills or instructions.");
+    for (const entry of loaded.skills) {
+      validateWorkbenchSkill(entry);
+      if (typeof entry.enabled !== "boolean")
+        throw new Error("Invalid stored skill state.");
+    }
+    for (const entry of loaded.instructions) {
+      validateWorkbenchInstruction(entry);
+      if (typeof entry.enabled !== "boolean")
+        throw new Error("Invalid stored instruction state.");
+    }
+    if (loaded.integrations === undefined) loaded.integrations = [];
+    if (!Array.isArray(loaded.integrations))
+      throw new Error("Invalid stored integrations.");
+    for (const entry of loaded.integrations) {
+      validateIntegrationConnection(entry);
+      if (typeof entry.enabled !== "boolean")
+        throw new Error("Invalid stored integration state.");
+      // A stored connection must never carry a secret. If one is present the
+      // file has been hand-edited; drop it rather than load it into memory.
+      delete (entry as unknown as Record<string, unknown>).secrets;
+    }
     for (const key of ["documents", "documentRevisions"] as const) {
       if (loaded[key] === undefined) loaded[key] = [];
       if (!Array.isArray(loaded[key]))
@@ -495,16 +714,61 @@ export class WorkbenchService {
         : "review";
     item.updatedAt = new Date().toISOString();
   }
+  /**
+   * Everything an agent is bound to — its skills, its instruction files, the
+   * systems this workspace is connected to and the memory a human accepted —
+   * assembled into the document the agent actually receives.
+   *
+   * Only *enabled* skills and instructions are included. A disabled entry is
+   * out of service, and quietly applying one would make the enable switch a
+   * decoration.
+   */
+  private brief(
+    agent: WorkbenchAgent,
+    task: { title?: string; body: string },
+    phase?: SdlcPhase,
+  ): string {
+    return composeBriefing({
+      agent,
+      task,
+      ...(phase ? { phase } : {}),
+      skills: this.state.skills.filter(
+        (skill) => skill.enabled && agent.skillIds.includes(skill.id),
+      ),
+      instructions: this.state.instructions.filter(
+        (entry) => entry.enabled && agent.instructionIds.includes(entry.id),
+      ),
+      integrations: this.state.integrations.filter(
+        (entry) => entry.enabled && agent.integrationIds.includes(entry.id),
+      ),
+      // An agent that freezes memory receives none, however many notes were
+      // accepted for it; the freeze is a promise, not a preference.
+      memory: agent.trainable.includes("memory")
+        ? this.state.learning
+            .filter(
+              (note) => note.agentId === agent.id && note.state === "accepted",
+            )
+            .slice(-20)
+        : [],
+    });
+  }
+
   private queueRun(
     agent: WorkbenchAgent,
     prompt: string,
     deliverableId?: string,
+    phase?: SdlcPhase,
   ): void {
     if (agent.mode !== "active")
       throw new Error(
         `Activate ${agent.name} before running it; Learning agents do not receive deliverables.`,
       );
+    // One agent runs at a time. A phase-by-phase dispatch queues the same
+    // agent more than once, which is intended — designing and later reviewing
+    // are different acts — so the guard is on *ad-hoc* runs only, and the
+    // queue itself serialises the rest.
     if (
+      !deliverableId &&
       this.state.runs.some(
         (run) =>
           run.agentId === agent.id &&
@@ -520,10 +784,19 @@ export class WorkbenchService {
       state: "queued",
       startedAt: new Date().toISOString(),
       ...(deliverableId ? { deliverableId } : {}),
+      ...(phase ? { phase } : {}),
     });
   }
 
   async request(request: WorkbenchRequest): Promise<unknown> {
+    // Probing and reading reach the network. They run outside the mutation
+    // queue deliberately: a fifteen-second timeout against an unreachable
+    // host must not stall snapshot polling or every other action behind it.
+    if (
+      request.action === "integration/probe" ||
+      request.action === "integration/read"
+    )
+      return this.integrationRequest(request);
     return this.serialize(async () => {
       if (this.disposed) throw new Error("The workbench has been closed.");
       await this.load();
@@ -545,6 +818,9 @@ export class WorkbenchService {
       }
       if (request.action === "agent/export") {
         const agent = this.agent(id(params.id));
+        // Portability means the whole agent: its bound skills and
+        // instructions travel with it, so an import elsewhere reproduces the
+        // agent rather than a shell that references things that are not there.
         const portable: PortableAgentDocument = {
           kind: "meridian-portable-agent",
           schemaVersion: 1,
@@ -554,15 +830,63 @@ export class WorkbenchService {
               (note) => note.agentId === agent.id && note.state === "accepted",
             )
             .map(({ title, content }) => ({ title, content })),
+          skills: this.state.skills
+            .filter((skill) => agent.skillIds.includes(skill.id))
+            .map((skill) => validateWorkbenchSkill(skill)),
+          instructions: this.state.instructions
+            .filter((entry) => agent.instructionIds.includes(entry.id))
+            .map((entry) => validateWorkbenchInstruction(entry)),
         };
         return {
           fileName: `${agent.id}.meridian-agent.json`,
           content: JSON.stringify(portable, null, 2),
         };
       }
+      if (request.action === "skill/export") {
+        const skill = this.state.skills.find(
+          (entry) => entry.id === id(params.id),
+        );
+        if (!skill) throw new Error("That skill no longer exists.");
+        // SKILL.md shape, so the export is usable by anything that reads the
+        // open format rather than only by Meridian.
+        return {
+          fileName: `${skill.id}.SKILL.md`,
+          content: frontmatterDocument(
+            {
+              kind: "skill",
+              id: skill.id,
+              name: skill.name,
+              version: skill.version,
+              description: skill.summary,
+              tags: skill.tags,
+            },
+            skill.body,
+          ),
+        };
+      }
+      if (request.action === "instruction/export") {
+        const instruction = this.state.instructions.find(
+          (entry) => entry.id === id(params.id),
+        );
+        if (!instruction) throw new Error("That instruction no longer exists.");
+        return {
+          fileName: `${instruction.id}.AGENTS.md`,
+          content: frontmatterDocument(
+            {
+              kind: "instruction",
+              id: instruction.id,
+              name: instruction.name,
+              scope: instruction.scope,
+              description: instruction.summary,
+            },
+            instruction.body,
+          ),
+        };
+      }
       if (!this.loadedRoot)
         throw new Error("Open a workspace before making workbench changes.");
       const previous = structuredClone(this.state);
+      let importReport: ImportReport | undefined;
       try {
         const now = new Date().toISOString();
         switch (request.action) {
@@ -733,6 +1057,231 @@ export class WorkbenchService {
             }
             break;
           }
+          case "agent/assign": {
+            const agent = this.agent(id(params.id));
+            if (params.phases !== undefined)
+              agent.phases = phaseList(params.phases);
+            if (params.skillIds !== undefined) {
+              const ids = list(params.skillIds, "Skills", 100);
+              for (const skillId of ids)
+                if (!this.state.skills.some((skill) => skill.id === skillId))
+                  throw new Error(`Skill '${skillId}' no longer exists.`);
+              agent.skillIds = ids;
+            }
+            if (params.instructionIds !== undefined) {
+              const ids = list(params.instructionIds, "Instructions", 100);
+              for (const instructionId of ids)
+                if (
+                  !this.state.instructions.some(
+                    (entry) => entry.id === instructionId,
+                  )
+                )
+                  throw new Error(
+                    `Instruction '${instructionId}' no longer exists.`,
+                  );
+              agent.instructionIds = ids;
+            }
+            if (params.integrationIds !== undefined) {
+              const ids = list(params.integrationIds, "Integrations", 100);
+              for (const connectionId of ids)
+                if (
+                  !this.state.integrations.some(
+                    (entry) => entry.id === connectionId,
+                  )
+                )
+                  throw new Error(
+                    `Connection '${connectionId}' no longer exists.`,
+                  );
+              agent.integrationIds = ids;
+            }
+            agent.updatedAt = now;
+            break;
+          }
+          case "integration/save": {
+            const input = validateIntegrationConnection(params.connection);
+            const definition = integrationById(input.integrationId)!;
+            const supplied = record(
+              record(params.connection).secrets ?? {},
+            ) as Record<string, unknown>;
+            const secretFields = definition.fields.filter(
+              (field) => field.kind === "secret",
+            );
+            for (const key of Object.keys(supplied))
+              if (!secretFields.some((field) => field.key === key))
+                throw new Error(
+                  `${definition.name} has no credential field called '${key}'.`,
+                );
+
+            const existing = this.state.integrations.find(
+              (entry) => entry.id === input.id,
+            );
+            const secretKeys = new Set(existing?.secretKeys ?? []);
+            for (const [key, value] of Object.entries(supplied)) {
+              const text = string(value, "Credential", 8_000, true);
+              if (!text) continue;
+              if (!this.options.secrets)
+                throw new Error(
+                  "The OS keychain is unavailable, so this credential cannot be " +
+                    "stored. Meridian never writes credentials to the workspace.",
+                );
+              await this.options.secrets.store(
+                secretKey(input.id, key),
+                text,
+              );
+              secretKeys.add(key);
+            }
+            // A required credential with nothing stored is a connection that
+            // cannot work; say so now rather than at the first probe.
+            for (const field of secretFields)
+              if (field.required && !secretKeys.has(field.key))
+                throw new Error(`${definition.name} needs ${field.label}.`);
+
+            if (existing) {
+              Object.assign(existing, input, {
+                secretKeys: [...secretKeys],
+                updatedAt: now,
+              });
+            } else {
+              this.state.integrations.unshift({
+                ...input,
+                enabled: true,
+                secretKeys: [...secretKeys],
+                createdAt: now,
+                updatedAt: now,
+              });
+            }
+            break;
+          }
+          case "integration/remove": {
+            const connectionId = id(params.id);
+            const connection = this.state.integrations.find(
+              (entry) => entry.id === connectionId,
+            );
+            if (!connection) throw new Error("That connection no longer exists.");
+            // Removing a connection removes its credentials. Leaving keychain
+            // entries behind for a connection the user deleted would be a
+            // quiet betrayal of what "remove" means.
+            for (const key of connection.secretKeys)
+              await this.options.secrets?.delete(secretKey(connectionId, key));
+            this.state.integrations = this.state.integrations.filter(
+              (entry) => entry.id !== connectionId,
+            );
+            for (const agent of this.state.agents)
+              if (agent.integrationIds.includes(connectionId)) {
+                agent.integrationIds = agent.integrationIds.filter(
+                  (entry) => entry !== connectionId,
+                );
+                agent.updatedAt = now;
+              }
+            break;
+          }
+          case "integration/toggle": {
+            const connection = this.state.integrations.find(
+              (entry) => entry.id === id(params.id),
+            );
+            if (!connection) throw new Error("That connection no longer exists.");
+            if (typeof params.enabled !== "boolean")
+              throw new Error("Enabled must be true or false.");
+            connection.enabled = params.enabled;
+            connection.updatedAt = now;
+            break;
+          }
+          case "skill/save": {
+            const input = validateWorkbenchSkill(params.skill);
+            const existing = this.state.skills.find(
+              (entry) => entry.id === input.id,
+            );
+            if (existing) Object.assign(existing, input, { updatedAt: now });
+            else
+              this.state.skills.unshift({
+                ...input,
+                enabled: true,
+                source: "authored",
+                createdAt: now,
+                updatedAt: now,
+              });
+            break;
+          }
+          case "skill/remove": {
+            const skillId = id(params.id);
+            if (!this.state.skills.some((entry) => entry.id === skillId))
+              throw new Error("That skill no longer exists.");
+            this.state.skills = this.state.skills.filter(
+              (entry) => entry.id !== skillId,
+            );
+            // A removed skill must not linger as a dangling binding on an agent.
+            for (const agent of this.state.agents) {
+              if (!agent.skillIds.includes(skillId)) continue;
+              agent.skillIds = agent.skillIds.filter((entry) => entry !== skillId);
+              agent.updatedAt = now;
+            }
+            break;
+          }
+          case "skill/toggle": {
+            const skill = this.state.skills.find(
+              (entry) => entry.id === id(params.id),
+            );
+            if (!skill) throw new Error("That skill no longer exists.");
+            if (typeof params.enabled !== "boolean")
+              throw new Error("Enabled must be true or false.");
+            skill.enabled = params.enabled;
+            skill.updatedAt = now;
+            break;
+          }
+          case "instruction/save": {
+            const input = validateWorkbenchInstruction(params.instruction);
+            const existing = this.state.instructions.find(
+              (entry) => entry.id === input.id,
+            );
+            if (existing) Object.assign(existing, input, { updatedAt: now });
+            else
+              this.state.instructions.unshift({
+                ...input,
+                enabled: true,
+                source: "authored",
+                createdAt: now,
+                updatedAt: now,
+              });
+            break;
+          }
+          case "instruction/remove": {
+            const instructionId = id(params.id);
+            if (
+              !this.state.instructions.some(
+                (entry) => entry.id === instructionId,
+              )
+            )
+              throw new Error("That instruction no longer exists.");
+            this.state.instructions = this.state.instructions.filter(
+              (entry) => entry.id !== instructionId,
+            );
+            for (const agent of this.state.agents) {
+              if (!agent.instructionIds.includes(instructionId)) continue;
+              agent.instructionIds = agent.instructionIds.filter(
+                (entry) => entry !== instructionId,
+              );
+              agent.updatedAt = now;
+            }
+            break;
+          }
+          case "instruction/toggle": {
+            const instruction = this.state.instructions.find(
+              (entry) => entry.id === id(params.id),
+            );
+            if (!instruction) throw new Error("That instruction no longer exists.");
+            if (typeof params.enabled !== "boolean")
+              throw new Error("Enabled must be true or false.");
+            instruction.enabled = params.enabled;
+            instruction.updatedAt = now;
+            break;
+          }
+          case "agent/importPackage": {
+            // Answers with what it created as well as the state, so the
+            // interface reports the outcome instead of implying one. The
+            // report rides out through the shared commit path below.
+            importReport = this.importPackage(params, now);
+            break;
+          }
           case "agent/remove": {
             const agent = this.agent(id(params.id));
             for (const run of this.state.runs.filter(
@@ -764,9 +1313,12 @@ export class WorkbenchService {
             const capability = this.capabilities();
             if (!capability.executionReady)
               throw new Error(capability.executionBlockedReason);
+            const runAgent = this.agent(id(params.id));
             this.queueRun(
-              this.agent(id(params.id)),
-              string(params.prompt, "Task prompt", 40_000),
+              runAgent,
+              this.brief(runAgent, {
+                body: string(params.prompt, "Task prompt", 40_000),
+              }),
             );
             break;
           }
@@ -803,12 +1355,31 @@ export class WorkbenchService {
               throw new Error(
                 "This run already has 20 queued steering messages. Wait for the next turn.",
               );
-            const result = (await this.options
-              .sidecar()!
-              .request("steer.send", {
-                sessionId: handle.sessionId,
-                message,
-              })) as { accepted?: boolean; sequence?: number };
+            const controller = this.steering();
+            if (!controller)
+              throw new Error(
+                "Steering needs a connected sidecar; it records the act before " +
+                  "it reaches the agent. Check the Runtime tab.",
+              );
+            // One implementation of the protocol: the controller records the
+            // steering act in the ledger first, then injects it into the live
+            // session. This service no longer does either itself.
+            let result: { accepted: boolean; sequence: number };
+            try {
+              // Recorded through the canonical controller; delivered by this
+              // service at the next turn boundary, which is what the interface
+              // promises and what a one-turn-at-a-time adapter can accept.
+              result = await controller.steer(handle.sessionId, message, {
+                deliver: "nextTurn",
+              });
+            } catch (error) {
+              if (error instanceof NotHostedSessionError)
+                throw new Error(
+                  "That session is no longer running here, so there is nothing " +
+                    "to steer. It may have finished between the click and now.",
+                );
+              throw error;
+            }
             if (!result.accepted || !Number.isSafeInteger(result.sequence))
               throw new Error(
                 "The sidecar did not record the steering message.",
@@ -816,7 +1387,7 @@ export class WorkbenchService {
             run.steering ??= [];
             run.steering.push({
               message,
-              sequence: result.sequence!,
+              sequence: result.sequence,
               state: "queued",
               submittedAt: now,
             });
@@ -858,9 +1429,15 @@ export class WorkbenchService {
               throw new Error(
                 "Only a draft can be dispatched. Create a new draft to run again.",
               );
-            const agents = this.state.agents.filter(
-              (agent) => agent.mode === "active",
-            );
+            // The delivery chain: for each of the nine phases in order, the
+            // active agents tagged for it. Where no agent is tagged at all,
+            // every active agent is convened once, unphased.
+            const convened = convene(this.state.agents);
+            const agents = [
+              ...new Map(
+                convened.map((entry) => [entry.agent.id, entry.agent]),
+              ).values(),
+            ];
             if (
               params.expectedBriefUpdatedAt !== undefined &&
               params.expectedBriefUpdatedAt !== item.updatedAt
@@ -892,18 +1469,26 @@ export class WorkbenchService {
                   "The participating team changed after review. Recheck the launch.",
                 );
             }
-            if (!agents.length)
+            if (!convened.length)
               throw new Error(
-                "Activate at least one agent before dispatching a deliverable.",
+                this.state.agents.some((agent) => agent.mode === "active")
+                  ? "Every active agent is tagged for phases none of them cover. " +
+                    "Tag at least one active agent on the SDLC phases board."
+                  : "Activate at least one agent before dispatching a deliverable.",
               );
             item.agentIds = agents.map((agent) => agent.id);
             item.state = "running";
             item.updatedAt = now;
-            for (const agent of agents)
+            for (const { agent, phase } of convened)
               this.queueRun(
                 agent,
-                `${item.title}\n\n${item.brief}\n\nYour role: ${agent.role}. Work only within this brief and explain what you changed and verified.`,
+                this.brief(
+                  agent,
+                  { title: item.title, body: item.brief },
+                  phase,
+                ),
                 item.id,
+                phase,
               );
             break;
           }
@@ -976,8 +1561,179 @@ export class WorkbenchService {
       }
       this.notify();
       void this.pump();
+      const snapshot = this.snapshot();
+      return importReport ? { snapshot, report: importReport } : snapshot;
+    });
+  }
+
+  /**
+   * Probe or read a tool connection.
+   *
+   * The connection is read under the queue so it reflects committed state,
+   * the network call happens outside it, and a probe result is committed back
+   * under the queue. A read commits nothing: looking at Jira is not a change
+   * to your workspace, and recording one would make the revision counter lie.
+   */
+  private async integrationRequest(request: WorkbenchRequest): Promise<unknown> {
+    const params = record(request.params ?? {});
+    const connectionId = id(params.id);
+    const connection = await this.serialize(async () => {
+      if (this.disposed) throw new Error("The workbench has been closed.");
+      await this.load();
+      const found = this.state.integrations.find(
+        (entry) => entry.id === connectionId,
+      );
+      if (!found) throw new Error("That connection no longer exists.");
+      return structuredClone(found);
+    });
+
+    const secret = (field: string) =>
+      Promise.resolve(
+        this.options.secrets?.get(secretKey(connectionId, field)) ?? undefined,
+      );
+    const transport = this.options.transport ?? defaultTransport();
+
+    if (request.action === "integration/read") {
+      if (!connection.enabled)
+        throw new Error(
+          `${connection.name} is disabled. Enable it before reading from it.`,
+        );
+      const operationId = string(params.operationId, "Operation", 60);
+      return (await readIntegration(
+        connection,
+        operationId,
+        transport,
+        secret,
+      )) satisfies IntegrationReadResult;
+    }
+
+    const result = await probeIntegration(connection, transport, secret);
+    return this.serialize(async () => {
+      await this.load();
+      const stored = this.state.integrations.find(
+        (entry) => entry.id === connectionId,
+      );
+      // The connection may have been removed while the probe was in flight;
+      // that is not an error, there is simply nothing left to record it on.
+      if (stored) {
+        stored.lastProbe = { ...result, at: new Date().toISOString() };
+        this.state.revision++;
+        await this.persist();
+        this.notify();
+      }
       return this.snapshot();
     });
+  }
+
+  /**
+   * Ingest a Markdown, ZIP or portable-JSON package into the workbench.
+   *
+   * Every agent enters in Learning mode, exactly as a manually created one
+   * does — an imported agent has earned no participation. Identifier
+   * collisions are resolved by suffixing rather than by overwriting, because
+   * silently replacing an agent the user already tuned is the worse failure.
+   */
+  private importPackage(params: Record<string, unknown>, now: string): ImportReport {
+    const fileName = string(params.fileName, "File name", 400, true);
+    const hasText = params.content !== undefined;
+    const hasBytes = params.contentBase64 !== undefined;
+    if (hasText === hasBytes)
+      throw new Error(
+        "Supply exactly one of file text or archive bytes when importing a package.",
+      );
+    const content = hasText
+      ? string(params.content, "Package content", 20_000_000, true)
+      : undefined;
+    const contentBase64 = hasBytes
+      ? string(params.contentBase64, "Archive bytes", 60_000_000, true)
+      : undefined;
+
+    const parsed = parsePackage({ fileName, content, contentBase64 });
+    const report: ImportReport = {
+      agents: [],
+      skills: [],
+      instructions: [],
+      skipped: [...parsed.skipped],
+      format: parsed.format,
+    };
+
+    const uniqueId = (candidate: string, taken: Set<string>, prefix: string) => {
+      const base = slugify(candidate, prefix);
+      if (!taken.has(base)) return base;
+      for (let suffix = 2; suffix < 500; suffix += 1) {
+        const next = `${base}-${suffix}`.slice(0, 60);
+        if (!taken.has(next)) return next;
+      }
+      throw new Error(`Too many packages already use the identifier '${base}'.`);
+    };
+
+    const skillIds = new Set(this.state.skills.map((entry) => entry.id));
+    const remappedSkills = new Map<string, string>();
+    for (const skill of parsed.skills) {
+      const input = validateWorkbenchSkill(skill);
+      const finalId = uniqueId(input.id, skillIds, "skill");
+      skillIds.add(finalId);
+      remappedSkills.set(input.id, finalId);
+      this.state.skills.unshift({
+        ...input,
+        id: finalId,
+        enabled: true,
+        source: "imported",
+        createdAt: now,
+        updatedAt: now,
+      });
+      report.skills.push(finalId);
+    }
+
+    const instructionIds = new Set(
+      this.state.instructions.map((entry) => entry.id),
+    );
+    const remappedInstructions = new Map<string, string>();
+    for (const instruction of parsed.instructions) {
+      const input = validateWorkbenchInstruction(instruction);
+      const finalId = uniqueId(input.id, instructionIds, "instruction");
+      instructionIds.add(finalId);
+      remappedInstructions.set(input.id, finalId);
+      this.state.instructions.unshift({
+        ...input,
+        id: finalId,
+        enabled: true,
+        source: "imported",
+        createdAt: now,
+        updatedAt: now,
+      });
+      report.instructions.push(finalId);
+    }
+
+    const agentIds = new Set(this.state.agents.map((entry) => entry.id));
+    for (const agent of parsed.agents) {
+      const input = validateWorkbenchAgent({
+        ...agent,
+        // Rebind to the identifiers the collision resolver actually assigned.
+        skillIds: agent.skillIds
+          .map((entry) => remappedSkills.get(entry) ?? entry)
+          .filter((entry) => skillIds.has(entry)),
+        instructionIds: agent.instructionIds
+          .map((entry) => remappedInstructions.get(entry) ?? entry)
+          .filter((entry) => instructionIds.has(entry)),
+      });
+      const finalId = uniqueId(input.id, agentIds, "agent");
+      agentIds.add(finalId);
+      this.state.agents.push({
+        ...input,
+        id: finalId,
+        mode: "learning",
+        runtime: "idle",
+        learningState: "waiting",
+        createdAt: now,
+        updatedAt: now,
+      });
+      report.agents.push(finalId);
+    }
+
+    if (!report.agents.length && !report.skills.length && !report.instructions.length)
+      throw new Error("That package contained nothing importable.");
+    return report;
   }
 
   /** Stop owned work immediately when trust/tier/connectivity changes. */
@@ -1177,24 +1933,23 @@ export class WorkbenchService {
           session.stop();
         },
       });
-      const memory = agent.trainable.includes("memory")
-        ? this.state.learning
-            .filter(
-              (note) => note.agentId === agent.id && note.state === "accepted",
-            )
-            .slice(-20)
-            .map((note) => note.content)
-            .join("\n\n")
-        : "";
-      const prompt = [
-        agent.instructions && `Agent instructions:\n${agent.instructions}`,
-        memory &&
-          `Human-reviewed memory (apply only where relevant):\n${memory}`,
-        `Current task:\n${run.prompt}`,
-      ]
-        .filter(Boolean)
-        .join("\n\n");
-      stopReason = await session.prompt(sessionId, prompt, {
+      // Hand the live session to the canonical steering controller for the
+      // duration of the run. This service owns the lifecycle; the controller
+      // owns the protocol, and there is only one of it (AMD-M25 / G-03).
+      this.steering()?.adoptSession({
+        client: {
+          prompt: (id, text) => session.prompt(id, text),
+          stop: () => session.stop(),
+        },
+        sessionId,
+        adapterId: agent.id,
+      });
+      // The briefing was composed once, at queue time, and recorded on the
+      // run. It is sent verbatim: composing a second time here would send the
+      // agent's instructions and memory twice, and — worse — would mean the
+      // prompt in the run history was not the prompt the agent received,
+      // which is the whole basis on which a run is reproducible evidence.
+      stopReason = await session.prompt(sessionId, run.prompt, {
         signal: controller.signal,
       });
       while (
@@ -1232,6 +1987,8 @@ export class WorkbenchService {
     } finally {
       const handle = this.sessions.get(run.id);
       if (handle) handle.acceptingSteering = false;
+      // Give the session back: a finished run must not look steerable.
+      if (recordedSession) this.steerController?.release(recordedSession);
       unregister?.();
       this.sessions.get(run.id)?.session.stop();
       this.sessions.delete(run.id);

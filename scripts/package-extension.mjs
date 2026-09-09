@@ -30,6 +30,19 @@ cpSync(path.join(root, 'core', 'meridian_core'), path.join(sidecarDir, 'meridian
   filter: (source) => !source.includes('__pycache__'),
 });
 cpSync(path.join(root, 'core', 'pyproject.toml'), path.join(sidecarDir, 'pyproject.toml'));
+
+// FR-M36-06 / NFR-31 / SEC-29: the open reference verifier ships WITH the
+// extension. The product's central claim is that an exported audit bundle
+// verifies without Meridian installed, and that claim is only true for a user
+// who actually has the verifier — shipping it in the repository and not in the
+// package made the promise true for us and false for them. It is one file,
+// Python standard library only (Ed25519 is a pure-Python RFC 8032
+// implementation), so it costs 12 KB and adds no dependency: a user can hand
+// verify.py and their bundle to an auditor who has never heard of this tool.
+cpSync(
+  path.join(root, 'verifier', 'verify.py'),
+  path.join(sidecarDir, 'verify.py'),
+);
 // The generated bus types ship beside the sidecar sources; meridian_core's
 // sys.path shim finds them at <sidecar>/shared/py (FR-M32-09).
 cpSync(path.join(root, 'shared', 'py'), path.join(sidecarDir, 'shared', 'py'), {

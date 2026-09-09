@@ -55,6 +55,18 @@
  */
 import { assertAcpHostEnabled } from '../acp/index';
 import type { AcpClient, PermissionApprover } from '../acp/client';
+
+/**
+ * What this controller actually needs from a live session: a way to inject
+ * a turn, and a way to kill it. Narrowed from AcpClient deliberately so the
+ * workbench — whose runs go through the AdapterSession abstraction, and
+ * whose tests inject fakes — can use this one canonical implementation
+ * instead of keeping a second one (AMD-M25 / G-03).
+ */
+export interface SteerableSession {
+  prompt(sessionId: string, text: string): Promise<string>;
+  stop(): void;
+}
 import type { RequestPermissionRequest } from '../acp/protocol';
 import type { TierName } from '../../../shared/ts/tiers';
 import type { SessionMode } from '../adapters/permission-gate';
@@ -222,7 +234,7 @@ export interface HostedSteerControllerOptions {
 }
 
 interface HostedRecord {
-  client: AcpClient;
+  client: SteerableSession;
   adapterId: string;
   sessionId: string;
   mode: SessionMode;
@@ -245,7 +257,7 @@ export class HostedSteerController {
    * gate/halt terminates an actually-running session); end → unregistered.
    */
   async beginSession(init: {
-    client: AcpClient;
+    client: SteerableSession;
     sessionId: string;
     adapterId: string;
     cwd: string;
@@ -306,6 +318,39 @@ export class HostedSteerController {
   }
 
   /**
+   * Adopt a session whose lifecycle another component already owns.
+   *
+   * The workbench begins its own runs: it issues `acp/sessionBegin`, holds
+   * the abort controller, and registers the halt handler. It should not do
+   * any of that twice, but it must still be steerable through this one
+   * controller (AMD-M25 / G-03). So it hands the live session over here for
+   * the steering protocol only, and takes it back with `release`.
+   *
+   * Deliberately not `beginSession`: adopting records nothing and registers
+   * nothing, because the caller has already done both.
+   */
+  adoptSession(init: {
+    client: SteerableSession;
+    sessionId: string;
+    adapterId: string;
+    mode?: SessionMode;
+  }): void {
+    this.records.set(init.sessionId, {
+      client: init.client,
+      adapterId: init.adapterId,
+      sessionId: init.sessionId,
+      mode: init.mode ?? 'normal',
+      // The owner unregisters from the halt registry; this record must not.
+      unregister: () => {},
+    });
+  }
+
+  /** Drop an adopted session. Safe to call for one that was never adopted. */
+  release(sessionId: string): void {
+    this.records.delete(sessionId);
+  }
+
+  /**
    * FR-M25-01: steer a running hosted session. The steering act is
    * ledger-recorded BEFORE the wire injection (FR-M10-08), then the
    * guidance enters the running session's context as a second
@@ -314,6 +359,20 @@ export class HostedSteerController {
   async steer(
     sessionId: string,
     message: string,
+    options: {
+      /**
+       * When the guidance reaches the agent.
+       *
+       * `now` injects a second session/prompt on the live connection — the
+       * FR-M25-01 behaviour for a hosted session the operator is watching.
+       *
+       * `nextTurn` records the act and returns; the caller delivers it at the
+       * next turn boundary. The workbench uses this because its adapters run
+       * one turn at a time and its interface promises a queue. Recording is
+       * identical either way, which is the part that must not fork.
+       */
+      deliver?: 'now' | 'nextTurn';
+    } = {},
   ): Promise<{ accepted: boolean; sequence: number; stopReason: string | undefined }> {
     const record = this.requireHosted(sessionId);
     // FR-M39-02 (D33): a steer is a new turn on the wire — the checkpoint
@@ -326,6 +385,8 @@ export class HostedSteerController {
       sessionId,
       message,
     })) as SteerAck;
+    if (options.deliver === 'nextTurn')
+      return { accepted: ack.accepted, sequence: ack.sequence, stopReason: undefined };
     const stopReason = await record.client.prompt(sessionId, message);
     return { accepted: ack.accepted, sequence: ack.sequence, stopReason };
   }

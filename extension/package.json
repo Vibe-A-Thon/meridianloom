@@ -9,7 +9,9 @@
     "vscode": "^1.95.0"
   },
   "categories": [
-    "Other"
+    "Machine Learning",
+    "Other",
+    "Testing"
   ],
   "extensionKind": [
     "workspace"
@@ -17,11 +19,7 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "onStartupFinished",
-    "onView:meridianLoom.agents",
-    "onView:meridianLoom.stories",
-    "onView:meridianLoom.loops",
-    "onView:meridianLoom.skills",
-    "onView:meridianLoom.ledger"
+    "onView:meridianLoom.workbench"
   ],
   "contributes": {
     "viewsContainers": {
@@ -36,28 +34,9 @@
     "views": {
       "meridian-loom": [
         {
-          "id": "meridianLoom.agents",
-          "name": "Agents",
-          "when": "meridian.tiers.orchestra"
-        },
-        {
-          "id": "meridianLoom.stories",
-          "name": "Stories",
-          "when": "meridian.tiers.governor"
-        },
-        {
-          "id": "meridianLoom.loops",
-          "name": "Loops",
-          "when": "meridian.tiers.orchestra"
-        },
-        {
-          "id": "meridianLoom.skills",
-          "name": "Skills",
-          "when": "meridian.tiers.orchestra"
-        },
-        {
-          "id": "meridianLoom.ledger",
-          "name": "Ledger"
+          "type": "webview",
+          "id": "meridianLoom.workbench",
+          "name": "Meridian Loom"
         }
       ]
     },
@@ -203,7 +182,7 @@
           "default": [
             "flight-recorder"
           ],
-          "description": "Enabled product tiers (FR-M36-05). Flight Recorder is the base tier and is always on. Enabling Governor or Orchestra is a settings change only \u2014 no reinstall; disabling a tier leaves the tiers below fully functional (G5)."
+          "description": "Enabled product tiers (FR-M36-05). Flight Recorder is the base tier and is always on. Enabling Governor or Orchestra is a settings change only — no reinstall; disabling a tier leaves the tiers below fully functional (G5)."
         },
         "meridian.rejectionWindowDays": {
           "type": "number",
@@ -233,7 +212,7 @@
             "oidc"
           ],
           "default": "git",
-          "description": "FR-M20-01 (D9; F1 Workstream C): the human identity source of record the sidecar resolves approver/halting/ingesting identity through. \"git\" (default) reads user.name/user.email from the workspace repository \u2014 assurance local, never verified. \"oidc\" is the enterprise SSO/OIDC provider (verified assurance); contracted stub until the enterprise tier lands. Provisioned to the sidecar over the handshake."
+          "description": "FR-M20-01 (D9; F1 Workstream C): the human identity source of record the sidecar resolves approver/halting/ingesting identity through. \"git\" (default) reads user.name/user.email from the workspace repository — assurance local, never verified. \"oidc\" is the enterprise SSO/OIDC provider (verified assurance); contracted stub until the enterprise tier lands. Provisioned to the sidecar over the handshake."
         },
         "meridian.editor.provenance": {
           "type": "boolean",
@@ -261,5 +240,26 @@
   "dependencies": {
     "@zed-industries/agent-client-protocol": "0.4.5",
     "yaml": "2.9.0"
-  }
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "acp",
+    "agent-client-protocol",
+    "governance",
+    "audit",
+    "provenance",
+    "sdlc",
+    "devops",
+    "claude"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Vibe-A-Thon/meridianloom.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Vibe-A-Thon/meridianloom/issues"
+  },
+  "homepage": "https://github.com/Vibe-A-Thon/meridianloom#readme",
+  "qna": false
 }

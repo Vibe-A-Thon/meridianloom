@@ -378,3 +378,107 @@
   --ml-dye-meta: var(--vscode-textLink-foreground, #ce8fb1);
   --ml-dye-idle: var(--vscode-descriptionForeground, #9cacc6);
 }
+
+/* ——— 4. Signal colour, glass and motion ———————————————————————————————
+ *
+ * Added for the colour pass. Three families, each with one job:
+ *
+ *   --ml-phase-*   the nine SDLC phases. A phase keeps its hue everywhere it
+ *                  appears — board, agent chip, dashboard ring — so the
+ *                  colour becomes a thing you learn once and then read.
+ *   --ml-glass-*   translucency for chrome that floats over content: the
+ *                  masthead, dialogs, the tab bar. Never for dense data,
+ *                  where blur costs legibility.
+ *   --ml-motion-*  duration and easing. Every animation here is transform or
+ *                  opacity only, so it stays on the compositor, and every one
+ *                  is switched off under prefers-reduced-motion.
+ *
+ * Colour is never the only carrier of meaning: a hue always sits beside a
+ * label, a mark or a shape that says the same thing.
+ */
+:root {
+  --ml-phase-intake: #38bdd6;
+  --ml-phase-design: #8b7fe8;
+  --ml-phase-plan: #5b8def;
+  --ml-phase-build: #3fb968;
+  --ml-phase-verify: #2fb5a0;
+  --ml-phase-security: #e0a52e;
+  --ml-phase-review: #d4589b;
+  --ml-phase-release: #e0762e;
+  --ml-phase-operate: #6f8fb5;
+
+  /* Health, for anything that reports a state rather than a category. */
+  --ml-signal-ok: var(--ml-dye-approved);
+  --ml-signal-warn: var(--ml-dye-attention);
+  --ml-signal-fail: var(--ml-dye-rework);
+  --ml-signal-idle: var(--ml-dye-idle);
+
+  --ml-glass-bg: rgba(23, 29, 56, 0.72);
+  --ml-glass-strong: rgba(23, 29, 56, 0.9);
+  --ml-glass-border: rgba(242, 239, 230, 0.1);
+  --ml-glass-sheen: rgba(242, 239, 230, 0.06);
+  --ml-glass-blur: 14px;
+
+  /* A hero wash: two accents at low alpha over the canvas, never over text. */
+  --ml-wash:
+    radial-gradient(120% 140% at 0% 0%, rgba(213, 239, 156, 0.14), transparent 55%),
+    radial-gradient(100% 120% at 100% 0%, rgba(185, 168, 229, 0.16), transparent 60%);
+
+  --ml-motion-slow: 420ms;
+  --ml-ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ml-ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1);
+}
+
+/* Light grounds need darker phase hues to hold AA against near-white. */
+[data-ml-theme='sized-linen'] {
+  --ml-phase-intake: #17788c;
+  --ml-phase-design: #5a4bb8;
+  --ml-phase-plan: #2f5fc0;
+  --ml-phase-build: #257a41;
+  --ml-phase-verify: #1c7a6b;
+  --ml-phase-security: #96690f;
+  --ml-phase-review: #a32f6c;
+  --ml-phase-release: #a34d16;
+  --ml-phase-operate: #47617f;
+
+  --ml-glass-bg: rgba(245, 242, 233, 0.78);
+  --ml-glass-strong: rgba(245, 242, 233, 0.94);
+  --ml-glass-border: rgba(28, 36, 64, 0.12);
+  --ml-glass-sheen: rgba(255, 255, 255, 0.6);
+  --ml-wash:
+    radial-gradient(120% 140% at 0% 0%, rgba(122, 150, 40, 0.12), transparent 55%),
+    radial-gradient(100% 120% at 100% 0%, rgba(110, 90, 180, 0.12), transparent 60%);
+}
+
+/* Maximum contrast: the wash and the blur both go. A translucent panel is a
+   contrast reduction, and this theme exists to refuse those. */
+[data-ml-theme='iron-gall'] {
+  --ml-glass-bg: #0c0e18;
+  --ml-glass-strong: #0c0e18;
+  --ml-glass-border: #39405c;
+  --ml-glass-blur: 0px;
+  --ml-wash: none;
+}
+
+[data-ml-theme='madder-dusk'] {
+  --ml-glass-bg: rgba(34, 20, 25, 0.74);
+  --ml-glass-strong: rgba(34, 20, 25, 0.92);
+  --ml-wash:
+    radial-gradient(120% 140% at 0% 0%, rgba(224, 140, 90, 0.14), transparent 55%),
+    radial-gradient(100% 120% at 100% 0%, rgba(200, 120, 150, 0.14), transparent 60%);
+}
+
+/* The user's own reduce-motion choice (§8.1) and the OS setting are the same
+   switch: durations collapse to nothing rather than components branching. */
+[data-ml-motion='reduce'] {
+  --ml-motion-fast: 0ms;
+  --ml-motion-med: 0ms;
+  --ml-motion-slow: 0ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ml-motion-fast: 0ms;
+    --ml-motion-med: 0ms;
+    --ml-motion-slow: 0ms;
+  }
+}

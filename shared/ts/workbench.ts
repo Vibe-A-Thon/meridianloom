@@ -1,4 +1,9 @@
 import type { StudioDocument, StudioDocumentInput } from "./studio";
+import type {
+  IntegrationConnection,
+  IntegrationConnectionInput,
+  IntegrationReadResult,
+} from "./integrations";
 /** Extension-host workbench state. This channel does not require the Python sidecar. */
 export type AgentMode = "active" | "learning";
 export type AgentPermission =
@@ -18,6 +23,37 @@ export type LearningSurface =
   | "skills"
   | "calibration";
 
+/**
+ * The nine SDLC phases of `vision.md` §3. An agent is tagged with the phases
+ * it may take part in; a deliverable dispatch convenes, for each phase, only
+ * the active agents tagged for it. The set is fixed here because `D8` leaves
+ * the phase set configurable from policy and the workbench must not fork it.
+ */
+export const SDLC_PHASES = [
+  "intake",
+  "design",
+  "plan",
+  "build",
+  "verify",
+  "security",
+  "review",
+  "release",
+  "operate",
+] as const;
+export type SdlcPhase = (typeof SDLC_PHASES)[number];
+
+export const SDLC_PHASE_LABELS: Readonly<Record<SdlcPhase, string>> = {
+  intake: "Intake & Analysis",
+  design: "Architecture & Design",
+  plan: "Planning & Decomposition",
+  build: "Implementation",
+  verify: "Verification",
+  security: "Security & Compliance",
+  review: "Review & Integration",
+  release: "Release",
+  operate: "Operate & Maintain",
+};
+
 export interface WorkbenchAgentInput {
   id: string;
   name: string;
@@ -30,6 +66,59 @@ export interface WorkbenchAgentInput {
   instructions: string;
   permissions: AgentPermission[];
   trainable: LearningSurface[];
+  /** SDLC phases this agent may be convened for (`vision.md` §3). */
+  phases: SdlcPhase[];
+  /** Skills bound to this agent at run time (`vision.md` §2.4 — identity is data). */
+  skillIds: string[];
+  /** Instruction documents this agent works from (`vision.md` §2.8 property 4). */
+  instructionIds: string[];
+  /**
+   * Tool connections this agent may read from. Bound explicitly, because an
+   * agent that can see your production cluster should be one you chose to
+   * give that to.
+   */
+  integrationIds: string[];
+}
+
+/**
+ * A skill pack in the `SKILL.md` shape: YAML frontmatter plus a Markdown
+ * body. Binding a skill to a role agent is what makes it a stack agent.
+ */
+export interface WorkbenchSkillInput {
+  id: string;
+  name: string;
+  summary: string;
+  version: string;
+  /** Free-form stack/domain tags used for discovery. */
+  tags: string[];
+  /** The SKILL.md body: conventions, layout, build/test invocations, checklist. */
+  body: string;
+}
+
+export interface WorkbenchSkill extends WorkbenchSkillInput {
+  /** Disabled skills stay in the catalogue but bind to no agent. */
+  enabled: boolean;
+  /** Where it came from, so a packaged import is never mistaken for authored work. */
+  source: "authored" | "imported";
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** An instruction file — `AGENTS.md`, `CONVENTIONS.md` and their kin. */
+export interface WorkbenchInstructionInput {
+  id: string;
+  name: string;
+  summary: string;
+  /** Precedence tier, per the Instruction Library (`FR-M7-14`…`16`). */
+  scope: "adapter" | "workspace" | "user" | "organisation";
+  body: string;
+}
+
+export interface WorkbenchInstruction extends WorkbenchInstructionInput {
+  enabled: boolean;
+  source: "authored" | "imported";
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WorkbenchAgent extends WorkbenchAgentInput {
@@ -46,6 +135,17 @@ export interface WorkbenchRun {
   agentId: string;
   agentName: string;
   deliverableId?: string;
+  /**
+   * The SDLC phase this agent was convened for, when the deliverable was
+   * dispatched by phase. Absent for an ad-hoc run, and for a dispatch where
+   * no agent carried a phase tag.
+   */
+  phase?: SdlcPhase;
+  /**
+   * The full briefing the agent received — brief, role, phase, instruction
+   * files, skills, connected systems and accepted memory. Recorded verbatim,
+   * because a run you cannot reproduce is not evidence.
+   */
   prompt: string;
   state: "queued" | "running" | "completed" | "failed" | "cancelled";
   startedAt: string;
@@ -89,6 +189,10 @@ export interface LearningArtifact {
 export interface WorkbenchSnapshot {
   revision: number;
   agents: WorkbenchAgent[];
+  skills: WorkbenchSkill[];
+  instructions: WorkbenchInstruction[];
+  /** Configured tool connections. Secrets are never present here. */
+  integrations: IntegrationConnection[];
   deliverables: WorkbenchDeliverable[];
   runs: WorkbenchRun[];
   learning: LearningArtifact[];
@@ -109,6 +213,22 @@ export interface PortableAgentDocument {
   schemaVersion: 1;
   agent: WorkbenchAgentInput;
   memory?: { title: string; content: string }[];
+  /** Skills and instructions travel with the agent so it is portable whole. */
+  skills?: WorkbenchSkillInput[];
+  instructions?: WorkbenchInstructionInput[];
+}
+
+/**
+ * What an imported package produced, so the interface can report exactly what
+ * was created rather than claiming a silent success.
+ */
+export interface ImportReport {
+  agents: string[];
+  skills: string[];
+  instructions: string[];
+  /** Entries the reader recognised but deliberately skipped, with the reason. */
+  skipped: { path: string; reason: string }[];
+  format: "markdown" | "zip" | "json";
 }
 
 export interface WorkbenchActionMap {
@@ -143,6 +263,75 @@ export interface WorkbenchActionMap {
   "agent/export": {
     params: { id: string };
     result: { fileName: string; content: string };
+  };
+  /**
+   * Ingest an agent, skill or instruction package the user supplies as a
+   * Markdown document or a ZIP archive. `contentBase64` carries the archive
+   * bytes; `content` carries Markdown or JSON text. Exactly one is required.
+   */
+  "agent/importPackage": {
+    params: { fileName: string; content?: string; contentBase64?: string };
+    result: { snapshot: WorkbenchSnapshot; report: ImportReport };
+  };
+  /** Tag an agent to SDLC phases and bind its skills and instructions. */
+  "agent/assign": {
+    params: {
+      id: string;
+      phases?: SdlcPhase[];
+      skillIds?: string[];
+      instructionIds?: string[];
+      integrationIds?: string[];
+    };
+    result: WorkbenchSnapshot;
+  };
+  "skill/save": {
+    params: { skill: WorkbenchSkillInput };
+    result: WorkbenchSnapshot;
+  };
+  "skill/remove": { params: { id: string }; result: WorkbenchSnapshot };
+  "skill/toggle": {
+    params: { id: string; enabled: boolean };
+    result: WorkbenchSnapshot;
+  };
+  "skill/export": {
+    params: { id: string };
+    result: { fileName: string; content: string };
+  };
+  "instruction/save": {
+    params: { instruction: WorkbenchInstructionInput };
+    result: WorkbenchSnapshot;
+  };
+  "instruction/remove": { params: { id: string }; result: WorkbenchSnapshot };
+  "instruction/toggle": {
+    params: { id: string; enabled: boolean };
+    result: WorkbenchSnapshot;
+  };
+  "instruction/export": {
+    params: { id: string };
+    result: { fileName: string; content: string };
+  };
+  /**
+   * Save a tool connection. `secrets` travels one way: it is written to the
+   * OS keychain and never appears in a snapshot.
+   */
+  "integration/save": {
+    params: { connection: IntegrationConnectionInput };
+    result: WorkbenchSnapshot;
+  };
+  "integration/remove": { params: { id: string }; result: WorkbenchSnapshot };
+  "integration/toggle": {
+    params: { id: string; enabled: boolean };
+    result: WorkbenchSnapshot;
+  };
+  /** Actually reach the system and report what answered. */
+  "integration/probe": {
+    params: { id: string };
+    result: WorkbenchSnapshot;
+  };
+  /** Run one read operation against a connected system. Reads only. */
+  "integration/read": {
+    params: { id: string; operationId: string };
+    result: IntegrationReadResult;
   };
   "agent/run": {
     params: { id: string; prompt: string };

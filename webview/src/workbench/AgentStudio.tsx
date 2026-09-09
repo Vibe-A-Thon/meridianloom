@@ -22,6 +22,10 @@ const EMPTY: WorkbenchAgentInput = {
   instructions: '',
   permissions: ['read', 'search', 'think'],
   trainable: ['memory'],
+  phases: [],
+  skillIds: [],
+  instructionIds: [],
+  integrationIds: [],
 };
 const PERMISSIONS: AgentPermission[] = [
   'read',

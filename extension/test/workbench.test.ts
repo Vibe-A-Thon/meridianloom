@@ -465,7 +465,7 @@ describe("persisted agent workbench", () => {
     }, 15_000);
     await until(async () => prompts.some((p) => p.id === "sage"));
     expect(prompts.find((p) => p.id === "sage")!.text).toContain(
-      "Human-reviewed memory",
+      "A human reviewed and accepted",
     );
     expect(prompts.find((p) => p.id === "sage")!.text).toContain(
       "return focus",

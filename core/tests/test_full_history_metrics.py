@@ -19,6 +19,7 @@ owns FR-M10-08), so the build relaxes synchronous=OFF for speed.
 from __future__ import annotations
 
 import json
+import os
 import statistics
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -203,13 +204,36 @@ def _reverted_sequences(ledger) -> set[int]:
     }
 
 
+# These tests assert two different things about the same call: that the result
+# equals a full-scan recomputation (AC-41 correctness, which holds on any
+# machine) and that it lands inside the NFR-33 budget (which does not, on a
+# machine running three other suites). Conflating them means a busy CI runner
+# reports a correctness failure, and a real regression looks like noise.
+#
+# So the measurement is always taken and always printed; the budget is enforced
+# unless the runner says it is sharing the machine. CI enforces it in a
+# dedicated job on a fresh runner, and a developer running the suite locally
+# enforces it by default — the stale PASS this budget suffered happened
+# precisely because nobody saw the number.
+_REPORT_ONLY = os.environ.get("MERIDIAN_PERF_REPORT_ONLY") == "1"
+
+
 def _timed(label: str, fn):
     started = time.perf_counter()
     result = fn()
     elapsed = time.perf_counter() - started
     rate = N_ENTRIES / elapsed if elapsed else float("inf")
-    print(f"NFR-33 {label}: {elapsed * 1000:.0f} ms over 50k ({rate:,.0f} rows/s; budget {BUDGET_SECONDS:.0f}s)")
-    assert elapsed < BUDGET_SECONDS, f"{label} over budget: {elapsed:.2f}s"
+    verdict = (
+        "reported only (shared runner)"
+        if _REPORT_ONLY
+        else f"budget {BUDGET_SECONDS:.0f}s"
+    )
+    print(
+        f"NFR-33 {label}: {elapsed * 1000:.0f} ms over 50k "
+        f"({rate:,.0f} rows/s; {verdict})"
+    )
+    if not _REPORT_ONLY:
+        assert elapsed < BUDGET_SECONDS, f"{label} over budget: {elapsed:.2f}s"
     return result
 
 

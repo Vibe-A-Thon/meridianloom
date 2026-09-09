@@ -269,8 +269,19 @@ export class AcpClient extends EventEmitter {
     });
 
     const onSpawnError = (error: NodeJS.ErrnoException) => {
+      // ENOENT here means the agent's executable is not on PATH, which is
+      // the single most common first-run failure: the user added an agent
+      // before installing the CLI it names. The raw message is
+      // "spawn claude ENOENT", which tells them nothing they can act on.
+      const message =
+        error.code === 'ENOENT'
+          ? `'${this.options.command}' is not on this machine's PATH. ` +
+            'Install the agent, or edit the agent and give the full path to ' +
+            'its executable. Meridian runs agents you install; it does not ' +
+            'bundle them.'
+          : `failed to spawn ACP agent '${this.options.command}': ${error.message}`;
       this.rejectDeath(
-        new AcpError(`failed to spawn ACP agent '${this.options.command}': ${error.message}`, 'SPAWN_ERROR', {
+        new AcpError(message, 'SPAWN_ERROR', {
           cause: error,
           data: { errno: error.code },
         }),

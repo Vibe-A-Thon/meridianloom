@@ -101,13 +101,16 @@ export const COMMAND_TIERS: Record<string, TierName> = {
   'meridian.installHook': 'flight-recorder',
 };
 
-/** Tree view → owning tier; same drift-checked pattern as COMMAND_TIERS. */
+/**
+ * View → owning tier; same drift-checked pattern as COMMAND_TIERS.
+ *
+ * One view: the workbench webview, owned by the base tier so the Activity
+ * Bar container always opens to something. Per-surface tier gating happens
+ * inside the interface (X-28), which can explain what a locked tier adds —
+ * an absent container cannot.
+ */
 export const VIEW_TIERS: Record<string, TierName> = {
-  'meridianLoom.agents': 'orchestra',
-  'meridianLoom.stories': 'governor',
-  'meridianLoom.loops': 'orchestra',
-  'meridianLoom.skills': 'orchestra',
-  'meridianLoom.ledger': 'flight-recorder',
+  'meridianLoom.workbench': 'flight-recorder',
 };
 
 export function isCommandEnabled(commandId: string, enabled: readonly TierName[]): boolean {

@@ -22,6 +22,9 @@ function harness(view: string, overrides: Partial<WorkbenchSnapshot> = {}) {
   const now = "2026-09-09T00:00:00Z";
   const snapshot: WorkbenchSnapshot = {
     revision: 1,
+    skills: [],
+    instructions: [],
+    integrations: [],
     agents: ["atlas", "sage"].map((id) => ({
       id,
       name: id === "atlas" ? "Atlas" : "Sage",
@@ -34,6 +37,10 @@ function harness(view: string, overrides: Partial<WorkbenchSnapshot> = {}) {
       permissions: ["read"],
       instructions: "",
       trainable: ["memory"],
+      phases: [],
+      skillIds: [],
+      instructionIds: [],
+      integrationIds: [],
       mode: id === "atlas" ? "active" : "learning",
       runtime: "idle",
       learningState: "waiting",

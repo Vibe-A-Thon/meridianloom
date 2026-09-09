@@ -1,43 +1,48 @@
 import * as vscode from 'vscode';
 
 /**
- * FR-M1-02: the five tree views contributed under the Meridian Loom
- * Activity Bar container. Ids here are the single source of truth; the
- * manifest test asserts package.json matches them.
+ * The Meridian Loom Activity Bar container hosts exactly one view: the
+ * workbench webview.
+ *
+ * This replaces the five placeholder tree views of the original `FR-M1-02`
+ * reading. Those views were containers for Agents, Stories, Loops, Skills and
+ * Ledger, and every one of them is now a tab inside the workbench — so
+ * keeping them would mean two navigations to the same content, and would push
+ * the interface into a strip below a stack of empty trees.
+ *
+ * The product requirement this serves: selecting Meridian Loom in the
+ * Activity Bar opens the product. A `webview`-typed view resolved by
+ * `RecorderViewProvider` is the only VS Code mechanism that does that without
+ * a command in between.
+ *
+ * The view itself is registered in `extension.ts`; this module owns the id
+ * and the tier the manifest test checks against.
  */
-export const TREE_VIEWS = [
-  { id: 'meridianLoom.agents', name: 'Agents' },
-  { id: 'meridianLoom.stories', name: 'Stories' },
-  { id: 'meridianLoom.loops', name: 'Loops' },
-  { id: 'meridianLoom.skills', name: 'Skills' },
-  { id: 'meridianLoom.ledger', name: 'Ledger' },
-] as const;
-
-export type TreeViewId = (typeof TREE_VIEWS)[number]['id'];
+export const WORKBENCH_VIEW = {
+  id: 'meridianLoom.workbench',
+  name: 'Meridian Loom',
+  /**
+   * Flight Recorder, so the container opens at the base tier. Tier gating
+   * happens inside the interface, per surface (X-28), rather than by hiding
+   * the only view and leaving the user an empty container with no
+   * explanation of why.
+   */
+  tier: 'flight-recorder',
+} as const;
 
 /**
- * Empty until the sidecar supplies state (Workstream B). Registration is
- * synchronous and cheap so activation never blocks the host (FR-M1-04).
+ * No tree views remain. Kept as an explicit empty tuple so the manifest test
+ * asserts their absence rather than silently passing when someone re-adds one.
  */
-class MeridianTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
-  private readonly changeEmitter = new vscode.EventEmitter<vscode.TreeItem | undefined>();
-  readonly onDidChangeTreeData = this.changeEmitter.event;
+export const TREE_VIEWS = [] as const;
 
-  getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
-    return element;
-  }
+export type TreeViewId = never;
 
-  getChildren(): vscode.TreeItem[] {
-    return [];
-  }
-
-  refresh(): void {
-    this.changeEmitter.fire(undefined);
-  }
-}
-
+/**
+ * Nothing to register: the workbench view is a `WebviewViewProvider`,
+ * registered in `extension.ts` where the host dependencies live. Retained so
+ * activation keeps a single, stable call shape.
+ */
 export function registerViews(): vscode.Disposable[] {
-  return TREE_VIEWS.map(({ id }) =>
-    vscode.window.registerTreeDataProvider(id, new MeridianTreeProvider()),
-  );
+  return [];
 }

@@ -111,6 +111,7 @@ describe('runDoctor (FR-M30-01)', () => {
           executable: '/usr/bin/python3',
           source: 'path',
           version: [3, 11, 9],
+          missing: [],
         }),
       workspaceDir: '/repo',
     });
@@ -125,6 +126,30 @@ describe('runDoctor (FR-M30-01)', () => {
       expect(byId.get(id)?.detail).toContain('sidecar is unavailable');
     }
     expect(byId.get('keychain')?.status).toBe('pass');
+  });
+
+  it('fails the interpreter check when the runtime dependencies are missing', async () => {
+    // A machine with Python 3.12 and no `cryptography` used to pass every
+    // check and then die at sidecar startup with a ModuleNotFoundError. A
+    // diagnosis that reads "pass" while the product does not work is worse
+    // than no diagnosis at all.
+    const report = await runDoctor({
+      sidecar: () => undefined,
+      verifySecrets: () => Promise.resolve(),
+      probeInterpreter: () =>
+        Promise.resolve({
+          executable: '/usr/bin/python3',
+          source: 'path',
+          version: [3, 12, 1],
+          missing: ['cryptography'],
+        }),
+      workspaceDir: '/repo',
+    });
+    const check = report.checks.find((entry) => entry.id === 'interpreter');
+    expect(check?.status).toBe('fail');
+    expect(check?.detail).toContain('cannot import: cryptography');
+    // The remediation is the exact command, not "install the dependencies".
+    expect(check?.remediation).toContain('-m pip install cryptography');
   });
 
   it('an unreachable sidecar produces the same shape, with the RPC error named', async () => {

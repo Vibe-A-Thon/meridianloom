@@ -660,6 +660,10 @@ function DocumentLibrary({
                     instructions,
                     permissions: agent.permissions,
                     trainable: agent.trainable,
+                    phases: [],
+                    skillIds: [],
+                    instructionIds: [],
+            integrationIds: [],
                   },
                 }),
               () => {

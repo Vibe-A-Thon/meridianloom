@@ -51,6 +51,42 @@ export function Gates(props: GovernanceProps) {
   </Page>;
 }
 
+/**
+ * Revoking a signing identity (NFR-36 / AC-46).
+ *
+ * The control an operator reaches for when someone leaves under a cloud or a
+ * key is compromised. It is destructive in the way that matters: the
+ * revocation is ledger-recorded, binds immediately in-process, and approvals
+ * that identity already gave stop counting at the next gate execution. So it
+ * asks first, and the confirmation states both of those consequences rather
+ * than the usual "are you sure".
+ */
+function IdentityRevocation(props: GovernanceProps) {
+  const connected = props.ready && props.enabledTiers.includes('governor');
+  const action = useAction(props.client);
+  const [email, setEmail] = useState('');
+  const [reason, setReason] = useState('');
+  const [confirm, setConfirm] = useState(false);
+  return <Panel title="Revoke a signing identity">
+    <form className={s.form} onSubmit={event => { event.preventDefault(); if (email.trim() && reason.trim()) setConfirm(true); }}>
+      <div className={s.row}>
+        <Field label="Identity (email)" hint="The lookup key every governance check uses.">
+          <input required type="email" value={email} placeholder="person@acme.com" onChange={event => setEmail(event.target.value)} />
+        </Field>
+        <Field label="Reason" hint="Recorded in the ledger beside the revocation.">
+          <input required value={reason} placeholder="Left the organisation" onChange={event => setReason(event.target.value)} />
+        </Field>
+      </div>
+      <div className={s.actions}><button className={s.primary} disabled={!connected || action.busy}>Revoke identity</button></div>
+    </form>
+    <Notice>Revocation is recorded in the ledger and binds from the moment that row commits. It does not delete anything the identity already signed — that history stays, and stays attributable.</Notice>
+    {confirm && <Confirm title={`Revoke ${email}?`} description="This is recorded in the ledger and takes effect immediately." onClose={() => setConfirm(false)} busy={action.busy} error={action.error} label="Revoke identity" onConfirm={() => void action.run('identity.revoke', { email: email.trim(), reason: reason.trim() }).then(result => { if (result) { setConfirm(false); setEmail(''); setReason(''); } })}>
+      <p>Approvals this identity has already given stop counting when a gate is next executed — including approvals recorded before this moment.</p>
+      <p>Their recorded history is not removed and remains attributable. This cannot be undone from this screen.</p>
+    </Confirm>}
+  </Panel>;
+}
+
 export function Approvals(props: GovernanceProps) {
   const connected = props.ready && props.enabledTiers.includes('governor');
   const roles = useRpcQuery(connected ? props.client : undefined, 'roles/list', {});
@@ -68,5 +104,6 @@ export function Approvals(props: GovernanceProps) {
     <Panel title="Delegate approval rights"><form className={s.form} onSubmit={event => { event.preventDefault(); setConfirm(true); }}><Field label="Recipient"><input required type="text" value={to} onChange={event => setTo(event.target.value)} placeholder="Named principal or email" /></Field><div className={s.row}><Field label="Your holder role"><input required value={holder} onChange={event => setHolder(event.target.value)} /></Field><Field label="Expiry in days"><input type="number" min="1" max={roles.data?.delegation.maxTtlDays ?? 30} required value={days} onChange={event => setDays(event.target.value)} /></Field></div><p className={s.muted}>Delegated role: {role}. The host resolves the delegator identity and validates authority, chain depth, expiry, and cycles.</p><button className={s.primary} disabled={!canGovern(props) || action.busy || roles.data?.failClosed}>Review delegation</button></form></Panel></div>
     <Panel title="Approval and delegation history"><QueryFeedback query={ledger} connected={connected} /><div className={s.list}>{ledger.data?.entries.filter(entry => /approv|delegat/.test(entry.actionType)).map(entry => <div className={s.card} key={entry.sequence}><h3>#{entry.sequence} · {entry.actionType}</h3><p>{entry.humanActor ?? entry.actorId} · {entry.humanRole ?? 'Role in source record'} · {entry.timestamp}</p><JsonDetail title="Inspect recorded event" value={entry} /></div>)}</div>{ledger.data && !ledger.data.entries.some(entry => /approv|delegat/.test(entry.actionType)) && <p className={s.empty}>No approvals or delegations in the latest 200 ledger entries.</p>}<Notice>History shows recorded events; a delegation may have expired. The backend validates whether rights are active when they are used. Session authentication and role-pack editing remain host configuration.</Notice></Panel>
     {confirm && <Confirm title="Delegate this approval right?" description="This creates a ledger-recorded grant for a named principal. Review the exact role and expiry before continuing." busy={action.busy} error={action.error} onClose={() => setConfirm(false)} label="Record delegation" onConfirm={() => { void action.run('roles/delegate', { to: to.trim(), role: role.trim(), holderRole: holder.trim(), ttlDays: Number(days) }).then(result => { if (result) { setConfirm(false); action.setMessage(`Delegated ${result.delegation.role} to ${result.delegation.to} until ${result.delegation.expiresAt}; ledger #${result.sequence}.`); ledger.refresh(); } }); }}><pre className={s.pre}>Recipient: {to}{'\n'}Approval role: {role}{'\n'}Holder role: {holder}{'\n'}Duration: {days} day(s)</pre></Confirm>}
+    <IdentityRevocation {...props} />
   </Page>;
 }

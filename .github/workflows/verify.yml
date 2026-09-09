@@ -1,0 +1,169 @@
+name: verify
+
+# The gate that stops verification claims from decaying.
+#
+# This repository accumulated three false records in two days — NFR-33
+# recorded PASS against a stale commit while it was failing, a completion
+# figure 11 points out of date, and a catalogue that claimed bindings reached
+# the agent when they did not. None was carelessness: every one was true when
+# written and rotted because nothing re-checked it. 2,121 tests that only run
+# when someone remembers are not a safety net, they are a record of one
+# afternoon.
+#
+# Everything here already existed as an npm script or a pytest run. The only
+# new thing is that a machine does it on every push.
+
+on:
+  push:
+    branches: [main, dev_local]
+  pull_request:
+  # Performance budgets drift with features, not with commits, so they are
+  # also checked on a schedule — a quiet week is exactly when a budget slips
+  # unnoticed.
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: '1'
+
+jobs:
+  # ---------------------------------------------------------------------
+  # Contracts first: a stale generated type or an orphaned RPC method makes
+  # every downstream result meaningless, and both checks take seconds.
+  # ---------------------------------------------------------------------
+  contracts:
+    name: contracts and surface coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: bus types match the schema (FR-M32-09)
+        run: npm run check:contracts
+      - name: no orphaned or unsurfaced RPC methods (FR-M46-01/02, AC-43)
+        run: npm run check:surface
+      - name: typecheck
+        run: |
+          npx tsc --noEmit -p extension
+          npx tsc --noEmit -p webview
+
+  # ---------------------------------------------------------------------
+  # The TypeScript halves. Split from the Python job so a failure names the
+  # half it is in rather than "the suite".
+  # ---------------------------------------------------------------------
+  typescript:
+    name: extension and webview (${{ matrix.os }})
+    needs: contracts
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The product is cross-platform and has only ever been verified on
+        # Windows. Path handling, the keyring and process spawning are the
+        # three places that differ, and all three are load-bearing here.
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: install the sidecar (real-sidecar e2e tests spawn it)
+        run: pip install -e ./core
+      - run: npm ci
+      - name: extension
+        working-directory: extension
+        run: npx vitest run --reporter=verbose
+      - name: webview
+        working-directory: webview
+        run: npx vitest run --reporter=verbose
+
+  # ---------------------------------------------------------------------
+  # The Python core, including the 50k performance budgets. These are the
+  # checks that went stale; they run on every push now.
+  # ---------------------------------------------------------------------
+  core:
+    name: python core
+    needs: contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -e ./core
+      # Correctness everywhere; budgets nowhere near a shared runner. A 50k
+      # measurement taken while three other suites are running is noise, and
+      # noise that fails the build teaches people to ignore the build.
+      # MERIDIAN_PERF_REPORT_ONLY keeps every AC-41 equality assertion live
+      # and prints the timings without enforcing them.
+      - name: core suite
+        working-directory: core
+        env:
+          MERIDIAN_PERF_REPORT_ONLY: '1'
+        run: python -m pytest tests -q -s -m "not perf" --tb=short
+
+  # ---------------------------------------------------------------------
+  # Budgets, alone, on a runner doing nothing else. This is the only place
+  # a timing failure means what it says.
+  # ---------------------------------------------------------------------
+  performance:
+    name: performance budgets
+    needs: contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -e ./core
+
+      # Reported on every run, not only when they break: a budget creeping
+      # toward its ceiling should be visible before it crosses it. NFR-33
+      # was recorded PASS while failing for two commits precisely because
+      # nobody was looking at the number in between.
+      - name: NFR-33 budgets over a 50k ledger
+        working-directory: core
+        run: python -m pytest tests/test_full_history_metrics.py -q -s --tb=short
+
+      - name: the remaining performance floors
+        working-directory: core
+        run: python -m pytest tests -q -s -m perf --tb=short
+
+  # ---------------------------------------------------------------------
+  # The artefact. Building it in CI catches the packaging failures that a
+  # local `npm run build` never sees — a file missing from .vscodeignore, a
+  # bundle that only resolves against a warm node_modules.
+  # ---------------------------------------------------------------------
+  package:
+    name: build and package
+    needs: [typescript, core, performance]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run package
+      - name: the packaged extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: meridian-loom-vsix
+          path: dist/*.vsix
+          if-no-files-found: error

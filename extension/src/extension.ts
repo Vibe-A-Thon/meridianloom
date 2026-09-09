@@ -8,13 +8,15 @@ import { normalizeEnabledTiers, TIER_CONTEXT_KEYS } from '../../shared/ts/tiers'
 import { registerCommands } from './commands';
 import { runDoctor } from './doctor';
 import { handleGateHaltNotification } from './governance/gate-halt';
-import {  handleSpendCeilingNotification,
+import {
+  handleSpendCeilingNotification,
   SpendCeilingPauseTracker,
 } from './governance/spend-ceiling';
 import { hostedSessionRegistry } from './governance/session-registry';
-import { resolveInterpreter } from './interpreter';
+import { installCommand, resolveInterpreter } from './interpreter';
 import { resolveCoreDir } from './layout';
 import { RecorderPanel } from './recorder-panel';
+import { RECORDER_VIEW_ID, RecorderViewProvider } from './recorder-view';
 import { SecretStorageUnavailableError, SecretStore } from './secrets';
 import { SidecarStatusBar } from './status';
 import { StdioSidecarClient } from './stdio-client';
@@ -113,6 +115,9 @@ export function activate(context: vscode.ExtensionContext): void {
     humanApprover: createVscodePermissionApprover(),
     policyPaths: context.extensionPath ? [path.join(context.extensionPath, 'policy', 'acp-permissions.yaml'), path.resolve(context.extensionPath, '..', 'policy', 'acp-permissions.yaml')] : [],
     onError: message => void vscode.window.showErrorMessage(message),
+    // Integration credentials go to the OS keychain and nowhere else; the
+    // workspace state file never sees one.
+    secrets: context.secrets,
   });
   context.subscriptions.push(workbench);
   const workspaceListener = vscode.workspace.onDidChangeWorkspaceFolders?.(() => {
@@ -127,8 +132,29 @@ export function activate(context: vscode.ExtensionContext): void {
     return client.request(method, params, signal);
   } });
   context.subscriptions.push(...editorSurfaces.disposables);
+  // The Activity Bar container hosts the workbench itself: selecting
+  // Meridian Loom resolves this view and the interface is there, with no
+  // command in between (the product requirement, and the only VS Code
+  // mechanism that satisfies it).
+  const workbenchViewDeps = {
+    workbench,
+    extensionPath: context.extensionPath,
+    enabledTiers: readEnabledTiers,
+    sidecar: () => supervisor?.currentClient,
+    workspaceDir,
+    onDownload: saveDownload,
+    onError: (message: string) => void vscode.window.showErrorMessage(message),
+  };
+  const workbenchView = new RecorderViewProvider(workbenchViewDeps);
   context.subscriptions.push(
     ...registerViews(),
+    workbenchView,
+    vscode.window.registerWebviewViewProvider(RECORDER_VIEW_ID, workbenchView, {
+      // A side-bar view is hidden on every Activity Bar switch; losing the
+      // workbench each time would be a defect, not a saving. Correctness
+      // still does not depend on it — the webview restores from getState().
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
     RecorderPanel.registerSerializer(context, {
       workbench,
       extensionPath: context.extensionPath,
@@ -254,6 +280,21 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
     // FR-M3-05: the interpreter comes from the resolution chain; the
     // resolved path is shown in the status bar.
     const interpreter = await resolveInterpreter();
+    // A resolved interpreter that cannot import the sidecar's dependencies
+    // will die at spawn with a ModuleNotFoundError buried in stderr. Say what
+    // is wrong and give the exact command, before that happens.
+    if (interpreter.missing.length) {
+      const command = installCommand(interpreter);
+      const choice = await vscode.window.showErrorMessage(
+        `Meridian Loom cannot start: ${interpreter.executable} cannot import ` +
+          `${interpreter.missing.join(', ')}.`,
+        'Copy install command',
+      );
+      if (choice) await vscode.env.clipboard.writeText(command);
+      throw new Error(
+        `Python at ${interpreter.executable} is missing ${interpreter.missing.join(', ')}. Run: ${command}`,
+      );
+    }
     // FR-M10-04/SEC-06: the ledger signing seed lives in the OS keychain
     // (SecretStorage); it is provisioned to the sidecar over the handshake
     // and held in memory there only.

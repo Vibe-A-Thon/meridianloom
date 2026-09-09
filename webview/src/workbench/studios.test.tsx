@@ -23,6 +23,10 @@ const agent: WorkbenchAgent = {
   instructions: 'Explain verification.',
   permissions: ['read'],
   trainable: ['memory'],
+  phases: [],
+  skillIds: [],
+  instructionIds: [],
+  integrationIds: [],
   mode: 'active',
   runtime: 'idle',
   learningState: 'waiting',
@@ -32,6 +36,9 @@ const agent: WorkbenchAgent = {
 function controller(overrides: Partial<WorkbenchSnapshot> = {}) {
   const snapshot: WorkbenchSnapshot = {
     revision: 1,
+    skills: [],
+    instructions: [],
+    integrations: [],
     agents: [agent],
     deliverables: [],
     runs: [],

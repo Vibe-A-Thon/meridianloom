@@ -38,6 +38,7 @@ Zero model calls (FR-M36-07): datetime arithmetic and JSON-shaped dicts.
 from __future__ import annotations
 
 from collections.abc import Callable
+from bisect import bisect_right
 from datetime import datetime, timezone
 from typing import Any, Sequence
 
@@ -92,6 +93,27 @@ _DEFAULT_RESOURCE_ATTRIBUTES = {
     "service.name": "meridian-loom",
     "service.namespace": "trust-metrics",
 }
+
+
+def _ts_cache(rows: list[dict[str, Any]]) -> dict[int, datetime]:
+    """Parse each row's timestamp exactly once, keyed by ledger sequence.
+
+    NFR-33 (D36 continued): AMD-M37 made the greenfield/brownfield split a
+    real computation per bucket, so `_dora_for` now runs four times over the
+    same population — and each run re-parsed every timestamp it touched, in
+    several places. Over a 50k ledger that pushed trust/doraExport from 2.6s
+    to over 7s, past the 5s budget. The parse is the hot cost, and it is
+    pure: do it once here and hand the result down.
+
+    Keyed by sequence rather than memoised onto the row, so nothing is
+    written back into dicts the caller owns.
+    """
+    cache: dict[int, datetime] = {}
+    for row in rows:
+        parsed = _parse_ts(row.get("ts_utc"))
+        if parsed is not None:
+            cache[row["seq"]] = parsed
+    return cache
 
 
 def _parse_ts(ts_utc: str | None) -> datetime | None:
@@ -189,7 +211,8 @@ def compute_dora_metrics(
         if prior is None or ts < prior:
             failed_sequences[rejected_sequence] = ts
 
-    computed = _dora_for(rows, failed_sequences)
+    ts_by_seq = _ts_cache(rows)
+    computed = _dora_for(rows, failed_sequences, ts_by_seq)
     metrics = computed["metrics"]
 
     # AMD-M37 (G6): the split rides the export like every other trust
@@ -211,7 +234,7 @@ def compute_dora_metrics(
         split_rows[kind].append(row)
     split: dict[str, dict[str, Any]] = {}
     for kind, bucket_rows in split_rows.items():
-        bucket = _dora_for(bucket_rows, failed_sequences)
+        bucket = _dora_for(bucket_rows, failed_sequences, ts_by_seq)
         split[kind] = {
             "status": bucket["status"],
             "metrics": bucket["metrics"],
@@ -254,6 +277,7 @@ def compute_dora_metrics(
 def _dora_for(
     rows: list[dict[str, Any]],
     failed_sequences: dict[int, datetime],
+    ts_by_seq: dict[int, datetime],
 ) -> dict[str, Any]:
     """The four DORA keys over ONE population of diff rows (the headline
     population or one greenfield/brownfield split bucket — AMD-M37)."""
@@ -265,7 +289,7 @@ def _dora_for(
     # zero — the range, not the successes, is the denominator's anchor).
     deployment_frequency: dict[str, Any]
     if approved:
-        timestamps = [_parse_ts(row["ts_utc"]) for row in approved]
+        timestamps = [ts_by_seq[row["seq"]] for row in approved]
         mondays = []
         for ts in timestamps:
             day = ts.date()
@@ -310,8 +334,8 @@ def _dora_for(
         ]
         if not story_approved:
             continue
-        first_proposed = min(_parse_ts(row["ts_utc"]) for row in story_rows)
-        first_approved = min(_parse_ts(row["ts_utc"]) for row in story_approved)
+        first_proposed = min(ts_by_seq[row["seq"]] for row in story_rows)
+        first_approved = min(ts_by_seq[row["seq"]] for row in story_approved)
         if first_approved > first_proposed:
             lead_times.append(
                 (first_approved - first_proposed).total_seconds() / 3600
@@ -359,21 +383,23 @@ def _dora_for(
     approved_by_story: dict[str, list[datetime]] = {}
     for row in approved:
         approved_by_story.setdefault(row["story_id"], []).append(
-            _parse_ts(row["ts_utc"])
+            ts_by_seq[row["seq"]]
         )
-    for stamps in approved_by_story.values():
-        stamps.sort()
+    for story_stamps in approved_by_story.values():
+        story_stamps.sort()
     restore_times: list[float] = []
     for row in failures:
         failed_at = failed_sequences[row["seq"]]
-        recovery = [
-            ts
-            for ts in approved_by_story.get(row["story_id"], [])
-            if ts > failed_at
-        ]
-        if recovery:
+        # NFR-33: these stamps are sorted above, and only the FIRST one after
+        # the failure is wanted. Building a filtered list of the whole tail to
+        # take its head cost 5.7s of an 11.7s 50k export — the single largest
+        # cost in the whole computation. bisect finds the same element without
+        # allocating anything.
+        story_stamps = approved_by_story.get(row["story_id"], ())
+        index = bisect_right(story_stamps, failed_at)
+        if index < len(story_stamps):
             restore_times.append(
-                (recovery[0] - failed_at).total_seconds() / 3600
+                (story_stamps[index] - failed_at).total_seconds() / 3600
             )
     restore = _median(restore_times)
     time_to_restore = (

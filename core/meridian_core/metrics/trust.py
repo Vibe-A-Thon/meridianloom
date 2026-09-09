@@ -149,14 +149,6 @@ def compute_rejection_rate(
     # FR-M41-07 (D36): full-history scans over the after_sequence cursor —
     # no 1,000-row cap anywhere; the coverage envelope on the result
     # reports what the figure saw (FR-M41-08).
-    rows, _diff_available = scan_scope(
-        ledger,
-        action_type="diff",
-        story_id=story_id,
-        actor_id=actor_id,
-        from_sequence=from_sequence,
-        to_sequence=to_sequence,
-    )
     all_rows, all_available = scan_scope(
         ledger,
         story_id=story_id,
@@ -164,6 +156,12 @@ def compute_rejection_rate(
         from_sequence=from_sequence,
         to_sequence=to_sequence,
     )
+    # NFR-33: the diff population is this scope plus action_type='diff' —
+    # a strict subset of rows already in hand. It used to be a second full
+    # paged scan of the ledger, and SQLite page reads were the single
+    # largest cost in the metric (3.4s of 5.8s over a 50k history). Its
+    # COUNT was discarded, so nothing is lost by deriving it here.
+    rows = [row for row in all_rows if row.get("action_type") == "diff"]
     if repo_id is not None:
         rows = [row for row in rows if row.get("repo_id") == repo_id]
         all_rows = [row for row in all_rows if row.get("repo_id") == repo_id]

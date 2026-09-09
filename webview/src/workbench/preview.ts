@@ -87,6 +87,9 @@ export function createPreviewTransport(): RpcTransport {
   ];
   let state: WorkbenchSnapshot = {
     revision: 1,
+    skills: [],
+    instructions: [],
+    integrations: [],
     documents: [],
     documentRevisions: [],
     agents: agents.map(([id, name, role, description, mode]) => ({
@@ -103,6 +106,10 @@ export function createPreviewTransport(): RpcTransport {
         "Stay within the requested scope. Explain changes and verification.",
       permissions: ["read", "search", "think"],
       trainable: ["memory"],
+      phases: [],
+      skillIds: [],
+      instructionIds: [],
+      integrationIds: [],
       runtime: "idle",
       learningState: id === "sage" ? "review" : "waiting",
       createdAt: now,

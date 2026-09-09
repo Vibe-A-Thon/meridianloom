@@ -20,7 +20,12 @@ export type IconName =
   | 'stop'
   | 'external'
   | 'spark'
-  | 'layers';
+  | 'layers'
+  | 'skills'
+  | 'instructions'
+  | 'phases'
+  | 'governance'
+  | 'connectors';
 const paths: Record<IconName, string> = {
   overview: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
   delivery: 'M4 4h16v16H4z M4 9h16 M9 9v11 M15 9v11',
@@ -45,6 +50,17 @@ const paths: Record<IconName, string> = {
   external: 'M14 3h7v7 M21 3 10 14 M10 3H3v18h18v-7',
   spark: 'M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z',
   layers: 'M2 7l10-5 10 5-10 5z M2 12l10 5 10-5 M2 17l10 5 10-5',
+  // A loom shuttle: a skill is what a role agent is threaded with.
+  skills: 'M3 12h18 M6 9l-3 3 3 3 M18 9l3 3-3 3 M9 5l6 14',
+  // A page with a turned corner and rules: instruction files.
+  instructions: 'M6 3h9l3 3v15H6z M15 3v4h3 M9 11h7 M9 15h7 M9 19h4',
+  // Nine phases as a segmented track with a gate marker.
+  phases: 'M3 12h4 M9 12h4 M15 12h6 M7 9v6 M13 9v6 M19 8v8',
+  // A shield over a check: the gate that governs.
+  governance: 'M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z M9 12l2 2 4-4',
+  // Two halves of a coupling meeting in the middle: an external system joined.
+  connectors:
+    'M9 7H6a5 5 0 0 0 0 10h3 M15 7h3a5 5 0 0 1 0 10h-3 M8 12h8',
 };
 export function Icon({
   name,

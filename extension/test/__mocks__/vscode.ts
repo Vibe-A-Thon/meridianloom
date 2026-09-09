@@ -106,6 +106,7 @@ type ProgressTask = (
 export const __registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
 export const __executedCommands: Array<{ command: string; args: unknown[] }> = [];
 export const __registeredTreeProviders = new Map<string, unknown>();
+export const __registeredWebviewViewProviders = new Map<string, unknown>();
 export const __shownErrors: string[] = [];
 export const __shownWarnings: string[] = [];
 export const __shownInfos: string[] = [];
@@ -225,6 +226,7 @@ export function __reset(): void {
   __registeredCommands.clear();
   __executedCommands.length = 0;
   __registeredTreeProviders.clear();
+  __registeredWebviewViewProviders.clear();
   __shownErrors.length = 0;
   __shownWarnings.length = 0;
   __shownInfos.length = 0;
@@ -299,6 +301,22 @@ export const window = {
     }
     __createdWebviewPanels.push(panel);
     return panel;
+  },
+
+  /**
+   * The Activity Bar surface: a webview-typed view resolved on container
+   * reveal. The mock records the provider so activation can assert that
+   * selecting the plugin opens the workbench with no command in between.
+   */
+  registerWebviewViewProvider(
+    viewId: string,
+    provider: unknown,
+    _options?: { webviewOptions?: { retainContextWhenHidden?: boolean } },
+  ): Disposable {
+    __registeredWebviewViewProviders.set(viewId, provider);
+    return new Disposable(() => {
+      __registeredWebviewViewProviders.delete(viewId);
+    });
   },
 
   registerWebviewPanelSerializer(

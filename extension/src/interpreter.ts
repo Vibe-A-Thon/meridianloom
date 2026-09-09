@@ -33,11 +33,24 @@ export interface InterpreterResolution {
   executable: string;
   source: InterpreterSource;
   version: [number, number, number];
+  /**
+   * Required modules this interpreter cannot import. A resolution with a
+   * non-empty list is a usable *interpreter* and an unusable *runtime*; the
+   * caller must say so rather than reporting a pass.
+   */
+  missing: string[];
+}
+
+/** The command that fixes a missing-dependency resolution, in full. */
+export function installCommand(resolution: InterpreterResolution): string {
+  return `"${resolution.executable}" -m pip install ${resolution.missing.join(' ')}`;
 }
 
 export interface ProbeResult {
   executable: string;
   version: [number, number, number];
+  /** Required modules this interpreter cannot import. */
+  missing?: string[];
 }
 
 export type Probe = (command: string) => Promise<ProbeResult>;
@@ -54,8 +67,22 @@ export class InterpreterResolutionError extends Error {
   }
 }
 
+/**
+ * The runtime imports the sidecar cannot start without. Checked here, in the
+ * same probe as the version, because a machine with Python 3.12 and no
+ * `cryptography` used to pass every check and then die at startup with a
+ * ModuleNotFoundError — a diagnosis that says "pass" while the product does
+ * not work is worse than no diagnosis.
+ */
+export const REQUIRED_MODULES = ['cryptography'] as const;
+
 const VERSION_PROBE_SNIPPET =
-  'import sys, json; print(json.dumps({"executable": sys.executable, "version": list(sys.version_info[:3])}))';
+  'import sys, json, importlib.util as u; ' +
+  'print(json.dumps({"executable": sys.executable, ' +
+  '"version": list(sys.version_info[:3]), ' +
+  '"missing": [m for m in ' +
+  JSON.stringify([...REQUIRED_MODULES]) +
+  ' if u.find_spec(m) is None]}))';
 
 /** Default probe: spawn the candidate, parse its self-reported version. */
 export const spawnProbe: Probe = async (command) => {
@@ -66,6 +93,7 @@ export const spawnProbe: Probe = async (command) => {
   const parsed = JSON.parse(stdout.trim()) as {
     executable: string;
     version: [number, number, number];
+    missing?: string[];
   };
   return parsed;
 };
@@ -190,6 +218,10 @@ export async function resolveInterpreter(
         executable: probed.executable,
         source: candidate.source,
         version: probed.version,
+        // An interpreter that cannot import the sidecar's dependencies is
+        // still the interpreter we resolved; the caller reports the gap
+        // rather than the resolver silently rejecting a usable Python.
+        missing: probed.missing ?? [],
       };
     } catch (error) {
       attempts.push(`${candidate.describe}: ${(error as Error).message}`);

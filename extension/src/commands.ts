@@ -158,16 +158,34 @@ async function runDoctorCommand(deps: CommandDeps): Promise<void> {
     }
     doctorChannel.appendLine('');
     doctorChannel.show();
-    if (report.status === 'fail') {
-      await vscode.window.showErrorMessage(
-        'Meridian doctor found failing checks — details in the "Meridian Loom Doctor" output channel.',
+
+    // A user hitting a bug in the field needs one thing to send back. The
+    // output channel is readable but has to be selected and copied by hand,
+    // and it carries none of the environment that makes a report diagnosable
+    // — version, platform, tiers. This produces the whole thing in one
+    // action, and says what is in it before it goes on the clipboard.
+    const COPY = 'Copy diagnostics';
+    const summary =
+      report.status === 'fail'
+        ? 'Meridian doctor found failing checks — details in the "Meridian Loom Doctor" output channel.'
+        : report.status === 'warn'
+          ? 'Meridian doctor passed with warnings — details in the "Meridian Loom Doctor" output channel.'
+          : 'Meridian doctor: all checks passed.';
+    const choice =
+      report.status === 'fail'
+        ? await vscode.window.showErrorMessage(summary, COPY)
+        : report.status === 'warn'
+          ? await vscode.window.showWarningMessage(summary, COPY)
+          : await vscode.window.showInformationMessage(summary, COPY);
+    if (choice === COPY) {
+      await vscode.env.clipboard.writeText(
+        buildDiagnostics(report, deps),
       );
-    } else if (report.status === 'warn') {
-      await vscode.window.showWarningMessage(
-        'Meridian doctor passed with warnings — details in the "Meridian Loom Doctor" output channel.',
+      await vscode.window.showInformationMessage(
+        'Diagnostics copied. It contains the doctor report, your VS Code and ' +
+          'platform versions, and the enabled tiers — no credentials, no ' +
+          'ledger contents, and no workspace path.',
       );
-    } else {
-      await vscode.window.showInformationMessage('Meridian doctor: all checks passed.');
     }
   } catch (error) {
     doctorChannel.appendLine(
@@ -178,6 +196,42 @@ async function runDoctorCommand(deps: CommandDeps): Promise<void> {
       'Meridian doctor failed to run — details in the "Meridian Loom Doctor" output channel.',
     );
   }
+}
+
+/**
+ * The paste-ready support report.
+ *
+ * Deliberately narrow: the doctor's own findings plus the environment facts
+ * that change how a failure reproduces. It carries no credential, no ledger
+ * content and no workspace path — a support report that leaks the thing the
+ * product promises to protect would be a poor trade for a faster fix.
+ */
+function buildDiagnostics(
+  report: { status: string; checks: readonly { id: string; status: string; detail: string; remediation?: string }[] },
+  deps: CommandDeps,
+): string {
+  const extension = vscode.extensions.getExtension('meridianloom.meridian-loom');
+  const lines = [
+    '### Meridian Loom diagnostics',
+    '',
+    `- generated: ${new Date().toISOString()}`,
+    `- extension: ${String(extension?.packageJSON?.version ?? 'unknown')}`,
+    `- vscode: ${vscode.version}`,
+    `- platform: ${process.platform} ${process.arch}`,
+    `- node: ${process.versions.node}`,
+    `- tiers: ${(deps.enabledTiers?.() ?? []).join(', ') || 'none reported'}`,
+    `- workspace open: ${Boolean(vscode.workspace.workspaceFolders?.length)}`,
+    `- workspace trusted: ${vscode.workspace.isTrusted}`,
+    '',
+    `### Doctor — ${report.status}`,
+    '',
+    ...report.checks.map(
+      (check) =>
+        `- **${check.id}**: ${check.status} — ${check.detail}` +
+        (check.remediation ? ` _(${check.remediation})_` : ''),
+    ),
+  ];
+  return lines.join('\n');
 }
 
 // -- meridian.installHook (FR-M36-03, D23; F0 Workstream E task 23b) ----------

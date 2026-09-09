@@ -178,7 +178,25 @@ describe('X-28: Loom Bar is registry-generated, tier-filtered, nothing upper lea
 
     const bar = screen.getByRole('navigation', { name: 'Workspace navigation' });
     const tabs = Array.from(bar.querySelectorAll('button')).map((b) => b.getAttribute('aria-label'));
-    expect(tabs).toEqual(['Overview', 'Deliverables', 'Agent studio', 'Learning dojo', 'Evidence', 'Runtime', 'Workspace guide', 'Settings']);
+    // The tab bar is generated from WORKBENCH_TABS and filtered by tier:
+    // with only flight-recorder enabled, Governance is absent from the row
+    // rather than present and disabled (banned 30).
+    expect(tabs).toEqual([
+      'Dashboard',
+      'Deliverables',
+      'Runs',
+      'Agents',
+      'Skills',
+      'Instructions',
+      'SDLC phases',
+      'Learning',
+      'Integrations',
+      'Portfolio',
+      'Modeling',
+      'Evidence',
+      'Runtime',
+      'Settings',
+    ]);
     expect(bar).not.toHaveTextContent('Governor');
     expect(bar).not.toHaveTextContent('Orchestra');
     client.dispose();

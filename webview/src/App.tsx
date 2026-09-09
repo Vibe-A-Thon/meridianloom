@@ -3,6 +3,7 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -30,8 +31,6 @@ import {
   type Density,
   type ThemeName,
 } from "./theme/themes";
-import { Home } from "./workbench/Home";
-import { AgentStudio } from "./workbench/AgentStudio";
 import { LearningStudio } from "./workbench/LearningStudio";
 import { DeliveryStudio } from "./workbench/DeliveryStudio";
 import { EvidenceStudio } from "./workbench/EvidenceStudio";
@@ -39,10 +38,46 @@ import { RuntimeStudio } from "./workbench/RuntimeStudio";
 import { SettingsStudio } from "./workbench/SettingsStudio";
 import { GuideStudio } from "./workbench/GuideStudio";
 import { useWorkbench } from "./workbench/useWorkbench";
-import { WORKBENCH_ROUTES, routeLabel } from "./workbench/routes";
+import { routeLabel } from "./workbench/routes";
+import {
+  WORKBENCH_TABS,
+  isKnownView,
+  isTabUnlocked,
+  normaliseView,
+  tabForView,
+  type WorkbenchTab,
+} from "./workbench/tabs";
 import { Dialog } from "./workbench/Dialog";
 import { Icon } from "./workbench/Icon";
-import s from "./workbench/workbench.module.css";
+import { Dashboard } from "./workbench/catalogue/Dashboard";
+import { AgentsTab } from "./workbench/catalogue/AgentsTab";
+import { SkillsTab } from "./workbench/catalogue/SkillsTab";
+import { InstructionsTab } from "./workbench/catalogue/InstructionsTab";
+import { PhasesTab } from "./workbench/catalogue/PhasesTab";
+import { RunsTab } from "./workbench/catalogue/RunsTab";
+import { IntegrationsTab } from "./workbench/catalogue/IntegrationsTab";
+import s from "./workbench/shell.module.css";
+import w from "./workbench/workbench.module.css";
+
+/**
+ * The Meridian Loom workbench: one page, one row of tabs.
+ *
+ * The product requirement this shell exists to satisfy is that selecting
+ * Meridian Loom in the Activity Bar *is* opening the product. There is no
+ * command to run, no palette entry to find, and no second window: the view
+ * resolves, this shell mounts, and the Dashboard is on screen. Everything the
+ * plugin can do is then a tab away, and everything a tab can do is a
+ * sub-view away.
+ *
+ * The shell owns exactly three things — which view is showing, the chrome
+ * around it, and the two dialogs that are genuinely global (command search
+ * and activity). Every surface below it is an independent component that
+ * receives the controller and navigates by view id, so a studio never needs
+ * to know it lives in a tab.
+ *
+ * Tier gating is subtractive, per X-28: a tab whose tier is not enabled is
+ * absent from the bar rather than present and disabled.
+ */
 
 const AgentOperations = lazy(() =>
   import("./workbench/operations/AgentOperations").then((m) => ({
@@ -69,20 +104,22 @@ const OrganizationStudio = lazy(() =>
     default: m.OrganizationStudio,
   })),
 );
-const AGENT_VIEWS = ["floor", "watch", "inspector", "onboarding", "adapters"];
-const WORKSPACE_VIEWS = [
+
+/** Which component renders a given view. Kept flat and explicit on purpose. */
+const AGENT_OPERATIONS = ["floor", "watch", "inspector", "onboarding", "adapters"];
+const WORKSPACE_OPERATIONS = [
   "launch",
   "steer",
+  "weave",
+  "decisions",
+  "kpi",
   "notifications",
   "editor",
-  "kpi",
-  "decisions",
-  "weave",
-  "configuration",
   "unlock",
+  "configuration",
   "shortcuts",
 ];
-const GOVERNANCE_VIEWS = [
+const GOVERNANCE = [
   "gates",
   "approvals",
   "verification",
@@ -92,28 +129,33 @@ const GOVERNANCE_VIEWS = [
   "trust",
   "calibration",
   "spend",
+  "trust-score",
+  "rejection-reasons",
+  "agent-comparison",
+  "jcurve",
+  "tokenmaxxing",
+  "dora",
 ];
-const MODELING_VIEWS = [
+const MODELING = [
   "codemap",
-  "loops",
   "architecture",
   "uml",
   "flows",
+  "loops",
   "diff",
   "replay",
   "comprehension",
 ];
-const ORGANIZATION_VIEWS = [
-  "stories",
+const ORGANIZATION = [
   "portfolio",
+  "stories",
   "specifications",
-  "skills",
-  "instructions",
   "connectors",
   "routing",
   "exchange",
   "reports",
 ];
+const EVIDENCE = ["evidence", "flight-recorder", "external-agents", "ledger"];
 
 function useUiTheme() {
   const api = getVsCodeApi();
@@ -166,18 +208,19 @@ export function App({
   const [protocolError, setProtocolError] = useState<RpcProtocolError>();
   const [sessionEpoch, setSessionEpoch] = useState(0);
   const api = getVsCodeApi();
-  const [route, setRoute] = useState(() =>
-    String(readUiState(api)?.view?.screen ?? "overview"),
-  );
+  const [route, setRoute] = useState(() => {
+    const saved = String(readUiState(api)?.view?.screen ?? "dashboard");
+    return isKnownView(saved) ? saved : "dashboard";
+  });
   const [focused, setFocused] = useState(
     () => readUiState(api)?.view?.focused === true,
   );
-  const [mobileMenu, setMobileMenu] = useState(false);
   const [palette, setPalette] = useState(false);
   const [activity, setActivity] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [stopError, setStopError] = useState<string>();
   const mainRef = useRef<HTMLElement>(null);
+
   useEffect(() => {
     const unsubscribe = client.addListener((message) => {
       if (message.type === "init") {
@@ -207,6 +250,7 @@ export function App({
     client.notify({ type: "ready", protocolVersion: client.protocolVersion });
     return unsubscribe;
   }, [client]);
+
   const ready = Boolean(init) && !protocolError;
   const controller = useWorkbench(client, ready);
   const sessions = useObserveSessions(
@@ -221,13 +265,20 @@ export function App({
     true,
   );
   useInterval(() => ledgerTip.refresh(), ready ? 4000 : null);
+
+  const enabledTiers = useMemo(() => init?.enabledTiers ?? [], [init]);
+  const tabs = useMemo(
+    () => WORKBENCH_TABS.filter((tab) => isTabUnlocked(tab, enabledTiers)),
+    [enabledTiers],
+  );
+
   const navigate = (id: string) => {
-    setRoute(id);
-    setMobileMenu(false);
+    setRoute(isKnownView(id) ? id : "dashboard");
     setPalette(false);
     mainRef.current?.focus({ preventScroll: true });
-    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+    if (mainRef.current) mainRef.current.scrollTop = 0;
   };
+
   useEffect(() => {
     writeUiState(api, {
       theme: appearance.theme,
@@ -235,6 +286,7 @@ export function App({
       view: { ...readUiState(api)?.view, screen: route, focused },
     });
   }, [api, route, focused, appearance.theme, appearance.density]);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
@@ -249,20 +301,12 @@ export function App({
         event.preventDefault();
         setFocused((value) => !value);
       }
-      if (event.key === "Escape") setMobileMenu(false);
+      if (event.key === "Escape") setPalette(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  const workspaceName =
-    init?.workspaceDir?.split(/[\\/]/).filter(Boolean).at(-1) ?? "No workspace";
-  const screenProps = {
-    client,
-    ready,
-    sessions,
-    workspaceDir: init?.workspaceDir,
-    enabledTiers: init?.enabledTiers ?? [],
-  };
+
   const data = controller.snapshot;
   const running =
     data?.runs.filter(
@@ -270,306 +314,287 @@ export function App({
     ) ?? [];
   const pending =
     data?.learning.filter((note) => note.state === "pending").length ?? 0;
-  const [routeBase, routeSelection] = route.split("/");
-  const knownRoute = WORKBENCH_ROUTES.some((item) => item.id === routeBase)
-    ? routeBase
-    : "overview";
-  const navigationRoute = [
-    "flight-recorder",
-    "external-agents",
-    "ledger",
-  ].includes(knownRoute)
-    ? "evidence"
-    : knownRoute;
+
+  const view = normaliseView(route);
+  const selection = route.split("/")[1];
+  const activeTab = tabForView(view);
+  // A view whose tab was tier-filtered away must not leave the bar with
+  // nothing marked current; fall back to the Dashboard's tab in that case.
+  const currentTabId = tabs.some((tab) => tab.id === activeTab.id)
+    ? activeTab.id
+    : tabs[0]?.id;
+  const workspaceName =
+    init?.workspaceDir?.split(/[\\/]/).filter(Boolean).at(-1) ?? "No workspace";
+
   if (protocolError) return <ErrorState error={protocolError} />;
+
+  const screenProps = {
+    client,
+    ready,
+    sessions,
+    workspaceDir: init?.workspaceDir,
+    enabledTiers,
+  };
   const studioProps = {
     ...screenProps,
     controller,
-    view: knownRoute,
+    view,
     onNavigate: navigate,
   };
-  const body =
-    knownRoute === "agents" ? (
-      <AgentStudio
+
+  const body = AGENT_OPERATIONS.includes(view) ? (
+    <AgentOperations {...studioProps} />
+  ) : WORKSPACE_OPERATIONS.includes(view) ? (
+    <WorkspaceOperations {...studioProps} />
+  ) : GOVERNANCE.includes(view) ? (
+    <GovernanceStudio {...studioProps} />
+  ) : MODELING.includes(view) ? (
+    <ModelingStudio {...studioProps} />
+  ) : ORGANIZATION.includes(view) ? (
+    <OrganizationStudio {...studioProps} />
+  ) : EVIDENCE.includes(view) ? (
+    <EvidenceStudio
+      {...screenProps}
+      initialTab={
+        view === "ledger"
+          ? "ledger"
+          : view === "external-agents"
+            ? "sessions"
+            : "recorder"
+      }
+    />
+  ) : view === "agents" ? (
+    <AgentsTab controller={controller} client={client} />
+  ) : view === "skills" ? (
+    <SkillsTab controller={controller} client={client} />
+  ) : view === "instructions" ? (
+    <InstructionsTab controller={controller} client={client} />
+  ) : view === "phases" ? (
+    <PhasesTab controller={controller} />
+  ) : view === "runs" ? (
+    <RunsTab controller={controller} onNavigate={navigate} />
+  ) : view === "integrations" ? (
+    <IntegrationsTab controller={controller} />
+  ) : ["learning", "memory"].includes(view) ? (
+    <LearningStudio controller={controller} onNavigate={navigate} />
+  ) : ["deliverables", "packets"].includes(view) ? (
+    <DeliveryStudio
+      controller={controller}
+      onNavigate={navigate}
+      initialSelection={selection}
+    />
+  ) : view === "runtime" ? (
+    <RuntimeStudio {...screenProps} controller={controller} />
+  ) : view === "guide" ? (
+    <GuideStudio onNavigate={navigate} />
+  ) : view === "setup" ? (
+    <FirstRunScreen {...screenProps} ledgerTip={ledgerTip} />
+  ) : ["settings", "focus"].includes(view) ? (
+    <>
+      {view === "focus" && (
+        <section className={w.panel}>
+          <h1>A little more room to think.</h1>
+          <p>
+            Hide the chrome and keep the current task in view. The tab bar and
+            command search remain available.
+          </p>
+          <button
+            className={w.secondary}
+            aria-pressed={focused}
+            onClick={() => setFocused((value) => !value)}
+          >
+            {focused ? "Leave focus mode" : "Enter focus mode"}
+          </button>
+        </section>
+      )}
+      <SettingsStudio
+        {...appearance}
         controller={controller}
-        onNavigate={navigate}
-        initialSelection={routeSelection}
-      />
-    ) : ["learning", "memory"].includes(knownRoute) ? (
-      <LearningStudio controller={controller} onNavigate={navigate} />
-    ) : ["deliverables", "packets"].includes(knownRoute) ? (
-      <DeliveryStudio
-        controller={controller}
-        onNavigate={navigate}
-        initialSelection={routeSelection}
-      />
-    ) : AGENT_VIEWS.includes(knownRoute) ? (
-      <AgentOperations {...studioProps} />
-    ) : WORKSPACE_VIEWS.includes(knownRoute) ? (
-      <WorkspaceOperations {...studioProps} />
-    ) : GOVERNANCE_VIEWS.includes(knownRoute) ? (
-      <GovernanceStudio {...studioProps} />
-    ) : MODELING_VIEWS.includes(knownRoute) ? (
-      <ModelingStudio {...studioProps} />
-    ) : ORGANIZATION_VIEWS.includes(knownRoute) ? (
-      <OrganizationStudio {...studioProps} />
-    ) : navigationRoute === "evidence" ? (
-      <EvidenceStudio
-        {...screenProps}
-        initialTab={
-          knownRoute === "ledger"
-            ? "ledger"
-            : knownRoute === "external-agents"
-              ? "sessions"
-              : "recorder"
+        workspaceDir={init?.workspaceDir}
+        openSettings={() =>
+          client.notify({ type: "host/action", action: "open-settings" })
         }
       />
-    ) : knownRoute === "runtime" ? (
-      <RuntimeStudio {...screenProps} controller={controller} />
-    ) : ["settings", "focus"].includes(knownRoute) ? (
-      <>
-        {knownRoute === "focus" && (
-          <section className={s.panel}>
-            <h1>A little more room to think.</h1>
-            <p>
-              Hide the sidebar and keep the current task in view. The toolbar
-              and command search remain available.
-            </p>
-            <button
-              className={s.secondary}
-              aria-pressed={focused}
-              onClick={() => setFocused((value) => !value)}
-            >
-              {focused ? "Leave focus mode" : "Enter focus mode"}
-            </button>
-          </section>
-        )}
-        <SettingsStudio
-          {...appearance}
-          controller={controller}
-          workspaceDir={init?.workspaceDir}
-          openSettings={() =>
-            client.notify({ type: "host/action", action: "open-settings" })
-          }
-        />
-      </>
-    ) : knownRoute === "guide" ? (
-      <GuideStudio onNavigate={navigate} />
-    ) : knownRoute === "setup" ? (
-      <FirstRunScreen {...screenProps} ledgerTip={ledgerTip} />
-    ) : (
-      <Home controller={controller} sessions={sessions} onNavigate={navigate} />
-    );
+    </>
+  ) : (
+    <Dashboard
+      snapshot={data}
+      error={controller.error}
+      enabledTiers={enabledTiers}
+      sessions={sessions}
+      onNavigate={navigate}
+    />
+  );
+
   return (
-    <div className={`${s.shell} ${focused ? s.focused : ""}`}>
+    <div className={s.shell}>
       <a className={s.skip} href="#workspace-content">
         Skip to workspace
       </a>
-      <aside
-        className={s.sidebar}
-        data-open={mobileMenu}
-        aria-label="Workspace sidebar"
-      >
+
+      <header className={s.masthead}>
         <div className={s.brand}>
-          <svg
-            className={s.brandMark}
-            viewBox="0 0 32 34"
-            fill="none"
-            aria-hidden="true"
-          >
+          <svg className={s.brandMark} viewBox="0 0 32 34" fill="none" aria-hidden="true">
             <path
               d="M4 28V6l8 9 8-9v22 M12 15v13 M28 6v22 M4 22h24"
               stroke="currentColor"
               strokeWidth="2"
             />
           </svg>
-          <div>
-            meridian loom<small>WEAVE WHAT’S NEXT</small>
+          <div className={s.brandText}>
+            <strong>meridian loom</strong>
+            <small title={init?.workspaceDir}>{workspaceName}</small>
           </div>
         </div>
-        <button
-          className={s.workspacePicker}
-          onClick={() => navigate("settings")}
-        >
-          <Icon name="layers" size={19} />
-          <span>
-            <strong>{workspaceName}</strong>
-            <small>Local workspace</small>
+        <div className={s.mastheadActions}>
+          <button
+            className={s.searchButton}
+            onClick={() => setPalette(true)}
+            aria-label="Search workspace and commands"
+          >
+            <Icon name="search" size={14} />
+            <span>Search anything…</span>
+            <kbd>⌘K</kbd>
+          </button>
+          <button
+            className={s.iconButton}
+            aria-label="Toggle focus mode"
+            aria-pressed={focused}
+            onClick={() => setFocused((value) => !value)}
+          >
+            <Icon name="focus" size={16} />
+          </button>
+          <button
+            className={`${s.iconButton} ${s.bell}`}
+            aria-label="Open activity"
+            onClick={() => setActivity(true)}
+          >
+            <Icon name="bell" size={16} />
+            {Boolean(pending || running.length) && (
+              <span className={s.notificationDot} />
+            )}
+          </button>
+          <span className={s.status} data-testid="crown-indicator">
+            <span
+              className={`${s.dot} ${
+                !ready
+                  ? s.dotWaiting
+                  : sessions.status === "error"
+                    ? s.dotError
+                    : ""
+              }`}
+            />
+            {!ready
+              ? "Connecting to host"
+              : sessions.status === "error"
+                ? "Observer unavailable"
+                : sessions.status === "ready" && sessions.data.sessions.length
+                  ? `${sessions.data.sessions.length} sessions observed`
+                  : "Watching for agent sessions"}
           </span>
-          <Icon name="chevron" size={12} />
-        </button>
-        <nav aria-label="Workspace navigation">
-          {(["Workspace", "Intelligence", "System"] as const).map((group) => (
-            <div className={s.navGroup} key={group}>
-              <p>{group}</p>
-              {WORKBENCH_ROUTES.filter(
-                (item) => item.group === group && item.pinned !== false,
-              ).map((item) => (
-                <button
-                  key={item.id}
-                  className={s.navButton}
-                  title={item.label}
-                  aria-label={item.label}
-                  aria-current={
-                    navigationRoute === item.id ? "page" : undefined
-                  }
-                  onClick={() => navigate(item.id)}
-                >
-                  <Icon name={item.icon} size={17} />
-                  <span>{item.label}</span>
-                  {item.id === "agents" && Boolean(data?.agents.length) && (
-                    <span className={s.navCount}>{data?.agents.length}</span>
-                  )}
-                  {item.id === "learning" && pending > 0 && (
-                    <span className={s.navCount}>{pending}</span>
-                  )}
-                </button>
-              ))}
-            </div>
+        </div>
+      </header>
+
+      <nav className={s.tabs} aria-label="Workspace navigation">
+        {tabs.map((tab, index) => (
+          <button
+            key={tab.id}
+            className={`${s.tab} ${
+              index > 0 && tabs[index - 1].group !== tab.group ? s.groupEdge : ""
+            }`}
+            aria-label={tab.label}
+            aria-current={currentTabId === tab.id ? "page" : undefined}
+            title={tab.blurb}
+            onClick={() => navigate(tab.views[0])}
+          >
+            <Icon name={tab.icon} size={16} />
+            <span>{tab.label}</span>
+            <TabBadge
+              tab={tab}
+              agents={data?.agents.length ?? 0}
+              pending={pending}
+              running={running.length}
+            />
+          </button>
+        ))}
+      </nav>
+
+      {activeTab.views.length > 1 && currentTabId === activeTab.id && (
+        <nav className={s.subtabs} aria-label={`${activeTab.label} views`}>
+          {activeTab.views.map((id) => (
+            <button
+              key={id}
+              className={s.subtab}
+              aria-current={view === id ? "page" : undefined}
+              onClick={() => navigate(id)}
+            >
+              {subViewLabel(id)}
+            </button>
           ))}
         </nav>
-        <div className={s.sidebarBottom}>
-          <div className={s.localNote}>
-            <span>
-              <Icon name="check" size={12} /> Your workspace. Your control.
-            </span>
-            <p>
-              Portable agents.
-              <br />
-              Reviewable learning.
-              <br />
-              Evidence you can take with you.
-            </p>
-          </div>
-          <div className={s.profile}>
-            <span>ML</span>
-            <div>
-              <strong>Meridian workbench</strong>
-              <small>Local extension · v0.0.1</small>
-            </div>
-          </div>
+      )}
+
+      {preview && (
+        <div className={`${s.banner} ${s.bannerPreview}`} role="note">
+          Preview workspace · sample data · changes stay in this tab · no agents
+          are executed
         </div>
-      </aside>
-      <div className={s.workspace}>
-        <header className={s.topbar}>
-          <div className={s.breadcrumb}>
-            <button
-              className={`${s.iconButton} ${s.mobileMenu}`}
-              aria-label="Toggle navigation"
-              aria-expanded={mobileMenu}
-              onClick={() => setMobileMenu((value) => !value)}
-            >
-              <Icon name="menu" size={17} />
-            </button>
-            <span>Workspace</span>
-            <Icon name="chevron" size={11} />
-            <strong>{routeLabel(knownRoute)}</strong>
-          </div>
-          <div className={s.topActions}>
-            <button
-              className={s.searchButton}
-              onClick={() => setPalette(true)}
-              aria-label="Search workspace and commands"
-            >
-              <Icon name="search" size={14} />
-              <span>Search anything…</span>
-              <kbd>⌘ K</kbd>
-            </button>
-            <button
-              className={s.iconButton}
-              aria-label="Toggle focus mode"
-              aria-pressed={focused}
-              onClick={() => setFocused((value) => !value)}
-            >
-              <Icon name="focus" size={17} />
-            </button>
-            <button
-              className={s.iconButton}
-              aria-label="Open activity"
-              onClick={() => setActivity(true)}
-            >
-              <Icon name="bell" size={17} />
-              {Boolean(pending || running.length) && (
-                <span className={s.notificationDot} />
-              )}
-            </button>
-            <span className={s.connection} data-testid="crown-indicator">
-              <span className={s.dot} />
-              {!ready
-                ? "Connecting to host"
-                : sessions.status === "error"
-                  ? "Observer unavailable"
-                  : sessions.status === "ready" && sessions.data.sessions.length
-                    ? `${sessions.data.sessions.length} sessions observed`
-                    : "Watching for agent sessions"}
-            </span>
-          </div>
-        </header>
-        {preview && (
-          <div className={`${s.banner} ${s.preview}`} role="note">
-            PREVIEW WORKSPACE · Sample data · Changes stay in this tab · No
-            agents are executed
-          </div>
-        )}
-        {controller.error && (
-          <div className={s.banner} role="alert">
-            <span>{controller.error}</span>
-            <button
-              className={s.textButton}
-              onClick={() => void controller.refresh()}
-            >
-              Reconnect
-            </button>
-          </div>
-        )}
-        {!init?.workspaceDir && ready && (
-          <div className={s.banner}>
-            <span>
-              Open a workspace folder in VS Code to save agents and
-              deliverables.
-            </span>
-            <button
-              className={s.textButton}
-              onClick={() =>
-                client.notify({ type: "host/action", action: "open-folder" })
-              }
-            >
-              Open folder
-            </button>
-          </div>
-        )}
-        <main
-          id="workspace-content"
-          ref={mainRef}
-          tabIndex={-1}
-          className={s.main}
-        >
-          {!data && !controller.error && (
-            <LoadingState label="Connecting to your workspace…" />
-          )}
-          <ScreenBoundary key={route} onReset={() => navigate("overview")}>
-            <Suspense
-              fallback={<LoadingState label="Opening workspace view…" />}
-            >
-              {body}
-            </Suspense>
-          </ScreenBoundary>
-        </main>
-        <footer className={s.footer}>
-          <span>MERIDIAN LOOM / INDEPENDENT BY DESIGN</span>
+      )}
+      {controller.error && (
+        <div className={`${s.banner} ${s.bannerError}`} role="alert">
+          <span>{controller.error}</span>
+          <button
+            className={s.linkButton}
+            onClick={() => void controller.refresh()}
+          >
+            Reconnect
+          </button>
+        </div>
+      )}
+      {!init?.workspaceDir && ready && (
+        <div className={s.banner}>
           <span>
-            {data
-              ? `${data.agents.filter((agent) => agent.mode === "active").length} ACTIVE · ${data.agents.filter((agent) => agent.mode === "learning").length} LEARNING`
-              : "WAITING FOR WORKSPACE"}{" "}
-            ·{" "}
-            <button className={s.textButton} onClick={() => navigate("setup")}>
-              Guided setup
-            </button>
+            Open a workspace folder in VS Code to save agents, skills and
+            deliverables.
           </span>
-        </footer>
-      </div>
+          <button
+            className={s.linkButton}
+            onClick={() =>
+              client.notify({ type: "host/action", action: "open-folder" })
+            }
+          >
+            Open folder
+          </button>
+        </div>
+      )}
+
+      <main id="workspace-content" ref={mainRef} tabIndex={-1} className={s.main}>
+        {!data && !controller.error && (
+          <LoadingState label="Connecting to your workspace…" />
+        )}
+        <ScreenBoundary key={route} onReset={() => navigate("dashboard")}>
+          <Suspense fallback={<LoadingState label="Opening workspace view…" />}>
+            {body}
+          </Suspense>
+        </ScreenBoundary>
+      </main>
+
+      <footer className={s.footer}>
+        <span>Meridian Loom · independent by design</span>
+        <span>
+          {data
+            ? `${data.agents.filter((agent) => agent.mode === "active").length} active · ${data.agents.filter((agent) => agent.mode === "learning").length} learning`
+            : "Waiting for workspace"}{" "}
+          ·{" "}
+          <button className={s.linkButton} onClick={() => navigate("setup")}>
+            Guided setup
+          </button>
+        </span>
+      </footer>
+
       {palette && (
         <CommandPalette
+          tabs={tabs}
           onNavigate={navigate}
           onClose={() => setPalette(false)}
           agents={
@@ -581,6 +606,7 @@ export function App({
           }
         />
       )}
+
       {activity && (
         <Dialog
           title="Your workspace activity"
@@ -589,13 +615,13 @@ export function App({
           onClose={() => setActivity(false)}
         >
           {pending > 0 && (
-            <div className={s.settingRow}>
+            <div className={w.settingRow}>
               <div>
                 <h3>{pending} learning notes need your review</h3>
                 <p>Decide which lessons belong in your agents’ memory.</p>
               </div>
               <button
-                className={s.secondary}
+                className={w.secondary}
                 onClick={() => {
                   setActivity(false);
                   navigate("learning");
@@ -606,13 +632,13 @@ export function App({
             </div>
           )}
           {running.length > 0 && (
-            <div className={s.settingRow}>
+            <div className={w.settingRow}>
               <div>
                 <h3>{running.length} queued or running tasks</h3>
                 <p>Stopping affects only tasks launched by this workbench.</p>
               </div>
               <button
-                className={s.secondary}
+                className={w.secondary}
                 disabled={stopping}
                 onClick={async () => {
                   setStopping(true);
@@ -637,7 +663,7 @@ export function App({
               .reverse()
               .slice(0, 30)
               .map((run) => (
-                <div className={s.checkRow} key={run.id}>
+                <div className={w.checkRow} key={run.id}>
                   <Icon
                     name={run.state === "completed" ? "check" : "runtime"}
                     size={18}
@@ -651,10 +677,10 @@ export function App({
                     {run.error && <p>{run.error}</p>}
                   </div>
                   <button
-                    className={s.textButton}
+                    className={w.textButton}
                     onClick={() => {
                       setActivity(false);
-                      navigate(run.deliverableId ? "deliverables" : "agents");
+                      navigate("runs");
                     }}
                   >
                     Inspect
@@ -662,7 +688,7 @@ export function App({
                 </div>
               ))
           ) : (
-            <div className={s.empty}>
+            <div className={w.empty}>
               <Icon name="bell" size={30} />
               <h3>Room for what comes next.</h3>
               <p>
@@ -677,43 +703,96 @@ export function App({
   );
 }
 
+/**
+ * The one number a tab is allowed to carry. Only counts a user acts on:
+ * agents they own, notes awaiting review, runs in flight. A badge for
+ * anything else is noise that trains people to ignore badges.
+ */
+function TabBadge({
+  tab,
+  agents,
+  pending,
+  running,
+}: {
+  tab: WorkbenchTab;
+  agents: number;
+  pending: number;
+  running: number;
+}) {
+  const count =
+    tab.id === "agents" ? agents : tab.id === "learning" ? pending : tab.id === "runs" ? running : 0;
+  if (!count) return null;
+  return <span className={s.tabCount}>{count}</span>;
+}
+
+/** Sub-view labels come from the shared surface registry where one exists. */
+function subViewLabel(id: string): string {
+  const own: Record<string, string> = {
+    dashboard: "Dashboard",
+    runs: "Runs",
+    phases: "SDLC phases",
+    agents: "Roster",
+    skills: "Skills",
+    instructions: "Instructions",
+    deliverables: "Deliverables",
+    settings: "Settings",
+    evidence: "Overview",
+    portfolio: "Portfolio",
+  };
+  return own[id] ?? routeLabel(id);
+}
+
 function CommandPalette({
+  tabs,
   onNavigate,
   onClose,
   agents,
 }: {
+  tabs: readonly WorkbenchTab[];
   onNavigate: (route: string) => void;
   onClose: () => void;
   agents: { id: string; name: string; role: string }[];
 }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
+  // Every view of every unlocked tab is addressable, so search reaches
+  // surfaces that are two clicks deep in the bar.
   const commands = [
-    ...WORKBENCH_ROUTES,
-    ...agents.map((agent, index) => ({
-      id: `agent-${index}`,
+    ...tabs.flatMap((tab) =>
+      tab.views.map((viewId, index) => ({
+        id: `${tab.id}:${viewId}`,
+        label: index === 0 ? tab.label : `${tab.label} · ${subViewLabel(viewId)}`,
+        description: index === 0 ? tab.blurb : subViewDescription(viewId),
+        icon: tab.icon,
+        route: viewId,
+        group: tab.group as string,
+      })),
+    ),
+    ...agents.map((agent) => ({
+      id: `agent-${agent.id}`,
       label: agent.name,
       description: agent.role,
       icon: "agents" as const,
       route: `agents/${agent.id}`,
+      group: "Agents",
     })),
   ].filter((item) =>
-    `${item.label} ${item.description}`
+    `${item.label} ${item.description} ${item.group}`
       .toLowerCase()
       .includes(query.toLowerCase()),
   );
   const choose = (index: number) => {
     const item = commands[index];
-    if (item) onNavigate("route" in item ? item.route : item.id);
+    if (item) onNavigate(item.route);
   };
   return (
     <Dialog title="Find your next step" onClose={onClose}>
-      <div className={s.commandSearch}>
+      <div className={w.commandSearch}>
         <Icon name="search" />
         <input
           autoFocus
           aria-label="Search commands"
-          placeholder="Search screens, agents, and actions…"
+          placeholder="Search tabs, views, agents and actions…"
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -735,11 +814,11 @@ function CommandPalette({
           }}
         />
       </div>
-      <div className={s.commandList}>
-        {commands.map((item, index) => (
+      <div className={w.commandList}>
+        {commands.slice(0, 60).map((item, index) => (
           <button
             key={item.id}
-            className={s.command}
+            className={w.command}
             data-selected={selected === index}
             onClick={() => choose(index)}
           >
@@ -752,11 +831,15 @@ function CommandPalette({
           </button>
         ))}
         {commands.length === 0 && (
-          <p>No matches. Try “agents”, “learning”, or “evidence”.</p>
+          <p>No matches. Try “agents”, “skills”, “phases”, or “evidence”.</p>
         )}
       </div>
     </Dialog>
   );
+}
+
+function subViewDescription(id: string): string {
+  return routeLabel(id) === "Overview" ? "Workspace view" : routeLabel(id);
 }
 
 class ScreenBoundary extends Component<
@@ -769,14 +852,14 @@ class ScreenBoundary extends Component<
   }
   render() {
     return this.state.failed ? (
-      <div className={s.empty} role="alert">
+      <div className={w.empty} role="alert">
         <h2>This view could not be displayed.</h2>
         <p>
           Your saved workspace data remains available. Reopen the view or return
-          to Overview.
+          to the Dashboard.
         </p>
-        <button className={s.secondary} onClick={this.props.onReset}>
-          Return to Overview
+        <button className={w.secondary} onClick={this.props.onReset}>
+          Return to Dashboard
         </button>
       </div>
     ) : (

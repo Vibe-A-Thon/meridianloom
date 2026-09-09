@@ -79,10 +79,28 @@ describe('canonical steer protocol surface (AMD-M25, G-03)', () => {
     expect(steerTests).toContain('records the steering act BEFORE injecting it into the live wire');
   });
 
-  it('the workbench duplicate run/steer still exists and is the retirement target', () => {
-    // GUI session (AMD-M25): retire this handler and its webview callers
-    // (RunsTab.tsx, WorkspaceOperations.tsx). When retired, flip this to
-    // toNotContain and close G-03.
-    expect(workbenchService).toContain('run/steer');
+  it('the workbench issues no steer RPC of its own — the controller is the only caller', () => {
+    // AMD-M25 / G-03 closed. `run/steer` survives as a workbench *action*,
+    // but it is no longer a second implementation: it delegates to
+    // HostedSteerController, which owns the wire and the record-before-send
+    // ordering. The substance of the exit criterion is that this file makes
+    // no steer RPC call itself, so a regression that re-adds one fails here
+    // rather than being discovered when the two paths drift.
+    for (const method of registryMethods)
+      expect(
+        workbenchService,
+        `service.ts calls ${method} directly; steering must go through HostedSteerController`,
+      ).not.toContain(`"${method}"`);
+    expect(workbenchService).toContain('HostedSteerController');
+    expect(workbenchService).toContain('controller.steer(');
+  });
+
+  it('the workbench delivers at the next turn boundary, and says so', () => {
+    // The one protocol, two delivery policies, both explicit: a hosted
+    // session the operator is watching takes the guidance immediately; the
+    // workbench queues it for the next turn because its adapters run one
+    // turn at a time and its interface promises a queue.
+    expect(steerSource).toContain("deliver?: 'now' | 'nextTurn'");
+    expect(workbenchService).toContain('deliver: "nextTurn"');
   });
 });

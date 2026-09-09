@@ -1,0 +1,836 @@
+{
+  "$schema": "meridian-loom/surface-coverage@1",
+  "generatedAt": "2026-09-09T14:02:52.558Z",
+  "registry": "shared/schema/tiers.json",
+  "allowlist": "shared/schema/unsurfaced.json",
+  "roots": [
+    "webview/src",
+    "extension/src"
+  ],
+  "methods": [
+    {
+      "method": "acp/permissionDecision",
+      "capability": "governor.acp-host",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "extension/src/adapters/permission-gate.ts"
+      ]
+    },
+    {
+      "method": "acp/sessionBegin",
+      "capability": "governor.acp-host",
+      "tier": "governor",
+      "callerCount": 2,
+      "callers": [
+        "extension/src/governance/steer.ts",
+        "extension/src/workbench/service.ts"
+      ]
+    },
+    {
+      "method": "acp/sessionEnd",
+      "capability": "governor.acp-host",
+      "tier": "governor",
+      "callerCount": 2,
+      "callers": [
+        "extension/src/governance/steer.ts",
+        "extension/src/workbench/service.ts"
+      ]
+    },
+    {
+      "method": "attrib/blame",
+      "capability": "recorder.attribution",
+      "tier": "flight-recorder",
+      "callerCount": 5,
+      "callers": [
+        "extension/src/editor-surfaces.ts",
+        "webview/src/screens/AnyLinePanel.tsx",
+        "webview/src/workbench/modeling/CodeMapStudio.tsx",
+        "webview/src/workbench/modeling/ComprehensionStudio.tsx",
+        "webview/src/workbench/operations/WorkspaceOperations.tsx"
+      ]
+    },
+    {
+      "method": "attrib/classify",
+      "capability": "recorder.attribution",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/screens/ExternalAgentsScreen.tsx"
+      ]
+    },
+    {
+      "method": "attrib/diff",
+      "capability": "recorder.attribution",
+      "tier": "flight-recorder",
+      "callerCount": 3,
+      "callers": [
+        "webview/src/screens/ExternalAgentsScreen.tsx",
+        "webview/src/workbench/modeling/CodeMapStudio.tsx",
+        "webview/src/workbench/modeling/DiffStudio.tsx"
+      ]
+    },
+    {
+      "method": "attrib/symbol",
+      "capability": "recorder.attribution",
+      "tier": "flight-recorder",
+      "callerCount": 5,
+      "callers": [
+        "extension/src/editor-surfaces.ts",
+        "webview/src/screens/AnyLinePanel.tsx",
+        "webview/src/workbench/modeling/CodeMapStudio.tsx",
+        "webview/src/workbench/modeling/ComprehensionStudio.tsx",
+        "webview/src/workbench/operations/WorkspaceOperations.tsx"
+      ]
+    },
+    {
+      "method": "doctor/run",
+      "capability": "recorder.doctor",
+      "tier": "flight-recorder",
+      "callerCount": 6,
+      "callers": [
+        "extension/src/doctor.ts",
+        "extension/src/extension.ts",
+        "extension/src/mcp/main.ts",
+        "extension/src/mcp/server.ts",
+        "webview/src/workbench/RuntimeStudio.tsx",
+        "webview/src/workbench/preview.ts"
+      ]
+    },
+    {
+      "method": "gate.approve",
+      "capability": "governor.gates",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Gates.tsx"
+      ]
+    },
+    {
+      "method": "gate.evaluate",
+      "capability": "governor.gates",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Gates.tsx"
+      ]
+    },
+    {
+      "method": "gate.halt",
+      "capability": "governor.gates",
+      "tier": "governor",
+      "callerCount": 3,
+      "callers": [
+        "extension/src/governance/spend-ceiling.ts",
+        "extension/src/governance/steer.ts",
+        "webview/src/workbench/governance/Gates.tsx"
+      ]
+    },
+    {
+      "method": "gate.profiles",
+      "capability": "governor.gates",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Gates.tsx"
+      ]
+    },
+    {
+      "method": "gate.status",
+      "capability": "governor.gates",
+      "tier": "governor",
+      "callerCount": 2,
+      "callers": [
+        "extension/src/workbench/integrations.ts",
+        "webview/src/workbench/governance/Gates.tsx"
+      ]
+    },
+    {
+      "method": "handshake",
+      "capability": "recorder.lifecycle",
+      "tier": "flight-recorder",
+      "callerCount": 9,
+      "callers": [
+        "extension/src/acp/client.ts",
+        "extension/src/extension.ts",
+        "extension/src/secrets.ts",
+        "extension/src/stdio-client.ts",
+        "webview/src/hooks/useRpcQuery.ts",
+        "webview/src/rpc/client.ts",
+        "webview/src/screens/registry.ts",
+        "webview/src/test/host-harness.ts",
+        "webview/src/workbench/operations/AgentOperations.tsx"
+      ]
+    },
+    {
+      "method": "health",
+      "capability": "recorder.lifecycle",
+      "tier": "flight-recorder",
+      "callerCount": 13,
+      "callers": [
+        "extension/src/doctor.ts",
+        "extension/src/supervisor.ts",
+        "extension/src/workbench/integrations.ts",
+        "webview/src/hooks/recorder-hooks.ts",
+        "webview/src/screens/ExternalAgentsScreen.tsx",
+        "webview/src/workbench/RuntimeStudio.tsx",
+        "webview/src/workbench/catalogue/Dashboard.tsx",
+        "webview/src/workbench/catalogue/IntegrationsTab.tsx",
+        "webview/src/workbench/organization/OrganizationStudio.tsx",
+        "webview/src/workbench/preview.ts",
+        "webview/src/workbench/routes.ts",
+        "webview/src/workbench/surfaces.ts",
+        "webview/src/workbench/tabs.ts"
+      ]
+    },
+    {
+      "method": "hook/install",
+      "capability": "recorder.provenance-hooks",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "extension/src/extension.ts"
+      ]
+    },
+    {
+      "method": "hook/pending",
+      "capability": "recorder.provenance-hooks",
+      "tier": "flight-recorder",
+      "callerCount": 0,
+      "callers": [],
+      "declared": {
+        "reason": "Internal pending-commit linkage keyed by staged content hash; surfaced indirectly through the hook install/status flow (hook/install, hook/status). No direct interface consumer planned by design.",
+        "reviewed": "2026-09-09",
+        "mustSurface": false
+      }
+    },
+    {
+      "method": "hook/remove",
+      "capability": "recorder.provenance-hooks",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "extension/src/extension.ts"
+      ]
+    },
+    {
+      "method": "hook/status",
+      "capability": "recorder.provenance-hooks",
+      "tier": "flight-recorder",
+      "callerCount": 2,
+      "callers": [
+        "extension/src/commands.ts",
+        "extension/src/extension.ts"
+      ]
+    },
+    {
+      "method": "identity.revoke",
+      "capability": "governor.gates",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Gates.tsx"
+      ]
+    },
+    {
+      "method": "ledger.append",
+      "capability": "recorder.ledger",
+      "tier": "flight-recorder",
+      "callerCount": 0,
+      "callers": [],
+      "declared": {
+        "reason": "Write path exercised internally: the sidecar appends on behalf of observe/trust/hook RPCs and the provenance hook; no direct host caller exists by design. No interface surface planned (FR-M46-01 by-design declaration).",
+        "reviewed": "2026-09-09",
+        "mustSurface": false
+      }
+    },
+    {
+      "method": "ledger.exportBundle",
+      "capability": "recorder.ledger",
+      "tier": "flight-recorder",
+      "callerCount": 2,
+      "callers": [
+        "extension/src/mcp/server.ts",
+        "webview/src/components/ExportPanel.tsx"
+      ]
+    },
+    {
+      "method": "ledger.getEntry",
+      "capability": "recorder.ledger",
+      "tier": "flight-recorder",
+      "callerCount": 4,
+      "callers": [
+        "webview/src/hooks/recorder-hooks.ts",
+        "webview/src/screens/AnyLinePanel.tsx",
+        "webview/src/workbench/governance/DeliveryEvidence.tsx",
+        "webview/src/workbench/modeling/ReplayStudio.tsx"
+      ]
+    },
+    {
+      "method": "ledger.proof",
+      "capability": "recorder.ledger",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/hooks/recorder-hooks.ts"
+      ]
+    },
+    {
+      "method": "ledger.query",
+      "capability": "recorder.ledger",
+      "tier": "flight-recorder",
+      "callerCount": 12,
+      "callers": [
+        "extension/src/adapters/permission-gate.ts",
+        "extension/src/mcp/server.ts",
+        "webview/src/hooks/recorder-hooks.ts",
+        "webview/src/screens/AnyLinePanel.tsx",
+        "webview/src/screens/FirstRunScreen.tsx",
+        "webview/src/workbench/governance/Analytics.tsx",
+        "webview/src/workbench/governance/DeliveryEvidence.tsx",
+        "webview/src/workbench/governance/Gates.tsx",
+        "webview/src/workbench/modeling/ReplayStudio.tsx",
+        "webview/src/workbench/operations/WorkspaceOperations.tsx",
+        "webview/src/workbench/organization/OrganizationStudio.tsx",
+        "webview/src/workbench/preview.ts"
+      ]
+    },
+    {
+      "method": "ledger.verify",
+      "capability": "recorder.ledger",
+      "tier": "flight-recorder",
+      "callerCount": 4,
+      "callers": [
+        "extension/src/mcp/server.ts",
+        "webview/src/components/SelvageStrip.tsx",
+        "webview/src/hooks/recorder-hooks.ts",
+        "webview/src/workbench/modeling/ReplayStudio.tsx"
+      ]
+    },
+    {
+      "method": "loop.start",
+      "capability": "orchestra.loops",
+      "tier": "orchestra",
+      "callerCount": 0,
+      "callers": [],
+      "declared": {
+        "reason": "Orchestra-tier stub: the registry carries not-yet-built tiers with stub RPC names so the tiering mechanism is proven before the features land (tiers.json). Phase Orchestra (FR-M46-17 go/no-go).",
+        "reviewed": "2026-09-09",
+        "mustSurface": false
+      }
+    },
+    {
+      "method": "loop.status",
+      "capability": "orchestra.loops",
+      "tier": "orchestra",
+      "callerCount": 0,
+      "callers": [],
+      "declared": {
+        "reason": "Orchestra-tier stub; see loop.start. Phase Orchestra.",
+        "reviewed": "2026-09-09",
+        "mustSurface": false
+      }
+    },
+    {
+      "method": "loop.stop",
+      "capability": "orchestra.loops",
+      "tier": "orchestra",
+      "callerCount": 0,
+      "callers": [],
+      "declared": {
+        "reason": "Orchestra-tier stub; see loop.start. Phase Orchestra.",
+        "reviewed": "2026-09-09",
+        "mustSurface": false
+      }
+    },
+    {
+      "method": "mcp/invoke",
+      "capability": "governor.mcp-server",
+      "tier": "governor",
+      "callerCount": 2,
+      "callers": [
+        "extension/src/mcp/main.ts",
+        "extension/src/mcp/server.ts"
+      ]
+    },
+    {
+      "method": "observe/captureEvidence",
+      "capability": "recorder.observers",
+      "tier": "flight-recorder",
+      "callerCount": 0,
+      "callers": [],
+      "declared": {
+        "reason": "N1 volatile-evidence capture (FR-M44-11/12, NFR-37). Phase N1 GUI (evidence-capture affordance on the external-agent surfaces); not one of the G-02 named instruments, so not gate-blocking.",
+        "reviewed": "2026-09-09",
+        "mustSurface": false
+      }
+    },
+    {
+      "method": "observe/health",
+      "capability": "recorder.observers",
+      "tier": "flight-recorder",
+      "callerCount": 2,
+      "callers": [
+        "webview/src/hooks/recorder-hooks.ts",
+        "webview/src/workbench/preview.ts"
+      ]
+    },
+    {
+      "method": "observe/sessions",
+      "capability": "recorder.observers",
+      "tier": "flight-recorder",
+      "callerCount": 6,
+      "callers": [
+        "webview/src/hooks/recorder-hooks.ts",
+        "webview/src/screens/FirstRunScreen.tsx",
+        "webview/src/screens/ThisSessionPanel.tsx",
+        "webview/src/screens/registry.ts",
+        "webview/src/workbench/catalogue/Dashboard.tsx",
+        "webview/src/workbench/preview.ts"
+      ]
+    },
+    {
+      "method": "ping",
+      "capability": "recorder.lifecycle",
+      "tier": "flight-recorder",
+      "callerCount": 19,
+      "callers": [
+        "extension/src/adapters/manifest.ts",
+        "extension/src/adapters/policy.ts",
+        "extension/src/adapters/registry-source.ts",
+        "extension/src/mcp/server.ts",
+        "extension/src/supervisor.ts",
+        "extension/src/views.ts",
+        "extension/src/workbench/service.ts",
+        "webview/src/App.tsx",
+        "webview/src/components/ExportPanel.tsx",
+        "webview/src/components/vendors.ts",
+        "webview/src/hooks/useRpcQuery.ts",
+        "webview/src/workbench/catalogue/PhasesTab.tsx",
+        "webview/src/workbench/catalogue/RunsTab.tsx",
+        "webview/src/workbench/modeling/CodeMapStudio.tsx",
+        "webview/src/workbench/operations/WorkspaceOperations.tsx",
+        "webview/src/workbench/organization/DocumentDetail.tsx",
+        "webview/src/workbench/organization/OrganizationStudio.tsx",
+        "webview/src/workbench/organization/model.ts",
+        "webview/src/workbench/surfaces.ts"
+      ]
+    },
+    {
+      "method": "pr/conflicts",
+      "capability": "governor.pr-gates",
+      "tier": "governor",
+      "callerCount": 0,
+      "callers": [],
+      "declared": {
+        "reason": "PR-gates conflict probe. The Delivery Evidence screen already consumes pr/ingest and pr/status; pr/conflicts lands with the N2 SCM-enforcement slice (FR-M42-03, AC-45).",
+        "reviewed": "2026-09-09",
+        "mustSurface": false
+      }
+    },
+    {
+      "method": "pr/ingest",
+      "capability": "governor.pr-gates",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/DeliveryEvidence.tsx"
+      ]
+    },
+    {
+      "method": "pr/status",
+      "capability": "governor.pr-gates",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/DeliveryEvidence.tsx"
+      ]
+    },
+    {
+      "method": "roles/check",
+      "capability": "governor.roles",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Gates.tsx"
+      ]
+    },
+    {
+      "method": "roles/delegate",
+      "capability": "governor.roles",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Gates.tsx"
+      ]
+    },
+    {
+      "method": "roles/list",
+      "capability": "governor.roles",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Gates.tsx"
+      ]
+    },
+    {
+      "method": "shutdown",
+      "capability": "recorder.lifecycle",
+      "tier": "flight-recorder",
+      "callerCount": 2,
+      "callers": [
+        "extension/src/mcp/main.ts",
+        "extension/src/supervisor.ts"
+      ]
+    },
+    {
+      "method": "spend/ceilingCheck",
+      "capability": "recorder.spend",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "extension/src/governance/spend-ceiling.ts"
+      ]
+    },
+    {
+      "method": "spend/forecast",
+      "capability": "recorder.spend",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Observatory.tsx"
+      ],
+      "declared": {
+        "reason": "G-02: spend forecasting (disabled today at the 1,000-row ceiling; surfaces with the FR-M41-08 truncation disclosure). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+        "reviewed": "2026-09-09",
+        "mustSurface": true
+      }
+    },
+    {
+      "method": "spend/pricing",
+      "capability": "recorder.spend",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Observatory.tsx"
+      ],
+      "declared": {
+        "reason": "G-02: pricing/provenance-class figures for spend (FR-M45-03/04). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+        "reviewed": "2026-09-09",
+        "mustSurface": true
+      }
+    },
+    {
+      "method": "spend/series",
+      "capability": "recorder.spend",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Observatory.tsx"
+      ],
+      "declared": {
+        "reason": "G-02: the Cross-Vendor Spend panel currently recomputes a simpler view from ledger.query and must consume spend/series instead (AMD-M39 provenance classes, FR-M45-03). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+        "reviewed": "2026-09-09",
+        "mustSurface": true
+      }
+    },
+    {
+      "method": "steer.send",
+      "capability": "governor.steer",
+      "tier": "governor",
+      "callerCount": 2,
+      "callers": [
+        "extension/src/governance/steer.ts",
+        "extension/src/workbench/service.ts"
+      ]
+    },
+    {
+      "method": "steer/accept",
+      "capability": "governor.steer",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "extension/src/governance/steer.ts"
+      ]
+    },
+    {
+      "method": "steer/acceptanceStatus",
+      "capability": "governor.steer",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "extension/src/governance/steer.ts"
+      ]
+    },
+    {
+      "method": "steer/answer",
+      "capability": "governor.steer",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "extension/src/governance/steer.ts"
+      ]
+    },
+    {
+      "method": "steer/escalate",
+      "capability": "governor.steer",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "extension/src/governance/steer.ts"
+      ]
+    },
+    {
+      "method": "steer/plan",
+      "capability": "governor.steer",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "extension/src/governance/steer.ts"
+      ]
+    },
+    {
+      "method": "steer/question",
+      "capability": "governor.steer",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "extension/src/governance/steer.ts"
+      ]
+    },
+    {
+      "method": "steer/status",
+      "capability": "governor.steer",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "extension/src/governance/steer.ts"
+      ]
+    },
+    {
+      "method": "trailers/parse",
+      "capability": "recorder.provenance-hooks",
+      "tier": "flight-recorder",
+      "callerCount": 2,
+      "callers": [
+        "webview/src/screens/AnyLinePanel.tsx",
+        "webview/src/screens/ExternalAgentsScreen.tsx"
+      ]
+    },
+    {
+      "method": "trust.summary",
+      "capability": "governor.trust",
+      "tier": "governor",
+      "callerCount": 0,
+      "callers": [],
+      "declared": {
+        "reason": "governor.trust aggregate, explicitly a stub RPC in the registry ('Stub RPC until it lands'). Phase N1 GUI trust dashboard, or folded into the trust/score + trust/scoreDecomposition surface once those land; revisit at the G-02 gate review. (Dotted name is the registered wire name per tiers.json/methods.json.)",
+        "reviewed": "2026-09-09",
+        "mustSurface": false
+      }
+    },
+    {
+      "method": "trust/classify",
+      "capability": "recorder.trust-metrics",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Analytics.tsx"
+      ]
+    },
+    {
+      "method": "trust/compareAgents",
+      "capability": "recorder.trust-metrics",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Observatory.tsx"
+      ],
+      "declared": {
+        "reason": "G-02: same-story agent-vs-agent comparison (E-AW-04). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+        "reviewed": "2026-09-09",
+        "mustSurface": true
+      }
+    },
+    {
+      "method": "trust/detectRejections",
+      "capability": "recorder.trust-metrics",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Analytics.tsx"
+      ]
+    },
+    {
+      "method": "trust/doraExport",
+      "capability": "recorder.trust-metrics",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Observatory.tsx"
+      ],
+      "declared": {
+        "reason": "G-02: DORA four-keys export in OTLP-friendly JSON (10.37 / Delivery Evidence). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+        "reviewed": "2026-09-09",
+        "mustSurface": true
+      }
+    },
+    {
+      "method": "trust/jcurve",
+      "capability": "recorder.trust-metrics",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Observatory.tsx"
+      ],
+      "declared": {
+        "reason": "G-02: the adoption J-curve instrument from the product thesis (10.37). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+        "reviewed": "2026-09-09",
+        "mustSurface": true
+      }
+    },
+    {
+      "method": "trust/reasonDistribution",
+      "capability": "recorder.trust-metrics",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Observatory.tsx"
+      ],
+      "declared": {
+        "reason": "G-02: E-GR-03 rejection-reason distribution per agent (10.37). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+        "reviewed": "2026-09-09",
+        "mustSurface": true
+      }
+    },
+    {
+      "method": "trust/rejectionRate",
+      "capability": "recorder.trust-metrics",
+      "tier": "flight-recorder",
+      "callerCount": 2,
+      "callers": [
+        "extension/src/mcp/server.ts",
+        "webview/src/workbench/governance/Analytics.tsx"
+      ]
+    },
+    {
+      "method": "trust/score",
+      "capability": "recorder.trust-metrics",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Observatory.tsx"
+      ],
+      "declared": {
+        "reason": "G-02 differentiating instrument. MUST be surfaced in the Calibration & Trust screen (10.37) by the parallel GUI session; phase N1 Workstream E GUI. Blocked on the check until consumed.",
+        "reviewed": "2026-09-09",
+        "mustSurface": true
+      }
+    },
+    {
+      "method": "trust/scoreDecomposition",
+      "capability": "recorder.trust-metrics",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Observatory.tsx"
+      ],
+      "declared": {
+        "reason": "G-02: the per-component breakdown of trust/score shown beside it (10.37). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+        "reviewed": "2026-09-09",
+        "mustSurface": true
+      }
+    },
+    {
+      "method": "trust/tokenmaxxing",
+      "capability": "recorder.trust-metrics",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Observatory.tsx"
+      ],
+      "declared": {
+        "reason": "G-02: tokenmaxxing detector over spend series (10.37). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+        "reviewed": "2026-09-09",
+        "mustSurface": true
+      }
+    },
+    {
+      "method": "worktree/abortStory",
+      "capability": "governor.worktrees",
+      "tier": "governor",
+      "callerCount": 3,
+      "callers": [
+        "extension/src/commands.ts",
+        "extension/src/extension.ts",
+        "webview/src/workbench/governance/Repositories.tsx"
+      ]
+    },
+    {
+      "method": "worktree/conflicts",
+      "capability": "governor.worktrees",
+      "tier": "governor",
+      "callerCount": 2,
+      "callers": [
+        "webview/src/workbench/governance/Repositories.tsx",
+        "webview/src/workbench/operations/WorkspaceOperations.tsx"
+      ]
+    },
+    {
+      "method": "worktree/create",
+      "capability": "governor.worktrees",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Repositories.tsx"
+      ]
+    },
+    {
+      "method": "worktree/list",
+      "capability": "governor.worktrees",
+      "tier": "governor",
+      "callerCount": 3,
+      "callers": [
+        "extension/src/commands.ts",
+        "extension/src/extension.ts",
+        "webview/src/workbench/governance/Repositories.tsx"
+      ]
+    },
+    {
+      "method": "worktree/remove",
+      "capability": "governor.worktrees",
+      "tier": "governor",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/Repositories.tsx"
+      ]
+    }
+  ],
+  "summary": {
+    "total": 70,
+    "surfaced": 62,
+    "declared": 18,
+    "undeclaredOrphans": 0,
+    "mustSurfacePending": 0,
+    "mustSurfaceResolved": 10
+  },
+  "problems": {
+    "undeclaredOrphans": [],
+    "mustSurfaceViolations": [],
+    "staleAllowlistEntries": [],
+    "resolvedMustSurface": [
+      "spend/forecast",
+      "spend/pricing",
+      "spend/series",
+      "trust/compareAgents",
+      "trust/doraExport",
+      "trust/jcurve",
+      "trust/reasonDistribution",
+      "trust/score",
+      "trust/scoreDecomposition",
+      "trust/tokenmaxxing"
+    ],
+    "allowlistErrors": [],
+    "contractWarnings": []
+  }
+}

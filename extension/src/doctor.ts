@@ -4,6 +4,7 @@ import type {
   DoctorRunResult,
 } from '../../shared/ts/bus-types';
 import {
+  installCommand,
   InterpreterResolutionError,
   resolveInterpreter,
   type InterpreterResolution,
@@ -73,11 +74,18 @@ async function hostInterpreterCheck(
 ): Promise<DoctorCheck> {
   try {
     const resolved = await probe();
-    return entry(
-      'interpreter',
-      'pass',
-      `Python ${resolved.version.join('.')} at ${resolved.executable} (via ${resolved.source})`,
-    );
+    const found = `Python ${resolved.version.join('.')} at ${resolved.executable} (via ${resolved.source})`;
+    // A usable interpreter with unusable dependencies is a fail, not a pass:
+    // reporting a pass here and then dying at sidecar startup with a
+    // ModuleNotFoundError is the diagnosis lying to the person reading it.
+    if (resolved.missing.length)
+      return entry(
+        'interpreter',
+        'fail',
+        `${found}, but cannot import: ${resolved.missing.join(', ')}`,
+        `Run: ${installCommand(resolved)}`,
+      );
+    return entry('interpreter', 'pass', found);
   } catch (error) {
     if (error instanceof InterpreterResolutionError) {
       return entry(
