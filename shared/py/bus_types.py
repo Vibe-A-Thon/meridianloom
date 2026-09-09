@@ -182,9 +182,13 @@ class AttribClassifyParams(TypedDict):
     staged: NotRequired[bool]
     paths: NotRequired[list[str]]
     observedSessions: NotRequired[list[AttribObservedSession]]
+    excludedPaths: NotRequired[list[str]]  # FR-M41-05: paths excluded from attribution (exact, directory prefix, or glob). Matching files report unattributed/excluded_path — excluded is reported, never silently dropped.
 
-# agent | human | mixed | unknown. unknown is a first-class honest answer when no signal fires (G3).
-AttribAttribution = Literal["agent", "human", "mixed", "unknown"]
+# FR-M41-04: exactly three mutually exclusive states — agent | human | unattributed — decided by positive evidence only; no state is ever derived by subtracting the others (human is never 'not agent'). unattributed is a first-class honest answer (G3, P26).
+AttribAttribution = Literal["agent", "human", "unattributed"]
+
+# FR-M41-05: the closed, versioned vocabulary of reasons an unattributed span could not be resolved. Recorded with every classification as unknownReason + unknownReasonVersion.
+AttribUnknownReason = Literal["no_signal", "formatter_rewrite", "squashed_history", "pre_installation", "unsupported_vendor", "excluded_path"]
 
 class AttribFileClassification(TypedDict):
     path: str
@@ -194,6 +198,8 @@ class AttribFileClassification(TypedDict):
     multiLineInsertRate: float  # Fraction of insertion hunks adding >=5 lines at once.
     editTimestamp: str | None  # Filesystem mtime of the edited file, ISO 8601 UTC; null for deletes.
     attribution: AttribAttribution
+    unknownReason: str | None  # FR-M41-05: the closed-vocabulary reason when attribution is unattributed; null on agent/human spans.
+    unknownReasonVersion: int  # The version of the unknown-reason vocabulary this answer was produced under (FR-M41-05).
     agentWeight: float  # 0.0 human .. 1.0 agent; 0.5 means no evidence.
     observationConfidence: Literal["direct", "telemetry", "inferred"]  # FR-M35-02; heuristic output is never better than telemetry and the floor is inferred.
     rationale: list[str]  # Human-readable signals behind the weight, for UI disclosure.

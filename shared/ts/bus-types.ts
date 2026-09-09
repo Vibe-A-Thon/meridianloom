@@ -249,10 +249,15 @@ export interface AttribClassifyParams {
   "staged"?: boolean;
   "paths"?: string[];
   "observedSessions"?: AttribObservedSession[];
+  /** FR-M41-05: paths excluded from attribution (exact, directory prefix, or glob). Matching files report unattributed/excluded_path — excluded is reported, never silently dropped. */
+  "excludedPaths"?: string[];
 }
 
-/** agent | human | mixed | unknown. unknown is a first-class honest answer when no signal fires (G3). */
-export type AttribAttribution = "agent" | "human" | "mixed" | "unknown";
+/** FR-M41-04: exactly three mutually exclusive states — agent | human | unattributed — decided by positive evidence only; no state is ever derived by subtracting the others (human is never 'not agent'). unattributed is a first-class honest answer (G3, P26). */
+export type AttribAttribution = "agent" | "human" | "unattributed";
+
+/** FR-M41-05: the closed, versioned vocabulary of reasons an unattributed span could not be resolved. Recorded with every classification as unknownReason + unknownReasonVersion. */
+export type AttribUnknownReason = "no_signal" | "formatter_rewrite" | "squashed_history" | "pre_installation" | "unsupported_vendor" | "excluded_path";
 
 export interface AttribFileClassification {
   "path": string;
@@ -265,6 +270,10 @@ export interface AttribFileClassification {
   /** Filesystem mtime of the edited file, ISO 8601 UTC; null for deletes. */
   "editTimestamp": string | null;
   "attribution": AttribAttribution;
+  /** FR-M41-05: the closed-vocabulary reason when attribution is unattributed; null on agent/human spans. */
+  "unknownReason": string | null;
+  /** The version of the unknown-reason vocabulary this answer was produced under (FR-M41-05). */
+  "unknownReasonVersion": number;
   /** 0.0 human .. 1.0 agent; 0.5 means no evidence. */
   "agentWeight": number;
   /** FR-M35-02; heuristic output is never better than telemetry and the floor is inferred. */

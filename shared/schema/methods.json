@@ -39,7 +39,7 @@
       "result": { "$ref": "#/$defs/AttribSymbolResult" }
     },
     "attrib/classify": {
-      "description": "FR-M35-02 attribution aid (F0 Workstream C task 15; gaps G3): deterministic human-vs-agent heuristics over working-tree/staged/range changes — burst size, multi-line insertion rate, new-file size, observed-session cross-reference. Keystroke cadence is unavailable for agents acting via file writes and is not a signal; fs/git timestamps only. Every file is labelled observationConfidence telemetry|inferred (inferred is the floor, never presented as fact) with an auditable rationale. Zero model calls (FR-M36-07).",
+      "description": "FR-M35-02 attribution aid (F0 Workstream C task 15; gaps G3), migrated to FR-M41-04 three-state attribution (N1 Workstream B T07): deterministic human-vs-agent heuristics over working-tree/staged/range changes — burst size, multi-line insertion rate, new-file size, observed-session cross-reference. Keystroke cadence is unavailable for agents acting via file writes and is not a signal; fs/git timestamps only. Every file is labelled one of agent | human | unattributed, decided by positive evidence only — human is never 'not agent' — and every unattributed file carries the closed-vocabulary reason (FR-M41-05: no_signal | formatter_rewrite | squashed_history | pre_installation | unsupported_vendor | excluded_path) with the vocabulary version. observationConfidence telemetry|inferred (inferred is the floor, never presented as fact) with an auditable rationale. Zero model calls (FR-M36-07).",
       "params": { "$ref": "#/$defs/AttribClassifyParams" },
       "result": { "$ref": "#/$defs/AttribClassifyResult" }
     },
@@ -685,17 +685,22 @@
         "compare": { "type": "string" },
         "staged": { "type": "boolean" },
         "paths": { "type": "array", "items": { "type": "string" } },
-        "observedSessions": { "type": "array", "items": { "$ref": "#/$defs/AttribObservedSession" } }
+        "observedSessions": { "type": "array", "items": { "$ref": "#/$defs/AttribObservedSession" } },
+        "excludedPaths": { "type": "array", "items": { "type": "string" }, "description": "FR-M41-05: paths excluded from attribution (exact, directory prefix, or glob). Matching files report unattributed/excluded_path — excluded is reported, never silently dropped." }
       },
       "additionalProperties": false
     },
     "AttribAttribution": {
-      "description": "agent | human | mixed | unknown. unknown is a first-class honest answer when no signal fires (G3).",
-      "enum": ["agent", "human", "mixed", "unknown"]
+      "description": "FR-M41-04: exactly three mutually exclusive states — agent | human | unattributed — decided by positive evidence only; no state is ever derived by subtracting the others (human is never 'not agent'). unattributed is a first-class honest answer (G3, P26).",
+      "enum": ["agent", "human", "unattributed"]
+    },
+    "AttribUnknownReason": {
+      "description": "FR-M41-05: the closed, versioned vocabulary of reasons an unattributed span could not be resolved. Recorded with every classification as unknownReason + unknownReasonVersion.",
+      "enum": ["no_signal", "formatter_rewrite", "squashed_history", "pre_installation", "unsupported_vendor", "excluded_path"]
     },
     "AttribFileClassification": {
       "type": "object",
-      "required": ["path", "linesAdded", "linesRemoved", "burstLines", "multiLineInsertRate", "editTimestamp", "attribution", "agentWeight", "observationConfidence", "rationale"],
+      "required": ["path", "linesAdded", "linesRemoved", "burstLines", "multiLineInsertRate", "editTimestamp", "attribution", "unknownReason", "unknownReasonVersion", "agentWeight", "observationConfidence", "rationale"],
       "properties": {
         "path": { "type": "string" },
         "linesAdded": { "type": "integer" },
@@ -704,6 +709,8 @@
         "multiLineInsertRate": { "type": "number", "description": "Fraction of insertion hunks adding >=5 lines at once." },
         "editTimestamp": { "type": ["string", "null"], "description": "Filesystem mtime of the edited file, ISO 8601 UTC; null for deletes." },
         "attribution": { "$ref": "#/$defs/AttribAttribution" },
+        "unknownReason": { "type": ["string", "null"], "description": "FR-M41-05: the closed-vocabulary reason when attribution is unattributed; null on agent/human spans." },
+        "unknownReasonVersion": { "type": "integer", "description": "The version of the unknown-reason vocabulary this answer was produced under (FR-M41-05)." },
         "agentWeight": { "type": "number", "description": "0.0 human .. 1.0 agent; 0.5 means no evidence." },
         "observationConfidence": { "enum": ["direct", "telemetry", "inferred"], "description": "FR-M35-02; heuristic output is never better than telemetry and the floor is inferred." },
         "rationale": { "type": "array", "items": { "type": "string" }, "description": "Human-readable signals behind the weight, for UI disclosure." }

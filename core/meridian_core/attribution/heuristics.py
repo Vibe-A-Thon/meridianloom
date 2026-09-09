@@ -20,14 +20,16 @@ cannot see inter-keystroke timing. The heuristic therefore reasons about
 burst/timing patterns from fs/git timestamps only — mtime granularity for
 the worktree, commit grouping for ranges.
 
-G3: results degrade, never silently. ``unknown`` is a first-class answer
-when no signal fires; heuristic output is never labelled better than
-``telemetry`` and the default floor is ``inferred`` — labelled, never
-presented as fact. Zero model calls (FR-M36-07).
+G3: results degrade, never silently. ``unattributed`` is a first-class
+answer when no signal fires (FR-M41-04/05; P26); heuristic output is
+never labelled better than ``telemetry`` and the default floor is
+``inferred`` — labelled, never presented as fact. Zero model calls
+(FR-M36-07).
 """
 
 from __future__ import annotations
 
+import fnmatch
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -36,6 +38,13 @@ from typing import Any
 
 from . import diff as diff_mod
 from ._git import ensure_repo
+from .states import (
+    ATTRIBUTION_UNATTRIBUTED,
+    UNKNOWN_REASON_EXCLUDED_PATH,
+    UNKNOWN_REASON_NO_SIGNAL,
+    UNKNOWN_REASON_VOCABULARY_VERSION,
+    decide_attribution,
+)
 
 __all__ = ["FileClassification", "ClassificationResult", "classify", "classify_with_repo"]
 
@@ -50,11 +59,6 @@ _SMALL_CHANGE = 5  # fewer added lines than this -> human +1
 _SAME_SECOND_FILES = 3  # >= this many files in one second -> agent +1
 _OBSERVED_BONUS = 2  # covering observed session -> agent +2
 
-_AGENT = "agent"
-_HUMAN = "human"
-_AGENT_CUTOFF = 0.66
-_HUMAN_CUTOFF = 0.33
-
 
 @dataclass(frozen=True)
 class FileClassification:
@@ -64,7 +68,9 @@ class FileClassification:
     burst_lines: int  # lines added in the same sweep as this file's edits
     multi_line_insert_rate: float
     edit_timestamp: str | None  # ISO 8601 UTC from fs mtime; null for deletes
-    attribution: str  # agent | human | mixed | unknown
+    attribution: str  # agent | human | unattributed (FR-M41-04)
+    unknown_reason: str | None  # closed vocabulary when unattributed (FR-M41-05)
+    unknown_reason_version: int  # vocabulary version recorded with the answer
     agent_weight: float  # 0.0 human .. 1.0 agent; 0.5 = no evidence
     observation_confidence: str  # telemetry (observed session) | inferred
     rationale: list[str] = field(default_factory=list)
@@ -107,6 +113,22 @@ def _session_covers(
     return started is None or (mtime is not None and mtime >= started)
 
 
+def _is_excluded(path: str, patterns: list[str]) -> bool:
+    """``excluded_path`` matching: an exact worktree-relative path, a
+    directory prefix (``dist/``), or an fnmatch glob (``*.lock``)."""
+    for pattern in patterns:
+        pattern = pattern.strip().strip("/")
+        if not pattern:
+            continue
+        if path == pattern or path.startswith(pattern + "/"):
+            return True
+        if fnmatch.fnmatch(path, pattern) or fnmatch.fnmatch(
+            path.rsplit("/", 1)[-1], pattern
+        ):
+            return True
+    return False
+
+
 def classify(
     repo_path: Path | str,
     base: str | None = None,
@@ -114,8 +136,14 @@ def classify(
     staged: bool = False,
     paths: list[str] | None = None,
     observed_sessions: list[dict[str, Any]] | None = None,
-) -> ClassificationResult:
-    """Classify each changed file as agent/human/mixed/unknown."""
+    excluded_paths: list[str] | None = None,
+) -> list[FileClassification]:
+    """Classify each changed file as agent/human/unattributed (FR-M41-04).
+
+    ``excluded_paths`` marks paths excluded from attribution: matching
+    files report ``unattributed``/``excluded_path`` — excluded is
+    reported, never silently dropped (FR-M41-05).
+    """
     _, files = classify_with_repo(
         repo_path,
         base=base,
@@ -123,6 +151,7 @@ def classify(
         staged=staged,
         paths=paths,
         observed_sessions=observed_sessions,
+        excluded_paths=excluded_paths,
     )
     return files
 
@@ -134,8 +163,10 @@ def classify_with_repo(
     staged: bool = False,
     paths: list[str] | None = None,
     observed_sessions: list[dict[str, Any]] | None = None,
+    excluded_paths: list[str] | None = None,
 ) -> tuple[Path, ClassificationResult]:
     repo = ensure_repo(Path(repo_path))
+    exclusions = [str(p) for p in (excluded_paths or []) if str(p).strip()]
     file_diffs = diff_mod.diff(
         repo, base=base, compare=compare, staged=staged, paths=paths
     )
@@ -265,17 +296,19 @@ def classify_with_repo(
             human += 1
             rationale.append(f"small change ({stat['added']} added lines)")
 
-        points = agent + human
-        if points == 0:
-            attribution, weight = "unknown", 0.5
-        else:
-            weight = round(agent / points, 2)
-            if weight >= _AGENT_CUTOFF:
-                attribution = _AGENT
-            elif weight <= _HUMAN_CUTOFF:
-                attribution = _HUMAN
-            else:
-                attribution = "mixed"
+        # FR-M41-04: the three-state decision is positive-evidence-only, in
+        # one auditable place — never "human = not agent".
+        attribution, weight = decide_attribution(agent, human)
+        unknown_reason: str | None = None
+        if _is_excluded(file.path, exclusions):
+            attribution, weight = ATTRIBUTION_UNATTRIBUTED, 0.5
+            unknown_reason = UNKNOWN_REASON_EXCLUDED_PATH
+            rationale.append("path excluded from attribution")
+        elif attribution == ATTRIBUTION_UNATTRIBUTED:
+            # No decisive signal fired (or agent/human evidence conflicted
+            # in the middle band): the reason is recorded, never absorbed
+            # into the nearest confident answer (FR-M41-05, P26).
+            unknown_reason = UNKNOWN_REASON_NO_SIGNAL
 
         results.append(
             FileClassification(
@@ -286,6 +319,8 @@ def classify_with_repo(
                 multi_line_insert_rate=round(rate, 2),
                 edit_timestamp=stat["edit_timestamp"],
                 attribution=attribution,
+                unknown_reason=unknown_reason,
+                unknown_reason_version=UNKNOWN_REASON_VOCABULARY_VERSION,
                 agent_weight=weight,
                 observation_confidence=confidence,
                 rationale=rationale,

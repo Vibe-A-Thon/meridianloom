@@ -129,9 +129,10 @@ def _commit_base(repo: Path, content: str) -> None:
 
 
 class TestAmbiguousChanges:
-    def test_mixed_signals_report_mixed(self, dirty_repo):
+    def test_mixed_signals_report_unattributed(self, dirty_repo):
         # One 10-line block plus four spaced single-line edits: burst says
-        # agent, insertion pattern says human — the middle band is honest.
+        # agent, insertion pattern says human — the non-decisive middle
+        # band is unattributed, never silently resolved (FR-M41-04, P26).
         base = [f"L{i}" for i in range(80)]
         _commit_base(dirty_repo, "\n".join(base) + "\n")
         edits = {
@@ -147,13 +148,16 @@ class TestAmbiguousChanges:
         result = heuristics.classify(dirty_repo, paths=["src/app.txt"])
 
         (file,) = result.files
-        assert file.attribution == "mixed"
+        assert file.attribution == "unattributed"
+        assert file.unknown_reason == "no_signal"
+        assert file.unknown_reason_version >= 1
         assert 0.0 < file.agent_weight < 1.0
         assert file.lines_added == 14
 
-    def test_no_signals_report_unknown(self, dirty_repo):
+    def test_no_signals_report_unattributed(self, dirty_repo):
         # 8 added lines in three well-separated hunks (6+1+1): rate 0.33,
-        # burst 8 — every threshold missed, so the honest answer is unknown.
+        # burst 8 — every threshold missed, so the honest answer is
+        # unattributed/no_signal.
         base = [f"L{i}" for i in range(80)]
         _commit_base(dirty_repo, "\n".join(base) + "\n")
         edits = {10: [f"H{i}" for i in range(6)], 40: ["X40"], 60: ["X60"]}
@@ -161,7 +165,8 @@ class TestAmbiguousChanges:
 
         result = heuristics.classify(dirty_repo, paths=["src/app.txt"])
 
-        assert result.files[0].attribution == "unknown"
+        assert result.files[0].attribution == "unattributed"
+        assert result.files[0].unknown_reason == "no_signal"
         assert result.files[0].agent_weight == 0.5
 
     def test_clean_tree_reports_no_files(self, dirty_repo):
@@ -223,6 +228,11 @@ class TestClassifyRpc:
                 "method": "attrib/classify",
                 "params": {
                     "repoPath": str(dirty_repo),
+                    # Scope to the file under test: the D43 policy scaffold
+                    # writes .meridian/policy packs into the workspace on
+                    # handshake, and those untracked files legitimately
+                    # classify too.
+                    "paths": ["agent.py"],
                     "observedSessions": [
                         {"sessionId": "s1", "vendor": "claude-code"}
                     ],

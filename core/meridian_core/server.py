@@ -1988,6 +1988,7 @@ class SidecarServer:
                 staged=bool(params.get("staged")),
                 paths=params.get("paths"),
                 observed_sessions=params.get("observedSessions"),
+                excluded_paths=params.get("excludedPaths"),
             )
         except AttributionError as error:
             raise self._attrib_error(error) from error
@@ -2002,6 +2003,8 @@ class SidecarServer:
                     "multiLineInsertRate": file.multi_line_insert_rate,
                     "editTimestamp": file.edit_timestamp,
                     "attribution": file.attribution,
+                    "unknownReason": file.unknown_reason,
+                    "unknownReasonVersion": file.unknown_reason_version,
                     "agentWeight": file.agent_weight,
                     "observationConfidence": file.observation_confidence,
                     "rationale": file.rationale,
