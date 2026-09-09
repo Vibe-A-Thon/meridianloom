@@ -678,12 +678,19 @@ class GateApproveParams(TypedDict):
     policyPath: NotRequired[str]
     rolePath: NotRequired[str]  # FR-M20-02: role pack override for the permission, SoD and N-of-M checks.
 
+# FR-M42-07 (N1-T18, decision D40): the closed, versioned approval-classification block every approval and permission decision carries. class is Meridian-owned closed vocabulary v1: human_individual | human_delegated | bot_agent | ruleset_actor | unknown; classifierVersion is the vocabulary version (approvedBy/v1) that produced the class. A non-human class (bot_agent | ruleset_actor | unknown) NEVER satisfies a human-approval policy and never counts as a human approval in any metric (FR-M42-08, AC-44).
+ApprovedBy = TypedDict('ApprovedBy', {
+    "class": Literal["human_individual", "human_delegated", "bot_agent", "ruleset_actor", "unknown"],
+    "classifierVersion": str,
+})
+
 class GateApproveResult(TypedDict):
     recorded: bool
     sequence: int  # Ledger sequence of the approval entry — durable before this response returns.
     approver: GateApprover
     subject: str
     commit: str
+    approvedBy: NotRequired[ApprovedBy]  # FR-M42-07: the stamped approval class — human_individual as themselves, human_delegated when an active delegation grant (FR-M20-05) carried the approve permission.
 
 class GateStatusParams(TypedDict):
     subject: str
@@ -701,6 +708,7 @@ class GateStatusResult(TypedDict):
     missing: list[str]  # The missing-criteria report when blocked.
     requiredApprovals: NotRequired[int]  # FR-M20-04: distinct recorded approvers required (the N-of-M threshold; 1 unless the role pack names the subject's branch).
     approvalsReceived: NotRequired[int]  # FR-M20-04: how many distinct approvers' valid approvals the ledger currently holds for this subject.
+    approvedBy: NotRequired[ApprovedBy]  # FR-M42-07: the bound approval's class; absent when blocked. Approvals with a non-human class never bind and never enter this count (FR-M42-08, AC-44).
     hygieneWarnings: NotRequired[list[str]]  # FR-M20-06: advisory rubber-stamping signals measured from ledger history — sub-threshold approve latency, approver == requester, back-to-back bulk approvals. The F2 measurement hook; never changes the verdict.
 
 class GateHaltParams(TypedDict):
@@ -1265,6 +1273,35 @@ class ObserverHealth(TypedDict):
 class ObserveHealthResult(TypedDict):
     observers: list[ObserverHealth]
     monitorRunning: bool  # True once the X-29 session monitor thread is polling.
+    evidenceExpired: NotRequired[list[EvidenceExpiredMarker]]  # FR-M44-13 / AC-47 (N1-T22): explicit evidence_expired markers, one per vendor evidence source whose documented retention window closed this session — a named coverage gap, never an absence of activity.
+
+# FR-M44-13 / AC-47: one closed vendor retention window, explicitly marked. The marker NAMES the window (windowLabel carries vendor, source and the day count) and stays visible for the rest of the session — the downgrade lands within one session and the gap is never presented as an absence of activity.
+class EvidenceExpiredMarker(TypedDict):
+    marker: Literal["evidence_expired"]
+    vendor: str
+    source: str
+    windowDays: int
+    windowLabel: str
+    evidenceTime: str  # ISO 8601 UTC: when the vendor-side evidence was created.
+    closedAt: str  # ISO 8601 UTC: evidenceTime + the window — the moment capture became impossible.
+    message: str
+
+# FR-M44-12 / NFR-37 (N1-T21): one volatile-evidence capture. vendor/source select the documented retention window (FR-M44-11); evidenceTime is when the vendor-side evidence was created; capturedAt defaults to now; unavailable names what could not be captured at capture time.
+class CaptureEvidenceParams(TypedDict):
+    vendor: str  # The vendor whose evidence was captured (claude | copilot | cursor | codex | devin).
+    source: str  # The vendor evidence source (e.g. agent-session-logs); selects the documented retention window.
+    evidenceTime: str  # ISO 8601 UTC: when the vendor-side evidence was created.
+    capturedAt: NotRequired[str]  # ISO 8601 UTC: when Meridian captured it; absent = now.
+    unavailable: NotRequired[list[str]]  # What was unavailable at capture time (FR-M44-12) — recorded, never silently dropped.
+
+class CaptureEvidenceResult(TypedDict):
+    recorded: bool
+    capture: dict[str, Any]  # The CaptureRecord: latency, window remaining, achieved margin, unavailable list, within-window flag.
+    window: dict[str, Any] | None  # The FR-M44-11 retention window record (citation + retrieved date); null when the vendor/source pair is not recorded.
+    windowStatus: Literal["documented", "unknown"]  # documented = a cited retention window exists; unknown = P26, no margin is claimed.
+    marginTarget: float  # NFR-37: the configured margin target (fraction of the window remaining at capture).
+    meetsMarginTarget: bool  # NFR-37: captured with at least marginTarget of the window remaining; False when the window is unknown (reported, not assumed).
+    expired: list[EvidenceExpiredMarker]  # FR-M44-13 / AC-47: every closed window marked so far this session, named — empty when nothing has expired.
 
 class TierSetParams(TypedDict):
     tiers: list[TierName]
@@ -1296,6 +1333,7 @@ class AcpPermissionDecisionParams(TypedDict):
     reason: NotRequired[str]  # Why the decision is what it is — for denied_by_policy, the citation (policy rule, prior decision) the UI and SEC-28 audits surface.
     decidedAt: NotRequired[str]  # ISO 8601 UTC; absent = now.
     policyVersion: NotRequired[str]  # Version/tag of the acp-permissions policy that produced a denied_by_policy outcome.
+    approvedByClass: NotRequired[str]  # FR-M42-07 (N1-T18, D40): optional capture-time class hint for WHOSE decision this is — a closed-vocabulary member (human_individual | human_delegated | bot_agent | ruleset_actor | unknown) or a vendor-invented actor type, mapped onto the closed set at capture time (unknown on failure, P26). Absent: denied_by_policy records ruleset_actor (the policy gate decided; the human never saw the prompt), selected/cancelled record human_individual.
 
 class AcpSessionRecordResult(TypedDict):
     recorded: bool  # True when the session fact was appended to the ledger.
@@ -1464,7 +1502,7 @@ class SpendCeilingNotification(TypedDict):
     spentUsd: NotRequired[float]
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate"]
 
 # Every notification method on the bus.
 NotificationName = Literal["gate/halt", "spend/ceiling", "tiers/set", "$/cancel"]
@@ -1520,7 +1558,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.doctor", "tier": "flight-recorder", "description": "Self-diagnostic check registry (FR-M30-01).", "rpcMethods": ["doctor/run"]},
     {"id": "recorder.attribution", "tier": "flight-recorder", "description": "Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).", "rpcMethods": ["attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify"]},
     {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]},
-    {"id": "recorder.observers", "tier": "flight-recorder", "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).", "rpcMethods": ["observe/sessions", "observe/health"]},
+    {"id": "recorder.observers", "tier": "flight-recorder", "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27). N1 adds volatile-evidence capture against the vendors' documented retention windows (FR-M44-11/12, NFR-37 — observe/captureEvidence records latency, achieved margin and what was unavailable) and the session-lifetime evidence_expired markers a closed window emits (FR-M44-13, AC-47).", "rpcMethods": ["observe/sessions", "observe/health", "observe/captureEvidence"]},
     {"id": "recorder.provenance-hooks", "tier": "flight-recorder", "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).", "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse"]},
     {"id": "recorder.trust-metrics", "tier": "flight-recorder", "description": "Rejection measurement and trust analytics (FR-M37-01/02/03/04/05/06/07/08, FR-M17-01/05; F0 Workstream F tasks 28-30, F1 Workstream E tasks 19-25): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), the ledger-derived, in-process-cached rejection rate per agent/repository/action-class/phase/story split by that distinction (trust/rejectionRate), the E-GR-03 rejection-reason distribution per agent (trust/reasonDistribution), the trust score with its full per-component decomposition (trust/score, trust/scoreDecomposition), same-story agent-vs-agent comparison with unknown-labelled components (trust/compareAgents), the adoption J-curve (trust/jcurve), the tokenmaxxing detector over spend series (trust/tokenmaxxing), and the DORA four-keys export in OTLP-friendly JSON (trust/doraExport). Read-only observability. Zero model calls (FR-M36-07).", "rpcMethods": ["trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport"]},
     {"id": "recorder.spend", "tier": "flight-recorder", "description": "Cross-vendor spend and predictable pricing (FR-M39-01/02/03/04, FR-M26-03; F1 Workstream F tasks 26-29): the M39 spend feed adapts recorded ledger token/cost rows onto the SpendSeries protocol (spend/series) — the cross-vendor bill by vendor, model, agent, story, team and cost centre (dimensions without recorded evidence are 'unknown', never fabricated); spend ceilings from the governance pack's budgetCeilings (spend/ceilingCheck) that pause hosted agents at a checkpoint — ledger-recorded and dispatched to the extension host, which owns the wire — and warn honestly on observed agents, which cannot be paused (the same NOT_HOSTED honesty as steer, FR-M35-06); the monthly spend forecast per team with the budget alert (spend/forecast, a documented deterministic least-squares projection over the trailing months, alerting on budgetCeilings.usdPerMonth); and the per-vendor/model pricing table from the pricing pack, USD default (D12), so recorded tokens x configured rate = cost (spend/pricing). Ceiling checks and warnings are ledger-recorded before the RPC returns (FR-M10-08), like gate.halt. Zero model calls (FR-M36-07).", "rpcMethods": ["spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing"]},
@@ -1535,7 +1573,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate")
 NOTIFICATION_METHODS: tuple[str, ...] = ("gate/halt", "spend/ceiling", "tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -1550,6 +1588,7 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "attrib/classify": {"params": AttribClassifyParams, "result": AttribClassifyResult},
     "observe/sessions": {"params": ObserveSessionsParams, "result": ObserveSessionsResult},
     "observe/health": {"params": ObserveHealthParams, "result": ObserveHealthResult},
+    "observe/captureEvidence": {"params": CaptureEvidenceParams, "result": CaptureEvidenceResult},
     "doctor/run": {"params": DoctorRunParams, "result": DoctorRunResult},
     "ledger.append": {"params": LedgerAppendParams, "result": LedgerAppendResult},
     "ledger.query": {"params": LedgerQueryParams, "result": LedgerQueryResult},

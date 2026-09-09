@@ -39,6 +39,7 @@ from .attribution import heuristics
 from .attribution import AttributionError
 from .attribution._git import normalise_repo_path as attribution_normalise
 from .governance import bootstrap as policy_bootstrap
+from .governance import approval_class as governance_approval_class
 from .governance import engine as governance_engine
 from .governance import identity as governance_identity
 from .governance import merge_gate as governance_merge_gate
@@ -60,6 +61,7 @@ from .observers import copilot as observer_copilot
 from .observers import cursor as observer_cursor
 from .observers import devin as observer_devin
 from .observers import manager as observer_manager
+from .observers import retention as observer_retention
 from .observers import sessions as observer_sessions
 from .rpc import (
     FramedReader,
@@ -70,6 +72,22 @@ from .rpc import (
 )
 
 logger = logging.getLogger("meridian_core.server")
+
+
+def _parse_iso(value: Any, field: str) -> datetime:
+    """Parse an ISO 8601 timestamp param; an invalid value is an
+    INVALID_PARAMS refusal, never a silent default."""
+    if not isinstance(value, str) or not value.strip():
+        raise _RpcError(protocol.INVALID_PARAMS, f"{field} must be an ISO 8601 timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError as error:
+        raise _RpcError(
+            protocol.INVALID_PARAMS, f"{field} must be an ISO 8601 timestamp"
+        ) from error
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 # Method handlers take (server, params) and return a JSON-able result.
 Handler = Callable[["SidecarServer", Any], Any]
@@ -131,6 +149,11 @@ class SidecarServer:
             ]
         )
         self._session_monitor: observer_sessions.SessionMonitor | None = None
+        # FR-M44-12/13 (N1-T21/22): session-lifetime volatile-evidence
+        # tracker — captures recorded here feed the evidence_expired
+        # markers on observer health/sessions surfaces and the named
+        # coverage gaps on trust-metric envelopes.
+        self._evidence_expiry = observer_retention.EvidenceExpiryTracker()
         self._handlers: dict[str, Handler] = {
             "handshake": SidecarServer._handle_handshake,
             "ping": SidecarServer._handle_ping,
@@ -139,6 +162,9 @@ class SidecarServer:
             "doctor/run": SidecarServer._handle_doctor_run,
             "observe/sessions": SidecarServer._handle_observe_sessions,
             "observe/health": SidecarServer._handle_observe_health,
+            # FR-M44-12 (N1-T21): volatile-evidence capture against the
+            # documented retention windows (FR-M44-11).
+            "observe/captureEvidence": SidecarServer._handle_observe_capture_evidence,
             "attrib/blame": SidecarServer._handle_attrib_blame,
             "attrib/diff": SidecarServer._handle_attrib_diff,
             "attrib/symbol": SidecarServer._handle_attrib_symbol,
@@ -550,15 +576,21 @@ class SidecarServer:
         # X-29: served from the monitor's cache — never blocks on observer
         # IO (a slow gh probe or OTLP parse cannot delay this response).
         monitor = self._session_monitor
+        # FR-M44-13/AC-47: a closed evidence window rides the sessions
+        # surface as a named marker in every branch, never as a silent
+        # empty session list.
+        expiry_warnings = self._evidence_expiry.warnings()
         if monitor is None or not monitor.running:
             return {
                 "sessions": [],
                 "warnings": [
-                    "session observation not started — no workspaceDir handshake yet"
+                    "session observation not started — no workspaceDir handshake yet",
+                    *expiry_warnings,
                 ],
             }
         snapshot = monitor.snapshot()
-        return {"sessions": snapshot["sessions"], "warnings": snapshot["warnings"]}
+        warnings = list(snapshot["warnings"]) + expiry_warnings
+        return {"sessions": snapshot["sessions"], "warnings": warnings}
 
     def _handle_observe_health(
         self, params: bus_types.ObserveHealthParams
@@ -569,6 +601,61 @@ class SidecarServer:
             "monitorRunning": bool(
                 self._session_monitor and self._session_monitor.running
             ),
+            # FR-M44-13/AC-47: closed retention windows downgrade observer
+            # health within one session — named, never silent.
+            "evidenceExpired": [
+                marker.to_dict() for marker in self._evidence_expiry.markers()
+            ],
+        }
+
+    def _handle_observe_capture_evidence(
+        self, params: bus_types.CaptureEvidenceParams
+    ) -> bus_types.CaptureEvidenceResult:
+        """FR-M44-12 / NFR-37 (N1-T21): record one volatile-evidence
+        capture against the vendor's documented retention window, deriving
+        latency and achieved margin in the same operation (NFR-34)."""
+        params = params or {}
+        vendor = params.get("vendor")
+        if not isinstance(vendor, str) or not vendor.strip():
+            raise _RpcError(protocol.INVALID_PARAMS, "vendor must be a non-empty string")
+        source = params.get("source")
+        if not isinstance(source, str) or not source.strip():
+            raise _RpcError(protocol.INVALID_PARAMS, "source must be a non-empty string")
+        evidence_time = _parse_iso(params.get("evidenceTime"), "evidenceTime")
+        captured_at = (
+            _parse_iso(params.get("capturedAt"), "capturedAt")
+            if params.get("capturedAt")
+            else None
+        )
+        unavailable = params.get("unavailable") or []
+        if not isinstance(unavailable, list) or any(
+            not isinstance(item, str) for item in unavailable
+        ):
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "unavailable must be a list of strings"
+            )
+        record = observer_retention.record_capture(
+            vendor.strip(),
+            source.strip(),
+            evidence_time,
+            captured_at=captured_at,
+            unavailable=unavailable,
+        )
+        self._evidence_expiry.record(record)
+        # The downgrade check runs in the same operation: a capture that
+        # arrives after its window closed marks itself (AC-47).
+        self._evidence_expiry.markers()
+        window = observer_retention.window_for(vendor.strip(), source.strip())
+        return {
+            "recorded": True,
+            "capture": record.to_dict(),
+            "window": window.to_dict() if window is not None else None,
+            "windowStatus": "documented" if record.window_days is not None else "unknown",
+            "marginTarget": observer_retention.MARGIN_TARGET,
+            "meetsMarginTarget": record.meets_margin_target,
+            "expired": [
+                marker.to_dict() for marker in self._evidence_expiry.markers()
+            ],
         }
 
     @staticmethod
@@ -860,6 +947,7 @@ class SidecarServer:
         # FR-M20-02: the acting role must hold the approve permission. An
         # active, unexpired delegation granting this principal the right
         # satisfies the check instead (FR-M20-05).
+        delegated = False
         permission = governance_roles.check_permission(role_pack, role, "approve")
         if not permission.permitted:
             grant = governance_roles.find_active_delegation(
@@ -876,6 +964,7 @@ class SidecarServer:
                         "permittedRoles": sorted(role_pack.approving_roles()),
                     },
                 )
+            delegated = True
         # FR-M20-03 separation of duties: the identity that ingested the
         # change cannot approve its own merge gate. The refusal names the
         # rule and records nothing.
@@ -899,6 +988,12 @@ class SidecarServer:
                         },
                     )
         # FR-M10-08: the approval is durable BEFORE this response returns.
+        # FR-M42-07 (D40): every approval carries its approvedBy class —
+        # human_individual as themselves, or human_delegated when an
+        # active delegation grant (FR-M20-05) carried the permission.
+        approved_by = governance_approval_class.stamp(
+            "human_delegated" if delegated else "human_individual"
+        )
         sequence = self._append_gate_entry(
             story_id=(params.get("storyId") or f"gate:{subject.strip()}"),
             pack=pack,
@@ -911,6 +1006,7 @@ class SidecarServer:
                 "subject": subject.strip(),
                 "commit": commit.strip(),
                 "role": role if isinstance(role, str) else None,
+                "approvedBy": approved_by,
                 # FR-M20-01: the full provider-resolved identity (with
                 # assurance) rides the encrypted detail blob.
                 "approver": who.wire(),
@@ -922,6 +1018,7 @@ class SidecarServer:
             "approver": {"name": who.display_name, "email": who.email},
             "subject": subject.strip(),
             "commit": commit.strip(),
+            "approvedBy": approved_by,
         }
 
     def _handle_gate_status(
@@ -970,6 +1067,12 @@ class SidecarServer:
             result["approver"] = {
                 "name": verdict.approval.approver.name,
                 "email": verdict.approval.approver.email,
+            }
+            # FR-M42-07: the bound approval's class rides the status
+            # payload so no surface mistakes a stamped class for a human.
+            result["approvedBy"] = {
+                "class": verdict.approval.approved_by_class,
+                "classifierVersion": verdict.approval.approved_by_class_version,
             }
         return result
 
@@ -2494,6 +2597,9 @@ class SidecarServer:
             to_sequence=params.get("toSequence"),
             classify=classify_fn,
             attribution_floor=self._attribution_floor(params),
+            # FR-M44-13/AC-47: a closed vendor retention window is a named
+            # coverage gap on the envelope — never an absence of activity.
+            data_gaps=self._evidence_expiry.gaps(),
         )
         result["cacheHit"] = False
         self._trust_cache.put(cache_key, result)
@@ -3687,6 +3793,20 @@ class SidecarServer:
             for key in ("sessionId", "adapterId", "toolCallId", "toolKind", "path", "optionId", "reason")
             if params.get(key) is not None
         }
+        # FR-M42-07/08 (D40): every permission decision carries its
+        # approvedBy class. A caller/vendor class hint maps onto the
+        # closed set (unknown on failure, P26); otherwise the outcome
+        # decides: a policy-gate refusal is a ruleset_actor decision (the
+        # human never saw the prompt), a human selection/cancellation is
+        # human_individual.
+        declared = params.get("approvedByClass")
+        if declared is not None:
+            decision_class = governance_approval_class.classify(declared=str(declared))
+        elif outcome == "denied_by_policy":
+            decision_class = "ruleset_actor"
+        else:
+            decision_class = "human_individual"
+        detail["approvedBy"] = governance_approval_class.stamp(decision_class)
         entry: dict[str, Any] = {
             "ts_utc": params.get("decidedAt") or ledger_core.utc_now(),
             "story_id": f"acp:{params['sessionId']}",

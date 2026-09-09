@@ -53,6 +53,11 @@
       "params": { "$ref": "#/$defs/ObserveHealthParams" },
       "result": { "$ref": "#/$defs/ObserveHealthResult" }
     },
+    "observe/captureEvidence": {
+      "description": "FR-M44-12 / NFR-37 (N1 Workstream D task 21): record one volatile-evidence capture against the vendor's documented retention window (FR-M44-11). Derives capture latency (evidenceTime -> capturedAt) and the achieved margin (fraction of the window remaining; NFR-37 targets >= marginTarget under normal operation), records what was unavailable at capture time, and reports whether the capture landed inside the window. A window documented as unknown cannot report a margin (P26 — reported unknown, never invented). If the window has already closed, the response carries the explicit evidence_expired marker naming the window (FR-M44-13, AC-47) and observer health/sessions surfaces downgrade within the session.",
+      "params": { "$ref": "#/$defs/CaptureEvidenceParams" },
+      "result": { "$ref": "#/$defs/CaptureEvidenceResult" }
+    },
     "doctor/run": {
       "description": "FR-M30-01: run the self-diagnostic check registry (interpreter, sidecar, keychain/signing key, ledger integrity, git hooks, observer health). Subsystems that are not built yet report a clear not-installed status with remediation instead of failing.",
       "params": { "$ref": "#/$defs/DoctorRunParams" },
@@ -1448,6 +1453,16 @@
       },
       "additionalProperties": false
     },
+    "ApprovedBy": {
+      "description": "FR-M42-07 (N1-T18, decision D40): the closed, versioned approval-classification block every approval and permission decision carries. class is Meridian-owned closed vocabulary v1: human_individual | human_delegated | bot_agent | ruleset_actor | unknown; classifierVersion is the vocabulary version (approvedBy/v1) that produced the class. A non-human class (bot_agent | ruleset_actor | unknown) NEVER satisfies a human-approval policy and never counts as a human approval in any metric (FR-M42-08, AC-44).",
+      "type": "object",
+      "required": ["class", "classifierVersion"],
+      "properties": {
+        "class": { "enum": ["human_individual", "human_delegated", "bot_agent", "ruleset_actor", "unknown"] },
+        "classifierVersion": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
     "GateApproveResult": {
       "type": "object",
       "required": ["recorded", "sequence", "approver", "subject", "commit"],
@@ -1456,7 +1471,8 @@
         "sequence": { "type": "integer", "description": "Ledger sequence of the approval entry — durable before this response returns." },
         "approver": { "$ref": "#/$defs/GateApprover" },
         "subject": { "type": "string" },
-        "commit": { "type": "string" }
+        "commit": { "type": "string" },
+        "approvedBy": { "$ref": "#/$defs/ApprovedBy", "description": "FR-M42-07: the stamped approval class — human_individual as themselves, human_delegated when an active delegation grant (FR-M20-05) carried the approve permission." }
       },
       "additionalProperties": false
     },
@@ -1484,6 +1500,7 @@
         "missing": { "type": "array", "items": { "type": "string" }, "description": "The missing-criteria report when blocked." },
         "requiredApprovals": { "type": "integer", "description": "FR-M20-04: distinct recorded approvers required (the N-of-M threshold; 1 unless the role pack names the subject's branch)." },
         "approvalsReceived": { "type": "integer", "description": "FR-M20-04: how many distinct approvers' valid approvals the ledger currently holds for this subject." },
+        "approvedBy": { "$ref": "#/$defs/ApprovedBy", "description": "FR-M42-07: the bound approval's class; absent when blocked. Approvals with a non-human class never bind and never enter this count (FR-M42-08, AC-44)." },
         "hygieneWarnings": { "type": "array", "items": { "type": "string" }, "description": "FR-M20-06: advisory rubber-stamping signals measured from ledger history — sub-threshold approve latency, approver == requester, back-to-back bulk approvals. The F2 measurement hook; never changes the verdict." }
       },
       "additionalProperties": false
@@ -2434,7 +2451,51 @@
       "required": ["observers", "monitorRunning"],
       "properties": {
         "observers": { "type": "array", "items": { "$ref": "#/$defs/ObserverHealth" } },
-        "monitorRunning": { "type": "boolean", "description": "True once the X-29 session monitor thread is polling." }
+        "monitorRunning": { "type": "boolean", "description": "True once the X-29 session monitor thread is polling." },
+        "evidenceExpired": { "type": "array", "items": { "$ref": "#/$defs/EvidenceExpiredMarker" }, "description": "FR-M44-13 / AC-47 (N1-T22): explicit evidence_expired markers, one per vendor evidence source whose documented retention window closed this session — a named coverage gap, never an absence of activity." }
+      },
+      "additionalProperties": false
+    },
+    "EvidenceExpiredMarker": {
+      "description": "FR-M44-13 / AC-47: one closed vendor retention window, explicitly marked. The marker NAMES the window (windowLabel carries vendor, source and the day count) and stays visible for the rest of the session — the downgrade lands within one session and the gap is never presented as an absence of activity.",
+      "type": "object",
+      "required": ["marker", "vendor", "source", "windowDays", "windowLabel", "evidenceTime", "closedAt", "message"],
+      "properties": {
+        "marker": { "const": "evidence_expired" },
+        "vendor": { "type": "string" },
+        "source": { "type": "string" },
+        "windowDays": { "type": "integer" },
+        "windowLabel": { "type": "string" },
+        "evidenceTime": { "type": "string", "description": "ISO 8601 UTC: when the vendor-side evidence was created." },
+        "closedAt": { "type": "string", "description": "ISO 8601 UTC: evidenceTime + the window — the moment capture became impossible." },
+        "message": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "CaptureEvidenceParams": {
+      "description": "FR-M44-12 / NFR-37 (N1-T21): one volatile-evidence capture. vendor/source select the documented retention window (FR-M44-11); evidenceTime is when the vendor-side evidence was created; capturedAt defaults to now; unavailable names what could not be captured at capture time.",
+      "type": "object",
+      "required": ["vendor", "source", "evidenceTime"],
+      "properties": {
+        "vendor": { "type": "string", "description": "The vendor whose evidence was captured (claude | copilot | cursor | codex | devin)." },
+        "source": { "type": "string", "description": "The vendor evidence source (e.g. agent-session-logs); selects the documented retention window." },
+        "evidenceTime": { "type": "string", "description": "ISO 8601 UTC: when the vendor-side evidence was created." },
+        "capturedAt": { "type": "string", "description": "ISO 8601 UTC: when Meridian captured it; absent = now." },
+        "unavailable": { "type": "array", "items": { "type": "string" }, "description": "What was unavailable at capture time (FR-M44-12) — recorded, never silently dropped." }
+      },
+      "additionalProperties": false
+    },
+    "CaptureEvidenceResult": {
+      "type": "object",
+      "required": ["recorded", "capture", "window", "windowStatus", "marginTarget", "meetsMarginTarget", "expired"],
+      "properties": {
+        "recorded": { "type": "boolean" },
+        "capture": { "type": "object", "description": "The CaptureRecord: latency, window remaining, achieved margin, unavailable list, within-window flag." },
+        "window": { "type": ["object", "null"], "description": "The FR-M44-11 retention window record (citation + retrieved date); null when the vendor/source pair is not recorded." },
+        "windowStatus": { "enum": ["documented", "unknown"], "description": "documented = a cited retention window exists; unknown = P26, no margin is claimed." },
+        "marginTarget": { "type": "number", "description": "NFR-37: the configured margin target (fraction of the window remaining at capture)." },
+        "meetsMarginTarget": { "type": "boolean", "description": "NFR-37: captured with at least marginTarget of the window remaining; False when the window is unknown (reported, not assumed)." },
+        "expired": { "type": "array", "items": { "$ref": "#/$defs/EvidenceExpiredMarker" }, "description": "FR-M44-13 / AC-47: every closed window marked so far this session, named — empty when nothing has expired." }
       },
       "additionalProperties": false
     },
@@ -2488,7 +2549,8 @@
         "outcome": { "enum": ["selected", "cancelled", "denied_by_policy"], "description": "selected/cancelled record the human's answer; denied_by_policy records a pre-prompt refusal by the FR-M34-04 policy gate (allow-list, declared needs, suspension) or a SEC-28 re-request auto-denial — the human NEVER saw the prompt for those." },
         "reason": { "type": "string", "description": "Why the decision is what it is — for denied_by_policy, the citation (policy rule, prior decision) the UI and SEC-28 audits surface." },
         "decidedAt": { "type": "string", "description": "ISO 8601 UTC; absent = now." },
-        "policyVersion": { "type": "string", "description": "Version/tag of the acp-permissions policy that produced a denied_by_policy outcome." }
+        "policyVersion": { "type": "string", "description": "Version/tag of the acp-permissions policy that produced a denied_by_policy outcome." },
+        "approvedByClass": { "type": "string", "description": "FR-M42-07 (N1-T18, D40): optional capture-time class hint for WHOSE decision this is — a closed-vocabulary member (human_individual | human_delegated | bot_agent | ruleset_actor | unknown) or a vendor-invented actor type, mapped onto the closed set at capture time (unknown on failure, P26). Absent: denied_by_policy records ruleset_actor (the policy gate decided; the human never saw the prompt), selected/cancelled record human_individual." }
       },
       "additionalProperties": false
     },

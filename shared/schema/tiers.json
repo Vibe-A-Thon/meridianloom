@@ -33,8 +33,8 @@
       {
         "id": "recorder.observers",
         "tier": "flight-recorder",
-        "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27).",
-        "rpcMethods": ["observe/sessions", "observe/health"]
+        "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27). N1 adds volatile-evidence capture against the vendors' documented retention windows (FR-M44-11/12, NFR-37 — observe/captureEvidence records latency, achieved margin and what was unavailable) and the session-lifetime evidence_expired markers a closed window emits (FR-M44-13, AC-47).",
+        "rpcMethods": ["observe/sessions", "observe/health", "observe/captureEvidence"]
       },
       {
         "id": "recorder.provenance-hooks",

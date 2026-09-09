@@ -110,7 +110,14 @@ class TestObserveHealthRpc:
 
     def test_health_result_matches_the_contract(self):
         response = call(self.server, "observe/health")
-        assert set(response["result"]) == {"observers", "monitorRunning"}
+        assert set(response["result"]) == {
+            "observers",
+            "monitorRunning",
+            # FR-M44-13 / AC-47 (N1-T22): closed retention windows ride
+            # health as named evidence_expired markers.
+            "evidenceExpired",
+        }
+        assert response["result"]["evidenceExpired"] == []
         for observer in response["result"]["observers"]:
             assert set(observer) <= {
                 "name",

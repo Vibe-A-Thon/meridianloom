@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..ledger.core import Ledger
+from . import approval_class
 from .identity import HumanIdentity
 from .policy import PolicyPack
 
@@ -41,7 +42,13 @@ MERGE_BLOCKING_SCOPES = ("merge", "observe-only")
 
 @dataclass(frozen=True)
 class Approval:
-    """One recorded human approval, decoded from the ledger."""
+    """One recorded human approval, decoded from the ledger.
+
+    ``approved_by_class`` is the D40 closed-vocabulary class the approver
+    was stamped/classified with (FR-M42-07); a class that is not human
+    (FR-M42-08) never reaches this dataclass from the gate's collectors —
+    it is rejected with a named note instead.
+    """
 
     sequence: int
     approver: HumanIdentity
@@ -49,6 +56,8 @@ class Approval:
     subject: str
     commit: str
     ts: str = ""
+    approved_by_class: str = "unknown"
+    approved_by_class_version: str = approval_class.CLASSIFIER_VERSION
 
 
 @dataclass(frozen=True)
@@ -112,6 +121,33 @@ def _decode_actor(human_actor: str) -> HumanIdentity:
     return HumanIdentity(name=human_actor, email="")
 
 
+def _row_class(
+    detail: dict[str, Any], identity: HumanIdentity
+) -> tuple[str, str]:
+    """The approval's D40 class: the recorded ``approvedBy`` stamp when the
+    row carries one (FR-M42-07), else classification at read time from the
+    recorded identity (rows written before the stamp existed)."""
+    recorded = detail.get("approvedBy")
+    if isinstance(recorded, dict):
+        cls = recorded.get("class")
+        if approval_class.is_known_class(cls):
+            version = recorded.get("classifierVersion")
+            return cls, str(version or approval_class.CLASSIFIER_VERSION)
+    return (
+        approval_class.classify(identity.name, identity.email),
+        approval_class.CLASSIFIER_VERSION,
+    )
+
+
+def _non_human_note(seq: int, human_actor: str, cls: str, version: str) -> str:
+    return (
+        f"approval at seq {seq} by {human_actor} is approvedBy class "
+        f"'{cls}' ({version}) — a non-human class never satisfies a "
+        "human-approval policy and never counts as a human approval "
+        "(FR-M42-08, AC-44)"
+    )
+
+
 def collect_approvals(
     ledger: Ledger,
     subject: str,
@@ -149,6 +185,13 @@ def collect_approvals(
         if head_commit is not None and recorded_commit != head_commit:
             continue
         identity = _decode_actor(human_actor)
+        cls, class_version = _row_class(detail, identity)
+        if not approval_class.is_human_class(cls):
+            # FR-M42-08 / AC-44: a bot approval (e.g. a vendor code-review
+            # bot), a ruleset bypass actor, or an unclassifiable identity
+            # never counts toward a human-approval policy.
+            notes.append(_non_human_note(row["seq"], human_actor, cls, class_version))
+            continue
         if identity.email.strip().lower() in excluded:
             notes.append(
                 f"approval at seq {row['seq']} by {human_actor} does not count: "
@@ -172,6 +215,8 @@ def collect_approvals(
                 subject=subject,
                 commit=recorded_commit,
                 ts=str(row.get("ts_utc") or ""),
+                approved_by_class=cls,
+                approved_by_class_version=class_version,
             )
         )
     return approvals, notes
@@ -217,6 +262,12 @@ def find_approval(
             if "<" in human_actor
             else HumanIdentity(name=human_actor, email="")
         )
+        cls, class_version = _row_class(detail, identity)
+        if not approval_class.is_human_class(cls):
+            # FR-M42-08 / AC-44: the freshest binding is non-human — it is
+            # not an approval, and the report says so by name.
+            stale_note = _non_human_note(row["seq"], human_actor, cls, class_version)
+            continue
         return (
             Approval(
                 sequence=row["seq"],
@@ -224,6 +275,8 @@ def find_approval(
                 role=str(role) if role else None,
                 subject=subject,
                 commit=recorded_commit,
+                approved_by_class=cls,
+                approved_by_class_version=class_version,
             ),
             None,
         )
