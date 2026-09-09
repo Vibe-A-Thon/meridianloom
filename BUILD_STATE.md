@@ -4,9 +4,9 @@
 
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
-- **Current phase:** F3 — Orchestra (F2 documented as pending-human-evidence, D35)
-- **Current workstream:** F3 M33 Deterministic Engine — slice 1 done, slice 2a (structural capabilities) delegating
-- **Current task:** F3 M33 tasks 10–12 — assisted + generative modes (FR-M33-04/05), per-class reporting (FR-M33-07), replay-identical deterministic paths (FR-M33-08/NFR-27), model-call ceilings (FR-M33-09)
+- **Current phase:** N0 — Quiesce (futures assurance track, G-1); F3 continues in parallel after N0 per the §13 interlock
+- **Current workstream:** N0 tasks T03–T08 (T01/T02 organisational — recorded)
+- **Current task:** N0-T03 perf-floor disposition + T04 observer handicap + T05 workbench/webview reds + T06 e2e contention budget + T07 BUILD_STATE reconcile + T08 dependency triage. M33 tasks 10-12 DONE (a262b84, 46 tests) — M33 functionally complete, FR-M46-16 growth gate now binds (G-1)
 - **Last commit:** 8f505cd — F3 M33 slice 2b: all nine analytical capabilities `engine/{runners,scaffold,classify,graph,cost,coverage,ambiguity,conventions}.py` + `policy/licenses.yaml` (FR-M33-02), 37 tests + 67 post-commit sweep green; task 8 COMPLETE (structural 2a at ff2a48a, 43 tests; slice 1 at 5e7d3c2, 100 tests). F3 order per gaps §F3: M33 full → M8 → M4 → M9/M28 → M7 → M38 → M31 roster → M5/M6/M13/M26. F1 exit at e0a701b (tagged f1-complete). Decisions D24–D35 in DECISIONS.md.
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
