@@ -250,7 +250,7 @@
       "result": { "$ref": "#/$defs/TrustReasonDistributionResult" }
     },
     "trust/score": {
-      "description": "FR-M37-03 (F1 Workstream E task 21): the FR-M17-01 trust score per agent per task class, derived from the ledger on demand with its full decomposition exposed — first-pass yield, rejection rate, calibration error (unknown when no in-scope entry carries a confidence value — never fabricated), post-merge revert rate (the rejection detector's reverted shape over approved changes), and incident linkage (unknown: the ledger carries no incident entry type yet). A component with no evidence reports insufficient_evidence/unknown and never feeds the aggregate as zero; the aggregate covers only the components that have evidence and stays null when none do. trust/scoreDecomposition returns the identical shape under a name that reads as the decomposition-first view.",
+      "description": "FR-M37-03 (F1 Workstream E task 21): the FR-M17-01 trust score per agent per task class, derived from the ledger on demand with its full decomposition exposed — first-pass yield, rejection rate, calibration error (unknown when no in-scope entry carries a confidence value — never fabricated), post-merge revert rate (the rejection detector's reverted shape over approved changes), and incident linkage (unknown: the ledger carries no incident entry type yet). A component with no evidence reports insufficient_evidence/unknown and never feeds the aggregate as zero; the aggregate covers only the components that have evidence and stays null when none do. AMD-M37 (N1 Workstream B T12): the score carries the greenfield/brownfield/unclassified split like every trust metric (storyCommits + repoPath classify through trust/classify). FR-M41-06: below the governance pack's attributionCoverageFloor the score reads insufficient_coverage and shows no value. trust/scoreDecomposition returns the identical shape under a name that reads as the decomposition-first view.",
       "params": { "$ref": "#/$defs/TrustScoreParams" },
       "result": { "$ref": "#/$defs/TrustScoreResult" }
     },
@@ -275,7 +275,7 @@
       "result": { "$ref": "#/$defs/TrustTokenmaxxingResult" }
     },
     "trust/doraExport": {
-      "description": "FR-M37-08 (F1 Workstream E task 25): the DORA four keys — deployment frequency, lead time for changes, change failure rate, time to restore — derived from the ledger and exported as OTLP-friendly JSON (resourceMetrics/scopeMetrics/metrics/gauge/dataPoints with OTel attribute encoding) so Meridian's numbers land in the team's existing engineering-intelligence tooling. Honest derivations, documented in the module: the ledger records no deploy event type, so deployments are the approved-diff shape (a change that passed review); lead time is the median hours from a story's first in-scope diff to its first approved diff; change failure is an approved diff later carried by a rejection entry; time to restore is the median hours from that failure to the story's next approved diff. A key the ledger cannot evidence exports a data point carrying meridian.evidence=unknown and NO value — never an invented number. Python standard library only. Zero model calls (FR-M36-07).",
+      "description": "FR-M37-08 (F1 Workstream E task 25): the DORA four keys — deployment frequency, lead time for changes, change failure rate, time to restore — derived from the ledger and exported as OTLP-friendly JSON (resourceMetrics/scopeMetrics/metrics/gauge/dataPoints with OTel attribute encoding) so Meridian's numbers land in the team's existing engineering-intelligence tooling. Honest derivations, documented in the module: the ledger records no deploy event type, so deployments are the approved-diff shape (a change that passed review); lead time is the median hours from a story's first in-scope diff to its first approved diff; change failure is an approved diff later carried by a rejection entry; time to restore is the median hours from that failure to the story's next approved diff. A key the ledger cannot evidence exports a data point carrying meridian.evidence=unknown and NO value — never an invented number. AMD-M37 (N1 Workstream B T12): the export carries the greenfield/brownfield/unclassified split like every trust metric (storyCommits + repoPath classify through trust/classify). FR-M41-06: below the governance pack's attributionCoverageFloor every key reads insufficient_coverage and the export carries meridian.evidence=insufficient_coverage instead of a value. Python standard library only. Zero model calls (FR-M36-07).",
       "params": { "$ref": "#/$defs/TrustDoraExportParams" },
       "result": { "$ref": "#/$defs/TrustDoraExportResult" }
     },
@@ -2261,16 +2261,21 @@
         "fromSequence": { "type": "integer" },
         "toSequence": { "type": "integer" },
         "exportedAt": { "type": "string", "description": "ISO 8601 UTC export timestamp; absent means now. Deterministic under tests." },
-        "resourceAttributes": { "type": "object", "description": "Extra OTLP resource attributes (key -> string value) merged over the meridian-loom defaults, e.g. the team's engineering-intelligence routing labels." }
+        "resourceAttributes": { "type": "object", "description": "Extra OTLP resource attributes (key -> string value) merged over the meridian-loom defaults, e.g. the team's engineering-intelligence routing labels." },
+        "repoPath": { "type": "string", "description": "Repository for greenfield/brownfield classification (AMD-M37). Absent means the handshake workspaceDir." },
+        "storyCommits": { "type": "object", "description": "AMD-M37 (G6): storyId -> the story's commits, used to split the export by greenfield/brownfield (trust/classify). Stories without commit data land in the unclassified bucket, never silently dropped." },
+        "newFileRatioThreshold": { "type": "number" },
+        "maxMedianAgeDays": { "type": "number" }
       },
       "additionalProperties": false
     },
     "TrustDoraExportResult": {
       "type": "object",
-      "required": ["status", "metrics", "export", "coverage"],
+      "required": ["status", "metrics", "split", "export", "coverage"],
       "properties": {
         "status": { "type": "object", "description": "The four DORA keys -> ok | unknown | insufficient_coverage — an unknown key is one the ledger cannot evidence, exported with meridian.evidence=unknown and no value, never an invented number; insufficient_coverage (FR-M41-06) is the attribution-coverage floor breach, exported with meridian.evidence=insufficient_coverage." },
         "metrics": { "type": "object", "description": "The four DORA keys with their values, units and evidence notes: deploymentFrequency ({value per week, status}), leadTimeForChanges ({value median hours, status}), changeFailureRate ({value, status}), timeToRestore ({value median hours, status})." },
+        "split": { "type": "object", "description": "AMD-M37 (G6): greenfield / brownfield / unclassified -> a full four-keys computation over that bucket's population ({status, metrics, sampleSize}), like every trust metric's split." },
         "export": { "type": "object", "description": "The OTLP/JSON encoding of the four keys (resourceMetrics -> scopeMetrics -> metrics -> gauge -> dataPoints, OTel attribute encoding), ready to POST to an OTLP/HTTP metrics endpoint or drop into engineering-intelligence tooling." },
         "coverage": { "$ref": "#/$defs/CoverageEnvelope", "description": "AMD-M17 + FR-M41-08: the DORA export carries the coverage disclosure like every KPI; multi-key result, so value is null." }
       },
@@ -2343,13 +2348,17 @@
         "taskClass": { "type": "string", "description": "FR-M37-03: restrict to this task class (the ledger carries no task-class column; classes come from taskClassByStory or this single-class filter)." },
         "taskClassByStory": { "type": "object", "description": "storyId -> task class. Stories without an entry land in the \"unclassified\" class." },
         "fromSequence": { "type": "integer" },
-        "toSequence": { "type": "integer" }
+        "toSequence": { "type": "integer" },
+        "repoPath": { "type": "string", "description": "Repository for greenfield/brownfield classification (AMD-M37). Absent means the handshake workspaceDir." },
+        "storyCommits": { "type": "object", "description": "AMD-M37 (G6): storyId -> the story's commits, used to split the score by greenfield/brownfield (trust/classify). Stories without commit data land in the unclassified bucket, never silently dropped." },
+        "newFileRatioThreshold": { "type": "number" },
+        "maxMedianAgeDays": { "type": "number" }
       },
       "additionalProperties": false
     },
     "TrustScoreResult": {
       "type": "object",
-      "required": ["scope", "agentId", "taskClass", "score", "status", "coverage", "components", "coverageEnvelope", "cacheHit"],
+      "required": ["scope", "agentId", "taskClass", "score", "status", "coverage", "components", "split", "coverageEnvelope", "cacheHit"],
       "properties": {
         "scope": { "type": "object", "description": "The echoed scope filters." },
         "agentId": { "type": "string" },
@@ -2358,6 +2367,7 @@
         "status": { "enum": ["ok", "partial", "insufficient_evidence", "insufficient_coverage"], "description": "ok: every component has evidence; partial: at least one does (the missing ones stay visible in components); insufficient_evidence: none does; insufficient_coverage (FR-M41-06): the population's attribution coverage fell below the configured floor — no score is shown." },
         "coverage": { "type": "array", "items": { "type": "string" }, "description": "The components WITH evidence that fed the score — a bad component is exposed in components, never hidden by the aggregate." },
         "components": { "type": "object", "description": "The full FR-M37-03 decomposition: firstPassYield, rejectionRate, calibrationError, postMergeRevertRate, incidentLinkage — each {status: ok|insufficient_evidence|unknown, value, sampleSize, ...}." },
+        "split": { "type": "object", "description": "AMD-M37 (G6): greenfield / brownfield / unclassified -> the same score shape per bucket (score, status, sampleSize, coverage, components). Buckets are decompositions of the headline figure, qualified by the headline's coverageEnvelope (including the FR-M41-06 floor)." },
         "coverageEnvelope": { "$ref": "#/$defs/CoverageEnvelope", "description": "FR-M41-08: the coverage disclosure over the scanned diff population. Named coverageEnvelope (not coverage) because this result's `coverage` key already names the FR-M37-03 component list." },
         "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
       },

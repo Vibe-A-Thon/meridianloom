@@ -1585,6 +1585,12 @@ export interface TrustDoraExportParams {
   "exportedAt"?: string;
   /** Extra OTLP resource attributes (key -> string value) merged over the meridian-loom defaults, e.g. the team's engineering-intelligence routing labels. */
   "resourceAttributes"?: Record<string, unknown>;
+  /** Repository for greenfield/brownfield classification (AMD-M37). Absent means the handshake workspaceDir. */
+  "repoPath"?: string;
+  /** AMD-M37 (G6): storyId -> the story's commits, used to split the export by greenfield/brownfield (trust/classify). Stories without commit data land in the unclassified bucket, never silently dropped. */
+  "storyCommits"?: Record<string, unknown>;
+  "newFileRatioThreshold"?: number;
+  "maxMedianAgeDays"?: number;
 }
 
 export interface TrustDoraExportResult {
@@ -1592,6 +1598,8 @@ export interface TrustDoraExportResult {
   "status": Record<string, unknown>;
   /** The four DORA keys with their values, units and evidence notes: deploymentFrequency ({value per week, status}), leadTimeForChanges ({value median hours, status}), changeFailureRate ({value, status}), timeToRestore ({value median hours, status}). */
   "metrics": Record<string, unknown>;
+  /** AMD-M37 (G6): greenfield / brownfield / unclassified -> a full four-keys computation over that bucket's population ({status, metrics, sampleSize}), like every trust metric's split. */
+  "split": Record<string, unknown>;
   /** The OTLP/JSON encoding of the four keys (resourceMetrics -> scopeMetrics -> metrics -> gauge -> dataPoints, OTel attribute encoding), ready to POST to an OTLP/HTTP metrics endpoint or drop into engineering-intelligence tooling. */
   "export": Record<string, unknown>;
   /** AMD-M17 + FR-M41-08: the DORA export carries the coverage disclosure like every KPI; multi-key result, so value is null. */
@@ -1671,6 +1679,12 @@ export interface TrustScoreParams {
   "taskClassByStory"?: Record<string, unknown>;
   "fromSequence"?: number;
   "toSequence"?: number;
+  /** Repository for greenfield/brownfield classification (AMD-M37). Absent means the handshake workspaceDir. */
+  "repoPath"?: string;
+  /** AMD-M37 (G6): storyId -> the story's commits, used to split the score by greenfield/brownfield (trust/classify). Stories without commit data land in the unclassified bucket, never silently dropped. */
+  "storyCommits"?: Record<string, unknown>;
+  "newFileRatioThreshold"?: number;
+  "maxMedianAgeDays"?: number;
 }
 
 export interface TrustScoreResult {
@@ -1687,6 +1701,8 @@ export interface TrustScoreResult {
   "coverage": string[];
   /** The full FR-M37-03 decomposition: firstPassYield, rejectionRate, calibrationError, postMergeRevertRate, incidentLinkage — each {status: ok|insufficient_evidence|unknown, value, sampleSize, ...}. */
   "components": Record<string, unknown>;
+  /** AMD-M37 (G6): greenfield / brownfield / unclassified -> the same score shape per bucket (score, status, sampleSize, coverage, components). Buckets are decompositions of the headline figure, qualified by the headline's coverageEnvelope (including the FR-M41-06 floor). */
+  "split": Record<string, unknown>;
   /** FR-M41-08: the coverage disclosure over the scanned diff population. Named coverageEnvelope (not coverage) because this result's `coverage` key already names the FR-M37-03 component list. */
   "coverageEnvelope": CoverageEnvelope;
   /** True when served from the in-process cache (FR-M17-05). */

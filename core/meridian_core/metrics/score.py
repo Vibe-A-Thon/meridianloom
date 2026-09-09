@@ -60,6 +60,7 @@ from .coverage import (
     scan_scope,
 )
 from .reasons import detection_shape
+from .trust import BROWNFIELD, GREENFIELD, UNCLASSIFIED
 
 __all__ = ["SCORE_WEIGHTS", "compute_trust_score"]
 
@@ -94,91 +95,14 @@ def _component(
     return component
 
 
-def compute_trust_score(
-    ledger,
-    *,
-    actor_id: str,
-    repo_id: str | None = None,
-    task_class: str | None = None,
-    task_class_by_story: dict[str, str] | None = None,
-    from_sequence: int | None = None,
-    to_sequence: int | None = None,
-    attribution_floor: float | None = None,
-) -> dict[str, Any]:
-    """The FR-M37-03 trust score for one agent (optionally one task class)
-    with its full decomposition. ``task_class_by_story`` maps story ids to
-    task classes; without it every story is ``unclassified``.
-
-    FR-M41-06: ``attribution_floor`` (the governance pack's
-    ``attributionCoverageFloor``, plumbed by the RPC layer) suppresses
-    the score — it reads ``insufficient_coverage`` with no value — when
-    the attributed share of the agent's proposed-change population falls
-    below the floor.
-    """
-    scope = {
-        "repoId": repo_id,
-        "actorId": actor_id,
-        "taskClass": task_class,
-        "fromSequence": from_sequence,
-        "toSequence": to_sequence,
-    }
-
-    def in_class(story_id: str) -> bool:
-        if task_class is None:
-            return True
-        mapped = (task_class_by_story or {}).get(story_id, "unclassified")
-        return mapped == task_class
-
-    # FR-M41-07 (D36): full-history cursor scans; the coverage envelope
-    # (FR-M41-08) rides the result under coverageEnvelope — this module's
-    # `coverage` key already names the FR-M37-03 component list. The
-    # envelope's population is the whole scanned scope; the repo/task-
-    # class filters below are a declared restriction (never truncation).
-    scoped_rows, rows_available = scan_scope(
-        ledger,
-        action_type="diff",
-        actor_id=actor_id,
-        from_sequence=from_sequence,
-        to_sequence=to_sequence,
-    )
-    rows = scoped_rows
-    if repo_id is not None:
-        rows = [row for row in rows if row.get("repo_id") == repo_id]
-    rows = [row for row in rows if in_class(row["story_id"])]
-
-    rejection_rows, rejection_available = scan_scope(
-        ledger, action_type="rejection"
-    )
-    rejection_rows = list(rejection_rows)
-    scoped_rejection_rows = rejection_rows
-    if repo_id is not None:
-        scoped_rejection_rows = [
-            row for row in scoped_rejection_rows if row.get("repo_id") == repo_id
-        ]
-    if from_sequence is not None:
-        scoped_rejection_rows = [
-            row for row in scoped_rejection_rows if row["seq"] >= from_sequence
-        ]
-    if to_sequence is not None:
-        scoped_rejection_rows = [
-            row for row in scoped_rejection_rows if row["seq"] <= to_sequence
-        ]
-    rejection_rows = scoped_rejection_rows
-    rejected_sequences = {
-        row["rejected_sequence"]
-        for row in rejection_rows
-        if row.get("rejected_sequence") is not None
-    }
-    reverted_sequences = {
-        row["rejected_sequence"]
-        for row in rejection_rows
-        if row.get("rejected_sequence") is not None
-        and detection_shape(row) == REVERTED_SHAPE
-    }
-
-    def rejected(row: dict[str, Any]) -> bool:
-        return row["seq"] in rejected_sequences or row.get("decision") in REJECTED_DECISIONS
-
+def _score_bucket(
+    rows: list[dict[str, Any]],
+    rejected: Callable[[dict[str, Any]], bool],
+    reverted_sequences: set[int],
+) -> tuple[dict[str, Any], float | None, str, list[str]]:
+    """The FR-M37-03 decomposition + weighted aggregate over ONE
+    population of diff rows (the headline population or one
+    greenfield/brownfield split bucket — AMD-M37)."""
     proposed = len(rows)
     rejected_count = sum(1 for row in rows if rejected(row))
 
@@ -281,6 +205,129 @@ def compute_trust_score(
     else:
         score = None
         status = _STATUS_INSUFFICIENT
+    return components, score, status, coverage
+
+
+def compute_trust_score(
+    ledger,
+    *,
+    actor_id: str,
+    repo_id: str | None = None,
+    task_class: str | None = None,
+    task_class_by_story: dict[str, str] | None = None,
+    from_sequence: int | None = None,
+    to_sequence: int | None = None,
+    attribution_floor: float | None = None,
+    classify: Callable[[str], str | None] | None = None,
+) -> dict[str, Any]:
+    """The FR-M37-03 trust score for one agent (optionally one task class)
+    with its full decomposition. ``task_class_by_story`` maps story ids to
+    task classes; without it every story is ``unclassified``.
+
+    FR-M41-06: ``attribution_floor`` (the governance pack's
+    ``attributionCoverageFloor``, plumbed by the RPC layer) suppresses
+    the score — it reads ``insufficient_coverage`` with no value — when
+    the attributed share of the agent's proposed-change population falls
+    below the floor.
+
+    AMD-M37 (G6): ``classify`` maps a story id to greenfield/brownfield
+    (or None); the score carries the split like every other trust
+    metric — stories the classifier declines land in ``unclassified``,
+    reported, never dropped.
+    """
+    scope = {
+        "repoId": repo_id,
+        "actorId": actor_id,
+        "taskClass": task_class,
+        "fromSequence": from_sequence,
+        "toSequence": to_sequence,
+    }
+
+    def in_class(story_id: str) -> bool:
+        if task_class is None:
+            return True
+        mapped = (task_class_by_story or {}).get(story_id, "unclassified")
+        return mapped == task_class
+
+    # FR-M41-07 (D36): full-history cursor scans; the coverage envelope
+    # (FR-M41-08) rides the result under coverageEnvelope — this module's
+    # `coverage` key already names the FR-M37-03 component list. The
+    # envelope's population is the whole scanned scope; the repo/task-
+    # class filters below are a declared restriction (never truncation).
+    scoped_rows, rows_available = scan_scope(
+        ledger,
+        action_type="diff",
+        actor_id=actor_id,
+        from_sequence=from_sequence,
+        to_sequence=to_sequence,
+    )
+    rows = scoped_rows
+    if repo_id is not None:
+        rows = [row for row in rows if row.get("repo_id") == repo_id]
+    rows = [row for row in rows if in_class(row["story_id"])]
+
+    rejection_rows, rejection_available = scan_scope(
+        ledger, action_type="rejection"
+    )
+    rejection_rows = list(rejection_rows)
+    scoped_rejection_rows = rejection_rows
+    if repo_id is not None:
+        scoped_rejection_rows = [
+            row for row in scoped_rejection_rows if row.get("repo_id") == repo_id
+        ]
+    if from_sequence is not None:
+        scoped_rejection_rows = [
+            row for row in scoped_rejection_rows if row["seq"] >= from_sequence
+        ]
+    if to_sequence is not None:
+        scoped_rejection_rows = [
+            row for row in scoped_rejection_rows if row["seq"] <= to_sequence
+        ]
+    rejection_rows = scoped_rejection_rows
+    rejected_sequences = {
+        row["rejected_sequence"]
+        for row in rejection_rows
+        if row.get("rejected_sequence") is not None
+    }
+    reverted_sequences = {
+        row["rejected_sequence"]
+        for row in rejection_rows
+        if row.get("rejected_sequence") is not None
+        and detection_shape(row) == REVERTED_SHAPE
+    }
+
+    def rejected(row: dict[str, Any]) -> bool:
+        return row["seq"] in rejected_sequences or row.get("decision") in REJECTED_DECISIONS
+
+    components, score, status, coverage = _score_bucket(
+        rows, rejected, reverted_sequences
+    )
+
+    # AMD-M37 (G6): the split rides the score like every other trust
+    # metric. Buckets are decompositions of the headline figure, qualified
+    # by the headline's coverage envelope (including the FR-M41-06 floor).
+    split_rows: dict[str, list[dict[str, Any]]] = {
+        GREENFIELD: [],
+        BROWNFIELD: [],
+        UNCLASSIFIED: [],
+    }
+    for row in rows:
+        kind = UNCLASSIFIED if classify is None else (classify(row["story_id"]) or UNCLASSIFIED)
+        if kind not in split_rows:
+            kind = UNCLASSIFIED
+        split_rows[kind].append(row)
+    split: dict[str, dict[str, Any]] = {}
+    for kind, bucket_rows in split_rows.items():
+        bucket_components, bucket_score, bucket_status, bucket_coverage = (
+            _score_bucket(bucket_rows, rejected, reverted_sequences)
+        )
+        split[kind] = {
+            "score": bucket_score,
+            "status": bucket_status,
+            "sampleSize": len(bucket_rows),
+            "coverage": bucket_coverage,
+            "components": bucket_components,
+        }
 
     # FR-M41-06: below the configured attribution-coverage floor the score
     # is not evidence — it reads insufficient_coverage and shows no value.
@@ -298,6 +345,7 @@ def compute_trust_score(
         "status": status,
         "coverage": coverage,
         "components": components,
+        "split": split,
         ATTACH_KEY_SCORE: envelope_for(
             score,
             scoped_rows,

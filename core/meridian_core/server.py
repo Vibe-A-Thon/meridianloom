@@ -2605,6 +2605,9 @@ class SidecarServer:
             raise _RpcError(
                 protocol.INVALID_PARAMS, "taskClassByStory must be an object"
             )
+        story_commits = params.get("storyCommits") or {}
+        ratio_threshold = params.get("newFileRatioThreshold")
+        max_age_days = params.get("maxMedianAgeDays")
 
         cache_key = json.dumps(
             {
@@ -2616,6 +2619,8 @@ class SidecarServer:
                     "toSequence": params.get("toSequence"),
                 },
                 "taskClassByStory": task_class_by_story,
+                "storyCommits": story_commits,
+                "thresholds": [ratio_threshold, max_age_days],
                 "attributionFloor": self._attribution_floor(params),
                 "tip": ledger.last_sequence,  # append-invalidation backstop
             },
@@ -2627,6 +2632,9 @@ class SidecarServer:
             result["cacheHit"] = True
             return result  # type: ignore[return-value]
 
+        classify_fn = self._trust_classifier(
+            params, story_commits, ratio_threshold, max_age_days
+        )
         result = metrics_mod.compute_trust_score(
             ledger,
             actor_id=actor_id,
@@ -2636,6 +2644,7 @@ class SidecarServer:
             from_sequence=params.get("fromSequence"),
             to_sequence=params.get("toSequence"),
             attribution_floor=self._attribution_floor(params),
+            classify=classify_fn,
         )
         result["cacheHit"] = False
         self._trust_cache.put(cache_key, result)
@@ -2929,6 +2938,9 @@ class SidecarServer:
                 protocol.INVALID_PARAMS, "resourceAttributes must be an object"
             )
         exported_at = params.get("exportedAt")
+        story_commits = params.get("storyCommits") or {}
+        ratio_threshold = params.get("newFileRatioThreshold")
+        max_age_days = params.get("maxMedianAgeDays")
 
         cache_key = json.dumps(
             {
@@ -2939,6 +2951,8 @@ class SidecarServer:
                 },
                 "resourceAttributes": resource_attributes,
                 "exportedAt": exported_at,
+                "storyCommits": story_commits,
+                "thresholds": [ratio_threshold, max_age_days],
                 "attributionFloor": self._attribution_floor(params),
                 "tip": ledger.last_sequence,  # append-invalidation backstop
             },
@@ -2948,12 +2962,16 @@ class SidecarServer:
         if cached is not None:
             return cached  # type: ignore[return-value]
 
+        classify_fn = self._trust_classifier(
+            params, story_commits, ratio_threshold, max_age_days
+        )
         computed = metrics_mod.compute_dora_metrics(
             ledger,
             repo_id=params.get("repoId"),
             from_sequence=params.get("fromSequence"),
             to_sequence=params.get("toSequence"),
             attribution_floor=self._attribution_floor(params),
+            classify=classify_fn,
         )
         export = metrics_mod.export_otlp(
             computed,
@@ -2963,6 +2981,7 @@ class SidecarServer:
         result = {
             "status": computed["status"],
             "metrics": computed["metrics"],
+            "split": computed["split"],
             "export": export,
             # FR-M41-08: the export's coverage disclosure rides the result.
             metrics_mod.ATTACH_KEY: computed[metrics_mod.ATTACH_KEY],

@@ -1151,10 +1151,15 @@ class TrustDoraExportParams(TypedDict):
     toSequence: NotRequired[int]
     exportedAt: NotRequired[str]  # ISO 8601 UTC export timestamp; absent means now. Deterministic under tests.
     resourceAttributes: NotRequired[dict[str, Any]]  # Extra OTLP resource attributes (key -> string value) merged over the meridian-loom defaults, e.g. the team's engineering-intelligence routing labels.
+    repoPath: NotRequired[str]  # Repository for greenfield/brownfield classification (AMD-M37). Absent means the handshake workspaceDir.
+    storyCommits: NotRequired[dict[str, Any]]  # AMD-M37 (G6): storyId -> the story's commits, used to split the export by greenfield/brownfield (trust/classify). Stories without commit data land in the unclassified bucket, never silently dropped.
+    newFileRatioThreshold: NotRequired[float]
+    maxMedianAgeDays: NotRequired[float]
 
 class TrustDoraExportResult(TypedDict):
     status: dict[str, Any]  # The four DORA keys -> ok | unknown | insufficient_coverage — an unknown key is one the ledger cannot evidence, exported with meridian.evidence=unknown and no value, never an invented number; insufficient_coverage (FR-M41-06) is the attribution-coverage floor breach, exported with meridian.evidence=insufficient_coverage.
     metrics: dict[str, Any]  # The four DORA keys with their values, units and evidence notes: deploymentFrequency ({value per week, status}), leadTimeForChanges ({value median hours, status}), changeFailureRate ({value, status}), timeToRestore ({value median hours, status}).
+    split: dict[str, Any]  # AMD-M37 (G6): greenfield / brownfield / unclassified -> a full four-keys computation over that bucket's population ({status, metrics, sampleSize}), like every trust metric's split.
     export: dict[str, Any]  # The OTLP/JSON encoding of the four keys (resourceMetrics -> scopeMetrics -> metrics -> gauge -> dataPoints, OTel attribute encoding), ready to POST to an OTLP/HTTP metrics endpoint or drop into engineering-intelligence tooling.
     coverage: CoverageEnvelope  # AMD-M17 + FR-M41-08: the DORA export carries the coverage disclosure like every KPI; multi-key result, so value is null.
 
@@ -1204,6 +1209,10 @@ class TrustScoreParams(TypedDict):
     taskClassByStory: NotRequired[dict[str, Any]]  # storyId -> task class. Stories without an entry land in the "unclassified" class.
     fromSequence: NotRequired[int]
     toSequence: NotRequired[int]
+    repoPath: NotRequired[str]  # Repository for greenfield/brownfield classification (AMD-M37). Absent means the handshake workspaceDir.
+    storyCommits: NotRequired[dict[str, Any]]  # AMD-M37 (G6): storyId -> the story's commits, used to split the score by greenfield/brownfield (trust/classify). Stories without commit data land in the unclassified bucket, never silently dropped.
+    newFileRatioThreshold: NotRequired[float]
+    maxMedianAgeDays: NotRequired[float]
 
 class TrustScoreResult(TypedDict):
     scope: dict[str, Any]  # The echoed scope filters.
@@ -1213,6 +1222,7 @@ class TrustScoreResult(TypedDict):
     status: Literal["ok", "partial", "insufficient_evidence", "insufficient_coverage"]  # ok: every component has evidence; partial: at least one does (the missing ones stay visible in components); insufficient_evidence: none does; insufficient_coverage (FR-M41-06): the population's attribution coverage fell below the configured floor — no score is shown.
     coverage: list[str]  # The components WITH evidence that fed the score — a bad component is exposed in components, never hidden by the aggregate.
     components: dict[str, Any]  # The full FR-M37-03 decomposition: firstPassYield, rejectionRate, calibrationError, postMergeRevertRate, incidentLinkage — each {status: ok|insufficient_evidence|unknown, value, sampleSize, ...}.
+    split: dict[str, Any]  # AMD-M37 (G6): greenfield / brownfield / unclassified -> the same score shape per bucket (score, status, sampleSize, coverage, components). Buckets are decompositions of the headline figure, qualified by the headline's coverageEnvelope (including the FR-M41-06 floor).
     coverageEnvelope: CoverageEnvelope  # FR-M41-08: the coverage disclosure over the scanned diff population. Named coverageEnvelope (not coverage) because this result's `coverage` key already names the FR-M37-03 component list.
     cacheHit: bool  # True when served from the in-process cache (FR-M17-05).
 

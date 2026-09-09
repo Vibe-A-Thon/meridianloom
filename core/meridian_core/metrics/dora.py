@@ -37,6 +37,7 @@ Zero model calls (FR-M36-07): datetime arithmetic and JSON-shaped dicts.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any, Sequence
 
@@ -52,6 +53,7 @@ from meridian_core.metrics.coverage import (
     ledger_row_attribution_state,
     scan_scope,
 )
+from meridian_core.metrics.trust import BROWNFIELD, GREENFIELD, UNCLASSIFIED
 
 __all__ = ["compute_dora_metrics", "export_otlp"]
 
@@ -118,6 +120,7 @@ def compute_dora_metrics(
     from_sequence: int | None = None,
     to_sequence: int | None = None,
     attribution_floor: float | None = None,
+    classify: Callable[[str], str | None] | None = None,
 ) -> dict[str, Any]:
     """The four DORA keys over the in-scope ledger rows.
 
@@ -129,6 +132,12 @@ def compute_dora_metrics(
     ``attributionCoverageFloor``, plumbed by the RPC layer) suppresses
     every key — all read ``insufficient_coverage`` with no value — when
     the attributed share of the diff population falls below the floor.
+
+    AMD-M37 (G6): ``classify`` maps a story id to greenfield/brownfield
+    (or None); the export carries the split like every other trust
+    metric, each bucket a full four-keys computation over that
+    population. Stories the classifier declines land in ``unclassified``,
+    reported, never dropped.
     """
     scope = {
         "repoId": repo_id,
@@ -180,6 +189,74 @@ def compute_dora_metrics(
         if prior is None or ts < prior:
             failed_sequences[rejected_sequence] = ts
 
+    computed = _dora_for(rows, failed_sequences)
+    metrics = computed["metrics"]
+
+    # AMD-M37 (G6): the split rides the export like every other trust
+    # metric — one full four-keys computation per bucket over that
+    # bucket's rows.
+    split_rows: dict[str, list[dict[str, Any]]] = {
+        GREENFIELD: [],
+        BROWNFIELD: [],
+        UNCLASSIFIED: [],
+    }
+    for row in rows:
+        kind = (
+            UNCLASSIFIED
+            if classify is None
+            else (classify(row["story_id"]) or UNCLASSIFIED)
+        )
+        if kind not in split_rows:
+            kind = UNCLASSIFIED
+        split_rows[kind].append(row)
+    split: dict[str, dict[str, Any]] = {}
+    for kind, bucket_rows in split_rows.items():
+        bucket = _dora_for(bucket_rows, failed_sequences)
+        split[kind] = {
+            "status": bucket["status"],
+            "metrics": bucket["metrics"],
+            "sampleSize": len(bucket_rows),
+        }
+
+    # FR-M41-06: below the configured attribution-coverage floor no key is
+    # evidence — every value reads insufficient_coverage and shows no
+    # value (the OTLP export then carries the status, not a number).
+    row_states = [ledger_row_attribution_state(row) for row in rows]
+    coverage_check = attribution_coverage(row_states, attribution_floor)
+    if coverage_check.belowFloor:
+        for metric in metrics.values():
+            metric["status"] = INSUFFICIENT_COVERAGE
+            metric["value"] = None
+            metric["note"] = (
+                "attribution coverage below the configured floor "
+                f"({coverage_check.coverage} < {coverage_check.floor}) "
+                "— insufficient_coverage, no value shown (FR-M41-06)"
+            )
+
+    return {
+        "scope": scope,
+        "status": {key: metric["status"] for key, metric in metrics.items()},
+        "metrics": metrics,
+        "split": split,
+        # Multi-key result: the envelope carries no single value. AMD-M17:
+        # the DORA export carries the FR-M41-08 disclosure like every KPI.
+        ATTACH_KEY: envelope_for(
+            None,
+            scoped_rows,
+            rows_available,
+            aux_scans=((rejection_scanned, rejection_available),),
+            attribution_states=row_states,
+            attribution_floor=attribution_floor,
+        ).to_dict(),
+    }
+
+
+def _dora_for(
+    rows: list[dict[str, Any]],
+    failed_sequences: dict[int, datetime],
+) -> dict[str, Any]:
+    """The four DORA keys over ONE population of diff rows (the headline
+    population or one greenfield/brownfield split bucket — AMD-M37)."""
     approved = [row for row in rows if row.get("decision") == "approved"]
     failures = [row for row in approved if row["seq"] in failed_sequences]
 
@@ -323,36 +400,9 @@ def compute_dora_metrics(
         "changeFailureRate": change_failure_rate,
         "timeToRestore": time_to_restore,
     }
-
-    # FR-M41-06: below the configured attribution-coverage floor no key is
-    # evidence — every value reads insufficient_coverage and shows no
-    # value (the OTLP export then carries the status, not a number).
-    row_states = [ledger_row_attribution_state(row) for row in rows]
-    coverage_check = attribution_coverage(row_states, attribution_floor)
-    if coverage_check.belowFloor:
-        for metric in metrics.values():
-            metric["status"] = INSUFFICIENT_COVERAGE
-            metric["value"] = None
-            metric["note"] = (
-                "attribution coverage below the configured floor "
-                f"({coverage_check.coverage} < {coverage_check.floor}) "
-                "— insufficient_coverage, no value shown (FR-M41-06)"
-            )
-
     return {
-        "scope": scope,
         "status": {key: metric["status"] for key, metric in metrics.items()},
         "metrics": metrics,
-        # Multi-key result: the envelope carries no single value. AMD-M17:
-        # the DORA export carries the FR-M41-08 disclosure like every KPI.
-        ATTACH_KEY: envelope_for(
-            None,
-            scoped_rows,
-            rows_available,
-            aux_scans=((rejection_scanned, rejection_available),),
-            attribution_states=row_states,
-            attribution_floor=attribution_floor,
-        ).to_dict(),
     }
 
 
