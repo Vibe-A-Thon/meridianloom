@@ -40,6 +40,17 @@ FR-M41-09 at the module level: :func:`forbid_projection` disables any
 derived projection over a truncated population and returns the reason
 as text.
 
+FR-M41-06 (N1 Workstream B T09): the envelope also carries the
+**attribution-coverage dimension** of the figure's population — how many
+rows are positively attributable to ``agent`` / ``human`` and how many
+are ``unattributed`` (P26: unknown is a state, never a residual).
+:class:`AttributionCoverage` rides the envelope under ``attribution``
+together with the configurable policy floor (the governance pack's
+``attributionCoverageFloor``): when the attributed share falls below the
+floor the metric reads ``insufficient_coverage`` and shows no value —
+a metric over a population it cannot attribute is not evidence (P25).
+:func:`ledger_row_attribution_state` is the documented per-row rule.
+
 Zero model calls (FR-M36-07): counting and arithmetic over ledger rows.
 """
 
@@ -51,9 +62,13 @@ from typing import Any, Mapping, Sequence
 __all__ = [
     "ATTACH_KEY",
     "ATTACH_KEY_SCORE",
+    "AttributionCoverage",
     "CoverageEnvelope",
+    "INSUFFICIENT_COVERAGE",
+    "attribution_coverage",
     "envelope_for",
     "forbid_projection",
+    "ledger_row_attribution_state",
     "scan_scope",
 ]
 
@@ -72,6 +87,97 @@ _LABEL_COMPLETE = "complete"
 _LABEL_PARTIAL = "partial"
 _LABEL_EMPTY = "empty"
 
+#: FR-M41-06: the status a metric reads when its population's attribution
+#: coverage falls below the configured policy floor — no value is shown.
+INSUFFICIENT_COVERAGE = "insufficient_coverage"
+
+#: Ledger actor kinds that are Meridian-native agent actors (the schema's
+#: own vocabulary, ledger/schema.py) — positive agent-authorship evidence.
+_AGENT_ACTOR_KINDS = frozenset({"orchestrator", "role", "stack", "sub", "xai", "meta"})
+
+
+def ledger_row_attribution_state(row: Mapping[str, Any]) -> str:
+    """The three-state attribution (FR-M41-04) of ONE ledger row, from the
+    row's own positive evidence only — ``agent``, ``human``, or
+    ``unattributed``; never derived by subtraction:
+
+    * a recorded external agent ``vendor`` (FR-M35-03) -> ``agent``;
+    * a Meridian-native agent actor kind (orchestrator|role|stack|sub|
+      xai|meta) -> ``agent``;
+    * an ``external`` actor with ``telemetry``/``inferred`` observation
+      confidence (FR-M35-02) -> ``agent``;
+    * anything else carries no positive authorship evidence ->
+      ``unattributed``.
+
+    The ledger records agent authorship positively; it has no positive
+    human-authorship marker, so human rows read ``unattributed`` until
+    the schema grows one — reported, never absorbed into ``agent``.
+    """
+    vendor = row.get("vendor") or "meridian"
+    kind = row.get("actor_kind") or ""
+    confidence = row.get("observation_confidence") or "direct"
+    if vendor != "meridian":
+        return "agent"
+    if kind in _AGENT_ACTOR_KINDS:
+        return "agent"
+    if kind == "external" and confidence in ("telemetry", "inferred"):
+        return "agent"
+    return "unattributed"
+
+
+@dataclass(frozen=True)
+class AttributionCoverage:
+    """FR-M41-06: the attribution-coverage dimension of a figure's
+    population, computed in the same operation as the figure (NFR-34)."""
+
+    agent: int
+    human: int
+    unattributed: int
+    coverage: float  # (agent + human) / total; 1.0 over an empty population
+    floor: float | None  # the configured policy floor; null = unconfigured
+    belowFloor: bool  # coverage < floor over a non-empty population
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "agent": self.agent,
+            "human": self.human,
+            "unattributed": self.unattributed,
+            "coverage": self.coverage,
+            "floor": self.floor,
+            "belowFloor": self.belowFloor,
+        }
+
+
+def attribution_coverage(
+    states: Sequence[str],
+    floor: float | None = None,
+) -> AttributionCoverage:
+    """The AttributionCoverage over per-row states. An empty population
+    covers completely (nothing to attribute, nothing missed) — the
+    empty-sample verdict is the metric's own ``insufficient_evidence``.
+    ``floor`` outside [0, 1] is ignored (unconfigured)."""
+    agent = sum(1 for state in states if state == "agent")
+    human = sum(1 for state in states if state == "human")
+    total = len(states)
+    coverage = round((agent + human) / total, 6) if total else 1.0
+    effective_floor: float | None = None
+    if (
+        isinstance(floor, (int, float))
+        and not isinstance(floor, bool)
+        and 0.0 <= float(floor) <= 1.0
+    ):
+        effective_floor = float(floor)
+    return AttributionCoverage(
+        agent=agent,
+        human=human,
+        unattributed=total - agent - human,
+        coverage=coverage,
+        floor=effective_floor,
+        belowFloor=bool(
+            effective_floor is not None and total > 0 and coverage < effective_floor
+        ),
+    )
+
 
 @dataclass(frozen=True)
 class CoverageEnvelope:
@@ -84,11 +190,14 @@ class CoverageEnvelope:
     sequenceRange: tuple[int | None, int | None]
     coverage: float
     label: str
+    # FR-M41-06: the attribution-coverage dimension; None when the metric
+    # does not attribute its population (older surfaces stay valid).
+    attribution: AttributionCoverage | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """The wire/JSON shape — camelCase, matching the bus schema's
         CoverageEnvelope $def."""
-        return {
+        payload: dict[str, Any] = {
             "value": self.value,
             "rowsConsidered": self.rowsConsidered,
             "rowsAvailable": self.rowsAvailable,
@@ -97,9 +206,17 @@ class CoverageEnvelope:
             "coverage": self.coverage,
             "label": self.label,
         }
+        if self.attribution is not None:
+            payload["attribution"] = self.attribution.to_dict()
+        return payload
 
     @classmethod
-    def empty(cls, value: Any = None) -> "CoverageEnvelope":
+    def empty(
+        cls,
+        value: Any = None,
+        *,
+        attribution: AttributionCoverage | None = None,
+    ) -> "CoverageEnvelope":
         """The envelope over an empty available population: nothing was
         truncated (there was nothing to miss) and the figure reads
         insufficient_evidence upstream — never zero by this wrapper."""
@@ -111,6 +228,7 @@ class CoverageEnvelope:
             sequenceRange=(None, None),
             coverage=1.0,
             label=_LABEL_EMPTY,
+            attribution=attribution,
         )
 
 
@@ -119,6 +237,8 @@ def envelope_for(
     primary_rows: Sequence[Mapping[str, Any]],
     primary_available: int,
     aux_scans: Sequence[tuple[Sequence[Mapping[str, Any]], int]] = (),
+    attribution_states: Sequence[str] | None = None,
+    attribution_floor: float | None = None,
 ) -> CoverageEnvelope:
     """The envelope for a figure computed over ``primary_rows`` when the
     ledger holds ``primary_available`` rows in the figure's scope.
@@ -128,6 +248,12 @@ def envelope_for(
     through): a short auxiliary scan also marks the figure truncated —
     the primary population was complete but the linkage that qualifies
     it was not (the G-01 shape).
+
+    ``attribution_states`` (FR-M41-06) are the per-row three-state
+    attributions of the figure's population (see
+    :func:`ledger_row_attribution_state`); with ``attribution_floor``
+    the envelope's attribution dimension reports whether the attributed
+    share fell below the configured policy floor.
 
     ``truncated`` is derived, never supplied: fewer examined rows than
     the scope holds means truncation, and the envelope must say so
@@ -144,8 +270,13 @@ def envelope_for(
         )
     else:
         sequence_range = (None, None)
+    attribution = (
+        attribution_coverage(attribution_states, attribution_floor)
+        if attribution_states is not None
+        else None
+    )
     if primary_available <= 0:
-        return CoverageEnvelope.empty(value)
+        return CoverageEnvelope.empty(value, attribution=attribution)
     return CoverageEnvelope(
         value=value,
         rowsConsidered=considered,
@@ -154,6 +285,7 @@ def envelope_for(
         sequenceRange=sequence_range,
         coverage=round(considered / primary_available, 6),
         label=_LABEL_PARTIAL if truncated else _LABEL_COMPLETE,
+        attribution=attribution,
     )
 
 

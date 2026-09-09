@@ -50,6 +50,7 @@ _TOP_LEVEL_KEYS = (
     "permittedTools",
     "budgetCeilings",
     "tierThresholds",
+    "attributionCoverageFloor",
 )
 
 _CRITERION_KEYS = (
@@ -104,6 +105,10 @@ class PolicyPack:
     permitted_tools: list[str] = field(default_factory=list)
     budget_ceilings: dict[str, Any] = field(default_factory=dict)
     tier_thresholds: dict[str, Any] = field(default_factory=dict)
+    #: FR-M41-06: the attribution-coverage floor (0..1) under which a trust
+    #: metric reads insufficient_coverage and shows no value; None when the
+    #: pack does not configure one (unconfigured — no suppression).
+    attribution_coverage_floor: float | None = None
 
     @property
     def fail_closed(self) -> bool:
@@ -273,6 +278,21 @@ def parse_policy_pack(text: str, source: str) -> PolicyPack:
                 if not _is_mapping(rules):
                     errors.append(f"acpPermissions.adapters.{adapter_id}: expected a mapping")
 
+    attribution_floor = raw.get("attributionCoverageFloor")
+    attribution_coverage_floor: float | None = None
+    if attribution_floor is not None:
+        if (
+            isinstance(attribution_floor, (int, float))
+            and not isinstance(attribution_floor, bool)
+            and 0.0 <= float(attribution_floor) <= 1.0
+        ):
+            attribution_coverage_floor = float(attribution_floor)
+        else:
+            errors.append(
+                "attributionCoverageFloor: expected a number between 0 and 1, "
+                f"got {attribution_floor!r}"
+            )
+
     if errors:
         errors.append(FAIL_CLOSED_REMEDY)
         return fail_closed_pack(
@@ -289,6 +309,7 @@ def parse_policy_pack(text: str, source: str) -> PolicyPack:
         permitted_tools=permitted_tools,
         budget_ceilings=dict(budget_ceilings),
         tier_thresholds=dict(tier_thresholds),
+        attribution_coverage_floor=attribution_coverage_floor,
     )
 
 

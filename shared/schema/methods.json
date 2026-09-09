@@ -382,7 +382,22 @@
         "truncated": { "type": "boolean", "description": "True when any scan stopped short of its available population (the old 1,000-row clamp). FR-M41-09: surfaces must state this in text and disable derived projections when true." },
         "sequenceRange": { "type": "array", "items": { "type": ["integer", "null"] }, "description": "The inclusive [first, last] ledger sequences the figure covered; [null, null] over an empty sample." },
         "coverage": { "type": "number", "description": "The explicit ratio rowsConsidered / rowsAvailable (1.0 over an empty available population)." },
-        "label": { "type": "string", "enum": ["complete", "partial", "empty"], "description": "complete: nothing missed; partial: some of the available population unseen; empty: nothing available." }
+        "label": { "type": "string", "enum": ["complete", "partial", "empty"], "description": "complete: nothing missed; partial: some of the available population unseen; empty: nothing available." },
+        "attribution": { "type": ["object", "null"], "$ref": "#/$defs/AttributionCoverage", "description": "FR-M41-06: the attribution-coverage dimension of the figure's population (three-state counts, the attributed share, the configured floor and whether it was breached); null on surfaces that do not attribute their population." }
+      },
+      "additionalProperties": false
+    },
+    "AttributionCoverage": {
+      "description": "FR-M41-06 (N1 Workstream B T09): the attribution-coverage dimension every trust metric reports — how much of the metric's population is positively attributable. Below the configured floor the metric reads insufficient_coverage and shows no value (P25: a metric over a population it cannot attribute is not evidence).",
+      "type": "object",
+      "required": ["agent", "human", "unattributed", "coverage", "floor", "belowFloor"],
+      "properties": {
+        "agent": { "type": "integer", "description": "Rows positively attributed to an agent (FR-M41-04)." },
+        "human": { "type": "integer", "description": "Rows positively attributed to a human (FR-M41-04)." },
+        "unattributed": { "type": "integer", "description": "Rows with no positive authorship evidence — reported, never absorbed into agent or human (P26)." },
+        "coverage": { "type": "number", "description": "The attributed share (agent + human) / population; 1.0 over an empty population (whose verdict is the metric's own insufficient_evidence)." },
+        "floor": { "type": ["number", "null"], "description": "The configured policy floor (governance pack attributionCoverageFloor); null = unconfigured, no suppression." },
+        "belowFloor": { "type": "boolean", "description": "True when the attributed share fell below the floor over a non-empty population — the metric reads insufficient_coverage and shows no value." }
       },
       "additionalProperties": false
     },
@@ -567,11 +582,26 @@
     },
     "AttribBlameResult": {
       "type": "object",
-      "required": ["repoPath", "ref", "lines"],
+      "required": ["repoPath", "ref", "lines", "provenance"],
       "properties": {
         "repoPath": { "type": "string", "description": "Resolved repository toplevel." },
         "ref": { "type": "string" },
-        "lines": { "type": "array", "items": { "$ref": "#/$defs/AttribBlameLine" } }
+        "lines": { "type": "array", "items": { "$ref": "#/$defs/AttribBlameLine" } },
+        "provenance": { "type": "object", "description": "FR-M41-01/02: per-field provenance — each field carries source, captureMethod, contractVersion, capturedAt and state (observed here: every blame field is read directly from git, nothing inferred)." }
+      },
+      "additionalProperties": false
+    },
+    "ProvenanceField": {
+      "description": "FR-M41-01/02 (N1 Workstream B T10): one field of a provenance answer with its full evidence chain. state is one of exactly observed | inferred | unknown | redacted; signing an artefact never promotes inferred to observed (the state is inside the signed bytes).",
+      "type": "object",
+      "required": ["value", "source", "captureMethod", "contractVersion", "capturedAt", "state"],
+      "properties": {
+        "value": { "type": ["string", "number", "boolean", "object", "array", "null"], "description": "The field's content; null when the state is unknown or redacted — never invented." },
+        "source": { "type": "string", "description": "Where the fact came from: git, the symbols engine, rpc params, the heuristic classifier, ..." },
+        "captureMethod": { "type": "string", "description": "How it was captured: porcelain parse, tree-sitter walk, burst/timing heuristics, ..." },
+        "contractVersion": { "type": "string", "description": "The version of the contract that produced the field (attrib-provenance/v1)." },
+        "capturedAt": { "type": "string", "description": "The capture timestamp, ISO 8601 UTC." },
+        "state": { "enum": ["observed", "inferred", "unknown", "redacted"], "description": "observed: read directly from evidence; inferred: derived by a documented deterministic rule (signing never promotes it); unknown: no evidence exists; redacted: withheld by policy." }
       },
       "additionalProperties": false
     },
@@ -655,12 +685,13 @@
     },
     "AttribSymbolResult": {
       "type": "object",
-      "required": ["path", "line", "language", "symbol"],
+      "required": ["path", "line", "language", "symbol", "provenance"],
       "properties": {
         "path": { "type": "string" },
         "line": { "type": "integer" },
         "language": { "type": ["string", "null"], "description": "Registered language id; null when the extension is not registered." },
-        "symbol": { "type": ["string", "null"], "description": "Qualified enclosing definition, e.g. PaymentController.submit; null when none or degraded." }
+        "symbol": { "type": ["string", "null"], "description": "Qualified enclosing definition, e.g. PaymentController.submit; null when none or degraded." },
+        "provenance": { "type": "object", "description": "FR-M41-01/02: per-field provenance. language/symbol are observed when resolved and honestly unknown (never inferred) when null — G3 degradation never overclaims." }
       },
       "additionalProperties": false
     },
@@ -2150,12 +2181,14 @@
     },
     "TrustRejectionRateResult": {
       "type": "object",
-      "required": ["scope", "proposed", "rejected", "rate", "split", "byAgent", "byActionClass", "byPhase", "byStory", "coverage", "cacheHit"],
+      "required": ["scope", "proposed", "rejected", "rate", "status", "coverageNote", "split", "byAgent", "byActionClass", "byPhase", "byStory", "coverage", "cacheHit"],
       "properties": {
         "scope": { "type": "object", "description": "The echoed scope filters (repoId, storyId, actorId, phase, actionType, fromSequence, toSequence)." },
         "proposed": { "type": "integer" },
         "rejected": { "type": "integer" },
-        "rate": { "type": "number" },
+        "rate": { "type": ["number", "null"], "description": "FR-M41-06: null when the population's attribution coverage fell below the configured floor — the metric reads insufficient_coverage and shows no value." },
+        "status": { "enum": ["ok", "insufficient_coverage"], "description": "FR-M41-06: insufficient_coverage when the attribution-coverage floor was breached; the envelope's attribution block says why." },
+        "coverageNote": { "type": ["string", "null"], "description": "Text stating the suppression reason at the point of display (FR-M41-09); null when the metric reported normally." },
         "split": { "type": "object", "description": "greenfield / brownfield / unclassified buckets (G6: every trust metric reports the split)." },
         "byAgent": { "type": "object", "description": "actorId -> bucket, per-agent rejection rates." },
         "byActionClass": { "type": "object", "description": "FR-M37-01 (task 19): actionType -> bucket over every in-scope entry except the rejection-capture entries themselves, where \"rejected\" generalises the F0 linked-rejection shape to entries whose own decision is rejected|reworked." },
@@ -2236,7 +2269,7 @@
       "type": "object",
       "required": ["status", "metrics", "export", "coverage"],
       "properties": {
-        "status": { "type": "object", "description": "The four DORA keys -> ok | unknown — an unknown key is one the ledger cannot evidence, exported with meridian.evidence=unknown and no value, never an invented number." },
+        "status": { "type": "object", "description": "The four DORA keys -> ok | unknown | insufficient_coverage — an unknown key is one the ledger cannot evidence, exported with meridian.evidence=unknown and no value, never an invented number; insufficient_coverage (FR-M41-06) is the attribution-coverage floor breach, exported with meridian.evidence=insufficient_coverage." },
         "metrics": { "type": "object", "description": "The four DORA keys with their values, units and evidence notes: deploymentFrequency ({value per week, status}), leadTimeForChanges ({value median hours, status}), changeFailureRate ({value, status}), timeToRestore ({value median hours, status})." },
         "export": { "type": "object", "description": "The OTLP/JSON encoding of the four keys (resourceMetrics -> scopeMetrics -> metrics -> gauge -> dataPoints, OTel attribute encoding), ready to POST to an OTLP/HTTP metrics endpoint or drop into engineering-intelligence tooling." },
         "coverage": { "$ref": "#/$defs/CoverageEnvelope", "description": "AMD-M17 + FR-M41-08: the DORA export carries the coverage disclosure like every KPI; multi-key result, so value is null." }
@@ -2322,7 +2355,7 @@
         "agentId": { "type": "string" },
         "taskClass": { "type": "string", "description": "\"all\" when every class the agent touched is aggregated; otherwise the single class requested." },
         "score": { "type": ["number", "null"], "description": "FR-M37-03: the weighted combination over the components with evidence (weights in the module docstring); null when no component has evidence — an empty sample is \"insufficient evidence\", never zero." },
-        "status": { "enum": ["ok", "partial", "insufficient_evidence"], "description": "ok: every component has evidence; partial: at least one does (the missing ones stay visible in components); insufficient_evidence: none does." },
+        "status": { "enum": ["ok", "partial", "insufficient_evidence", "insufficient_coverage"], "description": "ok: every component has evidence; partial: at least one does (the missing ones stay visible in components); insufficient_evidence: none does; insufficient_coverage (FR-M41-06): the population's attribution coverage fell below the configured floor — no score is shown." },
         "coverage": { "type": "array", "items": { "type": "string" }, "description": "The components WITH evidence that fed the score — a bad component is exposed in components, never hidden by the aggregate." },
         "components": { "type": "object", "description": "The full FR-M37-03 decomposition: firstPassYield, rejectionRate, calibrationError, postMergeRevertRate, incidentLinkage — each {status: ok|insufficient_evidence|unknown, value, sampleSize, ...}." },
         "coverageEnvelope": { "$ref": "#/$defs/CoverageEnvelope", "description": "FR-M41-08: the coverage disclosure over the scanned diff population. Named coverageEnvelope (not coverage) because this result's `coverage` key already names the FR-M37-03 component list." },

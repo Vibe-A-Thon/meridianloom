@@ -29,6 +29,16 @@ class CoverageEnvelope(TypedDict):
     sequenceRange: list[int | None]  # The inclusive [first, last] ledger sequences the figure covered; [null, null] over an empty sample.
     coverage: float  # The explicit ratio rowsConsidered / rowsAvailable (1.0 over an empty available population).
     label: Literal["complete", "partial", "empty"]  # complete: nothing missed; partial: some of the available population unseen; empty: nothing available.
+    attribution: NotRequired[AttributionCoverage]  # FR-M41-06: the attribution-coverage dimension of the figure's population (three-state counts, the attributed share, the configured floor and whether it was breached); null on surfaces that do not attribute their population.
+
+# FR-M41-06 (N1 Workstream B T09): the attribution-coverage dimension every trust metric reports — how much of the metric's population is positively attributable. Below the configured floor the metric reads insufficient_coverage and shows no value (P25: a metric over a population it cannot attribute is not evidence).
+class AttributionCoverage(TypedDict):
+    agent: int  # Rows positively attributed to an agent (FR-M41-04).
+    human: int  # Rows positively attributed to a human (FR-M41-04).
+    unattributed: int  # Rows with no positive authorship evidence — reported, never absorbed into agent or human (P26).
+    coverage: float  # The attributed share (agent + human) / population; 1.0 over an empty population (whose verdict is the metric's own insufficient_evidence).
+    floor: float | None  # The configured policy floor (governance pack attributionCoverageFloor); null = unconfigured, no suppression.
+    belowFloor: bool  # True when the attributed share fell below the floor over a non-empty population — the metric reads insufficient_coverage and shows no value.
 
 class HandshakeParams(TypedDict):
     protocolVersion: int  # Must equal PROTOCOL_VERSION or the sidecar refuses with PROTOCOL_MISMATCH.
@@ -115,6 +125,16 @@ class AttribBlameResult(TypedDict):
     repoPath: str  # Resolved repository toplevel.
     ref: str
     lines: list[AttribBlameLine]
+    provenance: dict[str, Any]  # FR-M41-01/02: per-field provenance — each field carries source, captureMethod, contractVersion, capturedAt and state (observed here: every blame field is read directly from git, nothing inferred).
+
+# FR-M41-01/02 (N1 Workstream B T10): one field of a provenance answer with its full evidence chain. state is one of exactly observed | inferred | unknown | redacted; signing an artefact never promotes inferred to observed (the state is inside the signed bytes).
+class ProvenanceField(TypedDict):
+    value: str | float | bool | dict[str, Any] | list[Any] | None  # The field's content; null when the state is unknown or redacted — never invented.
+    source: str  # Where the fact came from: git, the symbols engine, rpc params, the heuristic classifier, ...
+    captureMethod: str  # How it was captured: porcelain parse, tree-sitter walk, burst/timing heuristics, ...
+    contractVersion: str  # The version of the contract that produced the field (attrib-provenance/v1).
+    capturedAt: str  # The capture timestamp, ISO 8601 UTC.
+    state: Literal["observed", "inferred", "unknown", "redacted"]  # observed: read directly from evidence; inferred: derived by a documented deterministic rule (signing never promotes it); unknown: no evidence exists; redacted: withheld by policy.
 
 class AttribDiffParams(TypedDict):
     repoPath: str  # Absolute path of the git repository (any directory inside it is accepted and resolved to the toplevel).
@@ -167,6 +187,7 @@ class AttribSymbolResult(TypedDict):
     line: int
     language: str | None  # Registered language id; null when the extension is not registered.
     symbol: str | None  # Qualified enclosing definition, e.g. PaymentController.submit; null when none or degraded.
+    provenance: dict[str, Any]  # FR-M41-01/02: per-field provenance. language/symbol are observed when resolved and honestly unknown (never inferred) when null — G3 degradation never overclaims.
 
 # An externally observed agent session (Workstream D supplies these; the heuristic only consumes them). Its presence covering an edit window raises the agent attribution weight and lifts the label to telemetry.
 class AttribObservedSession(TypedDict):
@@ -1078,7 +1099,9 @@ class TrustRejectionRateResult(TypedDict):
     scope: dict[str, Any]  # The echoed scope filters (repoId, storyId, actorId, phase, actionType, fromSequence, toSequence).
     proposed: int
     rejected: int
-    rate: float
+    rate: float | None  # FR-M41-06: null when the population's attribution coverage fell below the configured floor — the metric reads insufficient_coverage and shows no value.
+    status: Literal["ok", "insufficient_coverage"]  # FR-M41-06: insufficient_coverage when the attribution-coverage floor was breached; the envelope's attribution block says why.
+    coverageNote: str | None  # Text stating the suppression reason at the point of display (FR-M41-09); null when the metric reported normally.
     split: dict[str, Any]  # greenfield / brownfield / unclassified buckets (G6: every trust metric reports the split).
     byAgent: dict[str, Any]  # actorId -> bucket, per-agent rejection rates.
     byActionClass: dict[str, Any]  # FR-M37-01 (task 19): actionType -> bucket over every in-scope entry except the rejection-capture entries themselves, where "rejected" generalises the F0 linked-rejection shape to entries whose own decision is rejected|reworked.
@@ -1130,7 +1153,7 @@ class TrustDoraExportParams(TypedDict):
     resourceAttributes: NotRequired[dict[str, Any]]  # Extra OTLP resource attributes (key -> string value) merged over the meridian-loom defaults, e.g. the team's engineering-intelligence routing labels.
 
 class TrustDoraExportResult(TypedDict):
-    status: dict[str, Any]  # The four DORA keys -> ok | unknown — an unknown key is one the ledger cannot evidence, exported with meridian.evidence=unknown and no value, never an invented number.
+    status: dict[str, Any]  # The four DORA keys -> ok | unknown | insufficient_coverage — an unknown key is one the ledger cannot evidence, exported with meridian.evidence=unknown and no value, never an invented number; insufficient_coverage (FR-M41-06) is the attribution-coverage floor breach, exported with meridian.evidence=insufficient_coverage.
     metrics: dict[str, Any]  # The four DORA keys with their values, units and evidence notes: deploymentFrequency ({value per week, status}), leadTimeForChanges ({value median hours, status}), changeFailureRate ({value, status}), timeToRestore ({value median hours, status}).
     export: dict[str, Any]  # The OTLP/JSON encoding of the four keys (resourceMetrics -> scopeMetrics -> metrics -> gauge -> dataPoints, OTel attribute encoding), ready to POST to an OTLP/HTTP metrics endpoint or drop into engineering-intelligence tooling.
     coverage: CoverageEnvelope  # AMD-M17 + FR-M41-08: the DORA export carries the coverage disclosure like every KPI; multi-key result, so value is null.
@@ -1187,7 +1210,7 @@ class TrustScoreResult(TypedDict):
     agentId: str
     taskClass: str  # "all" when every class the agent touched is aggregated; otherwise the single class requested.
     score: float | None  # FR-M37-03: the weighted combination over the components with evidence (weights in the module docstring); null when no component has evidence — an empty sample is "insufficient evidence", never zero.
-    status: Literal["ok", "partial", "insufficient_evidence"]  # ok: every component has evidence; partial: at least one does (the missing ones stay visible in components); insufficient_evidence: none does.
+    status: Literal["ok", "partial", "insufficient_evidence", "insufficient_coverage"]  # ok: every component has evidence; partial: at least one does (the missing ones stay visible in components); insufficient_evidence: none does; insufficient_coverage (FR-M41-06): the population's attribution coverage fell below the configured floor — no score is shown.
     coverage: list[str]  # The components WITH evidence that fed the score — a bad component is exposed in components, never hidden by the aggregate.
     components: dict[str, Any]  # The full FR-M37-03 decomposition: firstPassYield, rejectionRate, calibrationError, postMergeRevertRate, incidentLinkage — each {status: ok|insufficient_evidence|unknown, value, sampleSize, ...}.
     coverageEnvelope: CoverageEnvelope  # FR-M41-08: the coverage disclosure over the scanned diff population. Named coverageEnvelope (not coverage) because this result's `coverage` key already names the FR-M37-03 component list.

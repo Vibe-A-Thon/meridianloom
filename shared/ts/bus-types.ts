@@ -35,6 +35,24 @@ export interface CoverageEnvelope {
   "coverage": number;
   /** complete: nothing missed; partial: some of the available population unseen; empty: nothing available. */
   "label": "complete" | "partial" | "empty";
+  /** FR-M41-06: the attribution-coverage dimension of the figure's population (three-state counts, the attributed share, the configured floor and whether it was breached); null on surfaces that do not attribute their population. */
+  "attribution"?: AttributionCoverage;
+}
+
+/** FR-M41-06 (N1 Workstream B T09): the attribution-coverage dimension every trust metric reports — how much of the metric's population is positively attributable. Below the configured floor the metric reads insufficient_coverage and shows no value (P25: a metric over a population it cannot attribute is not evidence). */
+export interface AttributionCoverage {
+  /** Rows positively attributed to an agent (FR-M41-04). */
+  "agent": number;
+  /** Rows positively attributed to a human (FR-M41-04). */
+  "human": number;
+  /** Rows with no positive authorship evidence — reported, never absorbed into agent or human (P26). */
+  "unattributed": number;
+  /** The attributed share (agent + human) / population; 1.0 over an empty population (whose verdict is the metric's own insufficient_evidence). */
+  "coverage": number;
+  /** The configured policy floor (governance pack attributionCoverageFloor); null = unconfigured, no suppression. */
+  "floor": number | null;
+  /** True when the attributed share fell below the floor over a non-empty population — the metric reads insufficient_coverage and shows no value. */
+  "belowFloor": boolean;
 }
 
 export interface HandshakeParams {
@@ -156,6 +174,24 @@ export interface AttribBlameResult {
   "repoPath": string;
   "ref": string;
   "lines": AttribBlameLine[];
+  /** FR-M41-01/02: per-field provenance — each field carries source, captureMethod, contractVersion, capturedAt and state (observed here: every blame field is read directly from git, nothing inferred). */
+  "provenance": Record<string, unknown>;
+}
+
+/** FR-M41-01/02 (N1 Workstream B T10): one field of a provenance answer with its full evidence chain. state is one of exactly observed | inferred | unknown | redacted; signing an artefact never promotes inferred to observed (the state is inside the signed bytes). */
+export interface ProvenanceField {
+  /** The field's content; null when the state is unknown or redacted — never invented. */
+  "value": string | number | boolean | Record<string, unknown> | unknown[] | null;
+  /** Where the fact came from: git, the symbols engine, rpc params, the heuristic classifier, ... */
+  "source": string;
+  /** How it was captured: porcelain parse, tree-sitter walk, burst/timing heuristics, ... */
+  "captureMethod": string;
+  /** The version of the contract that produced the field (attrib-provenance/v1). */
+  "contractVersion": string;
+  /** The capture timestamp, ISO 8601 UTC. */
+  "capturedAt": string;
+  /** observed: read directly from evidence; inferred: derived by a documented deterministic rule (signing never promotes it); unknown: no evidence exists; redacted: withheld by policy. */
+  "state": "observed" | "inferred" | "unknown" | "redacted";
 }
 
 export interface AttribDiffParams {
@@ -231,6 +267,8 @@ export interface AttribSymbolResult {
   "language": string | null;
   /** Qualified enclosing definition, e.g. PaymentController.submit; null when none or degraded. */
   "symbol": string | null;
+  /** FR-M41-01/02: per-field provenance. language/symbol are observed when resolved and honestly unknown (never inferred) when null — G3 degradation never overclaims. */
+  "provenance": Record<string, unknown>;
 }
 
 /** An externally observed agent session (Workstream D supplies these; the heuristic only consumes them). Its presence covering an edit window raises the agent attribution weight and lifts the label to telemetry. */
@@ -1460,7 +1498,12 @@ export interface TrustRejectionRateResult {
   "scope": Record<string, unknown>;
   "proposed": number;
   "rejected": number;
-  "rate": number;
+  /** FR-M41-06: null when the population's attribution coverage fell below the configured floor — the metric reads insufficient_coverage and shows no value. */
+  "rate": number | null;
+  /** FR-M41-06: insufficient_coverage when the attribution-coverage floor was breached; the envelope's attribution block says why. */
+  "status": "ok" | "insufficient_coverage";
+  /** Text stating the suppression reason at the point of display (FR-M41-09); null when the metric reported normally. */
+  "coverageNote": string | null;
   /** greenfield / brownfield / unclassified buckets (G6: every trust metric reports the split). */
   "split": Record<string, unknown>;
   /** actorId -> bucket, per-agent rejection rates. */
@@ -1545,7 +1588,7 @@ export interface TrustDoraExportParams {
 }
 
 export interface TrustDoraExportResult {
-  /** The four DORA keys -> ok | unknown — an unknown key is one the ledger cannot evidence, exported with meridian.evidence=unknown and no value, never an invented number. */
+  /** The four DORA keys -> ok | unknown | insufficient_coverage — an unknown key is one the ledger cannot evidence, exported with meridian.evidence=unknown and no value, never an invented number; insufficient_coverage (FR-M41-06) is the attribution-coverage floor breach, exported with meridian.evidence=insufficient_coverage. */
   "status": Record<string, unknown>;
   /** The four DORA keys with their values, units and evidence notes: deploymentFrequency ({value per week, status}), leadTimeForChanges ({value median hours, status}), changeFailureRate ({value, status}), timeToRestore ({value median hours, status}). */
   "metrics": Record<string, unknown>;
@@ -1638,8 +1681,8 @@ export interface TrustScoreResult {
   "taskClass": string;
   /** FR-M37-03: the weighted combination over the components with evidence (weights in the module docstring); null when no component has evidence — an empty sample is "insufficient evidence", never zero. */
   "score": number | null;
-  /** ok: every component has evidence; partial: at least one does (the missing ones stay visible in components); insufficient_evidence: none does. */
-  "status": "ok" | "partial" | "insufficient_evidence";
+  /** ok: every component has evidence; partial: at least one does (the missing ones stay visible in components); insufficient_evidence: none does; insufficient_coverage (FR-M41-06): the population's attribution coverage fell below the configured floor — no score is shown. */
+  "status": "ok" | "partial" | "insufficient_evidence" | "insufficient_coverage";
   /** The components WITH evidence that fed the score — a bad component is exposed in components, never hidden by the aggregate. */
   "coverage": string[];
   /** The full FR-M37-03 decomposition: firstPassYield, rejectionRate, calibrationError, postMergeRevertRate, incidentLinkage — each {status: ok|insufficient_evidence|unknown, value, sampleSize, ...}. */

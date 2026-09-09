@@ -51,7 +51,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from .coverage import ATTACH_KEY_SCORE, envelope_for, scan_scope
+from .coverage import (
+    ATTACH_KEY_SCORE,
+    INSUFFICIENT_COVERAGE,
+    attribution_coverage,
+    envelope_for,
+    ledger_row_attribution_state,
+    scan_scope,
+)
 from .reasons import detection_shape
 
 __all__ = ["SCORE_WEIGHTS", "compute_trust_score"]
@@ -96,10 +103,18 @@ def compute_trust_score(
     task_class_by_story: dict[str, str] | None = None,
     from_sequence: int | None = None,
     to_sequence: int | None = None,
+    attribution_floor: float | None = None,
 ) -> dict[str, Any]:
     """The FR-M37-03 trust score for one agent (optionally one task class)
     with its full decomposition. ``task_class_by_story`` maps story ids to
-    task classes; without it every story is ``unclassified``."""
+    task classes; without it every story is ``unclassified``.
+
+    FR-M41-06: ``attribution_floor`` (the governance pack's
+    ``attributionCoverageFloor``, plumbed by the RPC layer) suppresses
+    the score — it reads ``insufficient_coverage`` with no value — when
+    the attributed share of the agent's proposed-change population falls
+    below the floor.
+    """
     scope = {
         "repoId": repo_id,
         "actorId": actor_id,
@@ -267,6 +282,14 @@ def compute_trust_score(
         score = None
         status = _STATUS_INSUFFICIENT
 
+    # FR-M41-06: below the configured attribution-coverage floor the score
+    # is not evidence — it reads insufficient_coverage and shows no value.
+    row_states = [ledger_row_attribution_state(row) for row in rows]
+    coverage_check = attribution_coverage(row_states, attribution_floor)
+    if coverage_check.belowFloor:
+        score = None
+        status = INSUFFICIENT_COVERAGE
+
     return {
         "scope": scope,
         "agentId": actor_id,
@@ -280,5 +303,7 @@ def compute_trust_score(
             scoped_rows,
             rows_available,
             aux_scans=((rejection_rows, rejection_available),),
+            attribution_states=row_states,
+            attribution_floor=attribution_floor,
         ).to_dict(),
     }

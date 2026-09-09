@@ -38,7 +38,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from .coverage import ATTACH_KEY, envelope_for, scan_scope
+from .coverage import (
+    ATTACH_KEY,
+    INSUFFICIENT_COVERAGE,
+    attribution_coverage,
+    envelope_for,
+    ledger_row_attribution_state,
+    scan_scope,
+)
 
 __all__ = ["TrustMetricsCache", "compute_rejection_rate"]
 
@@ -106,6 +113,7 @@ def compute_rejection_rate(
     from_sequence: int | None = None,
     to_sequence: int | None = None,
     classify: Callable[[str], str | None] | None = None,
+    attribution_floor: float | None = None,
 ) -> dict[str, Any]:
     """Rejection rate per agent, per repository, split greenfield/brownfield.
 
@@ -116,6 +124,13 @@ def compute_rejection_rate(
     ``byStory`` — the generalised scopes over every in-scope entry, where
     an entry is rejected on a linked rejection entry OR a
     rejected/reworked decision of its own.
+
+    FR-M41-06: ``attribution_floor`` (the governance pack's
+    ``attributionCoverageFloor``, plumbed by the RPC layer) suppresses
+    the headline rate — it reads ``insufficient_coverage`` with no value —
+    when the attributed share of the proposed-change population falls
+    below the floor. A metric over a population it cannot attribute is
+    not evidence (P25).
     """
     scope = {
         "repoId": repo_id,
@@ -211,11 +226,31 @@ def compute_rejection_rate(
         _add(by_phase.setdefault(row["phase"], _bucket()), rejected)
         _add(by_story.setdefault(row["story_id"], _bucket()), rejected)
 
+    # FR-M41-08 (NFR-34): the disclosure rides the same result, never
+    # a separate call. The primary population is every in-scope row
+    # (the broadest view the result reports); the rejection lookup is
+    # an auxiliary scan — a capped lookup truncates the figure too.
+    # FR-M41-06: the attribution dimension covers the proposed-change
+    # population the rate derives from; below the configured floor the
+    # headline rate reads insufficient_coverage and shows no value.
+    row_states = [ledger_row_attribution_state(row) for row in rows]
+    coverage_check = attribution_coverage(row_states, attribution_floor)
+    below_floor = coverage_check.belowFloor
+    rate_value = None if below_floor else _rates(overall)["rate"]
+    envelope = envelope_for(
+        rate_value,
+        all_rows,
+        all_available,
+        aux_scans=((rejection_rows, rejection_available),),
+        attribution_states=row_states,
+        attribution_floor=attribution_floor,
+    )
     return {
         "scope": scope,
         "proposed": overall["proposed"],
         "rejected": overall["rejected"],
-        "rate": _rates(overall)["rate"],
+        "rate": rate_value,
+        "status": INSUFFICIENT_COVERAGE if below_floor else "ok",
         "split": {kind: _rates(bucket) for kind, bucket in split.items()},
         "byAgent": {agent: _rates(bucket) for agent, bucket in sorted(by_agent.items())},
         "byActionClass": {
@@ -223,14 +258,13 @@ def compute_rejection_rate(
         },
         "byPhase": {key: _rates(bucket) for key, bucket in sorted(by_phase.items())},
         "byStory": {key: _rates(bucket) for key, bucket in sorted(by_story.items())},
-        # FR-M41-08 (NFR-34): the disclosure rides the same result, never
-        # a separate call. The primary population is every in-scope row
-        # (the broadest view the result reports); the rejection lookup is
-        # an auxiliary scan — a capped lookup truncates the figure too.
-        ATTACH_KEY: envelope_for(
-            _rates(overall)["rate"],
-            all_rows,
-            all_available,
-            aux_scans=((rejection_rows, rejection_available),),
-        ).to_dict(),
+        "coverageNote": (
+            "attribution coverage below the configured floor "
+            f"({coverage_check.coverage} < {coverage_check.floor}) "
+            "— the rate reads insufficient_coverage and shows no value "
+            "(FR-M41-06)"
+            if below_floor
+            else None
+        ),
+        ATTACH_KEY: envelope.to_dict(),
     }

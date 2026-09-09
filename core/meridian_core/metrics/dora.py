@@ -46,7 +46,10 @@ from typing import Any, Sequence
 # only (FR-M36-07: zero model calls).
 from meridian_core.metrics.coverage import (
     ATTACH_KEY,
+    INSUFFICIENT_COVERAGE,
+    attribution_coverage,
     envelope_for,
+    ledger_row_attribution_state,
     scan_scope,
 )
 
@@ -114,12 +117,18 @@ def compute_dora_metrics(
     repo_id: str | None = None,
     from_sequence: int | None = None,
     to_sequence: int | None = None,
+    attribution_floor: float | None = None,
 ) -> dict[str, Any]:
     """The four DORA keys over the in-scope ledger rows.
 
     The result separates ``status`` (ok | unknown per key — unknown is a
     fact about the evidence, never a failure) from ``metrics`` (the values
     and notes), so the caller can render and export honestly.
+
+    FR-M41-06: ``attribution_floor`` (the governance pack's
+    ``attributionCoverageFloor``, plumbed by the RPC layer) suppresses
+    every key — all read ``insufficient_coverage`` with no value — when
+    the attributed share of the diff population falls below the floor.
     """
     scope = {
         "repoId": repo_id,
@@ -314,6 +323,22 @@ def compute_dora_metrics(
         "changeFailureRate": change_failure_rate,
         "timeToRestore": time_to_restore,
     }
+
+    # FR-M41-06: below the configured attribution-coverage floor no key is
+    # evidence — every value reads insufficient_coverage and shows no
+    # value (the OTLP export then carries the status, not a number).
+    row_states = [ledger_row_attribution_state(row) for row in rows]
+    coverage_check = attribution_coverage(row_states, attribution_floor)
+    if coverage_check.belowFloor:
+        for metric in metrics.values():
+            metric["status"] = INSUFFICIENT_COVERAGE
+            metric["value"] = None
+            metric["note"] = (
+                "attribution coverage below the configured floor "
+                f"({coverage_check.coverage} < {coverage_check.floor}) "
+                "— insufficient_coverage, no value shown (FR-M41-06)"
+            )
+
     return {
         "scope": scope,
         "status": {key: metric["status"] for key, metric in metrics.items()},
@@ -325,6 +350,8 @@ def compute_dora_metrics(
             scoped_rows,
             rows_available,
             aux_scans=((rejection_scanned, rejection_available),),
+            attribution_states=row_states,
+            attribution_floor=attribution_floor,
         ).to_dict(),
     }
 
@@ -372,8 +399,10 @@ def export_otlp(
         if metric["status"] == "ok":
             data_point["asDouble"] = metric["value"]
         else:
+            # insufficient_coverage exports its status too — an OTLP
+            # consumer sees WHY the value is missing (FR-M41-06).
             data_point["attributes"] = point_attributes + _otlp_attributes(
-                {"meridian.evidence": "unknown"}
+                {"meridian.evidence": metric["status"]}
             )
         otlp_metrics.append(
             {

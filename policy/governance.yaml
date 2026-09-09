@@ -52,6 +52,14 @@ tierThresholds:
   minSamples: 20
   maxCalibrationError: 0.12
 
+# FR-M41-06: the attribution-coverage floor for every trust metric. The
+# attributed share (agent + human, per the three-state rule of
+# FR-M41-04) of a metric's population must reach this ratio or the metric
+# reads insufficient_coverage and shows no value — a metric over a
+# population it cannot attribute is not evidence (P25). A workspace
+# overrides it in .meridian/policy/governance.yaml like every pack value.
+attributionCoverageFloor: 0.8
+
 # The F1-A4 ACP permission allow-list as one section of the general pack —
 # same shape policy/acp-permissions.yaml carries for the extension host.
 acpPermissions:

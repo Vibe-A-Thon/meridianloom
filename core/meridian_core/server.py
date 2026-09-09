@@ -599,6 +599,13 @@ class SidecarServer:
             paths.append(workspace / "policy" / "governance.yaml")
         return governance_policy.load_policy_pack(paths)
 
+    def _attribution_floor(self, params: dict[str, Any]) -> float | None:
+        """FR-M41-06: the attribution-coverage floor configured in the
+        active governance pack (``attributionCoverageFloor``). Unconfigured
+        (or a fail-closed pack) means no suppression — the metric reports
+        its coverage with ``floor: null`` instead."""
+        return self._governance_pack(params).attribution_coverage_floor
+
     def _role_pack(self, params: dict[str, Any]) -> governance_roles.RolePack:
         """FR-M20-02: the active role pack — an explicit rolePath param, then
         the workspace override, then the repository policy directory. A
@@ -1915,6 +1922,13 @@ class SidecarServer:
             "repoPath": str(repo),
             "ref": params.get("ref") or "HEAD",
             "lines": attribution_wire.blame_lines_to_wire(lines),
+            # FR-M41-01/02: per-field provenance — source, capture method,
+            # contract version, capture timestamp and the observed state.
+            # Every blame field is read directly from git porcelain output;
+            # nothing here is inferred, so signing has nothing to promote.
+            "provenance": attribution_wire.blame_provenance(
+                str(repo), params.get("ref") or "HEAD"
+            ),
         }
 
     def _handle_attrib_diff(
@@ -1969,6 +1983,14 @@ class SidecarServer:
             "line": line,
             "language": result.language,
             "symbol": result.symbol,
+            # FR-M41-01/02: per-field provenance. path/line are the caller's
+            # own observed arguments; language/symbol come from the symbols
+            # engine — observed when resolved, honestly unknown when the
+            # language is unregistered or no enclosing definition exists
+            # (G3 degradation never overclaims).
+            "provenance": attribution_wire.symbol_provenance(
+                rel, line, result.language, result.symbol
+            ),
         }
 
     def _ensure_attrib_repo(self, params: dict[str, Any]) -> Path:
@@ -2422,6 +2444,7 @@ class SidecarServer:
                 },
                 "storyCommits": story_commits,
                 "thresholds": [ratio_threshold, max_age_days],
+                "attributionFloor": self._attribution_floor(params),
                 "tip": ledger.last_sequence,  # append-invalidation backstop
             },
             sort_keys=True,
@@ -2470,6 +2493,7 @@ class SidecarServer:
             from_sequence=params.get("fromSequence"),
             to_sequence=params.get("toSequence"),
             classify=classify_fn,
+            attribution_floor=self._attribution_floor(params),
         )
         result["cacheHit"] = False
         self._trust_cache.put(cache_key, result)
@@ -2592,6 +2616,7 @@ class SidecarServer:
                     "toSequence": params.get("toSequence"),
                 },
                 "taskClassByStory": task_class_by_story,
+                "attributionFloor": self._attribution_floor(params),
                 "tip": ledger.last_sequence,  # append-invalidation backstop
             },
             sort_keys=True,
@@ -2610,6 +2635,7 @@ class SidecarServer:
             task_class_by_story=task_class_by_story,
             from_sequence=params.get("fromSequence"),
             to_sequence=params.get("toSequence"),
+            attribution_floor=self._attribution_floor(params),
         )
         result["cacheHit"] = False
         self._trust_cache.put(cache_key, result)
@@ -2913,6 +2939,7 @@ class SidecarServer:
                 },
                 "resourceAttributes": resource_attributes,
                 "exportedAt": exported_at,
+                "attributionFloor": self._attribution_floor(params),
                 "tip": ledger.last_sequence,  # append-invalidation backstop
             },
             sort_keys=True,
@@ -2926,6 +2953,7 @@ class SidecarServer:
             repo_id=params.get("repoId"),
             from_sequence=params.get("fromSequence"),
             to_sequence=params.get("toSequence"),
+            attribution_floor=self._attribution_floor(params),
         )
         export = metrics_mod.export_otlp(
             computed,
