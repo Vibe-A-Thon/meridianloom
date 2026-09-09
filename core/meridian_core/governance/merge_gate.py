@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..ledger.core import Ledger
-from . import approval_class, merge_authorisation
+from . import approval_class, merge_authorisation, revocations
 from .identity import HumanIdentity
 from .policy import PolicyPack
 
@@ -62,6 +62,10 @@ class Approval:
     ts: str = ""
     approved_by_class: str = "unknown"
     approved_by_class_version: str = approval_class.CLASSIFIER_VERSION
+    #: FR-M42-04 (D38): the assurance level (``asserted`` | ``verified``)
+    #: recorded on the approval row; ``unrecorded`` for rows written before
+    #: the level rode the stamp — never a silent ``verified``.
+    identity_assurance: str = "unrecorded"
 
 
 @dataclass(frozen=True)
@@ -143,6 +147,24 @@ def _row_class(
     )
 
 
+def _row_assurance(detail: dict[str, Any]) -> str:
+    """FR-M42-04 (D38): the identity assurance level recorded on the row —
+    the stamp's ``identityAssurance`` first (FR-M42-06), then the recorded
+    approver wire's ``assurance`` (F1 rows). Rows with neither are
+    ``unrecorded``: never a silent ``verified``."""
+    recorded = detail.get("approvedBy")
+    if isinstance(recorded, dict):
+        level = recorded.get("identityAssurance")
+        if isinstance(level, str) and level.strip():
+            return level.strip()
+    approver = detail.get("approver")
+    if isinstance(approver, dict):
+        level = approver.get("assurance")
+        if isinstance(level, str) and level.strip():
+            return level.strip()
+    return "unrecorded"
+
+
 def _non_human_note(seq: int, human_actor: str, cls: str, version: str) -> str:
     return (
         f"approval at seq {seq} by {human_actor} is approvedBy class "
@@ -159,6 +181,7 @@ def collect_approvals(
     *,
     permitted_roles: "set[str] | None" = None,
     excluded_identities: "set[str] | frozenset[str]" = frozenset(),
+    require_verified: bool = False,
 ) -> tuple[list[Approval], list[str]]:
     """Every approval for ``subject`` valid at ``head_commit``, newest
     first, plus notes explaining the rows that did not count.
@@ -169,10 +192,22 @@ def collect_approvals(
     ``excluded_identities`` (lower-cased emails) removes approvals the
     separation-of-duties rule forbids, e.g. the ingester approving their
     own change (FR-M20-03).
+
+    FR-M42-06/SEC-31 (T08): approvals by a revoked identity never count and
+    the note names the recorded ``revokedAt`` — the check runs at merge
+    time, so an approval valid at issue cannot authorise a merge after the
+    revocation commits (in-process effect is immediate; NFR-36's five
+    minutes is the outer envelope for other replicas only).
+
+    FR-M42-05 (T07): with ``require_verified``, an approval recorded at
+    ``asserted`` (or ``unrecorded``) assurance never satisfies the gate —
+    a git name/email SHALL NEVER satisfy a policy requiring a verified
+    approver, and the note names the recorded level.
     """
     approvals: list[Approval] = []
     notes: list[str] = []
     excluded = {identity.strip().lower() for identity in excluded_identities}
+    revoked = revocations.active_revocations(ledger)
     for row in _iter_approval_rows(ledger):
         if row.get("decision") != APPROVED_DECISION:
             continue
@@ -196,7 +231,27 @@ def collect_approvals(
             # never counts toward a human-approval policy.
             notes.append(_non_human_note(row["seq"], human_actor, cls, class_version))
             continue
-        if identity.email.strip().lower() in excluded:
+        assurance = _row_assurance(detail)
+        actor_email = identity.email.strip().lower()
+        if actor_email and actor_email in revoked:
+            # FR-M42-06/SEC-31/AC-46: a revoked identity's approvals no
+            # longer count — whatever was in flight stops here.
+            notes.append(
+                f"approval at seq {row['seq']} by {human_actor} does not count: "
+                f"identity revoked at {revoked[actor_email]} (FR-M42-06, SEC-31)"
+            )
+            continue
+        if require_verified and assurance != "verified":
+            # FR-M42-05: an asserted (git) identity — or a row too old to
+            # record a level — never satisfies a verified-approver policy.
+            notes.append(
+                f"approval at seq {row['seq']} by {human_actor} holds identity "
+                f"assurance '{assurance}', not 'verified' — FR-M42-05: a git "
+                "name/email never satisfies a policy requiring a verified "
+                "approver"
+            )
+            continue
+        if actor_email in excluded:
             notes.append(
                 f"approval at seq {row['seq']} by {human_actor} does not count: "
                 "FR-M20-03 separation of duties — the identity that ingested "
@@ -221,6 +276,7 @@ def collect_approvals(
                 ts=str(row.get("ts_utc") or ""),
                 approved_by_class=cls,
                 approved_by_class_version=class_version,
+                identity_assurance=assurance,
             )
         )
     return approvals, notes
@@ -237,6 +293,7 @@ def find_approval(
     approval exists.
     """
     stale_note: str | None = None
+    revoked = revocations.active_revocations(ledger)
     for row in _iter_approval_rows(ledger):
         if row.get("decision") != APPROVED_DECISION:
             continue
@@ -272,6 +329,16 @@ def find_approval(
             # not an approval, and the report says so by name.
             stale_note = _non_human_note(row["seq"], human_actor, cls, class_version)
             continue
+        assurance = _row_assurance(detail)
+        actor_email = identity.email.strip().lower()
+        if actor_email and actor_email in revoked:
+            # FR-M42-06/SEC-31: the freshest binding is revoked — report it
+            # as invalidated rather than returning a usable approval.
+            stale_note = (
+                f"approval at seq {row['seq']} by {human_actor} is invalidated: "
+                f"identity revoked at {revoked[actor_email]} (FR-M42-06, SEC-31)"
+            )
+            continue
         return (
             Approval(
                 sequence=row["seq"],
@@ -281,6 +348,7 @@ def find_approval(
                 commit=recorded_commit,
                 approved_by_class=cls,
                 approved_by_class_version=class_version,
+                identity_assurance=assurance,
             ),
             None,
         )
@@ -323,6 +391,14 @@ def check_merge(
     passes True when the PR's base branch is protected — a PR subject
     (``pr:repo#n``) is never itself a protected-branch name, but merging it
     lands on one (FR-M35-04). None means "decide from protectedBranches".
+
+    FR-M42-05/06 (N2-T07/T08): the gate executes later than the approval —
+    it re-validates the identity binding on every call. When the pack's
+    ``requiresVerifiedIdentity`` covers the subject, an approval recorded
+    at ``asserted`` (or ``unrecorded``) assurance never counts; approvals
+    by a revoked identity never count; and a presented authorisation whose
+    bound approver has been revoked is blocked with the ``revokedAt``
+    named, whatever its signature says.
     """
     if pack.fail_closed:
         return MergeVerdict(
@@ -352,12 +428,17 @@ def check_merge(
     valid: list[Approval] = []
     required = max(1, required_approvals) if protected else 1
     if protected and not halts:
+        # FR-M42-05 (T07) + FR-M42-06/SEC-31 (T08): the gate re-validates
+        # the identity binding at execution — the recorded assurance level
+        # must satisfy the current policy and the approver must not stand
+        # revoked, however valid the approval was at issue.
         valid, notes = collect_approvals(
             ledger,
             subject,
             head_commit,
             permitted_roles=permitted_roles,
             excluded_identities=excluded_identities,
+            require_verified=pack.requires_verified_identity(subject),
         )
         distinct = {a.approver.email.strip().lower() for a in valid if a.approver.email.strip()}
         if len(distinct) < required:
@@ -397,6 +478,23 @@ def check_merge(
             )
             if not auth_verdict.allowed:
                 missing.extend(auth_verdict.notes)
+            # FR-M42-06/SEC-31/AC-46: an in-flight authorisation dies with
+            # its approver's revocation — a session valid at issue SHALL
+            # NOT authorise a merge after the identity was revoked. The
+            # block names the recorded revokedAt.
+            approver_email = (
+                authorisation.approver.rpartition("<")[2].rstrip(">").strip().lower()
+                or authorisation.approver.strip().lower()
+            )
+            if approver_email:
+                revoked_at = revocations.revoked_at(ledger, approver_email)
+                if revoked_at is not None:
+                    missing.append(
+                        f"merge authorisation invalidated: approver identity "
+                        f"{approver_email} revoked at {revoked_at} (FR-M42-06, "
+                        "SEC-31) — an approval valid at issue cannot "
+                        "authorise a merge after revocation"
+                    )
 
     allowed = not missing
     return MergeVerdict(

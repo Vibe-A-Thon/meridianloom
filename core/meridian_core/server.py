@@ -45,6 +45,7 @@ from .governance import enforcement_points as governance_enforcement
 from .governance import identity as governance_identity
 from .governance import merge_gate as governance_merge_gate
 from .governance import policy as governance_policy
+from .governance import revocations as governance_revocations
 from .governance import roles as governance_roles
 from . import hooks as provenance_hooks
 from . import metrics as metrics_mod
@@ -115,8 +116,8 @@ class SidecarServer:
         self._ledger = ledger
         # FR-M12-07/FR-M20-01/D9: acting human identity (approver, halting
         # operator, ingesting human) resolves through the identity
-        # interface — v1 git user.name/email (assurance "local"), the
-        # handshake identityProvider selection, or a test injection. Never
+        # interface — v1 git user.name/email (assurance "asserted" per D38),
+        # the handshake identityProvider selection, or a test injection. Never
         # a free-text param (FR-M20-01).
         self._identity_provider = identity_provider
         # FR-M12-06: sidecar -> host notifications (gate/halt dispatch) ride
@@ -205,6 +206,10 @@ class SidecarServer:
             "gate.evaluate": SidecarServer._handle_gate_evaluate,
             "gate.profiles": SidecarServer._handle_gate_profiles,
             "gate.approve": SidecarServer._handle_gate_approve,
+            # FR-M42-06/SEC-31/AC-46 (N2-T08): the ledger-recorded
+            # revocation list — immediate in-process effect, five-minute
+            # outer envelope for other replicas (NFR-36).
+            "identity.revoke": SidecarServer._handle_identity_revoke,
             "gate.status": SidecarServer._handle_gate_status,
             "gate.halt": SidecarServer._handle_gate_halt,
             # FR-M35-04/05 (F1 Workstream B task 12): external PR gating —
@@ -899,7 +904,7 @@ class SidecarServer:
         identity is a refusal (FR-M12-07 forbids anonymous approval); the
         OIDC stub's NotImplementedError carries the FR id through verbatim.
         Legacy ``identity()``-shaped providers (governance.identity) are
-        still accepted and map onto local assurance.
+        still accepted and map onto asserted assurance (D38).
         """
         provider = self._identity_provider
         if provider is None:
@@ -932,7 +937,7 @@ class SidecarServer:
             id=human.email or human.name,
             display_name=human.name or human.email,
             email=human.email,
-            assurance="local",
+            assurance="asserted",
         )
 
     def _handle_gate_approve(
@@ -954,6 +959,43 @@ class SidecarServer:
         who = self._human_identity()
         pack = self._governance_pack(params)
         ledger = self._ensure_ledger()
+        # FR-M42-05 (N2-T07): where policy requires a verified approver, an
+        # asserted (git) identity is refused at approval time — with the
+        # level named, never silently downgraded or upgraded. Where the
+        # requirement is unset, asserted is accepted and recorded as
+        # asserted.
+        if pack.requires_verified_identity(subject.strip()) and who.assurance != "verified":
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"FR-M42-05: this gate requires a verified approver, but the "
+                f"acting identity resolves at assurance '{who.assurance}' — a "
+                "git name/email never satisfies a policy requiring a verified "
+                "approver",
+                data={
+                    "code": "IDENTITY_ASSURANCE_INSUFFICIENT",
+                    "subject": subject.strip(),
+                    "assurance": who.assurance,
+                    "required": "verified",
+                },
+            )
+        # FR-M42-06/SEC-31/AC-46 (N2-T08): a revoked identity cannot record
+        # new approvals. The refusal names the recorded revokedAt and is
+        # effective from the instant the revocation row committed — in
+        # process there is no propagation delay (NFR-36's five minutes is
+        # the outer envelope for other replicas only).
+        revoked_at = governance_revocations.revoked_at(ledger, who.email)
+        if revoked_at is not None:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"FR-M42-06/AC-46: identity {who.email} was revoked at "
+                f"{revoked_at} — a revoked identity cannot record new "
+                "approvals",
+                data={
+                    "code": "IDENTITY_REVOKED",
+                    "email": who.email,
+                    "revokedAt": revoked_at,
+                },
+            )
         role_pack = self._role_pack(params)
         role_value = params.get("role")
         role = (
@@ -1008,8 +1050,12 @@ class SidecarServer:
         # FR-M42-07 (D40): every approval carries its approvedBy class —
         # human_individual as themselves, or human_delegated when an
         # active delegation grant (FR-M20-05) carried the permission.
+        # FR-M42-04/06 (D38): the identity assurance level (asserted |
+        # verified) rides the same stamp, so the level is bound to the
+        # decision and re-validated whenever the gate executes.
         approved_by = governance_approval_class.stamp(
-            "human_delegated" if delegated else "human_individual"
+            "human_delegated" if delegated else "human_individual",
+            who.assurance,
         )
         sequence = self._append_gate_entry(
             story_id=(params.get("storyId") or f"gate:{subject.strip()}"),
@@ -1037,6 +1083,58 @@ class SidecarServer:
             "subject": subject.strip(),
             "commit": commit.strip(),
             "approvedBy": approved_by,
+        }
+
+    # -- identity revocation (FR-M42-06/SEC-31/AC-46; N2 Workstream B T08) ---
+
+    def _handle_identity_revoke(
+        self, params: bus_types.IdentityRevokeParams
+    ) -> bus_types.IdentityRevokeResult:
+        """Record an identity revocation (FR-M42-06, AC-46).
+
+        The row commits BEFORE the response returns (FR-M10-08) and every
+        governance check reads the ledger anew, so the revocation binds the
+        very next gate evaluation in this process — new approvals by the
+        identity are refused and in-flight merge authorisations stop, from
+        the instant of the revocation entry. NFR-36's five minutes is the
+        worst-case outer envelope for OTHER replicas (an SCM-side consumer
+        that syncs the ledger), not the in-process latency.
+        """
+        params = params or {}
+        email = params.get("email")
+        if not isinstance(email, str) or not email.strip() or "@" not in email:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "email must be the non-empty address of the identity to revoke",
+            )
+        revoked_at = params.get("revokedAt")
+        if revoked_at is not None and (
+            not isinstance(revoked_at, str) or not revoked_at.strip()
+        ):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "revokedAt must be an ISO-8601 UTC timestamp when given",
+            )
+        reason = params.get("reason")
+        if reason is not None and not isinstance(reason, str):
+            raise _RpcError(protocol.INVALID_PARAMS, "reason must be a string")
+        # FR-M20-01: the revoking operator is attributed, never anonymous.
+        who = self._human_identity()
+        ledger = self._ensure_ledger()
+        effective = revoked_at.strip() if isinstance(revoked_at, str) else ledger_core.utc_now()
+        sequence = governance_revocations.record_revocation(
+            ledger,
+            email=email,
+            revoked_by=who.display(),
+            reason=reason.strip() if isinstance(reason, str) else None,
+            revoked_at=effective,
+            policy_version=self._governance_pack(params).policy_version,
+        )
+        return {
+            "recorded": True,
+            "sequence": sequence,
+            "email": email.strip().lower(),
+            "revokedAt": effective,
         }
 
     def _handle_gate_status(
@@ -3826,7 +3924,21 @@ class SidecarServer:
             decision_class = "ruleset_actor"
         else:
             decision_class = "human_individual"
-        detail["approvedBy"] = governance_approval_class.stamp(decision_class)
+        # FR-M42-04/06 (D38, N2-T08): a human decision binds the resolved
+        # identity's assurance level into the stamp, so the level rides
+        # the decision entry. When no identity can be resolved the level
+        # is recorded honestly as "unrecorded" — never fabricated, never
+        # a silent "verified". Non-human classes (the policy gate decided,
+        # FR-M42-08) carry no human assurance.
+        identity_assurance = None
+        if governance_approval_class.is_human_class(decision_class):
+            try:
+                identity_assurance = self._human_identity().assurance
+            except Exception:
+                identity_assurance = "unrecorded"
+        detail["approvedBy"] = governance_approval_class.stamp(
+            decision_class, identity_assurance
+        )
         entry: dict[str, Any] = {
             "ts_utc": params.get("decidedAt") or ledger_core.utc_now(),
             "story_id": f"acp:{params['sessionId']}",

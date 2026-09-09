@@ -73,6 +73,17 @@ protectedBranches:
   - main
   - master
 
+# FR-M42-05 (N2-T07): identity assurance the gate requires of approvers.
+# false (the default) accepts a locally asserted git identity — recorded as
+# "asserted", never silently upgraded to "verified". true refuses an
+# asserted identity with the level named: a git name/email SHALL NEVER
+# satisfy a policy requiring a verified approver. Per-branch overrides ride
+# a mapping:
+#   requiresVerifiedIdentity:
+#     default: false
+#     branches: {main: true}
+requiresVerifiedIdentity: false
+
 # Gate profiles: DoR/DoD as machine-checkable criteria (FR-M12-09).
 profiles:
   ready:

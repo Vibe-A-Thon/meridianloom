@@ -27,6 +27,11 @@ FR-M42-08: a non-human class (``bot_agent``, ``ruleset_actor``,
 never counted as a human approval in any metric. ``human_delegated``
 counts as human: the delegation grant is a human act (FR-M20-05).
 
+FR-M42-04 (D38): the class and the identity assurance level are
+orthogonal — the class says WHO type acted, the level (``asserted`` |
+``verified``) says HOW SURE the identity is. The level rides the stamp
+(``identityAssurance``) on human decisions; it never changes the class.
+
 Zero model calls (FR-M36-07): this module is pure stdlib string matching.
 """
 
@@ -166,7 +171,15 @@ def _classify_text(text: str) -> str:
     return "human_individual"
 
 
-def stamp(cls: str) -> dict[str, str]:
+def stamp(cls: str, identity_assurance: "str | None" = None) -> dict[str, str]:
     """The recorded ``approvedBy`` block: class + classifier version ride
-    together on every approval and permission decision (FR-M42-07)."""
-    return {"class": cls, "classifierVersion": CLASSIFIER_VERSION}
+    together on every approval and permission decision (FR-M42-07).
+
+    FR-M42-04 (D38): when the decision is a human act, the identity
+    assurance level (``asserted`` | ``verified``) the provider resolved
+    rides the same block — ``None`` omits the key (non-human classes and
+    pre-FR-M42-04 rows), never fabricates a level."""
+    block = {"class": cls, "classifierVersion": CLASSIFIER_VERSION}
+    if identity_assurance is not None:
+        block["identityAssurance"] = identity_assurance
+    return block

@@ -4,12 +4,13 @@ FR-M20-01: every human action SHALL be attributed to an authenticated
 identity, never a free-text name. D9 (closed here): v1 identity is git
 user.name/user.email behind an IdentityProvider interface; enterprise OIDC
 is a stub. The load-bearing rule: a git identity resolves with assurance
-"local" — it is what a human typed into git config, not proof of anything —
-and a git identity NEVER counts as "verified". That distinction is what
-the later enterprise OIDC provider plugs into.
+"asserted" (D38's recorded level name) — it is what a human typed into git
+config, not proof of anything — and a git identity NEVER counts as
+"verified". That distinction is what the later enterprise OIDC provider
+plugs into.
 
 * GitIdentityProvider resolves git user.name/user.email from the workspace
-  repository, labelled assurance "local";
+  repository, labelled assurance "asserted";
 * OidcIdentityProvider is a contracted stub: it implements the interface
   but raises NotImplementedError carrying the FR id (per the protocol for
   deferred bodies);
@@ -73,11 +74,12 @@ class TestGitIdentityProvider:
         assert identity.email == "ada@example.com"
         assert identity.id == "ada@example.com"
 
-    def test_assurance_is_local_never_verified(self, repo: Path) -> None:
-        # The local/verified distinction is load-bearing (D9): git config is
-        # self-asserted, so it must never be reported as verified identity.
+    def test_assurance_is_asserted_never_verified(self, repo: Path) -> None:
+        # The asserted/verified distinction is load-bearing (D9, D38): git
+        # config is self-asserted, so it must never be reported as verified
+        # identity.
         identity = GitIdentityProvider(repo).resolve()
-        assert identity.assurance == "local"
+        assert identity.assurance == "asserted"
         assert identity.assurance != "verified"
 
     def test_missing_identity_is_a_refusal_not_a_fallback(
@@ -177,7 +179,7 @@ GRACE = ResolvedIdentity(
     id="grace@example.com",
     display_name="Grace Hopper",
     email="grace@example.com",
-    assurance="local",
+    assurance="asserted",
 )
 
 
@@ -210,7 +212,7 @@ class TestProviderResolvedApprovals:
             "id": "grace@example.com",
             "displayName": "Grace Hopper",
             "email": "grace@example.com",
-            "assurance": "local",
+            "assurance": "asserted",
         }
 
     def test_gate_halt_records_provider_identity(
@@ -235,7 +237,7 @@ class TestProviderResolvedApprovals:
             "id": "grace@example.com",
             "displayName": "Grace Hopper",
             "email": "grace@example.com",
-            "assurance": "local",
+            "assurance": "asserted",
         }
 
     def test_pr_ingest_records_the_ingesting_identity(
@@ -256,7 +258,7 @@ class TestProviderResolvedApprovals:
         assert result["ingestedBy"] == {
             "name": "Grace Hopper",
             "email": "grace@example.com",
-            "assurance": "local",
+            "assurance": "asserted",
         }
         ledger = server.ledger
         rows = ledger.query(action_type="pr_ingest", limit=10)

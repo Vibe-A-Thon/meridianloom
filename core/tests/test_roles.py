@@ -77,15 +77,15 @@ profiles: {}
 
 ADA = ResolvedIdentity(
     id="ada@example.com", display_name="Ada Lovelace",
-    email="ada@example.com", assurance="local",
+    email="ada@example.com", assurance="asserted",
 )
 GRACE = ResolvedIdentity(
     id="grace@example.com", display_name="Grace Hopper",
-    email="grace@example.com", assurance="local",
+    email="grace@example.com", assurance="asserted",
 )
 ALAN = ResolvedIdentity(
     id="alan@example.com", display_name="Alan Turing",
-    email="alan@example.com", assurance="local",
+    email="alan@example.com", assurance="asserted",
 )
 
 

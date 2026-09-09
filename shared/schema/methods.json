@@ -144,7 +144,7 @@
       "result": { "$ref": "#/$defs/GateProfilesResult" }
     },
     "gate.approve": {
-      "description": "FR-M12-05/FR-M12-07 (F1 Workstream B task 10; FR-M20-01 task 15): record a human approval for a merge subject (protected branch or PR id) bound to a commit digest. The approver identity comes from the identity provider (FR-M20-01 — git user.name/email with assurance local by default, OIDC stub behind the same interface), never a free-text param; anonymous approval is refused, never recorded. The full provider-resolved identity (id, displayName, email, assurance) rides the encrypted entry detail. The approval lands in the ledger (actionType approval, humanActor/humanRole set) BEFORE the RPC returns (FR-M10-08).",
+      "description": "FR-M12-05/FR-M12-07 (F1 Workstream B task 10; FR-M20-01 task 15): record a human approval for a merge subject (protected branch or PR id) bound to a commit digest. The approver identity comes from the identity provider (FR-M20-01 — git user.name/email with assurance asserted (D38) by default, OIDC stub behind the same interface), never a free-text param; anonymous approval is refused, never recorded. The full provider-resolved identity (id, displayName, email, assurance) rides the encrypted entry detail. The approval lands in the ledger (actionType approval, humanActor/humanRole set) BEFORE the RPC returns (FR-M10-08).",
       "params": { "$ref": "#/$defs/GateApproveParams" },
       "result": { "$ref": "#/$defs/GateApproveResult" }
     },
@@ -157,6 +157,11 @@
       "description": "FR-M12-06 (F1 Workstream B task 11): governance halts — record a halt (reason, scope: hosted-session | merge | observe-only) in the ledger before returning, then take the enforceable action available at that scope. hosted-session dispatches a gate/halt notification to the extension host's ACP session registry (the registry owns the process kill). merge enters the halted state: merge attempts for the subject (all subjects when none is named) are refused. observe-only (external agents) cannot be force-stopped (FR-M35-06 — observation never intercepts): the halt records, blocks merges, warns, and the response says exactly that (enforceable: false). Policy outranks delivery.",
       "params": { "$ref": "#/$defs/GateHaltParams" },
       "result": { "$ref": "#/$defs/GateHaltResult" }
+    },
+    "identity.revoke": {
+      "description": "FR-M42-06/SEC-31/AC-46 (N2 Workstream B task T08): record an identity revocation in the ledger (actionType identity_revocation, decision revoked, revokedAt carried). The revocation list binds from the instant the row commits: gate.approve refuses new approvals by the identity (naming revokedAt), the merge gate stops counting its approvals, and an in-flight merge authorisation bound to it is blocked at evaluation — however valid at issue. In-process effect is immediate (every check reads the ledger anew); NFR-36's five minutes is the worst-case outer envelope for OTHER replicas (e.g. an SCM-side consumer syncing the ledger), not the in-process latency. The revoking operator is the resolved human identity (FR-M20-01), attributed on the row.",
+      "params": { "$ref": "#/$defs/IdentityRevokeParams" },
+      "result": { "$ref": "#/$defs/IdentityRevokeResult" }
     },
     "gate/halt": {
       "description": "Sidecar -> extension-host notification (FR-M12-06; F1 Workstream B task 11): a hosted-session halt, dispatched to the extension's ACP session registry. The registry looks up the session and owns the kill — the sidecar owns the ledger record and the dispatch, never host processes.",
@@ -430,7 +435,7 @@
         },
         "identityProvider": {
           "type": "string",
-          "description": "FR-M20-01 (D9; F1 Workstream C task 15): selects the human identity source — \"git\" (default; user.name/user.email in the workspace, assurance local) or \"oidc\" (enterprise OIDC; contracted stub raising NOT_IMPLEMENTED with the FR id until the enterprise tier lands). Selected over the handshake like the ledger signing key: the extension host owns the choice it can later back with SecretStorage OIDC tokens. Unknown names are refused with an actionable INVALID_PARAMS. Requires workspaceDir."
+          "description": "FR-M20-01 (D9; F1 Workstream C task 15): selects the human identity source — \"git\" (default; user.name/user.email in the workspace, assurance asserted per D38) or \"oidc\" (enterprise OIDC; contracted stub raising NOT_IMPLEMENTED with the FR id until the enterprise tier lands). Selected over the handshake like the ledger signing key: the extension host owns the choice it can later back with SecretStorage OIDC tokens. Unknown names are refused with an actionable INVALID_PARAMS. Requires workspaceDir."
         }
       },
       "additionalProperties": false
@@ -1454,12 +1459,13 @@
       "additionalProperties": false
     },
     "ApprovedBy": {
-      "description": "FR-M42-07 (N1-T18, decision D40): the closed, versioned approval-classification block every approval and permission decision carries. class is Meridian-owned closed vocabulary v1: human_individual | human_delegated | bot_agent | ruleset_actor | unknown; classifierVersion is the vocabulary version (approvedBy/v1) that produced the class. A non-human class (bot_agent | ruleset_actor | unknown) NEVER satisfies a human-approval policy and never counts as a human approval in any metric (FR-M42-08, AC-44).",
+      "description": "FR-M42-07 (N1-T18, decision D40): the closed, versioned approval-classification block every approval and permission decision carries. class is Meridian-owned closed vocabulary v1: human_individual | human_delegated | bot_agent | ruleset_actor | unknown; classifierVersion is the vocabulary version (approvedBy/v1) that produced the class. A non-human class (bot_agent | ruleset_actor | unknown) NEVER satisfies a human-approval policy and never counts as a human approval in any metric (FR-M42-08, AC-44). FR-M42-04/06 (D38, N2-T08): identityAssurance is the D38 assurance level (asserted | verified) the acting human resolved at, bound to the decision; absent on non-human classes and pre-N2 rows — never fabricated, never a silent upgrade to verified.",
       "type": "object",
       "required": ["class", "classifierVersion"],
       "properties": {
         "class": { "enum": ["human_individual", "human_delegated", "bot_agent", "ruleset_actor", "unknown"] },
-        "classifierVersion": { "type": "string" }
+        "classifierVersion": { "type": "string" },
+        "identityAssurance": { "enum": ["asserted", "verified", "unrecorded"], "description": "FR-M42-04/06: the identity assurance level bound to this human decision (asserted = git self-asserted, D38; verified = OIDC-attested). \"unrecorded\" names a human decision whose identity could not be resolved at capture — honest, never a silent verified." }
       },
       "additionalProperties": false
     },
@@ -1526,6 +1532,28 @@
         "enforceable": { "type": "boolean", "description": "False exactly when the scope cannot be force-stopped (observe-only, FR-M35-06)." },
         "actions": { "type": "array", "items": { "$ref": "#/$defs/GateHaltAction" } },
         "warning": { "type": "string", "description": "Present when the halt could not be fully enforced (observe-only): says exactly what did and did not happen." }
+      },
+      "additionalProperties": false
+    },
+    "IdentityRevokeParams": {
+      "type": "object",
+      "required": ["email"],
+      "properties": {
+        "email": { "type": "string", "description": "The identity (email) to revoke — the lookup key every governance check uses." },
+        "reason": { "type": "string", "description": "Why governance revoked the identity; recorded in the ledger." },
+        "revokedAt": { "type": "string", "description": "ISO-8601 UTC — the provider-side instant the revocation took effect; defaults to now. In-process enforcement binds from row commit (immediate), whatever timestamp is carried." },
+        "policyPath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "IdentityRevokeResult": {
+      "type": "object",
+      "required": ["recorded", "sequence", "email", "revokedAt"],
+      "properties": {
+        "recorded": { "type": "boolean" },
+        "sequence": { "type": "integer", "description": "Ledger sequence of the identity_revocation row — durable before this response returns (FR-M10-08), and binding from this instant in-process (NFR-36/AC-46)." },
+        "email": { "type": "string" },
+        "revokedAt": { "type": "string" }
       },
       "additionalProperties": false
     },
@@ -1774,7 +1802,7 @@
       "properties": {
         "name": { "type": "string" },
         "email": { "type": "string" },
-        "assurance": { "enum": ["local", "verified"], "description": "FR-M20-01: local = self-asserted git config (never counts as verified); verified = enterprise OIDC attestation (enterprise tier, not v1)." }
+        "assurance": { "enum": ["asserted", "verified"], "description": "FR-M20-01 + D38 (N2 Workstream B): asserted = self-asserted git config (spoofable, v1 default; formerly recorded as \"local\"); verified = enterprise OIDC attestation (enterprise tier, not v1). A git identity can never report verified." }
       },
       "additionalProperties": false
     },

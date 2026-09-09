@@ -7,7 +7,8 @@ behind the :class:`IdentityProvider` interface; enterprise OIDC lands later
 behind the same interface.
 
 The assurance level is load-bearing. A git identity is self-asserted
-configuration — the resolver labels it ``local`` and it NEVER counts as
+configuration — the resolver labels it ``asserted`` (D38's recorded level
+name; this package formerly said ``local``) and it NEVER counts as
 ``verified``. The future OIDC provider is the only source of ``verified``
 assurance. Governance records carry the assurance next to the identity so
 downstream consumers (and the F2 evidence gate) can weigh git-attributed
@@ -27,10 +28,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-#: FR-M20-01: "local" = self-asserted (git config); "verified" = attested by
-#: an enterprise identity provider (OIDC — enterprise tier, not v1). A git
-#: identity can never report "verified".
-Assurance = Literal["local", "verified"]
+#: FR-M20-01 + D38 (N2 Workstream B): "asserted" = self-asserted (git
+#: config — spoofable, v1 default); "verified" = attested by an enterprise
+#: identity provider (OIDC — enterprise tier, not v1). A git identity can
+#: never report "verified".
+Assurance = Literal["asserted", "verified"]
 
 #: Config values the provider registry understands (handshake
 #: identityProvider). Anything else is an actionable error naming these.
@@ -91,8 +93,8 @@ class StaticIdentityProvider:
 class GitIdentityProvider:
     """FR-M20-01 v1: git user.name/user.email in the workspace repository.
 
-    The resolved identity is labelled assurance "local": git config is
-    self-asserted and never counts as verified identity.
+    The resolved identity is labelled assurance "asserted" (D38): git
+    config is self-asserted and never counts as verified identity.
     """
 
     def __init__(self, repo: Path) -> None:
@@ -123,7 +125,7 @@ class GitIdentityProvider:
             id=email or name,
             display_name=name or email,
             email=email,
-            assurance="local",
+            assurance="asserted",
         )
 
 

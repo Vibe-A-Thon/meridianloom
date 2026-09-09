@@ -265,10 +265,13 @@ class TestApprovalStamping:
         assert response["result"]["approvedBy"] == {
             "class": "human_individual",
             "classifierVersion": "approvedBy/v1",
+            # FR-M42-04/06 (D38): the git identity's level rides the stamp.
+            "identityAssurance": "asserted",
         }
         detail = read_detail(server, response["result"]["sequence"])
         assert detail["approvedBy"]["class"] == "human_individual"
         assert detail["approvedBy"]["classifierVersion"] == "approvedBy/v1"
+        assert detail["approvedBy"]["identityAssurance"] == "asserted"
 
     def test_delegated_approval_stamps_human_delegated(self, tmp_path, repo):
         server = make_server(tmp_path, repo)

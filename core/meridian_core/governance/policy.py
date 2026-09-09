@@ -51,6 +51,7 @@ _TOP_LEVEL_KEYS = (
     "budgetCeilings",
     "tierThresholds",
     "attributionCoverageFloor",
+    "requiresVerifiedIdentity",
 )
 
 _CRITERION_KEYS = (
@@ -109,6 +110,24 @@ class PolicyPack:
     #: metric reads insufficient_coverage and shows no value; None when the
     #: pack does not configure one (unconfigured — no suppression).
     attribution_coverage_floor: float | None = None
+    #: FR-M42-05 (N2-T07): when True, a merge subject's recorded approvals
+    #: must come from ``verified``-assurance identities — an ``asserted``
+    #: (git) identity never satisfies the requirement and is refused with
+    #: the level named. Default for subjects without a per-branch entry.
+    requires_verified_default: bool = False
+    #: FR-M42-05 per-branch overrides: branch name -> requirement.
+    requires_verified_branches: dict[str, bool] = field(default_factory=dict)
+
+    def requires_verified_identity(self, subject: "str | None" = None) -> bool:
+        """FR-M42-05: does this subject's gate require a verified identity?
+        A per-branch entry wins over the global default; unset anywhere
+        means ``asserted`` is accepted (and recorded as ``asserted`` —
+        never silently upgraded to ``verified``)."""
+        if subject:
+            key = subject.strip()
+            if key in self.requires_verified_branches:
+                return self.requires_verified_branches[key]
+        return self.requires_verified_default
 
     @property
     def fail_closed(self) -> bool:
@@ -293,6 +312,46 @@ def parse_policy_pack(text: str, source: str) -> PolicyPack:
                 f"got {attribution_floor!r}"
             )
 
+    requires_verified_default = False
+    requires_verified_branches: dict[str, bool] = {}
+    raw_verified = raw.get("requiresVerifiedIdentity")
+    if raw_verified is not None:
+        if isinstance(raw_verified, bool):
+            requires_verified_default = raw_verified
+        elif _is_mapping(raw_verified):
+            unknown = set(raw_verified) - {"default", "branches"}
+            for key in sorted(unknown):
+                errors.append(f"requiresVerifiedIdentity.{key}: unknown key")
+            default_flag = raw_verified.get("default", False)
+            if not isinstance(default_flag, bool):
+                errors.append(
+                    "requiresVerifiedIdentity.default: expected a boolean, "
+                    f"got {default_flag!r}"
+                )
+            else:
+                requires_verified_default = default_flag
+            raw_branches = raw_verified.get("branches", {})
+            if not _is_mapping(raw_branches):
+                errors.append(
+                    "requiresVerifiedIdentity.branches: expected a mapping "
+                    "of branch name to boolean"
+                )
+            else:
+                for branch, flag in raw_branches.items():
+                    where = f"requiresVerifiedIdentity.branches.{branch}"
+                    if not isinstance(branch, str) or not branch.strip():
+                        errors.append(f"{where}: branch names must be non-empty strings")
+                        continue
+                    if not isinstance(flag, bool):
+                        errors.append(f"{where}: expected a boolean, got {flag!r}")
+                        continue
+                    requires_verified_branches[branch.strip()] = flag
+        else:
+            errors.append(
+                "requiresVerifiedIdentity: expected a boolean or a mapping "
+                f"with default/branches, got {raw_verified!r}"
+            )
+
     if errors:
         errors.append(FAIL_CLOSED_REMEDY)
         return fail_closed_pack(
@@ -310,6 +369,8 @@ def parse_policy_pack(text: str, source: str) -> PolicyPack:
         budget_ceilings=dict(budget_ceilings),
         tier_thresholds=dict(tier_thresholds),
         attribution_coverage_floor=attribution_coverage_floor,
+        requires_verified_default=requires_verified_default,
+        requires_verified_branches=requires_verified_branches,
     )
 
 
