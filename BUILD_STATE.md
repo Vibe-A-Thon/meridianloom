@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** N1 — True and Visible (N0 quiesce COMPLETE — summary below)
-- **Current workstream:** N1 setup — reading futures-implementation.md §N1 (living document)
-- **Current task:** N1 workstream A task 1 per the N1 order (read the section first — doc is being edited concurrently)
-- **Last commit:** ec36bd2 — N0-T06 contention-tolerant X-29 retry. N0: T09 policy bootstrap a1b9b36 (D43), T08 triage a1cea9f, T07 reconcile 8cede03, D43 33e2cc3, G-1 d286f28. F3 M33 complete: slices 1-3 (5e7d3c2, ff2a48a, 8f505cd, a262b84). F1 exit e0a701b tagged f1-complete.
+- **Current workstream:** N1 Workstream B — Attribution truth (T07–T12); Workstream A done
+- **Current task:** N1-T07 three-state attribution + T08 unknown-reason vocabulary + T09 attribution-coverage floor + T10 per-field provenance + T11 labelled corpus 200 spans + T12 greenfield/brownfield on score+DORA
+- **Last commit:** 45928f1 — N1 Workstream A (G-01 fix): cursor pagination, CoverageEnvelope, all six metrics + spend/tokenmaxxing migrated, NFR-33 proven at 50k (0.29–3.48s/metric), AC-41 full-scan equality, 272 tests green. D36 c78daa9. D43 a1b9b36. N0 8a9b787. Follow-ups: webview must consume envelope instead of local 1000-detection (GUI session); limit=1000 sweep for engine/reporting.py + PR-ingest call sites.
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## Phase N0 — Quiesce (COMPLETE)
