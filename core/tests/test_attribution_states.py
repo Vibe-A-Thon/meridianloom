@@ -218,11 +218,26 @@ class TestSpanClassifier:
         assert span.state == ATTRIBUTION_UNATTRIBUTED
         assert span.unknown_reason == "squashed_history"
 
-    def test_pre_installation_reason(self):
+    def test_pre_installation_human_is_inferred_not_unattributed(self):
+        # FR-M41-16: history predating installation IS attributed from git
+        # alone — at inferred confidence, never observed.
         span = spans.classify_span(
             author_name="Old Dev",
             author_email="old@example.com",
             message="legacy change",
+            author_time="2023-05-04T10:00:00+00:00",
+            installed_at=INSTALL_T,
+        )
+        assert span.state == ATTRIBUTION_HUMAN
+        assert span.confidence == "inferred"
+
+    def test_pre_installation_without_signal_reason(self):
+        # No positive evidence survives AND the commit predates
+        # installation: the reason says why.
+        span = spans.classify_span(
+            author_name="unknown",
+            author_email="",
+            message="",
             author_time="2023-05-04T10:00:00+00:00",
             installed_at=INSTALL_T,
         )

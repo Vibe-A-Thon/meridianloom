@@ -17,9 +17,10 @@ states, by positive evidence only, in a fixed precedence order:
    detail was destroyed.
 5. ``unsupported_vendor`` — author markers indicate a bot from a vendor
    Meridian does not recognise: no positive state can be claimed.
-6. ``pre_installation`` — the commit predates Meridian's installation
-   and no positive authorship evidence survives in git.
-7. ``human`` — a human author identity with no contradicting marker.
+6. ``human`` — a human author identity with no contradicting marker.
+7. ``pre_installation`` / ``no_signal`` — nothing fired: the reason
+   names why (the commit predates Meridian's installation and no signal
+   survives, or there is simply no signal).
 
 FR-M41-16 (FUT-026): attribution over commits predating Meridian's
 installation is ``inferred`` — never ``observed`` — even when the git
@@ -50,6 +51,7 @@ from .states import (
     UNKNOWN_REASONS,
     UNKNOWN_REASON_EXCLUDED_PATH,
     UNKNOWN_REASON_FORMATTER_REWRITE,
+    UNKNOWN_REASON_NO_SIGNAL,
     UNKNOWN_REASON_PRE_INSTALLATION,
     UNKNOWN_REASON_SQUASHED_HISTORY,
     UNKNOWN_REASON_UNSUPPORTED_VENDOR,
@@ -217,23 +219,38 @@ def classify_span(
             f"bot author '{author_name} <{author_email}>' matches no supported vendor",
         )
 
-    # 5. Pre-installation human work the ledger never observed.
+    # 5. Human author identity: positive human evidence. FR-M41-16
+    # (FUT-026): repository history predating Meridian's installation IS
+    # attributed from git history alone — at inferred confidence, never
+    # observed.
+    if author_name.strip() and author_name.strip().lower() != "unknown":
+        confidence = "inferred" if backfilled else "observed"
+        return SpanAttribution(
+            ATTRIBUTION_HUMAN,
+            None,
+            UNKNOWN_REASON_VOCABULARY_VERSION,
+            confidence,
+            f"human author '{author_name} <{author_email}>' with no agent markers"
+            + (" (pre-installation commit — inferred per FR-M41-16)" if backfilled else ""),
+        )
+
+    # 6. Nothing fired. The reason names WHY: pre-installation explains
+    # why no authorship signal survives; otherwise there is simply no
+    # signal (reported, never absorbed — P26).
     if backfilled:
         return SpanAttribution(
             ATTRIBUTION_UNATTRIBUTED,
             UNKNOWN_REASON_PRE_INSTALLATION,
             UNKNOWN_REASON_VOCABULARY_VERSION,
             "inferred",
-            "commit predates Meridian installation and carries no authorship signal",
+            "commit predates Meridian installation and no authorship signal survives in git",
         )
-
-    # 6. Human author identity: positive human evidence, observed rung.
     return SpanAttribution(
-        ATTRIBUTION_HUMAN,
-        None,
+        ATTRIBUTION_UNATTRIBUTED,
+        UNKNOWN_REASON_NO_SIGNAL,
         UNKNOWN_REASON_VOCABULARY_VERSION,
-        "observed",
-        f"human author '{author_name} <{author_email}>' with no agent markers",
+        "unknown",
+        "no authorship signal in the introducing commit",
     )
 
 
