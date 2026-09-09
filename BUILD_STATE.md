@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** N1 — True and Visible (N0 quiesce COMPLETE — summary below)
-- **Current workstream:** N1 Workstream D — Approval classification and volatile capture (T18–T22); A + B + C done
-- **Current task:** close D40 then T18 approvedBy class + T19 non-human never satisfies human-approval policy + T20-22 vendor evidence retention windows
-- **Last commit:** 1df3023 — N1 Workstream C complete: MeasurementDefinitions v1, Wilson CIs + missing share, ranking suppression, exactly-once EventIngester (100k reconciliation, 8 conditions), ledger.append_many batch (~9,200/s); 48 new + 179 regression green. B at 8574658, A at 45928f1.
+- **Current workstream:** N1 Workstream E — Visibility and de-duplication (T23–T27); A–D done
+- **Current task:** T23 orphan check in CI + T26 unsurfaced allowlist + blocking gate + T27 steer de-duplication (extension half; workbench-side retirement is the GUI session's — cross-session) + T24/T25 screen surfacing (GUI session, recorded)
+- **Last commit:** ba55d22 — N1 Workstream D complete: approvedBy/v1 classifier (D40), merge-gate + permission-decision stamping, AC-44 four cases, retention windows (copilot 1d/180d documented; others unknown per P26), evidence_expired marker on health/sessions/rejectionRate; 48 new + 213 regression green. D at 3a7c676.
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## Phase N0 — Quiesce (COMPLETE)
