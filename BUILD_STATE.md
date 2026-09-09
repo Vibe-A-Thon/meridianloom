@@ -5,10 +5,22 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** N1 — True and Visible (N0 quiesce COMPLETE — summary below)
-- **Current workstream:** N1 Workstream E — Visibility and de-duplication (T23–T27); A–D done
-- **Current task:** T23 orphan check in CI + T26 unsurfaced allowlist + blocking gate + T27 steer de-duplication (extension half; workbench-side retirement is the GUI session's — cross-session) + T24/T25 screen surfacing (GUI session, recorded)
-- **Last commit:** ba55d22 — N1 Workstream D complete: approvedBy/v1 classifier (D40), merge-gate + permission-decision stamping, AC-44 four cases, retention windows (copilot 1d/180d documented; others unknown per P26), evidence_expired marker on health/sessions/rejectionRate; 48 new + 213 regression green. D at 3a7c676.
+- **Current workstream:** N1 exit bookkeeping; N2 next. Workstreams A–E host halves done
+- **Current task:** record N1 status + the cross-session GUI task list; then read N2 and start it
+- **Last commit:** 96e5630 — N1-E host half: orphan gate `scripts/check-surface-coverage.mjs` (69 methods, 51 consumed, 18 declared, 10 mustSurface blocking), `shared/schema/unsurfaced.json`, canonical steer protocol locked (17/17 + 2/2 e2e). **npm test is RED BY DESIGN until the GUI session surfaces the 10 mustSurface instruments (AC-43 blocking gate — intended).**
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
+
+## N1 status + CROSS-SESSION TASK LIST for the GUI session (owner's second session — read this)
+
+**N1 engineering (this session) is COMPLETE** across workstreams A–E host halves. The GUI session owns the following, tracked by the blocking gate:
+
+1. **Surface the 10 mustSurface instruments** (flips `shared/schema/unsurfaced.json` entries to `resolvedMustSurface`): trust/score, trust/scoreDecomposition, trust/reasonDistribution, trust/compareAgents, trust/jcurve, trust/tokenmaxxing, trust/doraExport, spend/series, spend/forecast, spend/pricing. N1-T24: every chart carries a written finding (A-10/H7). N1-T25: Cross-Vendor Spend panel moves onto spend/series + spend/pricing + spend/forecast and gains team + cost-centre dimensions. Machine-readable work list: `node scripts/check-surface-coverage.mjs --json .meridian/surface-coverage.json`.
+2. **Consume the coverage envelope** (N1-T06): replace the local `entries.length === 1000` detection in `webview/src/workbench/governance/Analytics.tsx` with the envelope's `truncated`; a truncated figure states it in text and disables derived projections. Envelope: `result.coverage` (`result.coverageEnvelope` on trust/score).
+3. **Retire the duplicate steer path (AMD-M25/G-03)**: delete `run/steer` from `extension/src/workbench/service.ts` (~line 1059) and its consumers `webview/src/workbench/catalogue/RunsTab.tsx:124`, `webview/src/workbench/operations/WorkspaceOperations.tsx:1122` (+ their tests); move the UI onto the canonical `steer/*` RPCs; instantiate `HostedSteerController` in the launch path. Then flip `extension/test/steer-protocol-surface.test.ts` to `toNotContain` (marked in the test). Exit criterion "exactly one steering implementation" stays FAIL until this lands.
+4. `observe/captureEvidence` is the tested capture surface for observer evidence capture UI (N1-T21 GUI affordance).
+
+**N1 exit criteria status:** AC-41 full-scan equality at 50k PASS (45928f1) · AC-42 three-state attribution PASS (963b1b3, corpus precision 1.0000, floor 0.95) · AC-43 gate live and blocking (61d4788) — FAIL until items 1–2 · AC-44 PASS (ba55d22, four cases) · AC-47 evidence_expired PASS (ba55d22) · NFR-33 figures: rejectionRate 3.48s, score 0.74s, reasonDistribution 0.59s, jcurve 2.01s, doraExport 2.62s, compareAgents 0.29s, spend/series 0.54s, forecast 0.33s at 50k (45928f1) · NFR-34 same-operation disclosure PASS (envelope) · one steering implementation PENDING GUI item 3.
+
 
 ## Phase N0 — Quiesce (COMPLETE)
 
