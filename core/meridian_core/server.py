@@ -41,6 +41,7 @@ from .attribution._git import normalise_repo_path as attribution_normalise
 from .governance import bootstrap as policy_bootstrap
 from .governance import approval_class as governance_approval_class
 from .governance import engine as governance_engine
+from .governance import enforcement_points as governance_enforcement
 from .governance import identity as governance_identity
 from .governance import merge_gate as governance_merge_gate
 from .governance import policy as governance_policy
@@ -765,10 +766,25 @@ class SidecarServer:
         run_id: str | None = None,
         origin: str | None = None,
         phase: str = "review",
+        control: str | None = None,
     ) -> int:
         """FR-M10-08: the gate decision is committed to the ledger BEFORE the
-        RPC returns; the encrypted input blob carries the full detail."""
+        RPC returns; the encrypted input blob carries the full detail.
+
+        FR-M42-12/SEC-32: when ``control`` names a registered control, the
+        detail records that control's effective enforcement point, so the
+        decision in the ledger (and every bundle exporting it) states what
+        could have bypassed it — a client-side control is never recorded
+        as enforced at a boundary where it is not.
+        """
         ledger = self._ensure_ledger()
+        if control is not None:
+            detail = {
+                **detail,
+                "enforcementPoint": governance_enforcement.audit_record(
+                    governance_enforcement.effective_declaration(control)
+                ),
+            }
         entry: dict[str, Any] = {
             "ts_utc": ledger_core.utc_now(),
             "story_id": story_id,
@@ -823,6 +839,7 @@ class SidecarServer:
             story_id=story_id.strip(),
             pack=pack,
             decision="approved" if verdict.passed else "rejected",
+            control="policy_refusal",
             detail={
                 "method": "gate.evaluate",
                 "gate": gate.strip(),
@@ -997,6 +1014,7 @@ class SidecarServer:
         sequence = self._append_gate_entry(
             story_id=(params.get("storyId") or f"gate:{subject.strip()}"),
             pack=pack,
+            control="merge_gate",
             action_type="approval",
             decision="approved",
             human_actor=who.display(),
@@ -1125,6 +1143,7 @@ class SidecarServer:
         sequence = self._append_gate_entry(
             story_id=f"gate:halt:{subject.strip() if isinstance(subject, str) else 'all'}",
             pack=pack,
+            control="halt_all",
             decision="halted",
             human_actor=who.display(),
             rework_reason=reason.strip(),
@@ -1530,6 +1549,7 @@ class SidecarServer:
             sequence = self._append_gate_entry(
                 story_id=story_id,
                 pack=pack,
+                control="policy_refusal",
                 decision="approved" if verdict.passed else "rejected",
                 detail={
                     "method": "pr/ingest",

@@ -33,6 +33,15 @@ from .core import utc_now
 EXPORT_LIMIT = 10_000
 
 
+def _enforcement_section() -> dict[str, Any]:
+    """FR-M42-12: every control's effective enforcement point, from the
+    governance registry. Imported lazily to keep the ledger package
+    free of a governance dependency at module load."""
+    from ..governance import enforcement_points
+
+    return enforcement_points.enforcement_section()
+
+
 def build_bundle(ledger: Any, params: dict[str, Any]) -> dict[str, Any]:
     """Assemble the full wire bundle for the given filters."""
     params = params or {}
@@ -90,6 +99,10 @@ def build_bundle(ledger: Any, params: dict[str, Any]) -> dict[str, Any]:
             if value is not None
         },
         "entries": [wire.row_to_bundle_entry(row) for row in rows],
+        # FR-M42-12 / FR-M12-11: the effective enforcement point of every
+        # control, so a reviewer holding only this bundle can state, per
+        # decision, what could have bypassed it and who could have done so.
+        "enforcement": _enforcement_section(),
         "proofs": {
             "treeSize": len(leaves),
             "rootHash": ledger.root_hash().hex(),
