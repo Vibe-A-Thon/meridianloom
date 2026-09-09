@@ -38,6 +38,7 @@ from .attribution import symbols as symbols_mod
 from .attribution import heuristics
 from .attribution import AttributionError
 from .attribution._git import normalise_repo_path as attribution_normalise
+from .governance import bootstrap as policy_bootstrap
 from .governance import engine as governance_engine
 from .governance import identity as governance_identity
 from .governance import merge_gate as governance_merge_gate
@@ -105,6 +106,11 @@ class SidecarServer:
         self._notification_sink = notification_sink
         self._workspace_dir: str | None = None
         self._signing_seed: bytes | None = None
+        # D43/AC-53 (N0-T09b): the policy-bootstrap scaffold events from
+        # the workspace handshake — surfaced in health.policyScaffolds so
+        # the host can show the visible first-run notice; empty when no
+        # workspace handshook yet or every pack was already present.
+        self._policy_scaffolds: list[dict[str, Any]] = []
         # FR-M17-05: trust metrics derive from the ledger and cache
         # in-process; the cache is invalidated on every append below.
         self._trust_cache = metrics_mod.TrustMetricsCache()
@@ -400,6 +406,7 @@ class SidecarServer:
         if isinstance(workspace_dir, str) and workspace_dir:
             self._workspace_dir = workspace_dir
             self._ensure_session_monitor()
+            self._run_policy_bootstrap(Path(workspace_dir))
         # FR-M10-04/SEC-06: signing-key material arrives from the OS-keychain
         # (host-side SecretStorage) as a base64 32-byte seed. Decoded here
         # once, held in memory only, and rejected if malformed rather than
@@ -475,6 +482,9 @@ class SidecarServer:
             "uptimeSeconds": round(time.monotonic() - self._started_at, 3),
             "pid": os.getpid(),
             "activeLoops": 0,  # loops land in Workstream E
+            # D43/AC-53: the policy-bootstrap scaffold events from the
+            # workspace handshake (empty when nothing was scaffolded).
+            "policyScaffolds": list(self._policy_scaffolds),
         }
 
     def _handle_doctor_run(
@@ -504,6 +514,21 @@ class SidecarServer:
                 str(error),
                 data={"validChecks": doctor.check_ids()},
             ) from error
+
+    def _run_policy_bootstrap(self, workspace: Path) -> None:
+        """D43/AC-53: on the workspace handshake, scaffold the shipped
+        policy packs into ``<ws>/.meridian/policy/`` when the workspace has
+        none (never overwriting team files), and keep the structured
+        scaffold events in server state for health. A re-handshake re-runs
+        the bootstrap — it is a no-op for every pack the team now owns."""
+        try:
+            events = policy_bootstrap.bootstrap_policy_packs(workspace)
+        except OSError as error:
+            logger.warning("policy bootstrap failed for %s: %s", workspace, error)
+            return
+        self._policy_scaffolds = [dataclasses.asdict(event) for event in events]
+        for warning in policy_bootstrap.scaffold_warnings(events):
+            logger.warning("%s", warning)
 
     def _ensure_session_monitor(self) -> observer_sessions.SessionMonitor:
         """Start the X-29 session monitor once a workspace is known.
@@ -2151,7 +2176,9 @@ class SidecarServer:
         # note — a rejection record is never unclassified.
         caller_reason = params.get("reason")
         caller_note = params.get("reasonNote")
-        taxonomy = rejection_taxonomy.load_taxonomy()
+        taxonomy = rejection_taxonomy.load_taxonomy(
+            rejection_taxonomy.default_taxonomy_paths(self._workspace_dir)
+        )
 
         def stamp_for(rejection: rejection_mod.Rejection) -> rejection_taxonomy.ReasonStamp:
             note = caller_note

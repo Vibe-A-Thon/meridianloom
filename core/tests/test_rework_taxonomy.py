@@ -65,16 +65,35 @@ class TestTaxonomyDocument:
         assert [cls.id for cls in embedded.classes] == list(CANONICAL_IDS)
         assert embedded.default.id == "other"
 
-    def test_missing_file_falls_back_to_embedded(self):
+    def test_missing_file_falls_back_to_embedded(self, tmp_path: Path):
         loaded = taxonomy.load_taxonomy([Path("/nonexistent/rework-reasons.yaml")])
         assert loaded.source == "embedded-canonical"
         assert loaded.is_valid("security-concern")
 
-    def test_malformed_file_falls_back_to_embedded(self, tmp_path: Path):
+    def test_malformed_file_fails_closed_naming_remedy(self, tmp_path: Path):
+        # D43 uniformity rule: present-but-invalid fails closed — a bad
+        # workspace taxonomy never silently degrades to the canonical copy.
         broken = tmp_path / "rework-reasons.yaml"
         broken.write_text("version: [not-a-mapping", encoding="utf-8")
-        loaded = taxonomy.load_taxonomy([broken])
-        assert loaded.source == "embedded-canonical"
+        with pytest.raises(taxonomy.TaxonomyError) as error:
+            taxonomy.load_taxonomy([broken])
+        assert str(broken) in str(error.value)
+        assert "Remedy" in str(error.value)
+
+    def test_workspace_override_wins_over_repo_file(self, tmp_path: Path):
+        override = tmp_path / ".meridian" / "policy" / "rework-reasons.yaml"
+        override.parent.mkdir(parents=True)
+        override.write_text(
+            "version: 2\n"
+            "default: other\n"
+            "classes:\n"
+            "  - id: other\n"
+            "    label: Other\n",
+            encoding="utf-8",
+        )
+        loaded = taxonomy.load_taxonomy(workspace=tmp_path)
+        assert loaded.version == 2
+        assert loaded.source == str(override)
 
     def test_malformed_content_raises_on_direct_parse(self):
         with pytest.raises(taxonomy.TaxonomyError):

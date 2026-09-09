@@ -15,6 +15,13 @@ Parsing is fail-closed exactly like the FR-M34-4 allow-list parser: YAML
 syntax errors and schema violations come back as ``errors`` and a pack with
 any error blocks every gate evaluation — a malformed policy NEVER opens a
 gate. This module never raises on policy content.
+
+Absent-file behaviour (D43 uniformity rule, stated once in
+``governance/bootstrap.py``): the sidecar bootstrap scaffolds the shipped
+default into ``<ws>/.meridian/policy/`` before this loader runs, so a
+workspace handshake always leaves a readable pack; absent everywhere, the
+pack fails closed with the remedy named (fix the file, or delete it and
+restart to re-scaffold the shipped default).
 """
 
 from __future__ import annotations
@@ -24,6 +31,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import yaml
+
+from .bootstrap import FAIL_CLOSED_REMEDY
 
 #: Criterion kinds the engine implements (FR-M12-09 machine-checkable
 #: predicates over a packet/PR payload).
@@ -175,11 +184,17 @@ def parse_policy_pack(text: str, source: str) -> PolicyPack:
     try:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as error:
-        return fail_closed_pack(source, [f"{source}: policy is not valid YAML: {error}"])
+        return fail_closed_pack(
+            source,
+            [f"{source}: policy is not valid YAML: {error}", FAIL_CLOSED_REMEDY],
+        )
     if raw is None:
         raw = {}
     if not _is_mapping(raw):
-        return fail_closed_pack(source, [f"{source}: policy must be a mapping at the top level"])
+        return fail_closed_pack(
+            source,
+            [f"{source}: policy must be a mapping at the top level", FAIL_CLOSED_REMEDY],
+        )
 
     errors: list[str] = []
     version = 0
@@ -259,6 +274,7 @@ def parse_policy_pack(text: str, source: str) -> PolicyPack:
                     errors.append(f"acpPermissions.adapters.{adapter_id}: expected a mapping")
 
     if errors:
+        errors.append(FAIL_CLOSED_REMEDY)
         return fail_closed_pack(
             source, [f"{source}: {error}" for error in errors]
         )
@@ -292,5 +308,8 @@ def load_policy_pack(paths: Sequence[str | Path]) -> PolicyPack:
         return parse_policy_pack(text, str(candidate))
     return fail_closed_pack(
         "governance-pack",
-        ["no policy file found (tried: " + ", ".join(tried) + ")"],
+        [
+            "no policy file found (tried: " + ", ".join(tried) + ")",
+            FAIL_CLOSED_REMEDY,
+        ],
     )

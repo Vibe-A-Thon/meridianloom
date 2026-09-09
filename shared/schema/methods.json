@@ -462,7 +462,24 @@
         "status": { "enum": ["ok", "degraded", "shutting-down"] },
         "uptimeSeconds": { "type": "number" },
         "pid": { "type": "integer" },
-        "activeLoops": { "type": "integer" }
+        "activeLoops": { "type": "integer" },
+        "policyScaffolds": {
+          "description": "D43/AC-53 (N0-T09b): the policy-bootstrap events from the workspace handshake — one per sidecar-loaded policy pack. action 'scaffolded' means the shipped default was copied into <ws>/.meridian/policy/ on first run (the host surfaces these as the visible first-run notice); 'present' means the workspace pack won and nothing was copied; 'missing-default' names a broken install.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/PolicyScaffoldEvent" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "PolicyScaffoldEvent": {
+      "type": "object",
+      "required": ["pack", "filename", "action", "path", "message"],
+      "properties": {
+        "pack": { "type": "string" },
+        "filename": { "type": "string" },
+        "action": { "enum": ["present", "scaffolded", "missing-default"] },
+        "path": { "type": ["string", "null"] },
+        "message": { "type": "string" }
       },
       "additionalProperties": false
     },

@@ -27,6 +27,14 @@ Derivation, deliberately simple and auditable:
   that is present but empty is also ``unknown`` — dimensions with no
   recorded evidence are unknown, never fabricated.
 
+Absent-file behaviour (D43 uniformity rule, stated once in
+``governance/bootstrap.py``): the sidecar bootstrap scaffolds the shipped
+``stories.yaml`` into ``<ws>/.meridian/policy/`` on workspace handshake;
+only a loader invoked with no file anywhere yields the empty pack, and a
+present-but-invalid pack fails closed naming the file, the violation,
+and the remedy (fix the file, or delete it and restart to re-scaffold
+the shipped default).
+
 Zero model calls (FR-M36-07): arithmetic over ledger rows.
 """
 
@@ -38,6 +46,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 import yaml
 
+from ..governance.bootstrap import FAIL_CLOSED_REMEDY
 from .jcurve import parse_utc
 from .spend import SpendPoint, SpendSeries
 
@@ -185,12 +194,15 @@ def parse_story_metadata(text: str, source: str) -> StoryMetadata:
     try:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as error:
-        return StoryMetadata(source=source, errors=[f"{source}: not valid YAML: {error}"])
+        return StoryMetadata(
+            source=source, errors=[f"{source}: not valid YAML: {error}", FAIL_CLOSED_REMEDY]
+        )
     if raw is None:
         raw = {}
     if not isinstance(raw, Mapping):
         return StoryMetadata(
-            source=source, errors=[f"{source}: must be a mapping at the top level"]
+            source=source,
+            errors=[f"{source}: must be a mapping at the top level", FAIL_CLOSED_REMEDY],
         )
     unknown = set(raw) - {"version", "stories"}
     errors = [f"{name}: unknown top-level section" for name in sorted(unknown)]
@@ -225,7 +237,10 @@ def parse_story_metadata(text: str, source: str) -> StoryMetadata:
                     entry[key] = UNKNOWN
             entries[story_id.strip()] = entry
     if errors:
-        return StoryMetadata(source=source, errors=[f"{source}: {e}" for e in errors])
+        return StoryMetadata(
+            source=source,
+            errors=[f"{source}: {e}" for e in errors] + [FAIL_CLOSED_REMEDY],
+        )
     return StoryMetadata(source=source, entries=entries)
 
 

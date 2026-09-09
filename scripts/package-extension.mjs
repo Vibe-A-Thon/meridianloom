@@ -55,10 +55,17 @@ if (webviewBuild.status !== 0) {
 cpSync(path.join(root, 'webview', 'dist'), webviewDist, { recursive: true });
 
 // The ACP host loads this conservative floor unless the workspace overrides it.
+// D43/AC-53 (N0-T09b): the sidecar bootstrap also treats <extension>/policy as
+// the shipped-default source for ALL seven sidecar-loaded packs (governance,
+// action-classes, roles, pricing, stories, rework-reasons, licenses) — every
+// *.yaml in the repository policy/ directory ships, so a fresh workspace gets
+// the full uniform scaffold, not a half-inert Governor.
 const policyDir = path.join(extensionDir, 'policy');
 cleanGeneratedDirectory(policyDir);
 mkdirSync(policyDir);
-cpSync(path.join(root, 'policy', 'acp-permissions.yaml'), path.join(policyDir, 'acp-permissions.yaml'));
+for (const name of readdirSync(path.join(root, 'policy')).filter((n) => n.endsWith('.yaml'))) {
+  cpSync(path.join(root, 'policy', name), path.join(policyDir, name));
+}
 
 try {
   // --no-dependencies: every dependency is a devDependency (the bundle is

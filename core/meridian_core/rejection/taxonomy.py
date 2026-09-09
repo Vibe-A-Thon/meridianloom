@@ -22,6 +22,18 @@ note — in ``note``. Detection-derived rejections cannot know WHY a human
 rejected a change, so their default note says exactly that; review-sourced
 rejections should always supply an explicit class.
 
+Pack resolution (D43 uniformity rule, stated once in
+``governance/bootstrap.py``): the workspace chain —``<ws>/.meridian/
+policy/rework-reasons.yaml``, then ``<ws>/policy/rework-reasons.yaml``,
+then the repository/shipped file — first readable file wins. A file that
+is PRESENT but malformed fails closed: :class:`TaxonomyError` names the
+file, the violation, and the remedy (fix the file, or delete it and
+restart to re-scaffold the shipped default) — a bad workspace taxonomy
+never silently degrades to the embedded canonical. Only when no file
+exists anywhere AND no shipped default was packaged (a broken install)
+does the embedded canonical copy apply, so classification keeps working
+in a bare checkout.
+
 Zero model calls (FR-M36-07): parsing and classification are string
 normalisation over the policy file.
 """
@@ -33,6 +45,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import yaml
+
+from ..governance.bootstrap import FAIL_CLOSED_REMEDY, shipped_policy_dir
 
 __all__ = [
     "DEFAULT_TAXONOMY_PATHS",
@@ -134,14 +148,24 @@ class ReasonStamp:
 
 
 def repo_taxonomy_path() -> Path:
-    """The repository's taxonomy file (core/meridian_core/ -> repo root)."""
-    return Path(__file__).resolve().parents[3] / "policy" / "rework-reasons.yaml"
+    """The repository's taxonomy file (core/meridian_core/ -> repo root;
+    ``extension/policy/`` inside the packaged VSIX)."""
+    return shipped_policy_dir() / "rework-reasons.yaml"
 
 
-def default_taxonomy_paths() -> list[Path]:
-    """Resolution order: workspace override, repository policy, embedded
-    canonical copy (the fallback, not a file)."""
-    paths = [repo_taxonomy_path()]
+def default_taxonomy_paths(workspace: str | Path | None = None) -> list[Path]:
+    """Resolution order: the workspace ``.meridian/policy/`` override, the
+    workspace ``policy/`` directory, then the repository/shipped file —
+    the same chain as the other policy packs. First readable file wins;
+    a present-but-malformed file fails closed in :func:`load_taxonomy`
+    instead of falling through. The embedded canonical copy is the last
+    resort when no file exists anywhere, not a file."""
+    paths: list[Path] = []
+    if workspace is not None:
+        root = Path(workspace)
+        paths.append(root / ".meridian" / "policy" / "rework-reasons.yaml")
+        paths.append(root / "policy" / "rework-reasons.yaml")
+    paths.append(repo_taxonomy_path())
     return paths
 
 
@@ -199,19 +223,30 @@ def parse_taxonomy(text: str, source: str) -> Taxonomy:
     return Taxonomy(version=version, default=default, classes=classes, source=source)
 
 
-def load_taxonomy(paths: Sequence[str | Path] | None = None) -> Taxonomy:
-    """The active taxonomy: the first readable policy file, else the
-    embedded canonical copy. Never raises on a missing file."""
-    for path in paths if paths is not None else DEFAULT_TAXONOMY_PATHS:
+def load_taxonomy(
+    paths: Sequence[str | Path] | None = None, workspace: str | Path | None = None
+) -> Taxonomy:
+    """The active taxonomy: the first readable file in the chain wins.
+
+    A file that exists but fails :func:`parse_taxonomy` is a fail-closed
+    error — :class:`TaxonomyError` names the file, the violation, and the
+    remedy; a malformed workspace taxonomy never silently degrades to a
+    lower-priority source. Only when no file exists anywhere does the
+    embedded canonical copy apply (a broken-install last resort, not a
+    third workspace behaviour).
+    """
+    if paths is None:
+        paths = default_taxonomy_paths(workspace)
+    for path in paths:
         candidate = Path(path)
         try:
             text = candidate.read_text(encoding="utf-8")
         except OSError:
-            continue
+            continue  # absent: try the next source in the chain
         try:
             return parse_taxonomy(text, str(candidate))
-        except TaxonomyError:
-            continue  # malformed override: fall through to the next source
+        except TaxonomyError as error:
+            raise TaxonomyError(f"{error} {FAIL_CLOSED_REMEDY}") from error
     return parse_taxonomy(_CANONICAL_YAML, "embedded-canonical")
 
 

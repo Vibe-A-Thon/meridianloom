@@ -4,10 +4,18 @@ Parses dependency manifests — Gradle ``build.gradle`` (groovy), npm
 ``package.json`` and Python ``requirements.txt`` (the ecosystems the
 samples use) — into dependency records (name, version, ecosystem).
 License classification looks each dependency up in the PINNED
-SPDX-identifier map, a policy YAML (``policy/licenses.yaml`` in the
-repository; a ``license_map_path`` on the payload points at a workspace
-override — config, never hard-coded here). A dependency with no map
-entry reports license ``unknown`` — never guessed.
+SPDX-identifier map, a policy YAML resolved by the same override chain
+as the other packs (D43; stated once in ``governance/bootstrap.py``):
+``<ws>/.meridian/policy/licenses.yaml`` overrides, then
+``<ws>/policy/licenses.yaml``, then the shipped default at
+``<install>/policy/licenses.yaml`` — first readable file wins. An
+explicit ``license_map_path`` on the payload still wins outright over
+the whole chain (config, never hard-coded here); a ``workspaceDir``
+payload param scopes the workspace-relative candidates. A dependency
+with no map entry reports license ``unknown`` — never guessed, and a
+malformed map fails closed naming the file, the violation and the
+remedy (fix the file, or delete it and restart to re-scaffold the
+shipped default).
 
 Migration-reversibility is a heuristic classification over dependency +
 file evidence: a known data-migration tool (flyway, liquibase, alembic,
@@ -29,6 +37,7 @@ from typing import Any, Mapping, Sequence
 
 import yaml
 
+from ..governance.bootstrap import FAIL_CLOSED_REMEDY, shipped_policy_dir
 from .capabilities import CapabilityOutcome
 
 __all__ = ["MigrationClassifierCapability"]
@@ -91,45 +100,99 @@ class LicenseMap:
 
 
 def repo_default_license_map() -> Path:
-    return Path(__file__).resolve().parents[3] / "policy" / "licenses.yaml"
+    """The shipped default license map (repo ``policy/`` in development,
+    ``extension/policy/`` inside the packaged VSIX)."""
+    return shipped_policy_dir() / "licenses.yaml"
+
+
+def default_license_map_paths(workspace: str | Path | None = None) -> list[Path]:
+    """The license-map override chain, the same convention as the other
+    policy packs: the workspace ``.meridian/policy/`` override, then the
+    workspace ``policy/`` directory, then the shipped default. First
+    readable file wins. ``workspace`` None (no handshake context) leaves
+    just the shipped default."""
+    paths: list[Path] = []
+    if workspace is not None:
+        root = Path(workspace)
+        paths.append(root / ".meridian" / "policy" / "licenses.yaml")
+        paths.append(root / "policy" / "licenses.yaml")
+    paths.append(repo_default_license_map())
+    return paths
 
 
 def parse_license_map(text: str, source: str) -> LicenseMap:
     """Parse one license-map document. Never raises on content: a broken
-    document fails closed (every lookup unknown, never a guess)."""
+    document fails closed naming the violation and the remedy (every
+    lookup unknown, never a guess)."""
     try:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as error:
-        return LicenseMap(source=source, errors=[f"{source}: not valid YAML: {error}"])
+        return LicenseMap(
+            source=source, errors=[f"{source}: not valid YAML: {error}", FAIL_CLOSED_REMEDY]
+        )
     if raw is None:
         raw = {}
     if not isinstance(raw, Mapping):
-        return LicenseMap(source=source, errors=[f"{source}: must be a mapping"])
+        return LicenseMap(
+            source=source, errors=[f"{source}: must be a mapping", FAIL_CLOSED_REMEDY]
+        )
     version = raw.get("version")
     if not (isinstance(version, int) and not isinstance(version, bool) and version >= 1):
-        return LicenseMap(source=source, errors=[f"{source}: version must be an integer >= 1"])
+        return LicenseMap(
+            source=source,
+            errors=[f"{source}: version must be an integer >= 1", FAIL_CLOSED_REMEDY],
+        )
     licenses = raw.get("licenses")
     if not isinstance(licenses, Mapping):
-        return LicenseMap(source=source, errors=[f"{source}: 'licenses' must be a mapping"])
+        return LicenseMap(
+            source=source, errors=[f"{source}: 'licenses' must be a mapping", FAIL_CLOSED_REMEDY]
+        )
     clean: dict[str, str] = {}
     for name, spdx in licenses.items():
         if not isinstance(name, str) or not isinstance(spdx, str) or not name.strip() or not spdx.strip():
             return LicenseMap(
                 source=source,
-                errors=[f"{source}: license entries must be non-empty name → SPDX string pairs"],
+                errors=[
+                    f"{source}: license entries must be non-empty name → SPDX string pairs",
+                    FAIL_CLOSED_REMEDY,
+                ],
             )
         clean[name.strip()] = spdx.strip()
         clean.setdefault(name.strip().lower(), spdx.strip())
     return LicenseMap(source=source, licenses=clean)
 
 
-def load_license_map(path: str | Path) -> LicenseMap:
-    candidate = Path(path)
-    try:
-        text = candidate.read_text(encoding="utf-8")
-    except OSError as error:
-        return LicenseMap(source=str(candidate), errors=[f"{candidate}: unreadable: {error}"])
-    return parse_license_map(text, str(candidate))
+def load_license_map(path: str | Path | Sequence[str | Path] | None) -> LicenseMap:
+    """Load the license map. A single path loads exactly that file; a
+    sequence is the override chain — the first readable file wins. A
+    missing/unreadable file (or chain with no readable candidate) fails
+    closed naming what was tried and the remedy, never an exception."""
+    if path is None:
+        candidates: list[Path] = default_license_map_paths()
+    elif isinstance(path, (str, Path)):
+        candidates = [Path(path)]
+    else:
+        candidates = [Path(candidate) for candidate in path]
+    tried: list[str] = []
+    for candidate in candidates:
+        tried.append(str(candidate))
+        try:
+            text = candidate.read_text(encoding="utf-8")
+        except OSError as error:
+            if len(candidates) == 1:
+                return LicenseMap(
+                    source=str(candidate),
+                    errors=[f"{candidate}: unreadable: {error}", FAIL_CLOSED_REMEDY],
+                )
+            continue
+        return parse_license_map(text, str(candidate))
+    return LicenseMap(
+        source="licenses.yaml",
+        errors=[
+            "no license map found (tried: " + ", ".join(tried) + ")",
+            FAIL_CLOSED_REMEDY,
+        ],
+    )
 
 
 def detect_ecosystem(path: Path) -> str | None:
@@ -218,7 +281,10 @@ class MigrationClassifierCapability:
     ``classify_migration`` action class (FR-M33-01).
 
     Payload: ``{path}`` — a manifest file or a directory to scan for
-    manifests; optional ``license_map_path`` overrides the repo map.
+    manifests; optional ``license_map_path`` overrides the whole override
+    chain; optional ``workspaceDir`` scopes the workspace-relative chain
+    (``.meridian/policy/licenses.yaml``, ``policy/licenses.yaml``, shipped
+    default) used when no explicit map path is given.
     """
 
     @property
@@ -234,10 +300,11 @@ class MigrationClassifierCapability:
             return CapabilityOutcome(handled=False, reason=f"manifest path does not exist: {target}")
 
         map_path = action.get("license_map_path")
+        workspace = action.get("workspaceDir") or action.get("workspace")
         license_map = (
             load_license_map(map_path)
             if isinstance(map_path, str) and map_path
-            else load_license_map(repo_default_license_map())
+            else load_license_map(default_license_map_paths(workspace))
         )
         if license_map.fail_closed:
             return CapabilityOutcome(

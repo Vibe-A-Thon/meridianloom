@@ -13,6 +13,13 @@ any error refuses every lookup — a malformed catalogue never silently
 classifies an action as generative. This module never raises on policy
 content.
 
+Absent-file behaviour (D43 uniformity rule, stated once in
+``governance/bootstrap.py``): the sidecar bootstrap scaffolds the shipped
+``action-classes.yaml`` into ``<ws>/.meridian/policy/`` on workspace
+handshake; a pack that is present but invalid fails closed naming the
+file, the violation, and the remedy (fix the file, or delete it and
+restart to re-scaffold the shipped default).
+
 Zero model calls: this is table lookups and validation only.
 """
 
@@ -23,6 +30,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import yaml
+
+from ..governance.bootstrap import FAIL_CLOSED_REMEDY
 
 __all__ = [
     "ActionClass",
@@ -112,12 +121,18 @@ def parse_catalogue(text: str, source: str) -> Catalogue:
     try:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as error:
-        return Catalogue(version=0, source=source, errors=[f"{source}: not valid YAML: {error}"])
+        return Catalogue(
+            version=0,
+            source=source,
+            errors=[f"{source}: not valid YAML: {error}", FAIL_CLOSED_REMEDY],
+        )
     if raw is None:
         raw = {}
     if not isinstance(raw, Mapping):
         return Catalogue(
-            version=0, source=source, errors=[f"{source}: must be a mapping at the top level"]
+            version=0,
+            source=source,
+            errors=[f"{source}: must be a mapping at the top level", FAIL_CLOSED_REMEDY],
         )
 
     errors: list[str] = []
@@ -205,7 +220,9 @@ def parse_catalogue(text: str, source: str) -> Catalogue:
 
     if errors:
         return Catalogue(
-            version=version, source=source, errors=[f"{source}: {e}" for e in errors]
+            version=version,
+            source=source,
+            errors=[f"{source}: {e}" for e in errors] + [FAIL_CLOSED_REMEDY],
         )
     return Catalogue(version=version, source=source, classes=classes, ceilings=dict(ceilings))
 
@@ -335,5 +352,8 @@ def load_catalogue(paths: Sequence[str | Path]) -> Catalogue:
     return Catalogue(
         version=0,
         source="action-class-catalogue",
-        errors=["no catalogue file found (tried: " + ", ".join(tried) + ")"],
+        errors=[
+            "no catalogue file found (tried: " + ", ".join(tried) + ")",
+            FAIL_CLOSED_REMEDY,
+        ],
     )

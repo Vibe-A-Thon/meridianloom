@@ -14,11 +14,15 @@ actions:
 
 Parsing is fail-closed exactly like the governance pack: YAML errors and
 schema violations come back as ``errors`` and the pack refuses every
-check. One deliberate difference: when NO file exists anywhere, the
-built-in default (the same five roles, SoD on, N-of-M empty, delegation
-2-deep/30-day, hygiene floors) keeps the merge gate functional — role
-granularity activates by dropping a roles.yaml into policy. A PRESENT but
-malformed file fails closed instead.
+check. One deliberate difference: when NO file exists anywhere AND no
+shipped default was packaged (a broken install), the built-in default
+(the same five roles, SoD on, N-of-M empty, delegation 2-deep/30-day,
+hygiene floors) keeps the merge gate functional — a last resort the D43
+bootstrap makes unreachable in a normal workspace. Absent-file behaviour
+otherwise follows the uniform contract (stated once in
+``governance/bootstrap.py``): the bootstrap scaffolds the shipped
+``roles.yaml`` into ``<ws>/.meridian/policy/`` on workspace handshake. A
+PRESENT but malformed file fails closed instead, with the remedy named.
 
 The module also carries the three ledger-backed mechanics the merge gate
 and the RPCs consume: N-of-M counting support lives in merge_gate; here
@@ -38,6 +42,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import yaml
+
+from .bootstrap import FAIL_CLOSED_REMEDY
 
 #: Gate actions the pack maps roles to (FR-M20-02/07/08).
 ACTIONS = ("approve", "halt", "policy-change", "delegate", "export-audit")
@@ -216,11 +222,17 @@ def parse_role_pack(text: str, source: str) -> RolePack:
     try:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as error:
-        return fail_closed_pack(source, [f"{source}: roles policy is not valid YAML: {error}"])
+        return fail_closed_pack(
+            source,
+            [f"{source}: roles policy is not valid YAML: {error}", FAIL_CLOSED_REMEDY],
+        )
     if raw is None:
         raw = {}
     if not _is_mapping(raw):
-        return fail_closed_pack(source, [f"{source}: roles policy must be a mapping at the top level"])
+        return fail_closed_pack(
+            source,
+            [f"{source}: roles policy must be a mapping at the top level", FAIL_CLOSED_REMEDY],
+        )
 
     errors: list[str] = []
     version = 0
@@ -326,6 +338,7 @@ def parse_role_pack(text: str, source: str) -> RolePack:
         errors.append(f"defaultRole: '{default_role}' is not a defined role")
 
     if errors:
+        errors.append(FAIL_CLOSED_REMEDY)
         return fail_closed_pack(source, [f"{source}: {error}" for error in errors])
     return RolePack(
         version=version,
@@ -345,10 +358,12 @@ def parse_role_pack(text: str, source: str) -> RolePack:
 def load_role_pack(paths: Sequence[str | Path]) -> RolePack:
     """The first readable file wins (workspace override, then repository).
 
-    No readable file is NOT an error for this pack: the built-in default
-    applies, so a workspace without a roles policy keeps a working gate
-    with the standard five roles. A present but malformed file fails
-    closed (see parse_role_pack).
+    No readable file falls back to the built-in default — a last resort for
+    a loader invoked outside a bootstrapped workspace (the D43 bootstrap
+    scaffolds the shipped roles.yaml into ``<ws>/.meridian/policy/`` on
+    handshake, so a handshaken workspace always has a readable pack). A
+    present but malformed file fails closed with the remedy named (see
+    parse_role_pack).
     """
     tried: list[str] = []
     for path in paths:

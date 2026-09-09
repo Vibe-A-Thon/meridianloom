@@ -60,6 +60,14 @@ class HealthResult(TypedDict):
     uptimeSeconds: float
     pid: int
     activeLoops: int
+    policyScaffolds: NotRequired[list[PolicyScaffoldEvent]]  # D43/AC-53 (N0-T09b): the policy-bootstrap events from the workspace handshake — one per sidecar-loaded policy pack. action 'scaffolded' means the shipped default was copied into <ws>/.meridian/policy/ on first run (the host surfaces these as the visible first-run notice); 'present' means the workspace pack won and nothing was copied; 'missing-default' names a broken install.
+
+class PolicyScaffoldEvent(TypedDict):
+    pack: str
+    filename: str
+    action: Literal["present", "scaffolded", "missing-default"]
+    path: str | None
+    message: str
 
 # Outcome of one doctor check. warn means usable but degraded or not yet installed; fail means broken and actionable.
 DoctorCheckStatus = Literal["pass", "warn", "fail"]

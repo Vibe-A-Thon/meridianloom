@@ -29,6 +29,14 @@ Parsing is fail-closed exactly like the FR-M12-01 governance pack: YAML
 errors and schema violations come back as ``errors`` and a pack with any
 error prices nothing — a malformed pack never invents a rate.
 
+Absent-file behaviour (D43 uniformity rule, stated once in
+``governance/bootstrap.py``): the sidecar bootstrap scaffolds the shipped
+``pricing.yaml`` into ``<ws>/.meridian/policy/`` on workspace handshake;
+only a loader invoked with no file anywhere yields the empty pack, and a
+present-but-invalid pack fails closed naming the file, the violation,
+and the remedy (fix the file, or delete it and restart to re-scaffold
+the shipped default).
+
 Zero model calls (FR-M36-07): table lookups and multiplication.
 """
 
@@ -39,6 +47,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import yaml
+
+from ..governance.bootstrap import FAIL_CLOSED_REMEDY
 
 __all__ = ["PricingPack", "load_pricing_pack", "parse_pricing_pack"]
 
@@ -116,12 +126,18 @@ def parse_pricing_pack(text: str, source: str) -> PricingPack:
     try:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as error:
-        return PricingPack(version=0, source=source, errors=[f"{source}: not valid YAML: {error}"])
+        return PricingPack(
+            version=0,
+            source=source,
+            errors=[f"{source}: not valid YAML: {error}", FAIL_CLOSED_REMEDY],
+        )
     if raw is None:
         raw = {}
     if not isinstance(raw, Mapping):
         return PricingPack(
-            version=0, source=source, errors=[f"{source}: must be a mapping at the top level"]
+            version=0,
+            source=source,
+            errors=[f"{source}: must be a mapping at the top level", FAIL_CLOSED_REMEDY],
         )
 
     errors: list[str] = []
@@ -179,7 +195,9 @@ def parse_pricing_pack(text: str, source: str) -> PricingPack:
                 )
     if errors:
         return PricingPack(
-            version=version, source=source, errors=[f"{source}: {e}" for e in errors]
+            version=version,
+            source=source,
+            errors=[f"{source}: {e}" for e in errors] + [FAIL_CLOSED_REMEDY],
         )
     return PricingPack(
         version=version, source=source, currency=currency.strip(), rates=rates
