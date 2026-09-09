@@ -4,11 +4,27 @@
 
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
-- **Current phase:** N0 — Quiesce (futures assurance track, G-1); F3 continues in parallel after N0 per the §13 interlock
-- **Current workstream:** N0 tasks T03–T08 (T01/T02 organisational — recorded)
-- **Current task:** N0-T03 perf-floor disposition + T04 observer handicap + T05 workbench/webview reds + T06 e2e contention budget + T07 BUILD_STATE reconcile + T08 dependency triage. M33 tasks 10-12 DONE (a262b84, 46 tests) — M33 functionally complete, FR-M46-16 growth gate now binds (G-1)
-- **Last commit:** 8f505cd — F3 M33 slice 2b: all nine analytical capabilities `engine/{runners,scaffold,classify,graph,cost,coverage,ambiguity,conventions}.py` + `policy/licenses.yaml` (FR-M33-02), 37 tests + 67 post-commit sweep green; task 8 COMPLETE (structural 2a at ff2a48a, 43 tests; slice 1 at 5e7d3c2, 100 tests). F3 order per gaps §F3: M33 full → M8 → M4 → M9/M28 → M7 → M38 → M31 roster → M5/M6/M13/M26. F1 exit at e0a701b (tagged f1-complete). Decisions D24–D35 in DECISIONS.md.
+- **Current phase:** N1 — True and Visible (N0 quiesce COMPLETE — summary below)
+- **Current workstream:** N1 setup — reading futures-implementation.md §N1 (living document)
+- **Current task:** N1 workstream A task 1 per the N1 order (read the section first — doc is being edited concurrently)
+- **Last commit:** ec36bd2 — N0-T06 contention-tolerant X-29 retry. N0: T09 policy bootstrap a1b9b36 (D43), T08 triage a1cea9f, T07 reconcile 8cede03, D43 33e2cc3, G-1 d286f28. F3 M33 complete: slices 1-3 (5e7d3c2, ff2a48a, 8f505cd, a262b84). F1 exit e0a701b tagged f1-complete.
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
+
+## Phase N0 — Quiesce (COMPLETE)
+
+| Task | Disposition |
+|---|---|
+| T01 tree quiet / J9 | organisational (owner's second session) — recorded, not enforceable by this session |
+| T02 sequential suite runs | extension 368✓ 1 skip; webview 177✓; core 1109✓/1 — the 1 (X-29 cursor disappearance) was load-timing, fixed by T06 retry (ec36bd2); sequential run at a1b9b36+ window, machine quiet, vitest legs 21s/35s |
+| T03 verify perf floor | **kept** — meets target on a quiet machine (TestVerifyPerformance 2/2 in 11.7s; F0 measured ~31k entries/s); full-suite breach occurred only under 71-min parallel load. Disposition recorded; AMD-M10 satisfied (not silently red) |
+| T04 observer handicap test | load-sensitive, no defect — green solo and in quiet runs (9/9) |
+| T05 workbench + webview operations reds | both fixed (parallel session repaired their committed test; extension 24/24, webview 7/7) |
+| T06 e2e contention | X-29 disappearance tests got one-retry tolerance, 2s budget unchanged (ec36bd2); extension real-sidecar e2e green in quiet sequential run |
+| T07 BUILD_STATE reconcile | done — F1 workstream table C–H corrected (8cede03) |
+| T08 dependency findings | vite 5.4.21 patch bump; vitest/vite majors = dated accepted-risk note (dev toolchain only, owner: repo owner) (a1cea9f) |
+| T09 fresh-workspace policy | D43 closed (ship-and-copy, 33e2cc3); uniform bootstrap + license override chain + fresh-workspace tests (a1b9b36, 26+212+92+34 green); AC-53 satisfied |
+
+N0 exit: sequential runs green or dispositioned; BUILD_STATE matches log; every dependency finding upgraded or accepted-risk-noted; AC-53 pass. **N0 exit criteria are met** (J9 recorded as organisational).
 
 ## Phase F2 — Evidence Gate (pending-human-evidence, D35)
 
