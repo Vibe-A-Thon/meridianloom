@@ -14,6 +14,10 @@ report names the stale approval's sequence and digest. Anonymous approval
 rows (no recorded human identity) never count. A fail-closed policy pack
 refuses every merge.
 
+FR-M42-01/02: when the caller presents the signed merge authorisation
+(merge_authorisation.py) plus the live SCM binding, the gate additionally
+requires the binding to hold — invalidation names the violated field.
+
 Zero model calls (FR-M36-07): the check reads the ledger and the pack only.
 """
 
@@ -24,7 +28,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..ledger.core import Ledger
-from . import approval_class
+from . import approval_class, merge_authorisation
 from .identity import HumanIdentity
 from .policy import PolicyPack
 
@@ -293,6 +297,8 @@ def check_merge(
     required_approvals: int = 1,
     permitted_roles: "set[str] | None" = None,
     excluded_identities: "set[str] | frozenset[str]" = frozenset(),
+    authorisation: "merge_authorisation.MergeAuthorisation | None" = None,
+    binding: "merge_authorisation.MergeBinding | None" = None,
 ) -> MergeVerdict:
     """FR-M12-05/07 + FR-M20-03/04: may ``subject`` (branch or PR id) merge
     at ``head_commit``?
@@ -303,6 +309,15 @@ def check_merge(
     the head commit, none by an identity the role pack excludes (SoD), none
     holding a role that may not approve, and no active halt. A fail-closed
     pack refuses every merge.
+
+    FR-M42-01/02 (N2-T02/T03): when the caller presents the FR-M42-01
+    signed authorisation (``authorisation``) and the live SCM binding
+    (``binding``), the merge additionally requires the authorisation to
+    validate — any change to a bound element (head, base, diff digest,
+    policy version, evidence, expiry, PR identity) blocks with the
+    violated field named. Presenting one without the other is itself a
+    block: the credential and the state it is checked against travel
+    together. None means the v1 approval-only path, unchanged.
 
     ``requires_approval`` overrides the protected-branch lookup: ``pr/status``
     passes True when the PR's base branch is protected — a PR subject
@@ -365,6 +380,23 @@ def check_merge(
             missing.extend(notes)
         if valid:
             approval = valid[0]
+
+    if protected and not halts and (authorisation is not None or binding is not None):
+        # FR-M42-01/02: the signed authorisation must validate against
+        # the live binding; every violation names its field so the block
+        # carries a readable reason (AC-45).
+        if authorisation is None or binding is None:
+            missing.append(
+                "merge authorisation incomplete (FR-M42-01): the signed "
+                "authorisation and the SCM binding it is checked against "
+                "must be presented together"
+            )
+        else:
+            auth_verdict = merge_authorisation.evaluate_authorisation(
+                authorisation, binding
+            )
+            if not auth_verdict.allowed:
+                missing.extend(auth_verdict.notes)
 
     allowed = not missing
     return MergeVerdict(
