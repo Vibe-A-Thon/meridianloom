@@ -50,8 +50,8 @@
 
 .button {
   font: var(--ml-t-ui);
-  color: var(--ml-text-primary);
-  background: var(--ml-dye-working-dim);
+  color: var(--ml-accent-ink, #fff);
+  background: var(--ml-accent, var(--ml-dye-working-dim));
   border: 1px solid var(--ml-dye-working);
   border-radius: var(--ml-r-panel);
   padding: var(--ml-cell-padding);

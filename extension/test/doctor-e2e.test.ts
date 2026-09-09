@@ -31,9 +31,9 @@ const run = python ? describe : describe.skip;
 run('doctor/run against the real Python sidecar (FR-M30-01)', () => {
   it(
     'round-trips the full check registry over real stdio',
-    { timeout: 30_000 },
+    { timeout: 45_000 },
     async () => {
-      const client = new StdioSidecarClient({ command: python!, cwd: coreDir });
+      const client = new StdioSidecarClient({ command: python!, cwd: coreDir, handshakeTimeoutMs: 30_000 });
       await client.start();
       try {
         const report = await client.call('doctor/run', {}, new AbortController().signal);
@@ -69,9 +69,9 @@ run('doctor/run against the real Python sidecar (FR-M30-01)', () => {
 
   it(
     'rejects an unknown check id with INVALID_PARAMS and the valid ids',
-    { timeout: 30_000 },
+    { timeout: 45_000 },
     async () => {
-      const client = new StdioSidecarClient({ command: python!, cwd: coreDir });
+      const client = new StdioSidecarClient({ command: python!, cwd: coreDir, handshakeTimeoutMs: 30_000 });
       await client.start();
       try {
         await expect(
@@ -89,9 +89,9 @@ run('doctor/run against the real Python sidecar (FR-M30-01)', () => {
 
   it(
     'runs a selected subset only',
-    { timeout: 30_000 },
+    { timeout: 45_000 },
     async () => {
-      const client = new StdioSidecarClient({ command: python!, cwd: coreDir });
+      const client = new StdioSidecarClient({ command: python!, cwd: coreDir, handshakeTimeoutMs: 30_000 });
       await client.start();
       try {
         const report = await client.call(

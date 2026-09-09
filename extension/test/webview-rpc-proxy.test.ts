@@ -13,6 +13,13 @@ function sidecarOf(impl: (method: string, params: unknown) => Promise<unknown>):
 }
 
 describe('dispatchWebviewMessage — the extension-host proxy (G0c/G0d)', () => {
+  it('forwards validated source locations and refuses malformed line numbers', async () => {
+    const opened: Array<[string, number | undefined]> = [];
+    const context = { enabledTiers: () => [...recorderTiers], sidecar: undefined, openEditor: async (file: string, line?: number) => { opened.push([file, line]); } };
+    await dispatchWebviewMessage({ type: 'editor/open', path: 'src/main.ts', line: 8 }, context);
+    for (const line of [0, -1, 1.5, '8', null]) await dispatchWebviewMessage({ type: 'editor/open', path: 'src/main.ts', line }, context);
+    expect(opened).toEqual([['src/main.ts', 8]]);
+  });
   it('answers ready with an init carrying protocol version and enabled tiers', async () => {
     const reply = await dispatchWebviewMessage(
       { type: 'ready', protocolVersion: WEBVIEW_PROTOCOL_VERSION },

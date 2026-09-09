@@ -128,6 +128,7 @@ describe('command and view filtering (FR-M36-05, X-28)', () => {
     expect(enabledCommands(base).sort()).toEqual(
       [
         'meridian.doctor',
+        'meridian.inspectSource',
         'meridian.installHook',
         'meridian.openRecorder',
         'meridian.verifyChain',

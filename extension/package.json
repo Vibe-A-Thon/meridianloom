@@ -73,6 +73,11 @@
         "category": "Meridian Loom"
       },
       {
+        "command": "meridian.inspectSource",
+        "title": "Inspect Source Provenance",
+        "category": "Meridian Loom"
+      },
+      {
         "command": "meridian.installSkill",
         "title": "Install Skill",
         "category": "Meridian Loom"
@@ -130,11 +135,6 @@
       {
         "command": "meridian.installHook",
         "title": "Provenance Hook (Install / Remove)",
-        "category": "Meridian Loom"
-      },
-      {
-        "command": "meridian.inspectSource",
-        "title": "Inspect Source Provenance",
         "category": "Meridian Loom"
       }
     ],

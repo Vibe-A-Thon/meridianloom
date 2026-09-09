@@ -1,17 +1,22 @@
-import type { StudioDocument, StudioDocumentInput } from './studio';
+import type { StudioDocument, StudioDocumentInput } from "./studio";
 /** Extension-host workbench state. This channel does not require the Python sidecar. */
-export type AgentMode = 'active' | 'learning';
+export type AgentMode = "active" | "learning";
 export type AgentPermission =
-  | 'read'
-  | 'edit'
-  | 'delete'
-  | 'move'
-  | 'execute'
-  | 'search'
-  | 'think'
-  | 'unknown'
-  | 'other';
-export type LearningSurface = 'policy' | 'rules' | 'memory' | 'skills' | 'calibration';
+  | "read"
+  | "edit"
+  | "delete"
+  | "move"
+  | "execute"
+  | "search"
+  | "think"
+  | "unknown"
+  | "other";
+export type LearningSurface =
+  | "policy"
+  | "rules"
+  | "memory"
+  | "skills"
+  | "calibration";
 
 export interface WorkbenchAgentInput {
   id: string;
@@ -29,8 +34,8 @@ export interface WorkbenchAgentInput {
 
 export interface WorkbenchAgent extends WorkbenchAgentInput {
   mode: AgentMode;
-  runtime: 'idle' | 'running';
-  learningState: 'waiting' | 'review';
+  runtime: "idle" | "running";
+  learningState: "waiting" | "review";
   createdAt: string;
   updatedAt: string;
   lastRunAt?: string;
@@ -42,21 +47,26 @@ export interface WorkbenchRun {
   agentName: string;
   deliverableId?: string;
   prompt: string;
-  state: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  state: "queued" | "running" | "completed" | "failed" | "cancelled";
   startedAt: string;
   finishedAt?: string;
   stopReason?: string;
   error?: string;
   output?: string;
   sessionId?: string;
-  steering?: { message: string; sequence: number; state: 'queued' | 'sent'; submittedAt: string }[];
+  steering?: {
+    message: string;
+    sequence: number;
+    state: "queued" | "sent";
+    submittedAt: string;
+  }[];
 }
 
 export interface WorkbenchDeliverable {
   id: string;
   title: string;
   brief: string;
-  state: 'draft' | 'running' | 'review' | 'completed' | 'failed';
+  state: "draft" | "running" | "review" | "completed" | "failed";
   agentIds: string[];
   createdAt: string;
   updatedAt: string;
@@ -69,11 +79,11 @@ export interface LearningArtifact {
   deliverableId: string;
   title: string;
   content: string;
-  state: 'pending' | 'accepted' | 'dismissed';
+  state: "pending" | "accepted" | "dismissed";
   createdAt: string;
   reviewedAt?: string;
   /** These are reviewable memory notes, never model-weight training. */
-  surface: 'memory';
+  surface: "memory";
 }
 
 export interface WorkbenchSnapshot {
@@ -95,35 +105,72 @@ export interface WorkbenchSnapshot {
 
 /** Portable declared launch configuration; credentials and run history are excluded. */
 export interface PortableAgentDocument {
-  kind: 'meridian-portable-agent';
+  kind: "meridian-portable-agent";
   schemaVersion: 1;
   agent: WorkbenchAgentInput;
   memory?: { title: string; content: string }[];
 }
 
 export interface WorkbenchActionMap {
-  'document/save': { params: { document: StudioDocumentInput }; result: WorkbenchSnapshot };
-  'document/remove': { params: { id: string; expectedVersion: number }; result: WorkbenchSnapshot };
-  'document/export': { params: { id: string }; result: { fileName: string; content: string } };
-  'document/import': { params: { content: string }; result: WorkbenchSnapshot };
-  'document/restore': { params: { id: string; version: number; expectedVersion: number }; result: WorkbenchSnapshot };
+  "document/save": {
+    params: { document: StudioDocumentInput };
+    result: WorkbenchSnapshot;
+  };
+  "document/remove": {
+    params: { id: string; expectedVersion: number };
+    result: WorkbenchSnapshot;
+  };
+  "document/export": {
+    params: { id: string };
+    result: { fileName: string; content: string };
+  };
+  "document/import": { params: { content: string }; result: WorkbenchSnapshot };
+  "document/restore": {
+    params: { id: string; version: number; expectedVersion: number };
+    result: WorkbenchSnapshot;
+  };
   snapshot: { params: Record<string, never>; result: WorkbenchSnapshot };
-  'agent/save': { params: { agent: WorkbenchAgentInput }; result: WorkbenchSnapshot };
-  'agent/remove': { params: { id: string }; result: WorkbenchSnapshot };
-  'agent/mode': { params: { id: string; mode: AgentMode }; result: WorkbenchSnapshot };
-  'agent/import': { params: { content: string }; result: WorkbenchSnapshot };
-  'agent/export': { params: { id: string }; result: { fileName: string; content: string } };
-  'agent/run': { params: { id: string; prompt: string }; result: WorkbenchSnapshot };
-  'run/cancel': { params: { id: string }; result: WorkbenchSnapshot };
-  'run/steer': { params: { id: string; message: string }; result: WorkbenchSnapshot };
-  'deliverable/save': {
+  "agent/save": {
+    params: { agent: WorkbenchAgentInput };
+    result: WorkbenchSnapshot;
+  };
+  "agent/remove": { params: { id: string }; result: WorkbenchSnapshot };
+  "agent/mode": {
+    params: { id: string; mode: AgentMode };
+    result: WorkbenchSnapshot;
+  };
+  "agent/import": { params: { content: string }; result: WorkbenchSnapshot };
+  "agent/export": {
+    params: { id: string };
+    result: { fileName: string; content: string };
+  };
+  "agent/run": {
+    params: { id: string; prompt: string };
+    result: WorkbenchSnapshot;
+  };
+  "run/cancel": { params: { id: string }; result: WorkbenchSnapshot };
+  "run/steer": {
+    params: { id: string; message: string };
+    result: WorkbenchSnapshot;
+  };
+  "deliverable/save": {
     params: { id?: string; title: string; brief: string };
     result: WorkbenchSnapshot;
   };
-  'deliverable/dispatch': { params: { id: string; expectedBriefUpdatedAt?: string; expectedTeam?: Array<{ id: string; updatedAt: string }> }; result: WorkbenchSnapshot };
-  'deliverable/complete': { params: { id: string; feedback: string }; result: WorkbenchSnapshot };
-  'learning/review': {
-    params: { id: string; decision: 'accepted' | 'dismissed' };
+  "deliverable/dispatch": {
+    params: {
+      id: string;
+      expectedBriefUpdatedAt?: string;
+      expectedTeam?: Array<{ id: string; updatedAt: string }>;
+    };
+    result: WorkbenchSnapshot;
+  };
+  "deliverable/complete": {
+    params: { id: string; feedback: string };
+    result: WorkbenchSnapshot;
+  };
+  "learning/review": {
+    params: { id: string; decision: "accepted" | "dismissed" };
     result: WorkbenchSnapshot;
   };
 }
@@ -135,5 +182,5 @@ export interface WorkbenchRequest {
 }
 export type WorkbenchExecute = <A extends WorkbenchAction>(
   action: A,
-  params: WorkbenchActionMap[A]['params'],
-) => Promise<WorkbenchActionMap[A]['result']>;
+  params: WorkbenchActionMap[A]["params"],
+) => Promise<WorkbenchActionMap[A]["result"]>;

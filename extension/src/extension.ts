@@ -47,6 +47,7 @@ async function saveDownload(request: {
     'image/svg+xml': { 'SVG diagram': ['svg'] },
     'text/csv': { 'CSV table': ['csv'] },
     'text/plain': { 'Text document': ['md', 'mmd', 'txt'] },
+    'text/markdown': { 'Markdown report': ['md'] },
   };
   const target = await vscode.window.showSaveDialog({
     defaultUri: vscode.Uri.file(path.basename(request.fileName)),

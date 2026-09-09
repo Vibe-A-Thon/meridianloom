@@ -1,4 +1,6 @@
-import { readFile, realpath } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
+import { resolveWorkspaceSource } from './editor-surfaces';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { dispatchWebviewMessage, type ProxyContext } from './webview/webview-rpc-proxy';
@@ -43,12 +45,7 @@ export interface RecorderPanelDeps {
 
 /** 256-bit nonce, base64 — CSP nonce plus script-tag nonce must match. */
 export function getNonce(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let nonce = '';
-  for (let i = 0; i < 64; i++) {
-    nonce += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return nonce;
+  return randomBytes(32).toString('hex');
 }
 
 /**
@@ -65,7 +62,7 @@ export function buildPanelHtml(options: {
 }): string {
   const { indexHtml, resolveUri, cspSource, nonce } = options;
   const csp =
-    `default-src 'none'; script-src 'nonce-${nonce}'; ` +
+    `default-src 'none'; script-src 'nonce-${nonce}' ${cspSource}; ` +
     `style-src ${cspSource}; img-src ${cspSource} data:; font-src ${cspSource};`;
 
   let html = indexHtml.replace(
@@ -166,9 +163,7 @@ export class RecorderPanel {
       openEditor: async (file, line) => {
         const root = deps.workspaceDir?.();
         if (!root) throw new Error('Open a workspace before opening a source file.');
-        const [realRoot, target] = await Promise.all([realpath(root), realpath(path.resolve(root, file))]);
-        const relative = path.relative(realRoot, target);
-        if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error('Source files must be inside the current workspace.');
+        const target = await resolveWorkspaceSource(root, file);
         const editor = await vscode.window.showTextDocument(vscode.Uri.file(target), { preview: true });
         const position = new vscode.Position(Math.min((line ?? 1) - 1, editor.document.lineCount - 1), 0);
         editor.selection = new vscode.Selection(position, position);

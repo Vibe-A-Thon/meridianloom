@@ -1,57 +1,1187 @@
-import { useState } from 'react';
-import type { AttribBlameResult, AttribSymbolResult, WorktreeConflictsResult } from '../../../../shared/ts/bus-types';
-import { useRpcQuery } from '../../hooks/useRpcQuery';
-import { LoadingState, ErrorState } from '../../components/AsyncState';
-import { Dialog } from '../Dialog';
-import { StudioPage, Empty, ErrorNotice, exportText, csv, stamp, useViewState, type OperationsProps } from './shared';
-import s from './operations.module.css';
+import { useState } from "react";
+import type {
+  AttribBlameResult,
+  AttribSymbolResult,
+  WorktreeConflictsResult,
+} from "../../../../shared/ts/bus-types";
+import { useRpcQuery } from "../../hooks/useRpcQuery";
+import { LoadingState, ErrorState } from "../../components/AsyncState";
+import { Dialog } from "../Dialog";
+import {
+  StudioPage,
+  Empty,
+  ErrorNotice,
+  exportText,
+  csv,
+  stamp,
+  useViewState,
+  type OperationsProps,
+} from "./shared";
+import s from "./operations.module.css";
 
 export function WorkspaceOperations(props: OperationsProps) {
-  const {view,controller,client,ready,workspaceDir,onNavigate}=props;
-  const snapshot=controller.snapshot;
-  const [error,setError]=useState<string>();
-  const [notice,setNotice]=useState<string>();
-  const [busy,setBusy]=useState(false);
-  const [filter,setFilter]=useViewState(`activityFilter-${view}`,'all');
-  const [readIds,setReadIds]=useViewState<string[]>('readActivity',[]);
-  const [storyId,setStoryId]=useViewState('selectedDelivery','');
-  const [message,setMessage]=useViewState('steeringDraft','');
-  const [runId,setRunId]=useState('');
-  const [confirm,setConfirm]=useState<'launch'|'steer'|'stop'>();
-  const [preflight,setPreflight]=useState<WorktreeConflictsResult>();
-  const [checkedScope,setCheckedScope]=useState('');
-  const [reviewedScope,setReviewedScope]=useState('');
-  const [path,setPath]=useViewState('inspectorPath','');
-  const [line,setLine]=useViewState('inspectorLine',1);
-  const [attribution,setAttribution]=useState<{blame:AttribBlameResult;symbol:AttribSymbolResult}>();
-  const [settingsText,setSettingsText]=useState('');
-  const [editingSettings,setEditingSettings]=useState(false);
-  const ledger=useRpcQuery(ready?client:undefined,'ledger.query',{limit:200},['decisions','kpi','weave'].includes(view));
-  const entries=ledger.status==='ready'?ledger.data.entries:[];
-  const runs=snapshot?.runs ?? [];
-  const active=snapshot?.agents.filter(a=>a.mode==='active') ?? [];
-  const deliveries=snapshot?.deliverables ?? [];
-  const delivery=deliveries.find(d=>d.id===storyId);
-  const live=runs.filter(r=>r.state==='running'||r.state==='queued');
-  const currentScope=JSON.stringify({id:delivery?.id,updated:delivery?.updatedAt,agents:active.map(a=>({id:a.id,updatedAt:a.updatedAt}))});
-  const perform=async(task:()=>Promise<unknown>,success?:string)=>{setError(undefined);setNotice(undefined);setBusy(true);try{await task();if(success)setNotice(success);}catch(cause){setError((cause as Error).message);}finally{setBusy(false);}};
-  const check=async()=>{const result=await client.request('worktree/conflicts',{...(workspaceDir?{repoPath:workspaceDir}:{})});setPreflight(result);setCheckedScope(currentScope);return result;};
-  const history=[...runs.map(r=>({id:`run-${r.id}-${r.state}`,kind:'run',title:`${r.agentName} · ${r.state}`,detail:r.error||r.prompt,date:r.finishedAt??r.startedAt,route:r.deliverableId?`deliverables/${r.deliverableId}`:`agents/${r.agentId}`,urgent:r.state==='failed'})),...(snapshot?.learning ?? []).map(n=>({id:`memory-${n.id}-${n.state}`,kind:'memory',title:n.title,detail:`${n.state} memory for ${snapshot?.agents.find(a=>a.id===n.agentId)?.name??n.agentId}`,date:n.reviewedAt??n.createdAt,route:'memory',urgent:n.state==='pending'}))].sort((a,b)=>b.date.localeCompare(a.date));
-  const shownHistory=history.filter(item=>filter==='all'||(filter==='unread'?!readIds.includes(item.id):filter==='attention'?item.urgent:item.kind===filter));
-  const launch=<><div className={s.progress}>{['Choose a brief','Review active team','Check workspace','Dispatch deliberately'].map((label,index)=><div className={s.step} key={label} data-done={index===0?!!delivery:index===1?active.length>0:index===2?!!preflight&&!preflight.blocked&&checkedScope===currentScope:false}>{index+1}. {label}</div>)}</div><div className={s.split}><section className={s.panel}><h2>Delivery brief</h2><label className={s.field}>Draft deliverable<select value={storyId} onChange={e=>{setStoryId(e.target.value);setPreflight(undefined);}}><option value="">Choose a draft…</option>{deliveries.filter(d=>d.state==='draft').map(d=><option key={d.id} value={d.id}>{d.title}</option>)}</select></label>{delivery?<><h3>{delivery.title}</h3><pre className={s.code}>{delivery.brief}</pre></>:<p>Save a brief with its acceptance criteria before launching your team.</p>}<button onClick={()=>onNavigate('deliverables')}>Open delivery board</button></section><section className={s.panel}><h2>The participating team</h2>{active.map(a=><div className={s.listItem} key={a.id}><strong>{a.name}</strong><p>{a.role} · {a.runtime}</p></div>)}{!active.length&&<p>Activate at least one profile in Agent studio.</p>}<p>Learning agents are excluded. This roster is checked again when you dispatch.</p><button onClick={()=>onNavigate('watch')}>Manage participation</button></section></div><section className={s.panel}><h2>Preflight checks</h2><ul className={s.checklist}><li>Trusted workspace<strong>{snapshot?.capabilities.trusted?'Ready':'Required'}</strong></li><li>Governor and sidecar<strong>{snapshot?.capabilities.executionReady?'Ready':'Required'}</strong></li><li>Draft with a participating roster<strong>{delivery?.state==='draft'&&active.length?'Ready':'Required'}</strong></li><li>Workspace conflicts<strong>{!preflight?'Not checked':preflight.blocked?'Blocked':checkedScope===currentScope?'Clear':'Recheck required'}</strong></li></ul>{snapshot?.capabilities.executionBlockedReason&&<p>{snapshot.capabilities.executionBlockedReason}</p>}{preflight?.conflicts.map((c,i)=><p key={i}>{c.kind}: {c.path??'branch'} — {c.detail}</p>)}<p className={s.notice}>This dispatch runs sequentially in the current workspace. It does not create an isolated worktree or perform a merge. Stop controls remain available throughout execution.</p><div className={s.actions}><button disabled={busy||!snapshot?.capabilities.executionReady||!delivery} onClick={()=>void perform(check,'Preflight report updated.')}>Check workspace</button><button className={s.primary} disabled={busy||controller.busy||!delivery||!active.length||!preflight||preflight.blocked||checkedScope!==currentScope||!snapshot?.capabilities.executionReady} onClick={()=>{setReviewedScope(currentScope);setConfirm('launch');}}>Review launch</button></div></section></>;
-  const steer=<><section className={s.notice}>Steering is recorded in the ledger, then delivered to the same ACP session after its current turn finishes. It does not interrupt a tool in progress. Use Stop when work must end immediately.</section><div className={s.split}><section className={s.panel}><h2>Steer a hosted task</h2><div className={s.form}><label className={s.field}>Running session<select value={runId} onChange={e=>setRunId(e.target.value)}><option value="">Choose a running workbench task…</option>{live.filter(r=>r.state==='running'&&r.sessionId).map(r=><option key={r.id} value={r.id}>{r.agentName} · {r.prompt.slice(0,60)}</option>)}</select></label><label className={s.field}>Guidance or clarification<textarea maxLength={20000} rows={7} value={message} onChange={e=>setMessage(e.target.value)} placeholder="Clarify the expected result, constraints, or evidence to check…"/></label><div className={s.actions}><button className={s.primary} disabled={!runId||!message.trim()||busy||!snapshot?.capabilities.executionReady} onClick={()=>setConfirm('steer')}>Review guidance</button><button disabled={!runId||busy} onClick={()=>setConfirm('stop')}>Stop selected task</button></div></div></section><section className={s.panel}><h2>Steering history</h2><div className={s.timeline}>{runs.flatMap(r=>(r.steering??[]).map((item,index)=><article className={s.listItem} key={`${r.id}-${index}`}><strong>{r.agentName} · {item.state}</strong><p>{item.message}</p><small>Ledger #{item.sequence} · {stamp(item.submittedAt)}</small></article>))}</div>{!runs.some(r=>r.steering?.length)&&<p>No steering messages have been recorded for workbench runs.</p>}<p>External agents remain observable. Only processes launched by this workbench can receive these instructions.</p></section></div></>;
-  const notifications=<><div className={s.toolbar}><select aria-label="Filter activity" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All activity</option><option value="unread">Unread</option><option value="attention">Needs attention</option><option value="run">Agent runs</option><option value="memory">Memory reviews</option></select><button onClick={()=>setReadIds(history.map(h=>h.id))}>Mark all read</button></div><div className={s.timeline}>{shownHistory.map(h=><article className={s.listItem} key={h.id}><div className={s.toolbar}><h3>{h.title}</h3><span className={s.badge}>{readIds.includes(h.id)?'Read':'Unread'}</span></div><p>{h.detail.slice(0,1000)}</p><p>{stamp(h.date)}</p><div className={s.actions}><button onClick={()=>{setReadIds(old=>[...old,h.id]);onNavigate(h.route);}}>Open context</button><button onClick={()=>setReadIds(old=>old.includes(h.id)?old.filter(id=>id!==h.id):[...old,h.id])}>{readIds.includes(h.id)?'Mark unread':'Mark read'}</button></div></article>)}</div>{!shownHistory.length&&<Empty title="Nothing needs your attention here.">Activity appears when tasks run or memories are reviewed. Change the filter to see earlier events.</Empty>}</>;
-  const editor=<><section className={s.panel}><h2>Inspect a source location</h2><form className={s.form} onSubmit={e=>{e.preventDefault();void perform(async()=>{if(!workspaceDir)throw new Error('Open a workspace first.');const [blame,symbol]=await Promise.all([client.request('attrib/blame',{repoPath:workspaceDir,paths:[path]}),client.request('attrib/symbol',{repoPath:workspaceDir,path,line})]);setAttribution({blame,symbol});});}}><div className={s.grid}><label className={s.field}>Workspace-relative path<input value={path} required onChange={e=>setPath(e.target.value)} placeholder="src/example.ts"/></label><label className={s.field}>Line<input type="number" min={1} max={10000000} required value={line} onChange={e=>setLine(Number(e.target.value))}/></label></div><div className={s.actions}><button className={s.primary} disabled={busy||!ready||!workspaceDir}>Inspect provenance</button><button type="button" disabled={!path||!workspaceDir} onClick={()=>client.notify({type:'editor/open',path,line})}>Open in VS Code</button></div></form></section>{attribution&&<div className={s.grid}><section className={s.panel}><h2>Enclosing symbol</h2><p>{attribution.symbol.symbol??'No enclosing symbol found.'}</p><p>Language: {attribution.symbol.language??'Not registered'}</p><p>{attribution.symbol.path}:{attribution.symbol.line}</p></section><section className={s.panel}><h2>Recorded line ownership</h2><pre className={s.code}>{JSON.stringify(attribution.blame.lines.filter(entry=>entry.line===line),null,2)}</pre><p>Git attribution identifies recorded authorship. It does not prove human ownership or correctness.</p></section></div>}<section className={s.panel}><h2>Stay close to the code</h2><p>Open the source at its exact line, then keep this inspector beside the editor. The source location is checked by the host before opening.</p><div className={s.actions}><button onClick={()=>onNavigate('codemap')}>Explore the code map</button><button onClick={()=>onNavigate('diff')}>Inspect attributed changes</button></div></section></>;
-  const kpi=<><div className={s.grid}>{[['Completed deliveries',deliveries.filter(d=>d.state==='completed').length,'Human completion after result review'],['Active agents',active.length,'Eligible for the next dispatch'],['Completed turns',runs.filter(r=>r.state==='completed').length,'Execution completion, not a quality score'],['Failed / cancelled',runs.filter(r=>['failed','cancelled'].includes(r.state)).length,'Inspect failure causes in run history']].map(([label,value,detail])=><section className={`${s.panel} ${s.metric}`} key={String(label)}><span>{label}</span><strong>{value}</strong><small>{detail}</small></section>)}</div><section className={s.panel}><h2>Recorded evidence window</h2>{ledger.status==='loading'?<LoadingState label="Loading recorded metrics…"/>:ledger.status==='error'?<ErrorState error={ledger.error} onRetry={ledger.refresh}/>:<><p>{entries.length} loaded ledger entries. Metrics below only include fields recorded in this window; missing observations are not counted as zero.</p><div className={s.grid}><div className={s.metric}><span>Entries with recorded cost</span><strong>{entries.filter(e=>typeof e.costUsd==='number').length}</strong><small>{entries.some(e=>typeof e.costUsd==='number')?`$${entries.reduce((sum,e)=>sum+(e.costUsd??0),0).toFixed(4)} in recorded cost`:'Cost telemetry unavailable'}</small></div><div className={s.metric}><span>Recorded latency</span><strong>{entries.some(e=>typeof e.latencyMs==='number')?`${Math.round(entries.reduce((sum,e)=>sum+(e.latencyMs??0),0)/entries.filter(e=>typeof e.latencyMs==='number').length)} ms`:'—'}</strong><small>Mean over entries with latency data</small></div><div className={s.metric}><span>Simulation entries</span><strong>{entries.filter(e=>e.simulated).length}</strong><small>Separate from production observations</small></div></div><button onClick={()=>exportText('meridian-recorded-metrics.csv',csv([['Sequence','Time','Actor','Action','Cost USD','Latency ms','Simulated'],...entries.map(e=>[e.sequence,e.timestamp,e.actorId,e.actionType,e.costUsd,e.latencyMs,e.simulated])]),'text/csv')}>Export measured entries</button></>}</section><div className={s.actions}><button onClick={()=>onNavigate('trust')}>Rejection measurement</button><button onClick={()=>onNavigate('spend')}>Cross-vendor spend</button><button onClick={()=>onNavigate('routing')}>Model routing</button></div></>;
-  const decisions=<><div className={s.toolbar}><select aria-label="Decision filter" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All entries</option><option value="gate">Gate decisions</option><option value="approval">Human approvals</option><option value="permission_decision">Tool permissions</option><option value="steer">Steering</option><option value="rejection">Rejections</option></select><button onClick={ledger.refresh}>Refresh evidence</button></div>{ledger.status==='loading'?<LoadingState label="Loading decision stream…"/>:ledger.status==='error'?<ErrorState error={ledger.error} onRetry={ledger.refresh}/>:<div className={s.timeline}>{entries.filter(e=>filter==='all'||e.actionType===filter).map(e=><article className={s.listItem} key={e.sequence}><h3>#{e.sequence} · {e.actionType}</h3><p>{e.actorId} · {e.decision??'Recorded event'} · {e.phase}</p><p>{e.reworkReason}</p><small>{stamp(e.timestamp)} · {e.observationConfidence}{e.simulated?' · SIMULATED':''}</small><button onClick={()=>onNavigate('ledger')}>Inspect ledger evidence</button></article>)}</div>}{ledger.status==='ready'&&!entries.length&&<Empty title="The decision stream is quiet.">Recorded approvals, gates, tool decisions, and steering will appear here.</Empty>}</>;
-  const weaveRuns=runs.filter(r=>!storyId||r.deliverableId===storyId);
-  const weave=<><div className={s.toolbar}><label className={s.field}>Delivery<select value={storyId} onChange={e=>setStoryId(e.target.value)}><option value="">All delivery runs</option>{deliveries.map(d=><option key={d.id} value={d.id}>{d.title}</option>)}</select></label><button onClick={()=>exportText('meridian-delivery-weave.csv',csv([['Run','Agent','Delivery','State','Started','Finished'],...weaveRuns.map(r=>[r.id,r.agentName,r.deliverableId,r.state,r.startedAt,r.finishedAt])]),'text/csv')}>Export run history</button></div><section className={s.panel} aria-label="Delivery weave"><p role="status">{weaveRuns.length} recorded turns; {weaveRuns.filter(r=>r.state==='completed').length} completed, {weaveRuns.filter(r=>r.state==='failed').length} failed.</p><div className={s.tableWrap}><table className={s.table}><thead><tr><th>Agent / turn</th><th>Queued</th><th>Running</th><th>Review</th><th>Evidence</th></tr></thead><tbody>{weaveRuns.map(r=><tr key={r.id}><td>{r.agentName}<small>{stamp(r.startedAt)}</small></td><td><span className={s.badge}>Recorded</span></td><td><span className={s.badge} data-state={r.state}>{r.state}</span></td><td>{r.deliverableId?deliveries.find(d=>d.id===r.deliverableId)?.state??'No current delivery':'Independent task'}</td><td><button onClick={()=>onNavigate(r.deliverableId?`deliverables/${r.deliverableId}`:`agents/${r.agentId}`)}>Inspect</button></td></tr>)}</tbody></table></div>{!weaveRuns.length&&<Empty title="Your first thread starts with a brief.">Dispatch a deliverable or run an independent agent to create actual history.</Empty>}</section><button onClick={()=>onNavigate('flight-recorder')}>Open the provenance weave</button></>;
-  const configs=snapshot?.documents?.filter(d=>d.kind==='configuration')??[];
-  const config=<><div className={s.grid}>{[['Appearance','Themes, reading preferences, density, and focus.','settings'],['Agent defaults','Portable runtime configuration and declared permissions.','adapters'],['Permission and gate policy','Current gate profiles, criteria, and approval checks.','gates'],['Model routing','Author routing policies and inspect deterministic routing previews.','routing'],['Connections','Connection drafts, mapping, and write-back previews.','connectors'],['Workspace runtime','Native extension settings and trusted execution.','runtime']].map(([title,detail,route])=><section className={s.panel} key={route}><h2>{title}</h2><p>{detail}</p><button onClick={()=>onNavigate(route)}>Open {title.toLowerCase()}</button></section>)}</div><section className={s.panel}><h2>Workspace configuration notes</h2><p>Versioned planning configuration for your team. These notes do not replace the host's permission policy or enable a tier.</p>{configs.map(d=><details key={d.id}><summary>{d.title} · v{d.version}</summary><pre className={s.code}>{d.body}</pre></details>)}<button onClick={()=>{setSettingsText('');setEditingSettings(true);}}>Add configuration note</button></section></>;
-  const unlock=<><div className={s.grid}>{[['Flight Recorder','Observe existing agents, inspect attribution, verify and export evidence.','flight-recorder'],['Governor','Host ACP agents, apply tool permissions, inspect gates, approvals and worktree checks.','governor'],['Orchestra','Canonical loop contracts and authored loop graphs. Autonomous orchestration services remain under development.','orchestra']].map(([title,detail,tier])=><section className={s.panel} key={tier}><h2>{title}</h2><span className={s.badge}>{props.enabledTiers.includes(tier as never)?'Enabled':'Not enabled'}</span><p>{detail}</p><button onClick={()=>client.notify({type:'host/action',action:'open-settings'})}>Open tier settings</button></section>)}</div><section className={s.notice}>Enabling a tier exposes its available capabilities. It does not install providers, grant tool permissions, or turn incomplete services into active features.</section></>;
-  const shortcuts=<><section className={s.panel}><h2>Move through the workbench</h2><div className={s.tableWrap}><table className={s.table}><thead><tr><th>Action</th><th>Keyboard</th></tr></thead><tbody>{[['Search screens and agents','Ctrl / Cmd + K'],['Toggle focus mode','Ctrl / Cmd + Shift + F'],['Close the top dialog','Escape'],['Move between controls','Tab / Shift + Tab'],['Choose a command','Arrow keys, then Enter'],['Evidence tabs','Left / Right, Home / End'],['Reach main content','First Tab: Skip to workspace']].map(([action,key])=><tr key={action}><td>{action}</td><td><kbd>{key}</kbd></td></tr>)}</tbody></table></div></section><div className={s.grid}><section className={s.panel}><h2>Start a delivery</h2><p>Create a brief, configure portable agents, activate the participants, inspect the launch checks, and dispatch deliberately.</p><button onClick={()=>onNavigate('launch')}>Open launch</button></section><section className={s.panel}><h2>Understand the evidence</h2><p>Source, observation confidence, and cryptographic integrity answer different questions. Inspect each in context.</p><button onClick={()=>onNavigate('evidence')}>Open evidence</button></section><section className={s.panel}><h2>Find every product surface</h2><p>The workspace guide indexes the complete GUI and its integration boundaries.</p><button onClick={()=>onNavigate('guide')}>Browse all surfaces</button></section></div></>;
-  const titles:Record<string,[string,string]>={launch:['Ready when you are.','Choose a brief, inspect its participating team, and check the workspace before dispatch.'],steer:['Keep the work on course.','Send deliberate guidance to your hosted agents, with an evidence trail.'],notifications:['The things that need you.','Filter workspace activity, mark it read, and return to its source.'],editor:['Evidence beside the code.','Inspect a source location and open it directly in the native editor.'],kpi:['Measure what was recorded.','Execution and delivery measures from this workspace, with explicit data coverage.'],decisions:['Follow the decisions.','A time-ordered stream of recorded governance and agent actions.'],weave:['See how the work unfolded.','A delivery trace that keeps successful, failed and cancelled turns visible.'],configuration:['Configure with context.','Find the settings and versioned planning documents behind your workspace.'],unlock:['Choose the capabilities you need.','Understand tiers, prerequisites, and the boundary between configuration and execution.'],shortcuts:['Keep your hands on the keyboard.','A practical map of navigation and common workflows.']};
-  const [title,description]=titles[view]??titles.notifications;
-  const bodies:Record<string,React.ReactNode>={launch,steer,notifications,editor,kpi,decisions,weave,configuration:config,unlock,shortcuts};
-  return <StudioPage section="Workspace / operations" title={title} description={description}><ErrorNotice error={error}/>{notice&&<p className={s.notice} role="status">{notice}</p>}{bodies[view]??notifications}{confirm&&<Dialog title={confirm==='launch'?'Dispatch this delivery?':confirm==='steer'?'Send this guidance?':'Stop this task?'} onClose={()=>setConfirm(undefined)} wide><div className={s.page}>{confirm==='launch'?<><h3>{delivery?.title}</h3><pre className={s.code}>{delivery?.brief}</pre><p>Participants: {active.map(a=>a.name).join(', ')}</p><p>Runs begin in the current workspace after a fresh conflict check.</p>{reviewedScope!==currentScope&&<p role="alert">The brief or team changed. Close this review and recheck the launch.</p>}</>:confirm==='steer'?<><p>Agent: {runs.find(r=>r.id===runId)?.agentName}</p><pre className={s.code}>{message}</pre><p>This instruction is ledger-recorded and queued for the next ACP turn.</p></>:<p>The owned process will stop. Files it already changed remain in the workspace for your review.</p>}<ErrorNotice error={error}/><button className={s.primary} disabled={busy||controller.busy||(confirm==='launch'&&reviewedScope!==currentScope)} onClick={()=>void perform(async()=>{if(confirm==='launch'){const result=await check();if(result.blocked)throw new Error('Workspace conflicts block this launch.');if(!delivery)throw new Error('Select a draft.');await controller.execute('deliverable/dispatch',{id:delivery.id,expectedBriefUpdatedAt:delivery.updatedAt,expectedTeam:active.map(a=>({id:a.id,updatedAt:a.updatedAt}))});setConfirm(undefined);onNavigate(`deliverables/${delivery.id}`);}else if(confirm==='steer'){await controller.execute('run/steer',{id:runId,message});setMessage('');setConfirm(undefined);setNotice('Guidance recorded and queued for the next turn.');}else{await controller.execute('run/cancel',{id:runId});setConfirm(undefined);}})}>Confirm {confirm==='launch'?'dispatch':confirm==='steer'?'guidance':'stop'}</button></div></Dialog>}{editingSettings&&<Dialog title="Workspace configuration note" onClose={()=>setEditingSettings(false)}><div className={s.page}><label className={s.field}>Configuration and rationale<textarea rows={10} value={settingsText} onChange={e=>setSettingsText(e.target.value)} maxLength={40000}/></label><ErrorNotice error={error}/><button disabled={!settingsText.trim()||controller.busy} onClick={()=>void perform(async()=>{await controller.execute('document/save',{document:{kind:'configuration',title:`Workspace notes · ${new Date().toLocaleDateString()}`,body:settingsText,tags:['workspace']}});setEditingSettings(false);})}>Save configuration note</button></div></Dialog>}</StudioPage>;
+  const { view, controller, client, ready, workspaceDir, onNavigate } = props;
+  const snapshot = controller.snapshot;
+  const [error, setError] = useState<string>();
+  const [notice, setNotice] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useViewState(`activityFilter-${view}`, "all");
+  const [readIds, setReadIds] = useViewState<string[]>("readActivity", []);
+  const [storyId, setStoryId] = useViewState("selectedDelivery", "");
+  const [message, setMessage] = useViewState("steeringDraft", "");
+  const [runId, setRunId] = useState("");
+  const [confirm, setConfirm] = useState<"launch" | "steer" | "stop">();
+  const [preflight, setPreflight] = useState<WorktreeConflictsResult>();
+  const [checkedScope, setCheckedScope] = useState("");
+  const [reviewedScope, setReviewedScope] = useState("");
+  const [path, setPath] = useViewState("inspectorPath", "");
+  const [line, setLine] = useViewState("inspectorLine", 1);
+  const [attribution, setAttribution] = useState<{
+    blame: AttribBlameResult;
+    symbol: AttribSymbolResult;
+  }>();
+  const [settingsText, setSettingsText] = useState("");
+  const [editingSettings, setEditingSettings] = useState(false);
+  const ledger = useRpcQuery(
+    ready ? client : undefined,
+    "ledger.query",
+    { limit: 200 },
+    ["decisions", "kpi", "weave"].includes(view),
+  );
+  const entries = ledger.status === "ready" ? ledger.data.entries : [];
+  const runs = snapshot?.runs ?? [];
+  const active = snapshot?.agents.filter((a) => a.mode === "active") ?? [];
+  const deliveries = snapshot?.deliverables ?? [];
+  const delivery = deliveries.find((d) => d.id === storyId);
+  const live = runs.filter(
+    (r) => r.state === "running" || r.state === "queued",
+  );
+  const currentScope = JSON.stringify({
+    id: delivery?.id,
+    updated: delivery?.updatedAt,
+    agents: active.map((a) => ({ id: a.id, updatedAt: a.updatedAt })),
+  });
+  const perform = async (task: () => Promise<unknown>, success?: string) => {
+    setError(undefined);
+    setNotice(undefined);
+    setBusy(true);
+    try {
+      await task();
+      if (success) setNotice(success);
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const check = async () => {
+    const result = await client.request("worktree/conflicts", {
+      ...(workspaceDir ? { repoPath: workspaceDir } : {}),
+    });
+    setPreflight(result);
+    setCheckedScope(currentScope);
+    return result;
+  };
+  const history = [
+    ...runs.map((r) => ({
+      id: `run-${r.id}-${r.state}`,
+      kind: "run",
+      title: `${r.agentName} · ${r.state}`,
+      detail: r.error || r.prompt,
+      date: r.finishedAt ?? r.startedAt,
+      route: r.deliverableId
+        ? `deliverables/${r.deliverableId}`
+        : `agents/${r.agentId}`,
+      urgent: r.state === "failed",
+    })),
+    ...(snapshot?.learning ?? []).map((n) => ({
+      id: `memory-${n.id}-${n.state}`,
+      kind: "memory",
+      title: n.title,
+      detail: `${n.state} memory for ${snapshot?.agents.find((a) => a.id === n.agentId)?.name ?? n.agentId}`,
+      date: n.reviewedAt ?? n.createdAt,
+      route: "memory",
+      urgent: n.state === "pending",
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
+  const shownHistory = history.filter(
+    (item) =>
+      filter === "all" ||
+      (filter === "unread"
+        ? !readIds.includes(item.id)
+        : filter === "attention"
+          ? item.urgent
+          : item.kind === filter),
+  );
+  const launch = (
+    <>
+      <div className={s.progress}>
+        {[
+          "Choose a brief",
+          "Review active team",
+          "Check workspace",
+          "Dispatch deliberately",
+        ].map((label, index) => (
+          <div
+            className={s.step}
+            key={label}
+            data-done={
+              index === 0
+                ? !!delivery
+                : index === 1
+                  ? active.length > 0
+                  : index === 2
+                    ? !!preflight &&
+                      !preflight.blocked &&
+                      checkedScope === currentScope
+                    : false
+            }
+          >
+            {index + 1}. {label}
+          </div>
+        ))}
+      </div>
+      <div className={s.split}>
+        <section className={s.panel}>
+          <h2>Delivery brief</h2>
+          <label className={s.field}>
+            Draft deliverable
+            <select
+              value={storyId}
+              onChange={(e) => {
+                setStoryId(e.target.value);
+                setPreflight(undefined);
+              }}
+            >
+              <option value="">Choose a draft…</option>
+              {deliveries
+                .filter((d) => d.state === "draft")
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.title}
+                  </option>
+                ))}
+            </select>
+          </label>
+          {delivery ? (
+            <>
+              <h3>{delivery.title}</h3>
+              <pre className={s.code}>{delivery.brief}</pre>
+            </>
+          ) : (
+            <p>
+              Save a brief with its acceptance criteria before launching your
+              team.
+            </p>
+          )}
+          <button onClick={() => onNavigate("deliverables")}>
+            Open delivery board
+          </button>
+        </section>
+        <section className={s.panel}>
+          <h2>The participating team</h2>
+          {active.map((a) => (
+            <div className={s.listItem} key={a.id}>
+              <strong>{a.name}</strong>
+              <p>
+                {a.role} · {a.runtime}
+              </p>
+            </div>
+          ))}
+          {!active.length && (
+            <p>Activate at least one profile in Agent studio.</p>
+          )}
+          <p>
+            Learning agents are excluded. This roster is checked again when you
+            dispatch.
+          </p>
+          <button onClick={() => onNavigate("watch")}>
+            Manage participation
+          </button>
+        </section>
+      </div>
+      <section className={s.panel}>
+        <h2>Preflight checks</h2>
+        <ul className={s.checklist}>
+          <li>
+            Trusted workspace
+            <strong>
+              {snapshot?.capabilities.trusted ? "Ready" : "Required"}
+            </strong>
+          </li>
+          <li>
+            Governor and sidecar
+            <strong>
+              {snapshot?.capabilities.executionReady ? "Ready" : "Required"}
+            </strong>
+          </li>
+          <li>
+            Draft with a participating roster
+            <strong>
+              {delivery?.state === "draft" && active.length
+                ? "Ready"
+                : "Required"}
+            </strong>
+          </li>
+          <li>
+            Workspace conflicts
+            <strong>
+              {!preflight
+                ? "Not checked"
+                : preflight.blocked
+                  ? "Blocked"
+                  : checkedScope === currentScope
+                    ? "Clear"
+                    : "Recheck required"}
+            </strong>
+          </li>
+        </ul>
+        {snapshot?.capabilities.executionBlockedReason && (
+          <p>{snapshot.capabilities.executionBlockedReason}</p>
+        )}
+        {preflight?.conflicts.map((c, i) => (
+          <p key={i}>
+            {c.kind}: {c.path ?? "branch"} — {c.detail}
+          </p>
+        ))}
+        <p className={s.notice}>
+          This dispatch runs sequentially in the current workspace. It does not
+          create an isolated worktree or perform a merge. Stop controls remain
+          available throughout execution.
+        </p>
+        <div className={s.actions}>
+          <button
+            disabled={
+              busy || !snapshot?.capabilities.executionReady || !delivery
+            }
+            onClick={() => void perform(check, "Preflight report updated.")}
+          >
+            Check workspace
+          </button>
+          <button
+            className={s.primary}
+            disabled={
+              busy ||
+              controller.busy ||
+              !delivery ||
+              !active.length ||
+              !preflight ||
+              preflight.blocked ||
+              checkedScope !== currentScope ||
+              !snapshot?.capabilities.executionReady
+            }
+            onClick={() => {
+              setReviewedScope(currentScope);
+              setConfirm("launch");
+            }}
+          >
+            Review launch
+          </button>
+        </div>
+      </section>
+    </>
+  );
+  const steer = (
+    <>
+      <section className={s.notice}>
+        Steering is recorded in the ledger, then delivered to the same ACP
+        session after its current turn finishes. It does not interrupt a tool in
+        progress. Use Stop when work must end immediately.
+      </section>
+      <div className={s.split}>
+        <section className={s.panel}>
+          <h2>Steer a hosted task</h2>
+          <div className={s.form}>
+            <label className={s.field}>
+              Running session
+              <select value={runId} onChange={(e) => setRunId(e.target.value)}>
+                <option value="">Choose a running workbench task…</option>
+                {live
+                  .filter((r) => r.state === "running" && r.sessionId)
+                  .map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.agentName} · {r.prompt.slice(0, 60)}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className={s.field}>
+              Guidance or clarification
+              <textarea
+                maxLength={20000}
+                rows={7}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Clarify the expected result, constraints, or evidence to check…"
+              />
+            </label>
+            <div className={s.actions}>
+              <button
+                className={s.primary}
+                disabled={
+                  !runId ||
+                  !message.trim() ||
+                  busy ||
+                  !snapshot?.capabilities.executionReady
+                }
+                onClick={() => setConfirm("steer")}
+              >
+                Review guidance
+              </button>
+              <button
+                disabled={!runId || busy}
+                onClick={() => setConfirm("stop")}
+              >
+                Stop selected task
+              </button>
+            </div>
+          </div>
+        </section>
+        <section className={s.panel}>
+          <h2>Steering history</h2>
+          <div className={s.timeline}>
+            {runs.flatMap((r) =>
+              (r.steering ?? []).map((item, index) => (
+                <article className={s.listItem} key={`${r.id}-${index}`}>
+                  <strong>
+                    {r.agentName} · {item.state}
+                  </strong>
+                  <p>{item.message}</p>
+                  <small>
+                    Ledger #{item.sequence} · {stamp(item.submittedAt)}
+                  </small>
+                </article>
+              )),
+            )}
+          </div>
+          {!runs.some((r) => r.steering?.length) && (
+            <p>No steering messages have been recorded for workbench runs.</p>
+          )}
+          <p>
+            External agents remain observable. Only processes launched by this
+            workbench can receive these instructions.
+          </p>
+        </section>
+      </div>
+    </>
+  );
+  const notifications = (
+    <>
+      <div className={s.toolbar}>
+        <select
+          aria-label="Filter activity"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        >
+          <option value="all">All activity</option>
+          <option value="unread">Unread</option>
+          <option value="attention">Needs attention</option>
+          <option value="run">Agent runs</option>
+          <option value="memory">Memory reviews</option>
+        </select>
+        <button onClick={() => setReadIds(history.map((h) => h.id))}>
+          Mark all read
+        </button>
+      </div>
+      <div className={s.timeline}>
+        {shownHistory.map((h) => (
+          <article className={s.listItem} key={h.id}>
+            <div className={s.toolbar}>
+              <h3>{h.title}</h3>
+              <span className={s.badge}>
+                {readIds.includes(h.id) ? "Read" : "Unread"}
+              </span>
+            </div>
+            <p>{h.detail.slice(0, 1000)}</p>
+            <p>{stamp(h.date)}</p>
+            <div className={s.actions}>
+              <button
+                onClick={() => {
+                  setReadIds((old) => [...old, h.id]);
+                  onNavigate(h.route);
+                }}
+              >
+                Open context
+              </button>
+              <button
+                onClick={() =>
+                  setReadIds((old) =>
+                    old.includes(h.id)
+                      ? old.filter((id) => id !== h.id)
+                      : [...old, h.id],
+                  )
+                }
+              >
+                {readIds.includes(h.id) ? "Mark unread" : "Mark read"}
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+      {!shownHistory.length && (
+        <Empty title="Nothing needs your attention here.">
+          Activity appears when tasks run or memories are reviewed. Change the
+          filter to see earlier events.
+        </Empty>
+      )}
+    </>
+  );
+  const editor = (
+    <>
+      <section className={s.panel}>
+        <h2>Inspect a source location</h2>
+        <form
+          className={s.form}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void perform(async () => {
+              if (!workspaceDir) throw new Error("Open a workspace first.");
+              const [blame, symbol] = await Promise.all([
+                client.request("attrib/blame", {
+                  repoPath: workspaceDir,
+                  paths: [path],
+                }),
+                client.request("attrib/symbol", {
+                  repoPath: workspaceDir,
+                  path,
+                  line,
+                }),
+              ]);
+              setAttribution({ blame, symbol });
+            });
+          }}
+        >
+          <div className={s.grid}>
+            <label className={s.field}>
+              Workspace-relative path
+              <input
+                value={path}
+                required
+                onChange={(e) => setPath(e.target.value)}
+                placeholder="src/example.ts"
+              />
+            </label>
+            <label className={s.field}>
+              Line
+              <input
+                type="number"
+                min={1}
+                max={10000000}
+                required
+                value={line}
+                onChange={(e) => setLine(Number(e.target.value))}
+              />
+            </label>
+          </div>
+          <div className={s.actions}>
+            <button
+              className={s.primary}
+              disabled={busy || !ready || !workspaceDir}
+            >
+              Inspect provenance
+            </button>
+            <button
+              type="button"
+              disabled={!path || !workspaceDir}
+              onClick={() => client.notify({ type: "editor/open", path, line })}
+            >
+              Open in VS Code
+            </button>
+          </div>
+        </form>
+      </section>
+      {attribution && (
+        <div className={s.grid}>
+          <section className={s.panel}>
+            <h2>Enclosing symbol</h2>
+            <p>{attribution.symbol.symbol ?? "No enclosing symbol found."}</p>
+            <p>Language: {attribution.symbol.language ?? "Not registered"}</p>
+            <p>
+              {attribution.symbol.path}:{attribution.symbol.line}
+            </p>
+          </section>
+          <section className={s.panel}>
+            <h2>Recorded line ownership</h2>
+            <pre className={s.code}>
+              {JSON.stringify(
+                attribution.blame.lines.filter((entry) => entry.line === line),
+                null,
+                2,
+              )}
+            </pre>
+            <p>
+              Git attribution identifies recorded authorship. It does not prove
+              human ownership or correctness.
+            </p>
+          </section>
+        </div>
+      )}
+      <section className={s.panel}>
+        <h2>Stay close to the code</h2>
+        <p>
+          Open the source at its exact line, then keep this inspector beside the
+          editor. The source location is checked by the host before opening.
+        </p>
+        <div className={s.actions}>
+          <button onClick={() => onNavigate("codemap")}>
+            Explore the code map
+          </button>
+          <button onClick={() => onNavigate("diff")}>
+            Inspect attributed changes
+          </button>
+        </div>
+      </section>
+    </>
+  );
+  const kpi = (
+    <>
+      <div className={s.grid}>
+        {[
+          [
+            "Completed deliveries",
+            deliveries.filter((d) => d.state === "completed").length,
+            "Human completion after result review",
+          ],
+          ["Active agents", active.length, "Eligible for the next dispatch"],
+          [
+            "Completed turns",
+            runs.filter((r) => r.state === "completed").length,
+            "Execution completion, not a quality score",
+          ],
+          [
+            "Failed / cancelled",
+            runs.filter((r) => ["failed", "cancelled"].includes(r.state))
+              .length,
+            "Inspect failure causes in run history",
+          ],
+        ].map(([label, value, detail]) => (
+          <section className={`${s.panel} ${s.metric}`} key={String(label)}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+            <small>{detail}</small>
+          </section>
+        ))}
+      </div>
+      <section className={s.panel}>
+        <h2>Recorded evidence window</h2>
+        {ledger.status === "loading" ? (
+          <LoadingState label="Loading recorded metrics…" />
+        ) : ledger.status === "error" ? (
+          <ErrorState error={ledger.error} onRetry={ledger.refresh} />
+        ) : (
+          <>
+            <p>
+              {entries.length} loaded ledger entries. Metrics below only include
+              fields recorded in this window; missing observations are not
+              counted as zero.
+            </p>
+            <div className={s.grid}>
+              <div className={s.metric}>
+                <span>Entries with recorded cost</span>
+                <strong>
+                  {entries.filter((e) => typeof e.costUsd === "number").length}
+                </strong>
+                <small>
+                  {entries.some((e) => typeof e.costUsd === "number")
+                    ? `$${entries.reduce((sum, e) => sum + (e.costUsd ?? 0), 0).toFixed(4)} in recorded cost`
+                    : "Cost telemetry unavailable"}
+                </small>
+              </div>
+              <div className={s.metric}>
+                <span>Recorded latency</span>
+                <strong>
+                  {entries.some((e) => typeof e.latencyMs === "number")
+                    ? `${Math.round(entries.reduce((sum, e) => sum + (e.latencyMs ?? 0), 0) / entries.filter((e) => typeof e.latencyMs === "number").length)} ms`
+                    : "—"}
+                </strong>
+                <small>Mean over entries with latency data</small>
+              </div>
+              <div className={s.metric}>
+                <span>Simulation entries</span>
+                <strong>{entries.filter((e) => e.simulated).length}</strong>
+                <small>Separate from production observations</small>
+              </div>
+            </div>
+            <button
+              onClick={() =>
+                exportText(
+                  "meridian-recorded-metrics.csv",
+                  csv([
+                    [
+                      "Sequence",
+                      "Time",
+                      "Actor",
+                      "Action",
+                      "Cost USD",
+                      "Latency ms",
+                      "Simulated",
+                    ],
+                    ...entries.map((e) => [
+                      e.sequence,
+                      e.timestamp,
+                      e.actorId,
+                      e.actionType,
+                      e.costUsd,
+                      e.latencyMs,
+                      e.simulated,
+                    ]),
+                  ]),
+                  "text/csv",
+                )
+              }
+            >
+              Export measured entries
+            </button>
+          </>
+        )}
+      </section>
+      <div className={s.actions}>
+        <button onClick={() => onNavigate("trust")}>
+          Rejection measurement
+        </button>
+        <button onClick={() => onNavigate("spend")}>Cross-vendor spend</button>
+        <button onClick={() => onNavigate("routing")}>Model routing</button>
+      </div>
+    </>
+  );
+  const decisions = (
+    <>
+      <div className={s.toolbar}>
+        <select
+          aria-label="Decision filter"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        >
+          <option value="all">All entries</option>
+          <option value="gate">Gate decisions</option>
+          <option value="approval">Human approvals</option>
+          <option value="permission_decision">Tool permissions</option>
+          <option value="steer">Steering</option>
+          <option value="rejection">Rejections</option>
+        </select>
+        <button onClick={ledger.refresh}>Refresh evidence</button>
+      </div>
+      {ledger.status === "loading" ? (
+        <LoadingState label="Loading decision stream…" />
+      ) : ledger.status === "error" ? (
+        <ErrorState error={ledger.error} onRetry={ledger.refresh} />
+      ) : (
+        <div className={s.timeline}>
+          {entries
+            .filter((e) => filter === "all" || e.actionType === filter)
+            .map((e) => (
+              <article className={s.listItem} key={e.sequence}>
+                <h3>
+                  #{e.sequence} · {e.actionType}
+                </h3>
+                <p>
+                  {e.actorId} · {e.decision ?? "Recorded event"} · {e.phase}
+                </p>
+                <p>{e.reworkReason}</p>
+                <small>
+                  {stamp(e.timestamp)} · {e.observationConfidence}
+                  {e.simulated ? " · SIMULATED" : ""}
+                </small>
+                <button onClick={() => onNavigate("ledger")}>
+                  Inspect ledger evidence
+                </button>
+              </article>
+            ))}
+        </div>
+      )}
+      {ledger.status === "ready" && !entries.length && (
+        <Empty title="The decision stream is quiet.">
+          Recorded approvals, gates, tool decisions, and steering will appear
+          here.
+        </Empty>
+      )}
+    </>
+  );
+  const weaveRuns = runs.filter((r) => !storyId || r.deliverableId === storyId);
+  const weave = (
+    <>
+      <div className={s.toolbar}>
+        <label className={s.field}>
+          Delivery
+          <select value={storyId} onChange={(e) => setStoryId(e.target.value)}>
+            <option value="">All delivery runs</option>
+            {deliveries.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          onClick={() =>
+            exportText(
+              "meridian-delivery-weave.csv",
+              csv([
+                ["Run", "Agent", "Delivery", "State", "Started", "Finished"],
+                ...weaveRuns.map((r) => [
+                  r.id,
+                  r.agentName,
+                  r.deliverableId,
+                  r.state,
+                  r.startedAt,
+                  r.finishedAt,
+                ]),
+              ]),
+              "text/csv",
+            )
+          }
+        >
+          Export run history
+        </button>
+      </div>
+      <section className={s.panel} aria-label="Delivery weave">
+        <p role="status">
+          {weaveRuns.length} recorded turns;{" "}
+          {weaveRuns.filter((r) => r.state === "completed").length} completed,{" "}
+          {weaveRuns.filter((r) => r.state === "failed").length} failed.
+        </p>
+        <div className={s.tableWrap}>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                <th>Agent / turn</th>
+                <th>Queued</th>
+                <th>Running</th>
+                <th>Review</th>
+                <th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {weaveRuns.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    {r.agentName}
+                    <small>{stamp(r.startedAt)}</small>
+                  </td>
+                  <td>
+                    <span className={s.badge}>Recorded</span>
+                  </td>
+                  <td>
+                    <span className={s.badge} data-state={r.state}>
+                      {r.state}
+                    </span>
+                  </td>
+                  <td>
+                    {r.deliverableId
+                      ? (deliveries.find((d) => d.id === r.deliverableId)
+                          ?.state ?? "No current delivery")
+                      : "Independent task"}
+                  </td>
+                  <td>
+                    <button
+                      onClick={() =>
+                        onNavigate(
+                          r.deliverableId
+                            ? `deliverables/${r.deliverableId}`
+                            : `agents/${r.agentId}`,
+                        )
+                      }
+                    >
+                      Inspect
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!weaveRuns.length && (
+          <Empty title="Your first thread starts with a brief.">
+            Dispatch a deliverable or run an independent agent to create actual
+            history.
+          </Empty>
+        )}
+      </section>
+      <button onClick={() => onNavigate("flight-recorder")}>
+        Open the provenance weave
+      </button>
+    </>
+  );
+  const configs =
+    snapshot?.documents?.filter((d) => d.kind === "configuration") ?? [];
+  const config = (
+    <>
+      <div className={s.grid}>
+        {[
+          [
+            "Appearance",
+            "Themes, reading preferences, density, and focus.",
+            "settings",
+          ],
+          [
+            "Agent defaults",
+            "Portable runtime configuration and declared permissions.",
+            "adapters",
+          ],
+          [
+            "Permission and gate policy",
+            "Current gate profiles, criteria, and approval checks.",
+            "gates",
+          ],
+          [
+            "Model routing",
+            "Author routing policies and inspect deterministic routing previews.",
+            "routing",
+          ],
+          [
+            "Connections",
+            "Connection drafts, mapping, and write-back previews.",
+            "connectors",
+          ],
+          [
+            "Workspace runtime",
+            "Native extension settings and trusted execution.",
+            "runtime",
+          ],
+        ].map(([title, detail, route]) => (
+          <section className={s.panel} key={route}>
+            <h2>{title}</h2>
+            <p>{detail}</p>
+            <button onClick={() => onNavigate(route)}>
+              Open {title.toLowerCase()}
+            </button>
+          </section>
+        ))}
+      </div>
+      <section className={s.panel}>
+        <h2>Workspace configuration notes</h2>
+        <p>
+          Versioned planning configuration for your team. These notes do not
+          replace the host's permission policy or enable a tier.
+        </p>
+        {configs.map((d) => (
+          <details key={d.id}>
+            <summary>
+              {d.title} · v{d.version}
+            </summary>
+            <pre className={s.code}>{d.body}</pre>
+          </details>
+        ))}
+        <button
+          onClick={() => {
+            setSettingsText("");
+            setEditingSettings(true);
+          }}
+        >
+          Add configuration note
+        </button>
+      </section>
+    </>
+  );
+  const unlock = (
+    <>
+      <div className={s.grid}>
+        {[
+          [
+            "Flight Recorder",
+            "Observe existing agents, inspect attribution, verify and export evidence.",
+            "flight-recorder",
+          ],
+          [
+            "Governor",
+            "Host ACP agents, apply tool permissions, inspect gates, approvals and worktree checks.",
+            "governor",
+          ],
+          [
+            "Orchestra",
+            "Canonical loop contracts and authored loop graphs. Autonomous orchestration services remain under development.",
+            "orchestra",
+          ],
+        ].map(([title, detail, tier]) => (
+          <section className={s.panel} key={tier}>
+            <h2>{title}</h2>
+            <span className={s.badge}>
+              {props.enabledTiers.includes(tier as never)
+                ? "Enabled"
+                : "Not enabled"}
+            </span>
+            <p>{detail}</p>
+            <button
+              onClick={() =>
+                client.notify({ type: "host/action", action: "open-settings" })
+              }
+            >
+              Open tier settings
+            </button>
+          </section>
+        ))}
+      </div>
+      <section className={s.notice}>
+        Enabling a tier exposes its available capabilities. It does not install
+        providers, grant tool permissions, or turn incomplete services into
+        active features.
+      </section>
+    </>
+  );
+  const shortcuts = (
+    <>
+      <section className={s.panel}>
+        <h2>Move through the workbench</h2>
+        <div className={s.tableWrap}>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>Keyboard</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ["Search screens and agents", "Ctrl / Cmd + K"],
+                ["Toggle focus mode", "Ctrl / Cmd + Shift + F"],
+                ["Close the top dialog", "Escape"],
+                ["Move between controls", "Tab / Shift + Tab"],
+                ["Choose a command", "Arrow keys, then Enter"],
+                ["Evidence tabs", "Left / Right, Home / End"],
+                ["Reach main content", "First Tab: Skip to workspace"],
+              ].map(([action, key]) => (
+                <tr key={action}>
+                  <td>{action}</td>
+                  <td>
+                    <kbd>{key}</kbd>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <div className={s.grid}>
+        <section className={s.panel}>
+          <h2>Start a delivery</h2>
+          <p>
+            Create a brief, configure portable agents, activate the
+            participants, inspect the launch checks, and dispatch deliberately.
+          </p>
+          <button onClick={() => onNavigate("launch")}>Open launch</button>
+        </section>
+        <section className={s.panel}>
+          <h2>Understand the evidence</h2>
+          <p>
+            Source, observation confidence, and cryptographic integrity answer
+            different questions. Inspect each in context.
+          </p>
+          <button onClick={() => onNavigate("evidence")}>Open evidence</button>
+        </section>
+        <section className={s.panel}>
+          <h2>Find every product surface</h2>
+          <p>
+            The workspace guide indexes the complete GUI and its integration
+            boundaries.
+          </p>
+          <button onClick={() => onNavigate("guide")}>
+            Browse all surfaces
+          </button>
+        </section>
+      </div>
+    </>
+  );
+  const titles: Record<string, [string, string]> = {
+    launch: [
+      "Ready when you are.",
+      "Choose a brief, inspect its participating team, and check the workspace before dispatch.",
+    ],
+    steer: [
+      "Keep the work on course.",
+      "Send deliberate guidance to your hosted agents, with an evidence trail.",
+    ],
+    notifications: [
+      "The things that need you.",
+      "Filter workspace activity, mark it read, and return to its source.",
+    ],
+    editor: [
+      "Evidence beside the code.",
+      "Inspect a source location and open it directly in the native editor.",
+    ],
+    kpi: [
+      "Measure what was recorded.",
+      "Execution and delivery measures from this workspace, with explicit data coverage.",
+    ],
+    decisions: [
+      "Follow the decisions.",
+      "A time-ordered stream of recorded governance and agent actions.",
+    ],
+    weave: [
+      "See how the work unfolded.",
+      "A delivery trace that keeps successful, failed and cancelled turns visible.",
+    ],
+    configuration: [
+      "Configure with context.",
+      "Find the settings and versioned planning documents behind your workspace.",
+    ],
+    unlock: [
+      "Choose the capabilities you need.",
+      "Understand tiers, prerequisites, and the boundary between configuration and execution.",
+    ],
+    shortcuts: [
+      "Keep your hands on the keyboard.",
+      "A practical map of navigation and common workflows.",
+    ],
+  };
+  const [title, description] = titles[view] ?? titles.notifications;
+  const bodies: Record<string, React.ReactNode> = {
+    launch,
+    steer,
+    notifications,
+    editor,
+    kpi,
+    decisions,
+    weave,
+    configuration: config,
+    unlock,
+    shortcuts,
+  };
+  return (
+    <StudioPage
+      section="Workspace / operations"
+      title={title}
+      description={description}
+    >
+      <ErrorNotice error={error} />
+      {notice && (
+        <p className={s.notice} role="status">
+          {notice}
+        </p>
+      )}
+      {bodies[view] ?? notifications}
+      {confirm && (
+        <Dialog
+          title={
+            confirm === "launch"
+              ? "Dispatch this delivery?"
+              : confirm === "steer"
+                ? "Send this guidance?"
+                : "Stop this task?"
+          }
+          onClose={() => setConfirm(undefined)}
+          wide
+        >
+          <div className={s.page}>
+            {confirm === "launch" ? (
+              <>
+                <h3>{delivery?.title}</h3>
+                <pre className={s.code}>{delivery?.brief}</pre>
+                <p>Participants: {active.map((a) => a.name).join(", ")}</p>
+                <p>
+                  Runs begin in the current workspace after a fresh conflict
+                  check.
+                </p>
+                {reviewedScope !== currentScope && (
+                  <p role="alert">
+                    The brief or team changed. Close this review and recheck the
+                    launch.
+                  </p>
+                )}
+              </>
+            ) : confirm === "steer" ? (
+              <>
+                <p>Agent: {runs.find((r) => r.id === runId)?.agentName}</p>
+                <pre className={s.code}>{message}</pre>
+                <p>
+                  This instruction is ledger-recorded and queued for the next
+                  ACP turn.
+                </p>
+              </>
+            ) : (
+              <p>
+                The owned process will stop. Files it already changed remain in
+                the workspace for your review.
+              </p>
+            )}
+            <ErrorNotice error={error} />
+            <button
+              className={s.primary}
+              disabled={
+                busy ||
+                controller.busy ||
+                (confirm === "launch" && reviewedScope !== currentScope)
+              }
+              onClick={() =>
+                void perform(async () => {
+                  if (confirm === "launch") {
+                    const result = await check();
+                    if (result.blocked)
+                      throw new Error("Workspace conflicts block this launch.");
+                    if (!delivery) throw new Error("Select a draft.");
+                    await controller.execute("deliverable/dispatch", {
+                      id: delivery.id,
+                      expectedBriefUpdatedAt: delivery.updatedAt,
+                      expectedTeam: active.map((a) => ({
+                        id: a.id,
+                        updatedAt: a.updatedAt,
+                      })),
+                    });
+                    setConfirm(undefined);
+                    onNavigate(`deliverables/${delivery.id}`);
+                  } else if (confirm === "steer") {
+                    await controller.execute("run/steer", {
+                      id: runId,
+                      message,
+                    });
+                    setMessage("");
+                    setConfirm(undefined);
+                    setNotice(
+                      "Guidance recorded and queued for the next turn.",
+                    );
+                  } else {
+                    await controller.execute("run/cancel", { id: runId });
+                    setConfirm(undefined);
+                  }
+                })
+              }
+            >
+              Confirm{" "}
+              {confirm === "launch"
+                ? "dispatch"
+                : confirm === "steer"
+                  ? "guidance"
+                  : "stop"}
+            </button>
+          </div>
+        </Dialog>
+      )}
+      {editingSettings && (
+        <Dialog
+          title="Workspace configuration note"
+          onClose={() => setEditingSettings(false)}
+        >
+          <div className={s.page}>
+            <label className={s.field}>
+              Configuration and rationale
+              <textarea
+                rows={10}
+                value={settingsText}
+                onChange={(e) => setSettingsText(e.target.value)}
+                maxLength={40000}
+              />
+            </label>
+            <ErrorNotice error={error} />
+            <button
+              disabled={!settingsText.trim() || controller.busy}
+              onClick={() =>
+                void perform(async () => {
+                  await controller.execute("document/save", {
+                    document: {
+                      kind: "configuration",
+                      title: `Workspace notes · ${new Date().toLocaleDateString()}`,
+                      body: settingsText,
+                      tags: ["workspace"],
+                    },
+                  });
+                  setEditingSettings(false);
+                })
+              }
+            >
+              Save configuration note
+            </button>
+          </div>
+        </Dialog>
+      )}
+    </StudioPage>
+  );
 }

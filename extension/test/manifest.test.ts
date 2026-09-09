@@ -40,10 +40,11 @@ describe('extension manifest', () => {
     );
   });
 
-  it('contributes the twelve FR-M1-03 commands plus the provenance hook and worktree commands', () => {
+  it('contributes the twelve FR-M1-03 commands plus provenance hook, worktree and source-inspector commands', () => {
     const expected = [
       'meridian.ingestStory',
       'meridian.openRecorder',
+      'meridian.inspectSource',
       'meridian.installSkill',
       'meridian.onboardAgent',
       'meridian.exportAgent',
@@ -62,7 +63,7 @@ describe('extension manifest', () => {
     const contributed = manifest.contributes.commands.map(
       (c: { command: string }) => c.command,
     );
-    expect(contributed).toHaveLength(14);
+    expect(contributed).toHaveLength(15);
     expect([...contributed].sort()).toEqual([...expected].sort());
     // Code and manifest share one source of truth.
     expect(COMMANDS.map((c) => c.id)).toEqual(contributed);

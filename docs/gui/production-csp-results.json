@@ -1,0 +1,22 @@
+{
+  "rows": [
+    {
+      "name": "Architecture & C4 Viewer",
+      "heading": "Give the system a shared shape."
+    },
+    {
+      "name": "Spec Studio",
+      "heading": "Give every requirement a thread."
+    },
+    {
+      "name": "Gate Room",
+      "heading": "Decisions that deserve your attention."
+    },
+    {
+      "name": "Agents Watch",
+      "heading": "Every agent. Every state."
+    }
+  ],
+  "errors": [],
+  "host": "Mocked host messages; production assets and matching CSP"
+}
