@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** N1 — True and Visible (N0 quiesce COMPLETE — summary below)
-- **Current workstream:** N1 exit bookkeeping; N2 next. Workstreams A–E host halves done
-- **Current task:** record N1 status + the cross-session GUI task list; then read N2 and start it
-- **Last commit:** 96e5630 — N1-E host half: orphan gate `scripts/check-surface-coverage.mjs` (69 methods, 51 consumed, 18 declared, 10 mustSurface blocking), `shared/schema/unsurfaced.json`, canonical steer protocol locked (17/17 + 2/2 e2e). **npm test is RED BY DESIGN until the GUI session surfaces the 10 mustSurface instruments (AC-43 blocking gate — intended).**
+- **Current workstream:** N2 Workstream B — Identity assurance (T06–T08); N2-A done
+- **Current task:** N2-T07 refuse asserted identity where policy requires verified + T08 bind verified identity to session/decision, re-check at gate, revocation <5min
+- **Last commit:** c228941 — N2-A done: signed FR-M42-01 merge authorisation (10-field binding, lease, canonical JSON + Ed25519), T03 9-case invalidation matrix, closed enforcement-point vocabulary v1 with D37 honest downgrade (no control claims scm in v1), per-decision bundle records; 73+38 green. D37-D41 closed at 2d579b5.
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## N1 status + CROSS-SESSION TASK LIST for the GUI session (owner's second session — read this)
