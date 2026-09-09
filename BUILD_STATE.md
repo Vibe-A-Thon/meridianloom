@@ -6,8 +6,8 @@
 
 - **Current phase:** F3 — Orchestra (F2 documented as pending-human-evidence, D35)
 - **Current workstream:** F3 M33 Deterministic Engine — slice 1 done, slice 2a (structural capabilities) delegating
-- **Current task:** F3 task 8a — structural capability set (tree-sitter edits, LSP symbols/references, diff/patch, hunk-only editing) into the CapabilityRegistry
-- **Last commit:** 5e7d3c2 — F3 M33 slice 1: `engine/{catalogue,dispatch,capabilities,rules}.py` + `policy/action-classes.yaml` (FR-M33-01/03/06, FR-M8-15; D16 artefact shipped), 100 tests green. F3 order per gaps §F3: M33 full → M8 → M4 → M9/M28 → M7 → M38 → M31 roster → M5/M6/M13/M26. F1 exit at e0a701b (tagged f1-complete). Decisions D24–D35 in DECISIONS.md.
+- **Current task:** F3 task 8b — analytical capability set (tool runners, template scaffolding, classifiers, graph capabilities, cost estimation, coverage mapping, ambiguity detection, convention checks)
+- **Last commit:** ff2a48a — F3 M33 slice 2a: structural capabilities `engine/{structural,lsp_bridge,diffing,hunks}.py` (FR-M33-02, FR-M28-05/07), 43 tests + 158 sweep green; LSP degrade-honest, generated-file exclusion, hunk-scoped streaming edits. Slice 1 at 5e7d3c2 (100 tests). F3 order per gaps §F3: M33 full → M8 → M4 → M9/M28 → M7 → M38 → M31 roster → M5/M6/M13/M26. F1 exit at e0a701b (tagged f1-complete). Decisions D24–D35 in DECISIONS.md.
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## Phase F2 — Evidence Gate (pending-human-evidence, D35)
