@@ -371,6 +371,21 @@
     }
   },
   "$defs": {
+    "CoverageEnvelope": {
+      "description": "FR-M41-08 (N1 Workstream A, D36): the coverage disclosure every analytic result carries — computed in the same operation as the figure, never a separate call (NFR-34). G-01's defect was silent 1,000-row truncation; the envelope makes any residual bound visible. trust/score carries it under `coverageEnvelope` because that result's `coverage` key already names the FR-M37-03 component list.",
+      "type": "object",
+      "required": ["value", "rowsConsidered", "rowsAvailable", "truncated", "sequenceRange", "coverage", "label"],
+      "properties": {
+        "value": { "description": "The headline figure the envelope qualifies; null for a multi-figure result or when the metric itself reads insufficient_evidence.", "type": ["string", "number", "boolean", "null"] },
+        "rowsConsidered": { "type": "integer", "description": "Rows of the figure's population the metric actually examined." },
+        "rowsAvailable": { "type": "integer", "description": "Rows the ledger holds in the metric's declared scope (a caller-declared fromSequence/toSequence window is the available population — a declared window is not truncation)." },
+        "truncated": { "type": "boolean", "description": "True when any scan stopped short of its available population (the old 1,000-row clamp). FR-M41-09: surfaces must state this in text and disable derived projections when true." },
+        "sequenceRange": { "type": "array", "items": { "type": ["integer", "null"] }, "description": "The inclusive [first, last] ledger sequences the figure covered; [null, null] over an empty sample." },
+        "coverage": { "type": "number", "description": "The explicit ratio rowsConsidered / rowsAvailable (1.0 over an empty available population)." },
+        "label": { "type": "string", "enum": ["complete", "partial", "empty"], "description": "complete: nothing missed; partial: some of the available population unseen; empty: nothing available." }
+      },
+      "additionalProperties": false
+    },
     "HandshakeParams": {
       "type": "object",
       "required": ["protocolVersion", "client"],
@@ -784,7 +799,8 @@
         "toSequence": { "type": "integer" },
         "fromTimestamp": { "type": "string", "description": "ISO 8601 UTC lower bound (inclusive)." },
         "toTimestamp": { "type": "string", "description": "ISO 8601 UTC upper bound (inclusive)." },
-        "limit": { "type": "integer", "description": "Default 100, clamped to 1000." }
+        "limit": { "type": "integer", "description": "Page size, default 100, clamped to 1000 (FR-M41-07: a page size, never the only bound — page the full history with afterSequence)." },
+        "afterSequence": { "type": "integer", "description": "FR-M41-07 cursor (exclusive): rows with seq > afterSequence, ascending. Feed the last returned row's sequence back in until a page comes back short." }
       },
       "additionalProperties": false
     },
@@ -839,9 +855,11 @@
     },
     "LedgerQueryResult": {
       "type": "object",
-      "required": ["entries"],
+      "required": ["entries", "truncated"],
       "properties": {
-        "entries": { "type": "array", "items": { "$ref": "#/$defs/LedgerEntry" } }
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/LedgerEntry" } },
+        "truncated": { "type": "boolean", "description": "FR-M41-07: true when the page hit its size limit while more rows match — the clamp is reported, never silent. Page with afterSequence; the envelope-carrying metrics never set this." },
+        "nextAfterSequence": { "type": ["integer", "null"], "description": "The cursor for the next page: the last returned row's sequence (null when entries is empty). Feed it back as afterSequence." }
       },
       "additionalProperties": false
     },
@@ -2125,7 +2143,7 @@
     },
     "TrustRejectionRateResult": {
       "type": "object",
-      "required": ["scope", "proposed", "rejected", "rate", "split", "byAgent", "byActionClass", "byPhase", "byStory", "cacheHit"],
+      "required": ["scope", "proposed", "rejected", "rate", "split", "byAgent", "byActionClass", "byPhase", "byStory", "coverage", "cacheHit"],
       "properties": {
         "scope": { "type": "object", "description": "The echoed scope filters (repoId, storyId, actorId, phase, actionType, fromSequence, toSequence)." },
         "proposed": { "type": "integer" },
@@ -2136,6 +2154,7 @@
         "byActionClass": { "type": "object", "description": "FR-M37-01 (task 19): actionType -> bucket over every in-scope entry except the rejection-capture entries themselves, where \"rejected\" generalises the F0 linked-rejection shape to entries whose own decision is rejected|reworked." },
         "byPhase": { "type": "object", "description": "FR-M37-01 (task 19): ledger phase -> bucket, same generalised rejection notion as byActionClass." },
         "byStory": { "type": "object", "description": "FR-M37-01 (task 19): storyId -> bucket, same generalised rejection notion as byActionClass." },
+        "coverage": { "$ref": "#/$defs/CoverageEnvelope", "description": "FR-M41-08: the coverage disclosure — the primary population is every in-scope row; the rejection lookup is an auxiliary scan whose cap would truncate the figure too (G-01)." },
         "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05: derived from the ledger, cached, invalidated on append)." }
       },
       "additionalProperties": false
@@ -2157,7 +2176,7 @@
     },
     "TrustJcurveResult": {
       "type": "object",
-      "required": ["scope", "adoptionDate", "status", "baseline", "dip", "phases", "split"],
+      "required": ["scope", "adoptionDate", "status", "baseline", "dip", "phases", "split", "coverage"],
       "properties": {
         "scope": { "type": "object", "description": "The echoed scope filters." },
         "adoptionDate": { "type": "string" },
@@ -2166,6 +2185,7 @@
         "dip": { "type": "object", "description": "The J-curve dip: {startWeek, endWeek, depth, recoveredWeek} — the contiguous below-baseline after-adoption weeks from the adoption week, depth = (min dip throughput - baseline)/baseline, recoveredWeek the first week back at/above baseline (null when not yet recovered). Empty when no dip is evidenced." },
         "phases": { "type": "object", "description": "before/after -> {weeks, weeklyThroughput (relative-week -> count), throughputPerWeek (mean), stabilityRate (the F0 rejection notion)}." },
         "split": { "type": "object", "description": "greenfield / brownfield / unclassified -> per-phase throughput and stability (G6: every trust metric reports the split)." },
+        "coverage": { "$ref": "#/$defs/CoverageEnvelope", "description": "FR-M41-08: the coverage disclosure over the scanned diff population; the rejection lookup is an auxiliary scan (G-01)." },
         "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
       },
       "additionalProperties": false
@@ -2185,11 +2205,12 @@
     },
     "TrustTokenmaxxingResult": {
       "type": "object",
-      "required": ["scope", "byAgent", "team"],
+      "required": ["scope", "byAgent", "team", "coverage"],
       "properties": {
         "scope": { "type": "object", "description": "The echoed scope filters." },
         "byAgent": { "type": "object", "description": "agentId -> {status, flagged, periods, spendTrend, yieldTrend, note}: tokenmaxxing verdict per agent. status ok means both halves of the series had spend and the ledger evidenced yield for at least one period per half; insufficient_evidence/unknown otherwise — never flagged on fabricated numbers." },
-        "team": { "type": "object", "description": "The same verdict over the team-aggregated series (tokens summed per period; yield pooled over every agent's diffs per period)." }
+        "team": { "type": "object", "description": "The same verdict over the team-aggregated series (tokens summed per period; yield pooled over every agent's diffs per period)." },
+        "coverage": { "$ref": "#/$defs/CoverageEnvelope", "description": "FR-M41-08: the coverage disclosure over the ledger diff population the yield half derived from (full-history scan since N1; before that the yield half silently capped at 1,000 rows — G-01)." }
       },
       "additionalProperties": false
     },
@@ -2206,11 +2227,12 @@
     },
     "TrustDoraExportResult": {
       "type": "object",
-      "required": ["status", "metrics", "export"],
+      "required": ["status", "metrics", "export", "coverage"],
       "properties": {
         "status": { "type": "object", "description": "The four DORA keys -> ok | unknown — an unknown key is one the ledger cannot evidence, exported with meridian.evidence=unknown and no value, never an invented number." },
         "metrics": { "type": "object", "description": "The four DORA keys with their values, units and evidence notes: deploymentFrequency ({value per week, status}), leadTimeForChanges ({value median hours, status}), changeFailureRate ({value, status}), timeToRestore ({value median hours, status})." },
-        "export": { "type": "object", "description": "The OTLP/JSON encoding of the four keys (resourceMetrics -> scopeMetrics -> metrics -> gauge -> dataPoints, OTel attribute encoding), ready to POST to an OTLP/HTTP metrics endpoint or drop into engineering-intelligence tooling." }
+        "export": { "type": "object", "description": "The OTLP/JSON encoding of the four keys (resourceMetrics -> scopeMetrics -> metrics -> gauge -> dataPoints, OTel attribute encoding), ready to POST to an OTLP/HTTP metrics endpoint or drop into engineering-intelligence tooling." },
+        "coverage": { "$ref": "#/$defs/CoverageEnvelope", "description": "AMD-M17 + FR-M41-08: the DORA export carries the coverage disclosure like every KPI; multi-key result, so value is null." }
       },
       "additionalProperties": false
     },
@@ -2232,12 +2254,13 @@
     },
     "TrustCompareAgentsResult": {
       "type": "object",
-      "required": ["scope", "storyId", "storyClassification", "agents"],
+      "required": ["scope", "storyId", "storyClassification", "agents", "coverage"],
       "properties": {
         "scope": { "type": "object", "description": "The echoed scope filters." },
         "storyId": { "type": "string" },
         "storyClassification": { "type": "string", "description": "The story's greenfield/brownfield classification (G6), or unclassified when it has no commit data." },
         "agents": { "type": "object", "description": "actorId -> the four FR-M37-04 components, each {status: ok|insufficient_evidence|unknown, value, ...}: yield (first-pass yield over the agent's diffs on the story), rejectionReasons (E-GR-03 classes attributed to the agent, resolved through rejectedSequence), cost (costUsd/tokensIn/tokensOut summed over the agent's in-scope entries), llmRatio (the agent's share of the story's recorded tokens). Components without evidence carry status insufficient_evidence/unknown and value null — never fabricated." },
+        "coverage": { "$ref": "#/$defs/CoverageEnvelope", "description": "FR-M41-08: the coverage disclosure over the story's scanned rows; the rejection lookup is an auxiliary scan (G-01). Multi-figure result, so value is null." },
         "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
       },
       "additionalProperties": false
@@ -2258,7 +2281,7 @@
     },
     "TrustReasonDistributionResult": {
       "type": "object",
-      "required": ["scope", "total", "byClass", "byShape", "byAgent", "split", "cacheHit"],
+      "required": ["scope", "total", "byClass", "byShape", "byAgent", "split", "coverage", "cacheHit"],
       "properties": {
         "scope": { "type": "object", "description": "The echoed scope filters." },
         "total": { "type": "integer", "description": "Rejection entries in scope (FR-M37-02: every one carries an E-GR-03 taxonomy class)." },
@@ -2266,6 +2289,7 @@
         "byShape": { "type": "object", "description": "Detection shape (reverted / force_amended / replaced_within_window) -> {count, rate} when recorded; absent shapes are omitted." },
         "byAgent": { "type": "object", "description": "actorId -> {total, byClass}: the distribution for the agent whose proposed change was rejected, resolved through the rejection entry's rejectedSequence and falling back to the entry's own actor." },
         "split": { "type": "object", "description": "greenfield / brownfield / unclassified -> {total, byClass} (G6: every trust metric reports the split)." },
+        "coverage": { "$ref": "#/$defs/CoverageEnvelope", "description": "FR-M41-08: the coverage disclosure over the scanned rejection population (G-01)." },
         "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
       },
       "additionalProperties": false
@@ -2285,7 +2309,7 @@
     },
     "TrustScoreResult": {
       "type": "object",
-      "required": ["scope", "agentId", "taskClass", "score", "status", "coverage", "components", "cacheHit"],
+      "required": ["scope", "agentId", "taskClass", "score", "status", "coverage", "components", "coverageEnvelope", "cacheHit"],
       "properties": {
         "scope": { "type": "object", "description": "The echoed scope filters." },
         "agentId": { "type": "string" },
@@ -2294,6 +2318,7 @@
         "status": { "enum": ["ok", "partial", "insufficient_evidence"], "description": "ok: every component has evidence; partial: at least one does (the missing ones stay visible in components); insufficient_evidence: none does." },
         "coverage": { "type": "array", "items": { "type": "string" }, "description": "The components WITH evidence that fed the score — a bad component is exposed in components, never hidden by the aggregate." },
         "components": { "type": "object", "description": "The full FR-M37-03 decomposition: firstPassYield, rejectionRate, calibrationError, postMergeRevertRate, incidentLinkage — each {status: ok|insufficient_evidence|unknown, value, sampleSize, ...}." },
+        "coverageEnvelope": { "$ref": "#/$defs/CoverageEnvelope", "description": "FR-M41-08: the coverage disclosure over the scanned diff population. Named coverageEnvelope (not coverage) because this result's `coverage` key already names the FR-M37-03 component list." },
         "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
       },
       "additionalProperties": false
@@ -2595,13 +2620,14 @@
     },
     "SpendSeriesResult": {
       "type": "object",
-      "required": ["scope", "dimension", "totals", "byValue", "spendSeries", "cacheHit"],
+      "required": ["scope", "dimension", "totals", "byValue", "spendSeries", "coverage", "cacheHit"],
       "properties": {
         "scope": { "type": "object", "description": "The echoed scope filters." },
         "dimension": { "type": "string" },
         "totals": { "type": "object", "description": "The whole-bill rollup: entries, tokensIn/tokensOut/tokens, recordedCostUsd (the ledger's own costUsd), estimatedCostUsd (tokens priced through the pricing pack where cost was absent), costUsd (both summed — the best-known bill)." },
         "byValue": { "type": "object", "description": "dimension value -> the same rollup. Values with no recorded evidence appear as 'unknown', never fabricated; absent from the ledger entirely they do not appear at all." },
         "spendSeries": { "type": "object", "description": "agentId -> [{period, tokens}] with ISO-week periods (2026-W01) — the SpendSeries feed (D26) consumable by trust/tokenmaxxing verbatim." },
+        "coverage": { "$ref": "#/$defs/CoverageEnvelope", "description": "FR-M41-08: the coverage disclosure — the population is every row in the declared scope; the spend figures consider the token-bearing ones. This envelope is what an honest spend surface consumes instead of detecting a 1,000-row cap of its own (FR-M41-09, G-01)." },
         "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
       },
       "additionalProperties": false
@@ -2621,7 +2647,7 @@
     },
     "SpendCeilingCheckResult": {
       "type": "object",
-      "required": ["scope", "spentUsd", "estimatedShareUsd", "ceilings", "action", "hosted", "advisory", "note"],
+      "required": ["scope", "spentUsd", "estimatedShareUsd", "ceilings", "action", "hosted", "advisory", "note", "coverage"],
       "properties": {
         "scope": { "type": "object", "description": "The echoed scope filters." },
         "spentUsd": { "type": "number", "description": "Cumulative best-known spend in scope: recorded cost plus pack-priced estimates." },
@@ -2631,7 +2657,8 @@
         "hosted": { "type": "boolean", "description": "True when Meridian hosts this actor/session (session_begin on record, or a meridian-native actor)." },
         "advisory": { "type": "boolean", "description": "True when the breach could only be warned about (observed agent, FR-M35-06 — observation never intercepts)." },
         "sequence": { "type": "integer", "description": "The spend_ceiling ledger entry recording the breach/warning (FR-M10-08), when one was written." },
-        "note": { "type": "string" }
+        "note": { "type": "string" },
+        "coverage": { "$ref": "#/$defs/CoverageEnvelope", "description": "FR-M41-08: the coverage disclosure over the actor scope the spend figure was checked against (G-01)." }
       },
       "additionalProperties": false
     },
@@ -2651,14 +2678,15 @@
     },
     "SpendForecastResult": {
       "type": "object",
-      "required": ["scope", "team", "months", "forecast", "budget", "status", "cacheHit"],
+      "required": ["scope", "team", "months", "forecast", "budget", "status", "coverage", "cacheHit"],
       "properties": {
         "scope": { "type": "object", "description": "The echoed scope filters." },
         "team": { "type": ["string", "null"], "description": "The team forecasted, or null for the whole workspace." },
         "months": { "type": "object", "description": "YYYY-MM -> actual best-known USD (recorded + priced)." },
-        "forecast": { "type": "object", "description": "{status: ok|insufficient_evidence, projectedUsd, slopeUsdPerMonth, windowMonths, evidenceMonths, method, note} — the documented deterministic projection; insufficient_evidence carries no projectedUsd." },
+        "forecast": { "type": "object", "description": "{status: ok|insufficient_evidence|truncated, projectedUsd, slopeUsdPerMonth, windowMonths, evidenceMonths, method, note} — the documented deterministic projection; insufficient_evidence carries no projectedUsd, and truncated (FR-M41-09) means the scope's coverage envelope read truncated so the projection was disabled at the module level — a spend surface no longer detects a row cap of its own." },
         "budget": { "type": "object", "description": "{limitUsd, source, status: ok|actual_breach|forecast_breach|unconfigured, headroomUsd} — the budgetCeilings.usdPerMonth alert; unconfigured when the pack sets no monthly budget." },
-        "status": { "type": "string", "enum": ["ok", "actual_breach", "forecast_breach", "unconfigured", "insufficient_evidence"] },
+        "status": { "type": "string", "enum": ["ok", "actual_breach", "forecast_breach", "unconfigured", "insufficient_evidence", "truncated"] },
+        "coverage": { "$ref": "#/$defs/CoverageEnvelope", "description": "FR-M41-08: the coverage disclosure over the scope the projection extrapolates; computed in the same operation and handed to the forecast (NFR-34, FR-M41-09)." },
         "cacheHit": { "type": "boolean", "description": "True when served from the in-process cache (FR-M17-05)." }
       },
       "additionalProperties": false

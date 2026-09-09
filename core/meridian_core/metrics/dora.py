@@ -40,6 +40,16 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Sequence
 
+# Absolute (not relative) so the stdlib-only guard in test_dora_export.py
+# can admit this one in-package import by name — the FR-M37-08 rule is "no
+# OTLP SDK, no third-party dependency", and metrics.coverage is stdlib
+# only (FR-M36-07: zero model calls).
+from meridian_core.metrics.coverage import (
+    ATTACH_KEY,
+    envelope_for,
+    scan_scope,
+)
+
 __all__ = ["compute_dora_metrics", "export_otlp"]
 
 _SECONDS_PER_WEEK = 7 * 24 * 3600
@@ -116,17 +126,25 @@ def compute_dora_metrics(
         "fromSequence": from_sequence,
         "toSequence": to_sequence,
     }
-    rows = ledger.query(
+    # FR-M41-07 (D36): full-history cursor scans; the repo filter below is
+    # a declared scope restriction, so the envelope keeps the whole
+    # scanned diff population (FR-M41-08). The rejection lookup is the
+    # auxiliary scan: a capped lookup truncates the export too.
+    rows, rows_available = scan_scope(
+        ledger,
         action_type="diff",
         from_sequence=from_sequence,
         to_sequence=to_sequence,
-        limit=1000,
     )
+    scoped_rows = rows
     if repo_id is not None:
         rows = [row for row in rows if row.get("repo_id") == repo_id]
     rows = [row for row in rows if _parse_ts(row.get("ts_utc")) is not None]
 
-    rejection_rows = ledger.query(action_type="rejection", limit=1000)
+    rejection_rows, rejection_available = scan_scope(
+        ledger, action_type="rejection"
+    )
+    rejection_scanned = rejection_rows
     if repo_id is not None:
         rejection_rows = [
             row for row in rejection_rows if row.get("repo_id") == repo_id
@@ -192,10 +210,15 @@ def compute_dora_metrics(
             "no deployments to count",
         }
 
-    # lead_time_for_changes: median story first-diff -> first-approved hours.
+    # lead_time_for_changes: median story first-diff -> first-approved
+    # hours. Rows are grouped by story once (NFR-33: no per-story
+    # re-scan of the whole population).
+    rows_by_story: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        rows_by_story.setdefault(row["story_id"], []).append(row)
     lead_times: list[float] = []
     for story_id in {row["story_id"] for row in approved}:
-        story_rows = [row for row in rows if row["story_id"] == story_id]
+        story_rows = rows_by_story[story_id]
         story_approved = [
             row for row in story_rows if row.get("decision") == "approved"
         ]
@@ -244,18 +267,27 @@ def compute_dora_metrics(
         }
 
     # time_to_restore: failure -> the story's next approved diff.
+    # NFR-33 (D36): timestamps are parsed once and approved diffs grouped
+    # by story up front — the naive failures x approved scan re-parsed a
+    # timestamp per comparison and took a minute over a 50k ledger.
+    approved_by_story: dict[str, list[datetime]] = {}
+    for row in approved:
+        approved_by_story.setdefault(row["story_id"], []).append(
+            _parse_ts(row["ts_utc"])
+        )
+    for stamps in approved_by_story.values():
+        stamps.sort()
     restore_times: list[float] = []
     for row in failures:
         failed_at = failed_sequences[row["seq"]]
         recovery = [
-            _parse_ts(other["ts_utc"])
-            for other in approved
-            if other["story_id"] == row["story_id"]
-            and _parse_ts(other["ts_utc"]) > failed_at
+            ts
+            for ts in approved_by_story.get(row["story_id"], [])
+            if ts > failed_at
         ]
         if recovery:
             restore_times.append(
-                (min(recovery) - failed_at).total_seconds() / 3600
+                (recovery[0] - failed_at).total_seconds() / 3600
             )
     restore = _median(restore_times)
     time_to_restore = (
@@ -286,6 +318,14 @@ def compute_dora_metrics(
         "scope": scope,
         "status": {key: metric["status"] for key, metric in metrics.items()},
         "metrics": metrics,
+        # Multi-key result: the envelope carries no single value. AMD-M17:
+        # the DORA export carries the FR-M41-08 disclosure like every KPI.
+        ATTACH_KEY: envelope_for(
+            None,
+            scoped_rows,
+            rows_available,
+            aux_scans=((rejection_scanned, rejection_available),),
+        ).to_dict(),
     }
 
 

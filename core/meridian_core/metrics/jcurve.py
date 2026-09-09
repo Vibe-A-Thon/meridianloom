@@ -37,6 +37,8 @@ from collections.abc import Callable
 from datetime import date, datetime
 from typing import Any
 
+from .coverage import ATTACH_KEY, envelope_for, scan_scope
+
 __all__ = ["compute_jcurve", "parse_utc"]
 
 GREENFIELD = "greenfield"
@@ -109,17 +111,25 @@ def compute_jcurve(
         raise ValueError(f"unparseable adoptionDate: {scope['adoptionDate']!r}")
     adoption_monday = _week_monday(adoption.date())
 
-    rows = ledger.query(
+    # FR-M41-07 (D36): full-history cursor scans; the repo filter below is
+    # a declared scope restriction, so the envelope keeps the whole
+    # scanned diff population (FR-M41-08). The rejection lookup is the
+    # auxiliary scan: a capped lookup truncates the curve too.
+    rows, rows_available = scan_scope(
+        ledger,
         action_type="diff",
         from_sequence=from_sequence,
         to_sequence=to_sequence,
-        limit=1000,
     )
+    scoped_rows = rows
     if repo_id is not None:
         rows = [row for row in rows if row.get("repo_id") == repo_id]
     rows = [row for row in rows if _parse_ts(row.get("ts_utc")) is not None]
 
-    rejection_rows = ledger.query(action_type="rejection", limit=1000)
+    rejection_rows, rejection_available = scan_scope(
+        ledger, action_type="rejection"
+    )
+    rejection_scanned = rejection_rows
     if repo_id is not None:
         rejection_rows = [
             row for row in rejection_rows if row.get("repo_id") == repo_id
@@ -189,6 +199,12 @@ def compute_jcurve(
             "split": {
                 kind: {"before": None, "after": None} for kind in split_weekly
             },
+            ATTACH_KEY: envelope_for(
+                None,
+                scoped_rows,
+                rows_available,
+                aux_scans=((rejection_scanned, rejection_available),),
+            ).to_dict(),
         }
 
     # Calendar filling: a week inside the observed span with no diffs is a
@@ -313,4 +329,10 @@ def compute_jcurve(
             "after": phase(after_weeks, after_proposed, after_rejected),
         },
         "split": split_result,
+        ATTACH_KEY: envelope_for(
+            baseline,
+            scoped_rows,
+            rows_available,
+            aux_scans=((rejection_scanned, rejection_available),),
+        ).to_dict(),
     }

@@ -43,6 +43,7 @@ from collections.abc import Callable
 from typing import Any
 
 from ..rejection.taxonomy import load_taxonomy
+from .coverage import ATTACH_KEY, envelope_for, scan_scope
 
 __all__ = ["compute_agent_comparison"]
 
@@ -84,16 +85,24 @@ def compute_agent_comparison(
         "toSequence": to_sequence,
     }
 
-    rows = ledger.query(
+    # FR-M41-07 (D36): full-history cursor scans; the repo filter below is
+    # a declared scope restriction, so the envelope keeps the whole
+    # scanned story population (FR-M41-08). The rejection lookup is the
+    # auxiliary scan: a capped lookup truncates the comparison too.
+    rows, rows_available = scan_scope(
+        ledger,
         story_id=story_id,
         from_sequence=from_sequence,
         to_sequence=to_sequence,
-        limit=1000,
     )
+    scoped_rows = rows
     if repo_id is not None:
         rows = [row for row in rows if row.get("repo_id") == repo_id]
 
-    rejection_rows = ledger.query(action_type="rejection", limit=1000)
+    rejection_rows, rejection_available = scan_scope(
+        ledger, action_type="rejection"
+    )
+    rejection_scanned = rejection_rows
     if repo_id is not None:
         rejection_rows = [
             row for row in rejection_rows if row.get("repo_id") == repo_id
@@ -251,4 +260,11 @@ def compute_agent_comparison(
         "storyId": story_id,
         "storyClassification": story_classification,
         "agents": agents,
+        # Multi-figure result: the envelope carries no single value.
+        ATTACH_KEY: envelope_for(
+            None,
+            scoped_rows,
+            rows_available,
+            aux_scans=((rejection_scanned, rejection_available),),
+        ).to_dict(),
     }

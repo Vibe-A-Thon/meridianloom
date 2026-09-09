@@ -2762,16 +2762,23 @@ class SidecarServer:
 
         # First-pass yield per period comes from the ledger: the agent's
         # in-scope diffs bucketed by ISO week (the period labels the spend
-        # feed uses), yield = 1 - rejected/proposed per bucket.
-        rows = ledger.query(
+        # feed uses), yield = 1 - rejected/proposed per bucket. Full
+        # history over the after_sequence cursor (FR-M41-07, D36) — the
+        # yield half of the detector was under the same 1,000-row cap as
+        # the other analytics (G-01).
+        rows, rows_available = metrics_mod.scan_scope(
+            ledger,
             action_type="diff",
             from_sequence=from_sequence,
             to_sequence=to_sequence,
-            limit=1000,
         )
+        scoped_rows = rows
         if repo_id is not None:
             rows = [row for row in rows if row.get("repo_id") == repo_id]
-        rejection_rows = ledger.query(action_type="rejection", limit=1000)
+        rejection_rows, rejection_available = metrics_mod.scan_scope(
+            ledger, action_type="rejection"
+        )
+        rejection_scanned = rejection_rows
         if repo_id is not None:
             rejection_rows = [
                 row for row in rejection_rows if row.get("repo_id") == repo_id
@@ -2869,6 +2876,13 @@ class SidecarServer:
             },
             "byAgent": by_agent,
             "team": team,
+            # FR-M41-08 (NFR-34): the yield half's coverage disclosure.
+            metrics_mod.ATTACH_KEY: metrics_mod.envelope_for(
+                None,
+                scoped_rows,
+                rows_available,
+                aux_scans=((rejection_scanned, rejection_available),),
+            ).to_dict(),
         }
         self._trust_cache.put(cache_key, result)
         return result  # type: ignore[return-value]
@@ -2919,6 +2933,8 @@ class SidecarServer:
             "status": computed["status"],
             "metrics": computed["metrics"],
             "export": export,
+            # FR-M41-08: the export's coverage disclosure rides the result.
+            metrics_mod.ATTACH_KEY: computed[metrics_mod.ATTACH_KEY],
         }
         self._trust_cache.put(cache_key, result)
         return result  # type: ignore[return-value]
@@ -3002,7 +3018,7 @@ class SidecarServer:
 
         pricing = self._spend_pricing_pack(params)
         price = None if pricing.fail_closed else pricing.price
-        rows = self._spend_rows(ledger, params)
+        rows, rows_available = self._spend_rows(ledger, params)
         aggregated = metrics_mod.spend_by_dimension(
             rows,
             dimension,
@@ -3022,6 +3038,12 @@ class SidecarServer:
                 ]
                 for agent in series.agents()
             },
+            # FR-M41-08: the coverage envelope rides the same result
+            # (NFR-34). The population is every row in the declared
+            # scope; the spend figures consider the token-bearing ones.
+            metrics_mod.ATTACH_KEY: metrics_mod.envelope_for(
+                aggregated["totals"]["costUsd"], rows, rows_available
+            ).to_dict(),
             "cacheHit": False,
         }
         self._trust_cache.put(cache_key, result)
@@ -3029,22 +3051,23 @@ class SidecarServer:
 
     def _spend_rows(
         self, ledger: Any, params: dict[str, Any]
-    ) -> list[dict[str, Any]]:
-        """Token/cost-bearing rows in scope, newest-history cap like the
-        other trust metrics (the ledger is the metrics store — FR-M17-05
-        makes derivation on demand, not warehousing)."""
-        rows = ledger.query(
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Rows in scope + the scope's row count, full-history cursor
+        paginated (FR-M41-07, D36) — the newest-1,000 cap is gone; the
+        coverage envelope on every spend result reports what the figure
+        saw (FR-M41-08, NFR-34)."""
+        rows, rows_available = metrics_mod.scan_scope(
+            ledger,
             actor_id=params.get("actorId"),
             story_id=params.get("storyId"),
             vendor=params.get("vendor"),
             from_sequence=params.get("fromSequence"),
             to_sequence=params.get("toSequence"),
-            limit=1000,
         )
         repo_id = params.get("repoId")
         if repo_id is not None:
             rows = [row for row in rows if row.get("repo_id") == repo_id]
-        return rows
+        return rows, rows_available
 
     def _handle_spend_ceiling_check(
         self, params: bus_types.SpendCeilingCheckParams
@@ -3063,7 +3086,7 @@ class SidecarServer:
             actor_id = None
         actor_id = actor_id.strip() if actor_id else None
 
-        scope_rows = self._spend_rows(
+        scope_rows, scope_available = self._spend_rows(
             ledger,
             {
                 "actorId": actor_id,
@@ -3091,7 +3114,7 @@ class SidecarServer:
         any_breach = any_breach or agent_check["breached"]
         story_check: dict[str, Any] | None = None
         if story_id is not None:
-            story_rows = self._spend_rows(
+            story_rows, _story_available = self._spend_rows(
                 ledger,
                 {
                     "storyId": story_id,
@@ -3215,6 +3238,11 @@ class SidecarServer:
             "advisory": advisory,
             "sequence": sequence,
             "note": note,
+            # FR-M41-08 (NFR-34): coverage envelope over the actor scope
+            # the spend figure was checked against.
+            metrics_mod.ATTACH_KEY: metrics_mod.envelope_for(
+                spent_usd, scope_rows, scope_available
+            ).to_dict(),
         }
 
     def _handle_spend_forecast(
@@ -3246,7 +3274,8 @@ class SidecarServer:
             result["cacheHit"] = True
             return result  # type: ignore[return-value]
 
-        rows = self._spend_rows(ledger, params)
+        scoped_rows, rows_available = self._spend_rows(ledger, params)
+        rows = scoped_rows
         unmapped = 0
         if isinstance(team, str) and team.strip():
             meta = self._spend_story_meta(params)
@@ -3261,8 +3290,19 @@ class SidecarServer:
         price = None if pricing.fail_closed else pricing.price
         months = metrics_mod.monthly_spend_totals(rows, price)
         current_month = ledger_core.utc_now()[:7]
+        # FR-M41-08 (NFR-34): the envelope is built in this same operation
+        # and handed to the projection (FR-M41-09): a truncated scope
+        # disables the forecast at the module level rather than letting
+        # the webview detect a row cap of its own. The team mapping
+        # filter is a declared scope restriction, never truncation.
+        envelope = metrics_mod.envelope_for(
+            None, scoped_rows, rows_available
+        )
         forecast = metrics_mod.forecast_monthly_spend(
-            months, current_month, window_months=window or 3
+            months,
+            current_month,
+            window_months=window or 3,
+            coverage_envelope=envelope,
         )
 
         pack = self._governance_pack(params)
@@ -3294,9 +3334,13 @@ class SidecarServer:
             }
         # An actual or forecast breach is the alert FR-M39-03 exists for —
         # it outranks forecast evidence insufficiency (the bill is already
-        # over budget; not projecting changes nothing).
+        # over budget; not projecting changes nothing). A truncated scope
+        # outranks everything but an actual breach: the projection was
+        # disabled (FR-M41-09), the result must say so, not read ok.
         if budget["status"] in ("actual_breach", "forecast_breach"):
             status = budget["status"]
+        elif forecast["status"] == "truncated":
+            status = "truncated"
         elif forecast["status"] == "insufficient_evidence":
             status = "insufficient_evidence"
         else:
@@ -3308,6 +3352,9 @@ class SidecarServer:
             "forecast": forecast,
             "budget": budget,
             "status": status,
+            metrics_mod.ATTACH_KEY: metrics_mod.envelope_for(
+                forecast["projectedUsd"], scoped_rows, rows_available
+            ).to_dict(),
             "cacheHit": False,
         }
         self._trust_cache.put(cache_key, result)
@@ -3365,18 +3412,32 @@ class SidecarServer:
         self, params: bus_types.LedgerQueryParams
     ) -> bus_types.LedgerQueryResult:
         ledger = self._ensure_ledger()
+        filters = {
+            "story_id": (params or {}).get("storyId"),
+            "actor_id": (params or {}).get("actorId"),
+            "vendor": (params or {}).get("vendor"),
+            "action_type": (params or {}).get("actionType"),
+            "from_sequence": (params or {}).get("fromSequence"),
+            "to_sequence": (params or {}).get("toSequence"),
+            "from_timestamp": (params or {}).get("fromTimestamp"),
+            "to_timestamp": (params or {}).get("toTimestamp"),
+        }
+        limit = (params or {}).get("limit") or 100
         rows = ledger.query(
-            story_id=(params or {}).get("storyId"),
-            actor_id=(params or {}).get("actorId"),
-            vendor=(params or {}).get("vendor"),
-            action_type=(params or {}).get("actionType"),
-            from_sequence=(params or {}).get("fromSequence"),
-            to_sequence=(params or {}).get("toSequence"),
-            from_timestamp=(params or {}).get("fromTimestamp"),
-            to_timestamp=(params or {}).get("toTimestamp"),
-            limit=(params or {}).get("limit") or 100,
+            after_sequence=(params or {}).get("afterSequence"),
+            limit=limit,
+            **filters,
         )
-        return {"entries": [ledger_wire.row_to_wire(row) for row in rows]}
+        # FR-M41-07: when the page is full, the clamp is reported —
+        # never silent. A short page is by definition complete.
+        truncated = False
+        if len(rows) >= min(max(limit, 1), 1000):
+            truncated = ledger.count(**filters) > len(rows)
+        return {
+            "entries": [ledger_wire.row_to_wire(row) for row in rows],
+            "truncated": truncated,
+            "nextAfterSequence": rows[-1]["seq"] if rows else None,
+        }
 
     def _handle_ledger_get_entry(
         self, params: bus_types.LedgerGetEntryParams

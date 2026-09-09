@@ -40,6 +40,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from .coverage import CoverageEnvelope, forbid_projection
 from .spendfeed import PriceFn, spend_records
 
 __all__ = [
@@ -122,16 +123,35 @@ def forecast_monthly_spend(
     current_month: str,
     *,
     window_months: int = DEFAULT_WINDOW_MONTHS,
+    coverage_envelope: CoverageEnvelope | None = None,
 ) -> dict[str, Any]:
     """The FR-M39-03 projection, deterministic and documented: an
     ordinary least-squares line over the trailing ``window_months``
     calendar months (zero months included), evaluated at the current
     month. Fewer than two evidence months in the window ->
-    ``insufficient_evidence`` and no number."""
+    ``insufficient_evidence`` and no number.
+
+    FR-M41-09 (module-level): a projection is a derived figure — when
+    the coverage envelope over the population it extrapolates reads
+    ``truncated``, the forecast is disabled (status ``truncated``, no
+    ``projectedUsd``) with the reason in ``note``, never extrapolated
+    over a silently partial sample."""
     method = (
         f"least-squares line over the trailing {window_months} calendar months "
         "(zero months included), evaluated at the current month"
     )
+    if coverage_envelope is not None:
+        blocked = forbid_projection(coverage_envelope)
+        if blocked is not None:
+            return {
+                "status": "truncated",
+                "projectedUsd": None,
+                "slopeUsdPerMonth": None,
+                "windowMonths": window_months,
+                "evidenceMonths": 0,
+                "method": method,
+                "note": blocked,
+            }
     trailing: list[float] = []
     year, month = int(current_month[:4]), int(current_month[5:7])
     for _ in range(window_months):

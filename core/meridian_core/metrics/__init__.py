@@ -39,6 +39,14 @@ from .budget import (
     monthly_spend_totals,
 )
 from .compare import compute_agent_comparison
+from .coverage import (
+    ATTACH_KEY,
+    ATTACH_KEY_SCORE,
+    CoverageEnvelope,
+    envelope_for,
+    forbid_projection,
+    scan_scope,
+)
 from .dora import compute_dora_metrics, export_otlp
 from .jcurve import compute_jcurve, parse_utc
 from .pricing import PricingPack, load_pricing_pack, parse_pricing_pack
@@ -66,8 +74,11 @@ from .spendfeed import (
 from .trust import TrustMetricsCache, compute_rejection_rate
 
 __all__ = [
+    "ATTACH_KEY",
+    "ATTACH_KEY_SCORE",
     "BROWNFIELD",
     "Classification",
+    "CoverageEnvelope",
     "DEFAULT_MAX_MEDIAN_AGE_DAYS",
     "DEFAULT_MIN_PERIODS",
     "DEFAULT_NEW_FILE_RATIO_THRESHOLD",
@@ -94,7 +105,9 @@ __all__ = [
     "compute_trust_score",
     "detect_tokenmaxxing",
     "detection_shape",
+    "envelope_for",
     "export_otlp",
+    "forbid_projection",
     "forecast_monthly_spend",
     "load_pricing_pack",
     "load_story_metadata",
@@ -103,6 +116,7 @@ __all__ = [
     "parse_story_metadata",
     "parse_utc",
     "period_label",
+    "scan_scope",
     "spend_by_dimension",
     "spend_records",
 ]

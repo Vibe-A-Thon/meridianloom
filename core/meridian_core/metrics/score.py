@@ -51,6 +51,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from .coverage import ATTACH_KEY_SCORE, envelope_for, scan_scope
 from .reasons import detection_shape
 
 __all__ = ["SCORE_WEIGHTS", "compute_trust_score"]
@@ -113,30 +114,41 @@ def compute_trust_score(
         mapped = (task_class_by_story or {}).get(story_id, "unclassified")
         return mapped == task_class
 
-    rows = ledger.query(
+    # FR-M41-07 (D36): full-history cursor scans; the coverage envelope
+    # (FR-M41-08) rides the result under coverageEnvelope — this module's
+    # `coverage` key already names the FR-M37-03 component list. The
+    # envelope's population is the whole scanned scope; the repo/task-
+    # class filters below are a declared restriction (never truncation).
+    scoped_rows, rows_available = scan_scope(
+        ledger,
         action_type="diff",
         actor_id=actor_id,
         from_sequence=from_sequence,
         to_sequence=to_sequence,
-        limit=1000,
     )
+    rows = scoped_rows
     if repo_id is not None:
         rows = [row for row in rows if row.get("repo_id") == repo_id]
     rows = [row for row in rows if in_class(row["story_id"])]
 
-    rejection_rows = ledger.query(action_type="rejection", limit=1000)
+    rejection_rows, rejection_available = scan_scope(
+        ledger, action_type="rejection"
+    )
+    rejection_rows = list(rejection_rows)
+    scoped_rejection_rows = rejection_rows
     if repo_id is not None:
-        rejection_rows = [
-            row for row in rejection_rows if row.get("repo_id") == repo_id
+        scoped_rejection_rows = [
+            row for row in scoped_rejection_rows if row.get("repo_id") == repo_id
         ]
     if from_sequence is not None:
-        rejection_rows = [
-            row for row in rejection_rows if row["seq"] >= from_sequence
+        scoped_rejection_rows = [
+            row for row in scoped_rejection_rows if row["seq"] >= from_sequence
         ]
     if to_sequence is not None:
-        rejection_rows = [
-            row for row in rejection_rows if row["seq"] <= to_sequence
+        scoped_rejection_rows = [
+            row for row in scoped_rejection_rows if row["seq"] <= to_sequence
         ]
+    rejection_rows = scoped_rejection_rows
     rejected_sequences = {
         row["rejected_sequence"]
         for row in rejection_rows
@@ -263,4 +275,10 @@ def compute_trust_score(
         "status": status,
         "coverage": coverage,
         "components": components,
+        ATTACH_KEY_SCORE: envelope_for(
+            score,
+            scoped_rows,
+            rows_available,
+            aux_scans=((rejection_rows, rejection_available),),
+        ).to_dict(),
     }

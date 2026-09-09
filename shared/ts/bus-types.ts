@@ -19,6 +19,24 @@ export const ErrorCode = {
 } as const;
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
 
+/** FR-M41-08 (N1 Workstream A, D36): the coverage disclosure every analytic result carries — computed in the same operation as the figure, never a separate call (NFR-34). G-01's defect was silent 1,000-row truncation; the envelope makes any residual bound visible. trust/score carries it under `coverageEnvelope` because that result's `coverage` key already names the FR-M37-03 component list. */
+export interface CoverageEnvelope {
+  /** The headline figure the envelope qualifies; null for a multi-figure result or when the metric itself reads insufficient_evidence. */
+  "value": string | number | boolean | null;
+  /** Rows of the figure's population the metric actually examined. */
+  "rowsConsidered": number;
+  /** Rows the ledger holds in the metric's declared scope (a caller-declared fromSequence/toSequence window is the available population — a declared window is not truncation). */
+  "rowsAvailable": number;
+  /** True when any scan stopped short of its available population (the old 1,000-row clamp). FR-M41-09: surfaces must state this in text and disable derived projections when true. */
+  "truncated": boolean;
+  /** The inclusive [first, last] ledger sequences the figure covered; [null, null] over an empty sample. */
+  "sequenceRange": number | null[];
+  /** The explicit ratio rowsConsidered / rowsAvailable (1.0 over an empty available population). */
+  "coverage": number;
+  /** complete: nothing missed; partial: some of the available population unseen; empty: nothing available. */
+  "label": "complete" | "partial" | "empty";
+}
+
 export interface HandshakeParams {
   /** Must equal PROTOCOL_VERSION or the sidecar refuses with PROTOCOL_MISMATCH. */
   "protocolVersion": number;
@@ -341,8 +359,10 @@ export interface LedgerQueryParams {
   "fromTimestamp"?: string;
   /** ISO 8601 UTC upper bound (inclusive). */
   "toTimestamp"?: string;
-  /** Default 100, clamped to 1000. */
+  /** Page size, default 100, clamped to 1000 (FR-M41-07: a page size, never the only bound — page the full history with afterSequence). */
   "limit"?: number;
+  /** FR-M41-07 cursor (exclusive): rows with seq > afterSequence, ascending. Feed the last returned row's sequence back in until a page comes back short. */
+  "afterSequence"?: number;
 }
 
 /** FR-M11-02 stream shape: one ledger entry with chain hashes; blob payloads are referenced by digest/ref, not inlined. */
@@ -396,6 +416,10 @@ export interface LedgerEntry {
 
 export interface LedgerQueryResult {
   "entries": LedgerEntry[];
+  /** FR-M41-07: true when the page hit its size limit while more rows match — the clamp is reported, never silent. Page with afterSequence; the envelope-carrying metrics never set this. */
+  "truncated": boolean;
+  /** The cursor for the next page: the last returned row's sequence (null when entries is empty). Feed it back as afterSequence. */
+  "nextAfterSequence"?: number | null;
 }
 
 export interface LedgerGetEntryParams {
@@ -1438,6 +1462,8 @@ export interface TrustRejectionRateResult {
   "byPhase": Record<string, unknown>;
   /** FR-M37-01 (task 19): storyId -> bucket, same generalised rejection notion as byActionClass. */
   "byStory": Record<string, unknown>;
+  /** FR-M41-08: the coverage disclosure — the primary population is every in-scope row; the rejection lookup is an auxiliary scan whose cap would truncate the figure too (G-01). */
+  "coverage": CoverageEnvelope;
   /** True when served from the in-process cache (FR-M17-05: derived from the ledger, cached, invalidated on append). */
   "cacheHit": boolean;
 }
@@ -1470,6 +1496,8 @@ export interface TrustJcurveResult {
   "phases": Record<string, unknown>;
   /** greenfield / brownfield / unclassified -> per-phase throughput and stability (G6: every trust metric reports the split). */
   "split": Record<string, unknown>;
+  /** FR-M41-08: the coverage disclosure over the scanned diff population; the rejection lookup is an auxiliary scan (G-01). */
+  "coverage": CoverageEnvelope;
   /** True when served from the in-process cache (FR-M17-05). */
   "cacheHit"?: boolean;
 }
@@ -1493,6 +1521,8 @@ export interface TrustTokenmaxxingResult {
   "byAgent": Record<string, unknown>;
   /** The same verdict over the team-aggregated series (tokens summed per period; yield pooled over every agent's diffs per period). */
   "team": Record<string, unknown>;
+  /** FR-M41-08: the coverage disclosure over the ledger diff population the yield half derived from (full-history scan since N1; before that the yield half silently capped at 1,000 rows — G-01). */
+  "coverage": CoverageEnvelope;
 }
 
 export interface TrustDoraExportParams {
@@ -1512,6 +1542,8 @@ export interface TrustDoraExportResult {
   "metrics": Record<string, unknown>;
   /** The OTLP/JSON encoding of the four keys (resourceMetrics -> scopeMetrics -> metrics -> gauge -> dataPoints, OTel attribute encoding), ready to POST to an OTLP/HTTP metrics endpoint or drop into engineering-intelligence tooling. */
   "export": Record<string, unknown>;
+  /** AMD-M17 + FR-M41-08: the DORA export carries the coverage disclosure like every KPI; multi-key result, so value is null. */
+  "coverage": CoverageEnvelope;
 }
 
 export interface TrustCompareAgentsParams {
@@ -1538,6 +1570,8 @@ export interface TrustCompareAgentsResult {
   "storyClassification": string;
   /** actorId -> the four FR-M37-04 components, each {status: ok|insufficient_evidence|unknown, value, ...}: yield (first-pass yield over the agent's diffs on the story), rejectionReasons (E-GR-03 classes attributed to the agent, resolved through rejectedSequence), cost (costUsd/tokensIn/tokensOut summed over the agent's in-scope entries), llmRatio (the agent's share of the story's recorded tokens). Components without evidence carry status insufficient_evidence/unknown and value null — never fabricated. */
   "agents": Record<string, unknown>;
+  /** FR-M41-08: the coverage disclosure over the story's scanned rows; the rejection lookup is an auxiliary scan (G-01). Multi-figure result, so value is null. */
+  "coverage": CoverageEnvelope;
   /** True when served from the in-process cache (FR-M17-05). */
   "cacheHit"?: boolean;
 }
@@ -1569,6 +1603,8 @@ export interface TrustReasonDistributionResult {
   "byAgent": Record<string, unknown>;
   /** greenfield / brownfield / unclassified -> {total, byClass} (G6: every trust metric reports the split). */
   "split": Record<string, unknown>;
+  /** FR-M41-08: the coverage disclosure over the scanned rejection population (G-01). */
+  "coverage": CoverageEnvelope;
   /** True when served from the in-process cache (FR-M17-05). */
   "cacheHit": boolean;
 }
@@ -1599,6 +1635,8 @@ export interface TrustScoreResult {
   "coverage": string[];
   /** The full FR-M37-03 decomposition: firstPassYield, rejectionRate, calibrationError, postMergeRevertRate, incidentLinkage — each {status: ok|insufficient_evidence|unknown, value, sampleSize, ...}. */
   "components": Record<string, unknown>;
+  /** FR-M41-08: the coverage disclosure over the scanned diff population. Named coverageEnvelope (not coverage) because this result's `coverage` key already names the FR-M37-03 component list. */
+  "coverageEnvelope": CoverageEnvelope;
   /** True when served from the in-process cache (FR-M17-05). */
   "cacheHit": boolean;
 }
@@ -1860,6 +1898,8 @@ export interface SpendSeriesResult {
   "byValue": Record<string, unknown>;
   /** agentId -> [{period, tokens}] with ISO-week periods (2026-W01) — the SpendSeries feed (D26) consumable by trust/tokenmaxxing verbatim. */
   "spendSeries": Record<string, unknown>;
+  /** FR-M41-08: the coverage disclosure — the population is every row in the declared scope; the spend figures consider the token-bearing ones. This envelope is what an honest spend surface consumes instead of detecting a 1,000-row cap of its own (FR-M41-09, G-01). */
+  "coverage": CoverageEnvelope;
   /** True when served from the in-process cache (FR-M17-05). */
   "cacheHit": boolean;
 }
@@ -1896,6 +1936,8 @@ export interface SpendCeilingCheckResult {
   /** The spend_ceiling ledger entry recording the breach/warning (FR-M10-08), when one was written. */
   "sequence"?: number;
   "note": string;
+  /** FR-M41-08: the coverage disclosure over the actor scope the spend figure was checked against (G-01). */
+  "coverage": CoverageEnvelope;
 }
 
 export interface SpendForecastParams {
@@ -1918,11 +1960,13 @@ export interface SpendForecastResult {
   "team": string | null;
   /** YYYY-MM -> actual best-known USD (recorded + priced). */
   "months": Record<string, unknown>;
-  /** {status: ok|insufficient_evidence, projectedUsd, slopeUsdPerMonth, windowMonths, evidenceMonths, method, note} — the documented deterministic projection; insufficient_evidence carries no projectedUsd. */
+  /** {status: ok|insufficient_evidence|truncated, projectedUsd, slopeUsdPerMonth, windowMonths, evidenceMonths, method, note} — the documented deterministic projection; insufficient_evidence carries no projectedUsd, and truncated (FR-M41-09) means the scope's coverage envelope read truncated so the projection was disabled at the module level — a spend surface no longer detects a row cap of its own. */
   "forecast": Record<string, unknown>;
   /** {limitUsd, source, status: ok|actual_breach|forecast_breach|unconfigured, headroomUsd} — the budgetCeilings.usdPerMonth alert; unconfigured when the pack sets no monthly budget. */
   "budget": Record<string, unknown>;
-  "status": "ok" | "actual_breach" | "forecast_breach" | "unconfigured" | "insufficient_evidence";
+  "status": "ok" | "actual_breach" | "forecast_breach" | "unconfigured" | "insufficient_evidence" | "truncated";
+  /** FR-M41-08: the coverage disclosure over the scope the projection extrapolates; computed in the same operation and handed to the forecast (NFR-34, FR-M41-09). */
+  "coverage": CoverageEnvelope;
   /** True when served from the in-process cache (FR-M17-05). */
   "cacheHit": boolean;
 }

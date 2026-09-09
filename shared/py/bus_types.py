@@ -20,6 +20,16 @@ TIER_DISABLED: int = -32003
 LEDGER_UNAVAILABLE: int = -32004
 NOT_HOSTED: int = -32005
 
+# FR-M41-08 (N1 Workstream A, D36): the coverage disclosure every analytic result carries — computed in the same operation as the figure, never a separate call (NFR-34). G-01's defect was silent 1,000-row truncation; the envelope makes any residual bound visible. trust/score carries it under `coverageEnvelope` because that result's `coverage` key already names the FR-M37-03 component list.
+class CoverageEnvelope(TypedDict):
+    value: str | float | bool | None  # The headline figure the envelope qualifies; null for a multi-figure result or when the metric itself reads insufficient_evidence.
+    rowsConsidered: int  # Rows of the figure's population the metric actually examined.
+    rowsAvailable: int  # Rows the ledger holds in the metric's declared scope (a caller-declared fromSequence/toSequence window is the available population — a declared window is not truncation).
+    truncated: bool  # True when any scan stopped short of its available population (the old 1,000-row clamp). FR-M41-09: surfaces must state this in text and disable derived projections when true.
+    sequenceRange: list[int | None]  # The inclusive [first, last] ledger sequences the figure covered; [null, null] over an empty sample.
+    coverage: float  # The explicit ratio rowsConsidered / rowsAvailable (1.0 over an empty available population).
+    label: Literal["complete", "partial", "empty"]  # complete: nothing missed; partial: some of the available population unseen; empty: nothing available.
+
 class HandshakeParams(TypedDict):
     protocolVersion: int  # Must equal PROTOCOL_VERSION or the sidecar refuses with PROTOCOL_MISMATCH.
     client: str  # e.g. meridian-loom-extension
@@ -255,7 +265,8 @@ class LedgerQueryParams(TypedDict):
     toSequence: NotRequired[int]
     fromTimestamp: NotRequired[str]  # ISO 8601 UTC lower bound (inclusive).
     toTimestamp: NotRequired[str]  # ISO 8601 UTC upper bound (inclusive).
-    limit: NotRequired[int]  # Default 100, clamped to 1000.
+    limit: NotRequired[int]  # Page size, default 100, clamped to 1000 (FR-M41-07: a page size, never the only bound — page the full history with afterSequence).
+    afterSequence: NotRequired[int]  # FR-M41-07 cursor (exclusive): rows with seq > afterSequence, ascending. Feed the last returned row's sequence back in until a page comes back short.
 
 # FR-M11-02 stream shape: one ledger entry with chain hashes; blob payloads are referenced by digest/ref, not inlined.
 class LedgerEntry(TypedDict):
@@ -303,6 +314,8 @@ class LedgerEntry(TypedDict):
 
 class LedgerQueryResult(TypedDict):
     entries: list[LedgerEntry]
+    truncated: bool  # FR-M41-07: true when the page hit its size limit while more rows match — the clamp is reported, never silent. Page with afterSequence; the envelope-carrying metrics never set this.
+    nextAfterSequence: NotRequired[int | None]  # The cursor for the next page: the last returned row's sequence (null when entries is empty). Feed it back as afterSequence.
 
 class LedgerGetEntryParams(TypedDict):
     sequence: int
@@ -1065,6 +1078,7 @@ class TrustRejectionRateResult(TypedDict):
     byActionClass: dict[str, Any]  # FR-M37-01 (task 19): actionType -> bucket over every in-scope entry except the rejection-capture entries themselves, where "rejected" generalises the F0 linked-rejection shape to entries whose own decision is rejected|reworked.
     byPhase: dict[str, Any]  # FR-M37-01 (task 19): ledger phase -> bucket, same generalised rejection notion as byActionClass.
     byStory: dict[str, Any]  # FR-M37-01 (task 19): storyId -> bucket, same generalised rejection notion as byActionClass.
+    coverage: CoverageEnvelope  # FR-M41-08: the coverage disclosure — the primary population is every in-scope row; the rejection lookup is an auxiliary scan whose cap would truncate the figure too (G-01).
     cacheHit: bool  # True when served from the in-process cache (FR-M17-05: derived from the ledger, cached, invalidated on append).
 
 class TrustJcurveParams(TypedDict):
@@ -1085,6 +1099,7 @@ class TrustJcurveResult(TypedDict):
     dip: dict[str, Any]  # The J-curve dip: {startWeek, endWeek, depth, recoveredWeek} — the contiguous below-baseline after-adoption weeks from the adoption week, depth = (min dip throughput - baseline)/baseline, recoveredWeek the first week back at/above baseline (null when not yet recovered). Empty when no dip is evidenced.
     phases: dict[str, Any]  # before/after -> {weeks, weeklyThroughput (relative-week -> count), throughputPerWeek (mean), stabilityRate (the F0 rejection notion)}.
     split: dict[str, Any]  # greenfield / brownfield / unclassified -> per-phase throughput and stability (G6: every trust metric reports the split).
+    coverage: CoverageEnvelope  # FR-M41-08: the coverage disclosure over the scanned diff population; the rejection lookup is an auxiliary scan (G-01).
     cacheHit: NotRequired[bool]  # True when served from the in-process cache (FR-M17-05).
 
 class TrustTokenmaxxingParams(TypedDict):
@@ -1099,6 +1114,7 @@ class TrustTokenmaxxingResult(TypedDict):
     scope: dict[str, Any]  # The echoed scope filters.
     byAgent: dict[str, Any]  # agentId -> {status, flagged, periods, spendTrend, yieldTrend, note}: tokenmaxxing verdict per agent. status ok means both halves of the series had spend and the ledger evidenced yield for at least one period per half; insufficient_evidence/unknown otherwise — never flagged on fabricated numbers.
     team: dict[str, Any]  # The same verdict over the team-aggregated series (tokens summed per period; yield pooled over every agent's diffs per period).
+    coverage: CoverageEnvelope  # FR-M41-08: the coverage disclosure over the ledger diff population the yield half derived from (full-history scan since N1; before that the yield half silently capped at 1,000 rows — G-01).
 
 class TrustDoraExportParams(TypedDict):
     repoId: NotRequired[str]
@@ -1111,6 +1127,7 @@ class TrustDoraExportResult(TypedDict):
     status: dict[str, Any]  # The four DORA keys -> ok | unknown — an unknown key is one the ledger cannot evidence, exported with meridian.evidence=unknown and no value, never an invented number.
     metrics: dict[str, Any]  # The four DORA keys with their values, units and evidence notes: deploymentFrequency ({value per week, status}), leadTimeForChanges ({value median hours, status}), changeFailureRate ({value, status}), timeToRestore ({value median hours, status}).
     export: dict[str, Any]  # The OTLP/JSON encoding of the four keys (resourceMetrics -> scopeMetrics -> metrics -> gauge -> dataPoints, OTel attribute encoding), ready to POST to an OTLP/HTTP metrics endpoint or drop into engineering-intelligence tooling.
+    coverage: CoverageEnvelope  # AMD-M17 + FR-M41-08: the DORA export carries the coverage disclosure like every KPI; multi-key result, so value is null.
 
 class TrustCompareAgentsParams(TypedDict):
     storyId: str  # The story (packet) both agents ran — the comparison unit of FR-M37-04.
@@ -1128,6 +1145,7 @@ class TrustCompareAgentsResult(TypedDict):
     storyId: str
     storyClassification: str  # The story's greenfield/brownfield classification (G6), or unclassified when it has no commit data.
     agents: dict[str, Any]  # actorId -> the four FR-M37-04 components, each {status: ok|insufficient_evidence|unknown, value, ...}: yield (first-pass yield over the agent's diffs on the story), rejectionReasons (E-GR-03 classes attributed to the agent, resolved through rejectedSequence), cost (costUsd/tokensIn/tokensOut summed over the agent's in-scope entries), llmRatio (the agent's share of the story's recorded tokens). Components without evidence carry status insufficient_evidence/unknown and value null — never fabricated.
+    coverage: CoverageEnvelope  # FR-M41-08: the coverage disclosure over the story's scanned rows; the rejection lookup is an auxiliary scan (G-01). Multi-figure result, so value is null.
     cacheHit: NotRequired[bool]  # True when served from the in-process cache (FR-M17-05).
 
 class TrustReasonDistributionParams(TypedDict):
@@ -1147,6 +1165,7 @@ class TrustReasonDistributionResult(TypedDict):
     byShape: dict[str, Any]  # Detection shape (reverted / force_amended / replaced_within_window) -> {count, rate} when recorded; absent shapes are omitted.
     byAgent: dict[str, Any]  # actorId -> {total, byClass}: the distribution for the agent whose proposed change was rejected, resolved through the rejection entry's rejectedSequence and falling back to the entry's own actor.
     split: dict[str, Any]  # greenfield / brownfield / unclassified -> {total, byClass} (G6: every trust metric reports the split).
+    coverage: CoverageEnvelope  # FR-M41-08: the coverage disclosure over the scanned rejection population (G-01).
     cacheHit: bool  # True when served from the in-process cache (FR-M17-05).
 
 class TrustScoreParams(TypedDict):
@@ -1165,6 +1184,7 @@ class TrustScoreResult(TypedDict):
     status: Literal["ok", "partial", "insufficient_evidence"]  # ok: every component has evidence; partial: at least one does (the missing ones stay visible in components); insufficient_evidence: none does.
     coverage: list[str]  # The components WITH evidence that fed the score — a bad component is exposed in components, never hidden by the aggregate.
     components: dict[str, Any]  # The full FR-M37-03 decomposition: firstPassYield, rejectionRate, calibrationError, postMergeRevertRate, incidentLinkage — each {status: ok|insufficient_evidence|unknown, value, sampleSize, ...}.
+    coverageEnvelope: CoverageEnvelope  # FR-M41-08: the coverage disclosure over the scanned diff population. Named coverageEnvelope (not coverage) because this result's `coverage` key already names the FR-M37-03 component list.
     cacheHit: bool  # True when served from the in-process cache (FR-M17-05).
 
 # FR-M35-02 observation confidence: direct (the agent's own telemetry/ACP session), telemetry (evidence the agent left behind: git trailers, SCM/PR API, OS process listing), inferred (filesystem/git inference — the floor, never silence).
@@ -1343,6 +1363,7 @@ class SpendSeriesResult(TypedDict):
     totals: dict[str, Any]  # The whole-bill rollup: entries, tokensIn/tokensOut/tokens, recordedCostUsd (the ledger's own costUsd), estimatedCostUsd (tokens priced through the pricing pack where cost was absent), costUsd (both summed — the best-known bill).
     byValue: dict[str, Any]  # dimension value -> the same rollup. Values with no recorded evidence appear as 'unknown', never fabricated; absent from the ledger entirely they do not appear at all.
     spendSeries: dict[str, Any]  # agentId -> [{period, tokens}] with ISO-week periods (2026-W01) — the SpendSeries feed (D26) consumable by trust/tokenmaxxing verbatim.
+    coverage: CoverageEnvelope  # FR-M41-08: the coverage disclosure — the population is every row in the declared scope; the spend figures consider the token-bearing ones. This envelope is what an honest spend surface consumes instead of detecting a 1,000-row cap of its own (FR-M41-09, G-01).
     cacheHit: bool  # True when served from the in-process cache (FR-M17-05).
 
 class SpendCeilingCheckParams(TypedDict):
@@ -1364,6 +1385,7 @@ class SpendCeilingCheckResult(TypedDict):
     advisory: bool  # True when the breach could only be warned about (observed agent, FR-M35-06 — observation never intercepts).
     sequence: NotRequired[int]  # The spend_ceiling ledger entry recording the breach/warning (FR-M10-08), when one was written.
     note: str
+    coverage: CoverageEnvelope  # FR-M41-08: the coverage disclosure over the actor scope the spend figure was checked against (G-01).
 
 class SpendForecastParams(TypedDict):
     team: NotRequired[str]  # Forecast this team's spend (story -> team via the story-metadata pack). Absent means the whole workspace bill.
@@ -1379,9 +1401,10 @@ class SpendForecastResult(TypedDict):
     scope: dict[str, Any]  # The echoed scope filters.
     team: str | None  # The team forecasted, or null for the whole workspace.
     months: dict[str, Any]  # YYYY-MM -> actual best-known USD (recorded + priced).
-    forecast: dict[str, Any]  # {status: ok|insufficient_evidence, projectedUsd, slopeUsdPerMonth, windowMonths, evidenceMonths, method, note} — the documented deterministic projection; insufficient_evidence carries no projectedUsd.
+    forecast: dict[str, Any]  # {status: ok|insufficient_evidence|truncated, projectedUsd, slopeUsdPerMonth, windowMonths, evidenceMonths, method, note} — the documented deterministic projection; insufficient_evidence carries no projectedUsd, and truncated (FR-M41-09) means the scope's coverage envelope read truncated so the projection was disabled at the module level — a spend surface no longer detects a row cap of its own.
     budget: dict[str, Any]  # {limitUsd, source, status: ok|actual_breach|forecast_breach|unconfigured, headroomUsd} — the budgetCeilings.usdPerMonth alert; unconfigured when the pack sets no monthly budget.
-    status: Literal["ok", "actual_breach", "forecast_breach", "unconfigured", "insufficient_evidence"]
+    status: Literal["ok", "actual_breach", "forecast_breach", "unconfigured", "insufficient_evidence", "truncated"]
+    coverage: CoverageEnvelope  # FR-M41-08: the coverage disclosure over the scope the projection extrapolates; computed in the same operation and handed to the forecast (NFR-34, FR-M41-09).
     cacheHit: bool  # True when served from the in-process cache (FR-M17-05).
 
 class SpendPricingParams(TypedDict):

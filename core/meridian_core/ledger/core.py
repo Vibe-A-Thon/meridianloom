@@ -403,9 +403,9 @@ class Ledger:
         """
         return self._blob_keys.destroy(key_id_for(subject_id))
 
-    # -- query (FR-M10-12) ---------------------------------------------------
+    # -- query (FR-M10-12, FR-M41-07) -----------------------------------------
 
-    def query(
+    def _scope_clauses(
         self,
         *,
         story_id: str | None = None,
@@ -416,9 +416,12 @@ class Ledger:
         to_sequence: int | None = None,
         from_timestamp: str | None = None,
         to_timestamp: str | None = None,
-        limit: int = 100,
-    ) -> list[dict[str, Any]]:
-        """Filtered entry stream, ascending by sequence (FR-M11-02)."""
+        after_sequence: int | None = None,
+    ) -> tuple[str, list[Any]]:
+        """The shared WHERE fragment for query/count. FR-M41-07's cursor
+        keys on ``seq`` (the gapless primary key): ``after_sequence`` is
+        exclusive, so a caller pages by feeding the last returned row's
+        sequence back in."""
         clauses: list[str] = []
         arguments: list[Any] = []
         for column, value in (
@@ -442,14 +445,80 @@ class Ledger:
         if to_timestamp is not None:
             clauses.append("ts_utc <= ?")
             arguments.append(to_timestamp)
-        sql = "SELECT * FROM ledger_entry"
-        if clauses:
-            sql += " WHERE " + " AND ".join(clauses)
-        sql += " ORDER BY seq LIMIT ?"
+        if after_sequence is not None:
+            clauses.append("seq > ?")
+            arguments.append(after_sequence)
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        return where, arguments
+
+    def query(
+        self,
+        *,
+        story_id: str | None = None,
+        actor_id: str | None = None,
+        vendor: str | None = None,
+        action_type: str | None = None,
+        from_sequence: int | None = None,
+        to_sequence: int | None = None,
+        from_timestamp: str | None = None,
+        to_timestamp: str | None = None,
+        after_sequence: int | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Filtered entry stream, ascending by sequence (FR-M11-02).
+
+        FR-M41-07: ``limit`` is a PAGE size (clamped to [1, 1000], the
+        default page), never the only bound — a caller walks the full
+        history with ``after_sequence`` (exclusive cursor keyed on the
+        gapless ``seq``): pass the last row's sequence of one page as the
+        next page's ``after_sequence`` until a page comes back short.
+        """
+        where, arguments = self._scope_clauses(
+            story_id=story_id,
+            actor_id=actor_id,
+            vendor=vendor,
+            action_type=action_type,
+            from_sequence=from_sequence,
+            to_sequence=to_sequence,
+            from_timestamp=from_timestamp,
+            to_timestamp=to_timestamp,
+            after_sequence=after_sequence,
+        )
+        sql = "SELECT * FROM ledger_entry" + where + " ORDER BY seq LIMIT ?"
         arguments.append(min(max(limit, 1), 1000))
         cursor = self.conn.execute(sql, arguments)
         columns = [d[0] for d in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def count(
+        self,
+        *,
+        story_id: str | None = None,
+        actor_id: str | None = None,
+        vendor: str | None = None,
+        action_type: str | None = None,
+        from_sequence: int | None = None,
+        to_sequence: int | None = None,
+        from_timestamp: str | None = None,
+        to_timestamp: str | None = None,
+    ) -> int:
+        """Rows matching the same scope filters as :meth:`query` — the
+        ``rowsAvailable`` half of the FR-M41-08 coverage disclosure,
+        computed in the same operation as the figure (NFR-34)."""
+        where, arguments = self._scope_clauses(
+            story_id=story_id,
+            actor_id=actor_id,
+            vendor=vendor,
+            action_type=action_type,
+            from_sequence=from_sequence,
+            to_sequence=to_sequence,
+            from_timestamp=from_timestamp,
+            to_timestamp=to_timestamp,
+        )
+        row = self.conn.execute(
+            "SELECT COUNT(*) FROM ledger_entry" + where, arguments
+        ).fetchone()
+        return int(row[0])
 
     def get_entry(self, sequence: int) -> dict[str, Any] | None:
         """One full row, or None when the sequence does not exist."""

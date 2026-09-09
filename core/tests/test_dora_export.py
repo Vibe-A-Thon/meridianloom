@@ -220,7 +220,9 @@ class TestDoraMetrics:
 
     def test_export_is_standard_library_only(self):
         """FR-M37-08: no OTLP SDK — the module's own imports are the
-        standard library (datetime/typing) and nothing else."""
+        standard library (datetime/typing) plus at most the in-package,
+        itself-stdlib-only metrics.coverage (FR-M41-08's envelope helper;
+        N1 Workstream A) — never a third-party dependency."""
         import inspect
 
         import meridian_core.metrics.dora as dora
@@ -231,7 +233,7 @@ class TestDoraMetrics:
             for line in source.splitlines()
             if line.startswith(("import ", "from "))
         }
-        assert imported <= {"datetime", "typing", "__future__"}
+        assert imported <= {"datetime", "typing", "__future__", "meridian_core"}
 
     def test_result_is_cached_then_invalidated_on_append(self, world):
         server, ledger = world

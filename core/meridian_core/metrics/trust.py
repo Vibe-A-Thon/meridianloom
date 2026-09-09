@@ -38,6 +38,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from .coverage import ATTACH_KEY, envelope_for, scan_scope
+
 __all__ = ["TrustMetricsCache", "compute_rejection_rate"]
 
 GREENFIELD = "greenfield"
@@ -124,20 +126,23 @@ def compute_rejection_rate(
         "fromSequence": from_sequence,
         "toSequence": to_sequence,
     }
-    rows = ledger.query(
+    # FR-M41-07 (D36): full-history scans over the after_sequence cursor —
+    # no 1,000-row cap anywhere; the coverage envelope on the result
+    # reports what the figure saw (FR-M41-08).
+    rows, _diff_available = scan_scope(
+        ledger,
         action_type="diff",
         story_id=story_id,
         actor_id=actor_id,
         from_sequence=from_sequence,
         to_sequence=to_sequence,
-        limit=1000,
     )
-    all_rows = ledger.query(
+    all_rows, all_available = scan_scope(
+        ledger,
         story_id=story_id,
         actor_id=actor_id,
         from_sequence=from_sequence,
         to_sequence=to_sequence,
-        limit=1000,
     )
     if repo_id is not None:
         rows = [row for row in rows if row.get("repo_id") == repo_id]
@@ -147,7 +152,9 @@ def compute_rejection_rate(
         all_rows = [row for row in all_rows if row.get("phase") == phase]
     if action_type is not None:
         all_rows = [row for row in all_rows if row.get("action_type") == action_type]
-    rejection_rows = ledger.query(action_type="rejection", limit=1000)
+    rejection_rows, rejection_available = scan_scope(
+        ledger, action_type="rejection"
+    )
     if repo_id is not None:
         rejection_rows = [
             row for row in rejection_rows if row.get("repo_id") == repo_id
@@ -216,4 +223,14 @@ def compute_rejection_rate(
         },
         "byPhase": {key: _rates(bucket) for key, bucket in sorted(by_phase.items())},
         "byStory": {key: _rates(bucket) for key, bucket in sorted(by_story.items())},
+        # FR-M41-08 (NFR-34): the disclosure rides the same result, never
+        # a separate call. The primary population is every in-scope row
+        # (the broadest view the result reports); the rejection lookup is
+        # an auxiliary scan — a capped lookup truncates the figure too.
+        ATTACH_KEY: envelope_for(
+            _rates(overall)["rate"],
+            all_rows,
+            all_available,
+            aux_scans=((rejection_rows, rejection_available),),
+        ).to_dict(),
     }
