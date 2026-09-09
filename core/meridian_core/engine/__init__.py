@@ -22,9 +22,24 @@ radius and packet decomposition (``graph_blast_radius`` /
 (``coverage_mapping``), rule-based ambiguity detection
 (``rule_ambiguity``) and convention checks (``convention_rules``) — see
 ``analytical_capability_set``.
+Slice 3 (tasks 10–12) adds the model boundary: assisted and generative
+modes over the dispatch decisions (``EngineModes``, FR-M33-04/05) with a
+bounded schema-validated rework loop, per-class and global model-call
+ceilings from policy (``ModelCallBudget``, FR-M33-09) and ledger-derived
+per-class reporting (``EngineReporter``, FR-M33-07). The model is always
+an injected ``ModelClient`` protocol — zero model calls in the engine
+(FR-M36-07).
 """
 
 from .ambiguity import RuleAmbiguityCapability
+from .assist import (
+    EngineModes,
+    GapRequest,
+    ModeResult,
+    ModelCallBudget,
+    ModelClient,
+    ModelResponse,
+)
 from .capabilities import Capability, CapabilityOutcome, CapabilityRegistry
 from .catalogue import ActionClass, Catalogue, load_catalogue, parse_catalogue
 from .conventions import ConventionRulesCapability
@@ -35,6 +50,7 @@ from .dispatch import DispatchOutcome, Dispatcher
 from .graph import BlastRadiusCapability, PacketDecomposeCapability
 from .hunks import HunkEditCapability
 from .lsp_bridge import SymbolResolutionCapability
+from .reporting import DispatchRecord, EngineReporter, LedgerRecorder
 from .runners import ToolRunnerCapability
 from .rules import Rule, RuleSet, load_rules, parse_rule_document
 from .scaffold import TemplateScaffoldCapability
@@ -52,10 +68,19 @@ __all__ = [
     "CoverageMappingCapability",
     "DiffPatchCapability",
     "DispatchOutcome",
+    "DispatchRecord",
     "Dispatcher",
+    "EngineModes",
+    "EngineReporter",
+    "GapRequest",
     "HunkEditCapability",
     "LedgerCostEstimateCapability",
+    "LedgerRecorder",
     "MigrationClassifierCapability",
+    "ModeResult",
+    "ModelCallBudget",
+    "ModelClient",
+    "ModelResponse",
     "PacketDecomposeCapability",
     "Rule",
     "RuleAmbiguityCapability",

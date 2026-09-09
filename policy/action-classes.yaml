@@ -215,3 +215,9 @@ actionClasses:
 
 ceilings:
   llm_dependency_ratio_max: 0.35   # per story; breach escalates (NFR-25)
+  # FR-M33-09: model-call ceilings, independent of the token budget. A
+  # breach stops further model calls for the class (or globally) and is
+  # recorded — the engine escalates rather than proceeds.
+  model_calls:
+    global: 40
+    per_class: {implement: 8, design_novel: 4, clarify: 6, rationale: 6}

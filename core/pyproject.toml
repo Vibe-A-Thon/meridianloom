@@ -24,6 +24,11 @@ dependencies = [
     # yaml.safe_load only. Deterministic structural parsing — NEVER used
     # for model calls (FR-M36-07).
     "PyYAML==6.0.2",
+    # Approved pinned dependency for engine-side output validation
+    # (FR-M33-04/05, F3 M33 slice 3): model output is validated against
+    # the class's JSON Schema before it takes effect. Deterministic
+    # validation only — NEVER used for model calls (FR-M36-07).
+    "jsonschema==4.26.0",
 ]
 
 [project.optional-dependencies]

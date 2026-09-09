@@ -157,9 +157,51 @@ def parse_catalogue(text: str, source: str) -> Catalogue:
             errors.append(
                 f"ceilings.llm_dependency_ratio_max: expected a number in [0, 1], got {ratio!r}"
             )
-        unknown_ceilings = set(ceilings) - {"llm_dependency_ratio_max"}
+        unknown_ceilings = set(ceilings) - {"llm_dependency_ratio_max", "model_calls"}
         for name in sorted(unknown_ceilings):
             errors.append(f"ceilings.{name}: unknown ceiling")
+
+        # FR-M33-09: model-call ceilings — a global budget and per-class
+        # budgets, independent of the token budget. Policy sets ceilings;
+        # the engine enforces them (ModelCallBudget in engine.assist).
+        model_calls = ceilings.get("model_calls")
+        if model_calls is not None:
+            if not isinstance(model_calls, Mapping):
+                errors.append("ceilings.model_calls: expected a mapping")
+            else:
+                unknown_mc = set(model_calls) - {"global", "per_class"}
+                for name in sorted(unknown_mc):
+                    errors.append(f"ceilings.model_calls.{name}: unknown model-call ceiling")
+                global_limit = model_calls.get("global")
+                if global_limit is not None and (
+                    not isinstance(global_limit, int)
+                    or isinstance(global_limit, bool)
+                    or global_limit < 1
+                ):
+                    errors.append(
+                        f"ceilings.model_calls.global: expected an integer >= 1, "
+                        f"got {global_limit!r}"
+                    )
+                per_class = model_calls.get("per_class")
+                if per_class is not None:
+                    if not isinstance(per_class, Mapping):
+                        errors.append("ceilings.model_calls.per_class: expected a mapping of class to limit")
+                    else:
+                        for class_id, class_limit in per_class.items():
+                            if not isinstance(class_id, str) or not class_id.strip():
+                                errors.append(
+                                    "ceilings.model_calls.per_class: class ids must be non-empty strings"
+                                )
+                                continue
+                            if (
+                                not isinstance(class_limit, int)
+                                or isinstance(class_limit, bool)
+                                or class_limit < 1
+                            ):
+                                errors.append(
+                                    f"ceilings.model_calls.per_class.{class_id}: "
+                                    f"expected an integer >= 1, got {class_limit!r}"
+                                )
 
     if errors:
         return Catalogue(
