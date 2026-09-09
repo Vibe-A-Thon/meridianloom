@@ -2677,6 +2677,7 @@ class SidecarServer:
                 },
                 "storyCommits": story_commits,
                 "thresholds": [ratio_threshold, max_age_days],
+                "attributionFloor": self._attribution_floor(params),
                 "tip": ledger.last_sequence,  # append-invalidation backstop
             },
             sort_keys=True,
@@ -2698,6 +2699,7 @@ class SidecarServer:
             from_sequence=params.get("fromSequence"),
             to_sequence=params.get("toSequence"),
             classify=classify_fn,
+            attribution_floor=self._attribution_floor(params),
         )
         result["cacheHit"] = False
         self._trust_cache.put(cache_key, result)

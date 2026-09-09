@@ -35,17 +35,20 @@ additively — the F0 keys keep their meaning exactly:
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from .coverage import (
     ATTACH_KEY,
     INSUFFICIENT_COVERAGE,
+    DataGap,
     attribution_coverage,
     envelope_for,
     ledger_row_attribution_state,
     scan_scope,
 )
+from .definitions import current_definitions
+from .statistics import proportion_statistics
 
 __all__ = ["TrustMetricsCache", "compute_rejection_rate"]
 
@@ -114,6 +117,7 @@ def compute_rejection_rate(
     to_sequence: int | None = None,
     classify: Callable[[str], str | None] | None = None,
     attribution_floor: float | None = None,
+    data_gaps: Sequence[DataGap] = (),
 ) -> dict[str, Any]:
     """Rejection rate per agent, per repository, split greenfield/brownfield.
 
@@ -130,7 +134,8 @@ def compute_rejection_rate(
     the headline rate — it reads ``insufficient_coverage`` with no value —
     when the attributed share of the proposed-change population falls
     below the floor. A metric over a population it cannot attribute is
-    not evidence (P25).
+    not evidence (P25). ``data_gaps`` (FR-M41-12) are named
+    dropped/unrecoverable-data classes recorded on the envelope.
     """
     scope = {
         "repoId": repo_id,
@@ -237,6 +242,7 @@ def compute_rejection_rate(
     coverage_check = attribution_coverage(row_states, attribution_floor)
     below_floor = coverage_check.belowFloor
     rate_value = None if below_floor else _rates(overall)["rate"]
+    definitions = current_definitions()
     envelope = envelope_for(
         rate_value,
         all_rows,
@@ -244,13 +250,26 @@ def compute_rejection_rate(
         aux_scans=((rejection_rows, rejection_available),),
         attribution_states=row_states,
         attribution_floor=attribution_floor,
+        measurement_definitions=definitions.version,
+        data_gaps=data_gaps,
     )
+    # FR-M41-14: the headline figure carries its sample count, a Wilson
+    # interval on the proportion (where it admits one) and the missing
+    # (unattributed) share. An empty proposed population reads
+    # insufficient_evidence here — never a zero-width CI. The legacy
+    # ``rate`` key keeps its historical shape for the reconciliation
+    # oracles; ``statistics`` is the FR-M41-14 disclosure.
+    missing = coverage_check.unattributed
     return {
         "scope": scope,
         "proposed": overall["proposed"],
         "rejected": overall["rejected"],
         "rate": rate_value,
         "status": INSUFFICIENT_COVERAGE if below_floor else "ok",
+        "statistics": proportion_statistics(
+            overall["rejected"], overall["proposed"],
+            missing=missing, available=overall["proposed"],
+        ),
         "split": {kind: _rates(bucket) for kind, bucket in split.items()},
         "byAgent": {agent: _rates(bucket) for agent, bucket in sorted(by_agent.items())},
         "byActionClass": {
@@ -267,4 +286,7 @@ def compute_rejection_rate(
             else None
         ),
         ATTACH_KEY: envelope.to_dict(),
+        # FR-M41-13: the full definitions record that produced every figure
+        # in this result; the envelope carries the version string.
+        "measurementDefinitions": definitions.to_dict(),
     }

@@ -51,6 +51,19 @@ floor the metric reads ``insufficient_coverage`` and shows no value —
 a metric over a population it cannot attribute is not evidence (P25).
 :func:`ledger_row_attribution_state` is the documented per-row rule.
 
+FR-M41-13 (N1 Workstream C task 13): the envelope records WHICH
+measurement-definitions version produced the figure
+(``measurementDefinitions`` — the version string of the record in
+``metrics/definitions.py``), so a figure stays attributable to the
+definition of its statistic after the definition changes.
+
+FR-M41-12 (N1 Workstream C task 17): data that was intentionally dropped
+or is unrecoverable rides the envelope as NAMED gaps (``gaps`` — a
+``DataGap`` per class: duplicates, unparseable rows, excluded paths,
+unsupported vendors, each with its count). A drop is never an absence:
+if ingest dropped rows while producing the population a figure saw, the
+figure says so in the same operation (NFR-34).
+
 Zero model calls (FR-M36-07): counting and arithmetic over ledger rows.
 """
 
@@ -64,6 +77,7 @@ __all__ = [
     "ATTACH_KEY_SCORE",
     "AttributionCoverage",
     "CoverageEnvelope",
+    "DataGap",
     "INSUFFICIENT_COVERAGE",
     "attribution_coverage",
     "envelope_for",
@@ -180,6 +194,24 @@ def attribution_coverage(
 
 
 @dataclass(frozen=True)
+class DataGap:
+    """FR-M41-12: one named class of intentionally dropped or unrecoverable
+    data, with its count. ``gapClass`` is a stable vocabulary (duplicate,
+    unparseable, excluded_path, unsupported_vendor, ...) shared by the
+    event ingester (``meridian_core.ingest``) and every metric surface."""
+
+    gapClass: str
+    count: int
+    detail: str | None = None  # where it happened, when it helps
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {"gapClass": self.gapClass, "count": self.count}
+        if self.detail is not None:
+            payload["detail"] = self.detail
+        return payload
+
+
+@dataclass(frozen=True)
 class CoverageEnvelope:
     """The FR-M41-08 disclosure, one typed wrapper for every analytic."""
 
@@ -193,6 +225,12 @@ class CoverageEnvelope:
     # FR-M41-06: the attribution-coverage dimension; None when the metric
     # does not attribute its population (older surfaces stay valid).
     attribution: AttributionCoverage | None = None
+    # FR-M41-13: the measurement-definitions version that produced the
+    # figure; None on envelopes built before the definitions existed.
+    measurementDefinitions: str | None = None
+    # FR-M41-12: named dropped/unrecoverable data classes with counts;
+    # empty when nothing was dropped (absence of drops is not a gap).
+    gaps: tuple[DataGap, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         """The wire/JSON shape — camelCase, matching the bus schema's
@@ -208,6 +246,10 @@ class CoverageEnvelope:
         }
         if self.attribution is not None:
             payload["attribution"] = self.attribution.to_dict()
+        if self.measurementDefinitions is not None:
+            payload["measurementDefinitions"] = self.measurementDefinitions
+        if self.gaps:
+            payload["gaps"] = [gap.to_dict() for gap in self.gaps]
         return payload
 
     @classmethod
@@ -216,6 +258,8 @@ class CoverageEnvelope:
         value: Any = None,
         *,
         attribution: AttributionCoverage | None = None,
+        measurement_definitions: str | None = None,
+        gaps: Sequence[DataGap] = (),
     ) -> "CoverageEnvelope":
         """The envelope over an empty available population: nothing was
         truncated (there was nothing to miss) and the figure reads
@@ -229,6 +273,8 @@ class CoverageEnvelope:
             coverage=1.0,
             label=_LABEL_EMPTY,
             attribution=attribution,
+            measurementDefinitions=measurement_definitions,
+            gaps=tuple(gaps),
         )
 
 
@@ -239,6 +285,8 @@ def envelope_for(
     aux_scans: Sequence[tuple[Sequence[Mapping[str, Any]], int]] = (),
     attribution_states: Sequence[str] | None = None,
     attribution_floor: float | None = None,
+    measurement_definitions: str | None = None,
+    data_gaps: Sequence[DataGap] = (),
 ) -> CoverageEnvelope:
     """The envelope for a figure computed over ``primary_rows`` when the
     ledger holds ``primary_available`` rows in the figure's scope.
@@ -254,6 +302,12 @@ def envelope_for(
     :func:`ledger_row_attribution_state`); with ``attribution_floor``
     the envelope's attribution dimension reports whether the attributed
     share fell below the configured policy floor.
+
+    ``measurement_definitions`` (FR-M41-13) is the version string of the
+    definitions record that produced the figure.
+    ``data_gaps`` (FR-M41-12) are the named dropped/unrecoverable-data
+    classes (with counts) incurred while producing the figure's
+    population — recorded on the envelope, never silent.
 
     ``truncated`` is derived, never supplied: fewer examined rows than
     the scope holds means truncation, and the envelope must say so
@@ -276,7 +330,12 @@ def envelope_for(
         else None
     )
     if primary_available <= 0:
-        return CoverageEnvelope.empty(value, attribution=attribution)
+        return CoverageEnvelope.empty(
+            value,
+            attribution=attribution,
+            measurement_definitions=measurement_definitions,
+            gaps=data_gaps,
+        )
     return CoverageEnvelope(
         value=value,
         rowsConsidered=considered,
@@ -286,6 +345,8 @@ def envelope_for(
         coverage=round(considered / primary_available, 6),
         label=_LABEL_PARTIAL if truncated else _LABEL_COMPLETE,
         attribution=attribution,
+        measurementDefinitions=measurement_definitions,
+        gaps=tuple(data_gaps),
     )
 
 

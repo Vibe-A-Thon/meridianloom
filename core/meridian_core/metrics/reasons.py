@@ -29,11 +29,19 @@ Zero model calls (FR-M36-07): string normalisation over ledger rows.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from ..rejection.taxonomy import load_taxonomy
-from .coverage import ATTACH_KEY, envelope_for, scan_scope
+from .coverage import (
+    ATTACH_KEY,
+    DataGap,
+    envelope_for,
+    ledger_row_attribution_state,
+    scan_scope,
+)
+from .definitions import current_definitions
+from .statistics import figure_statistics
 
 __all__ = ["compute_reason_distribution", "detection_shape"]
 
@@ -85,10 +93,12 @@ def compute_reason_distribution(
     from_sequence: int | None = None,
     to_sequence: int | None = None,
     classify: Callable[[str], str | None] | None = None,
+    data_gaps: Sequence[DataGap] = (),
 ) -> dict[str, Any]:
     """E-GR-03 reason distribution overall, per agent, per shape, with the
     greenfield/brownfield split. ``classify`` maps a story id to
-    GREENFIELD/BROWNFIELD or None (unclassified)."""
+    GREENFIELD/BROWNFIELD or None (unclassified). ``data_gaps``
+    (FR-M41-12) are named drops recorded on the envelope."""
     scope = {
         "repoId": repo_id,
         "actorId": actor_id,
@@ -141,6 +151,7 @@ def compute_reason_distribution(
                 kind = UNCLASSIFIED
         _add(split[kind], reason)
 
+    definitions = current_definitions()
     return {
         "scope": scope,
         "total": overall["total"],
@@ -148,7 +159,26 @@ def compute_reason_distribution(
         "byShape": {shape: _rates(dist) for shape, dist in sorted(by_shape.items())},
         "byAgent": {agent: _rates(dist) for agent, dist in sorted(by_agent.items())},
         "split": {kind: _rates(dist) for kind, dist in split.items()},
+        # FR-M41-14: the distribution carries its sample count and missing
+        # (unattributed) share; a class distribution is not one proportion,
+        # so it states that no confidence interval admits — explicitly,
+        # never by omission.
+        "statistics": figure_statistics(
+            overall["total"],
+            statistic="rejection-reason class distribution",
+            missing=sum(
+                1
+                for row in rows
+                if ledger_row_attribution_state(row) == "unattributed"
+            ),
+            available=overall["total"],
+        ),
+        "measurementDefinitions": definitions.to_dict(),
         ATTACH_KEY: envelope_for(
-            overall["total"], scoped_rows, rows_available
+            overall["total"],
+            scoped_rows,
+            rows_available,
+            measurement_definitions=definitions.version,
+            data_gaps=data_gaps,
         ).to_dict(),
     }

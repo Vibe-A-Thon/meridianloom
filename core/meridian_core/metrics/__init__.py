@@ -43,9 +43,20 @@ from .coverage import (
     ATTACH_KEY,
     ATTACH_KEY_SCORE,
     CoverageEnvelope,
+    DataGap,
     envelope_for,
     forbid_projection,
     scan_scope,
+)
+from .definitions import (
+    MEASUREMENT_DEFINITIONS_VERSION,
+    MeasurementDefinitions,
+    current_definitions,
+)
+from .statistics import (
+    figure_statistics,
+    proportion_statistics,
+    wilson_interval,
 )
 from .dora import compute_dora_metrics, export_otlp
 from .jcurve import compute_jcurve, parse_utc
@@ -84,9 +95,12 @@ __all__ = [
     "DEFAULT_NEW_FILE_RATIO_THRESHOLD",
     "DEFAULT_SPEND_RISE_THRESHOLD",
     "DEFAULT_WINDOW_MONTHS",
+    "DataGap",
     "DIMENSIONS",
     "GREENFIELD",
     "LedgerSpendSeries",
+    "MEASUREMENT_DEFINITIONS_VERSION",
+    "MeasurementDefinitions",
     "PricingPack",
     "SCORE_WEIGHTS",
     "SpendPoint",
@@ -96,6 +110,8 @@ __all__ = [
     "UNKNOWN",
     "YieldPoint",
     "check_spend_ceiling",
+    "current_definitions",
+    "figure_statistics",
     "classify",
     "compute_agent_comparison",
     "compute_dora_metrics",
@@ -115,8 +131,10 @@ __all__ = [
     "parse_pricing_pack",
     "parse_story_metadata",
     "parse_utc",
+    "proportion_statistics",
     "period_label",
     "scan_scope",
     "spend_by_dimension",
     "spend_records",
+    "wilson_interval",
 ]

@@ -15,6 +15,7 @@ FR-M11-01..05) and hang off this class.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
@@ -23,7 +24,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 logger = logging.getLogger("meridian_core.ledger")
 
@@ -328,15 +329,47 @@ class Ledger:
         is written; `blob_subject` selects the per-subject key (defaults
         to the caller-supplied `blob_key_id`, else "default").
         """
-        entry = dict(entry)
-        input_data = entry.pop("input", None)
-        output_data = entry.pop("output", None)
-        blob_subject = entry.pop("blob_subject", None)
-        row = self._prepare_row(entry)
-        if input_data is not None or output_data is not None:
-            self._attach_blobs(row, input_data, output_data, blob_subject)
+        return self.append_many([entry])[0]
+
+    def append_many(
+        self, entries: Sequence[Mapping[str, Any]]
+    ) -> list[AppendResult]:
+        """Append a batch in ONE transaction (FR-M41-11 ingestion batches):
+
+        every row lands or none does, so a mid-batch failure cannot leave
+        a half-ingested batch behind. Each entry is hashed and linked
+        exactly as :meth:`append` would link it — the batch is a
+        performance shape, never a different chain."""
+        prepared: list[dict[str, Any]] = []
+        for entry in entries:
+            row_entry = dict(entry)
+            input_data = row_entry.pop("input", None)
+            output_data = row_entry.pop("output", None)
+            blob_subject = row_entry.pop("blob_subject", None)
+            row = self._prepare_row(row_entry)
+            if input_data is not None or output_data is not None:
+                self._attach_blobs(row, input_data, output_data, blob_subject)
+            prepared.append(row)
         self.conn.execute("BEGIN IMMEDIATE")
         try:
+            results = self._insert_rows(prepared)
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+        head = self._maybe_emit_tree_head()
+        if head is not None and results:
+            # Cadence preserved: the batch's last result carries the head
+            # exactly as a same-tip single append would.
+            results[-1] = dataclasses.replace(results[-1], tree_head=head)
+        return results
+
+    def _insert_rows(self, rows: list[dict[str, Any]]) -> list[AppendResult]:
+        """Insert prepared rows into the open transaction. The caller
+        holds the BEGIN IMMEDIATE (append_many, or the event ingester
+        writing ledger rows and its ingest state atomically)."""
+        results: list[AppendResult] = []
+        for row in rows:
             prev_hash = self._last_hash
             row.update(
                 seq=self._last_seq + 1,
@@ -350,21 +383,19 @@ class Ledger:
                 f" VALUES ({', '.join('?' for _ in columns)})",
                 [row[c] for c in columns],
             )
-            self.conn.commit()
-        except Exception:
-            self.conn.rollback()
-            raise
-
-        self._frontier.append(row["entry_hash"])
-        self._last_seq = row["seq"]
-        self._last_hash = row["entry_hash"]
-        return AppendResult(
-            sequence=row["seq"],
-            ts_utc=row["ts_utc"],
-            prev_hash=prev_hash,
-            entry_hash=row["entry_hash"],
-            tree_head=self._maybe_emit_tree_head(),
-        )
+            self._frontier.append(row["entry_hash"])
+            self._last_seq = row["seq"]
+            self._last_hash = row["entry_hash"]
+            results.append(
+                AppendResult(
+                    sequence=row["seq"],
+                    ts_utc=row["ts_utc"],
+                    prev_hash=prev_hash,
+                    entry_hash=row["entry_hash"],
+                    tree_head=None,  # emitted once, by the committing caller
+                )
+            )
+        return results
 
     def _attach_blobs(
         self,

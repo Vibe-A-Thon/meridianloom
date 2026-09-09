@@ -32,18 +32,32 @@ Side-by-side components, and what the ledger supports:
 
 Every component without evidence is labelled (``insufficient_evidence`` /
 ``unknown``) and carries a null value, so a thin agent is visible in the
-comparison, never hidden behind a fabricated zero or a missing key.
+comparison, never hidden behind a fabricated zero or a missing key. The
+yield figure carries its FR-M41-14 disclosure (sample count, Wilson
+interval, missing share); the result carries the FR-M41-13 measurement
+definitions record; and the by-yield ``ranking`` reads ``suppressed``
+with the reason named when the agents' coverage is not comparable
+(FR-M41-15).
 
 Zero model calls (FR-M36-07): arithmetic over ledger rows.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from ..rejection.taxonomy import load_taxonomy
-from .coverage import ATTACH_KEY, envelope_for, scan_scope
+from .coverage import (
+    ATTACH_KEY,
+    DataGap,
+    attribution_coverage,
+    envelope_for,
+    ledger_row_attribution_state,
+    scan_scope,
+)
+from .definitions import current_definitions
+from .statistics import proportion_statistics
 
 __all__ = ["compute_agent_comparison"]
 
@@ -69,6 +83,8 @@ def compute_agent_comparison(
     from_sequence: int | None = None,
     to_sequence: int | None = None,
     classify: Callable[[str], str | None] | None = None,
+    attribution_floor: float | None = None,
+    data_gaps: Sequence[DataGap] = (),
 ) -> dict[str, Any]:
     """Side-by-side comparison of the agents that ran ``story_id``.
 
@@ -76,6 +92,16 @@ def compute_agent_comparison(
     actor with an in-scope entry on the story is compared. ``classify``
     maps the story id to greenfield/brownfield (None when the story has no
     commit data — reported as ``unclassified``, never dropped).
+    ``attribution_floor`` (FR-M41-06) feeds the ranking comparability
+    check; ``data_gaps`` (FR-M41-12) are named drops recorded on the
+    envelope.
+
+    The result carries a ``ranking`` (FR-M41-15): agents ordered by
+    first-pass yield, SUPPRESSED with the reason named when the cohorts
+    are not comparable — an agent's attributed share below the configured
+    floor, or agents whose proposed-change sequence ranges do not
+    overlap. A ranking over incomparable coverage would crown an agent on
+    a thinner evidentiary base; it reads suppressed instead.
     """
     scope = {
         "storyId": story_id,
@@ -135,6 +161,7 @@ def compute_agent_comparison(
     )
 
     agents: dict[str, dict[str, Any]] = {}
+    evidence: dict[str, dict[str, Any]] = {}
     for actor in actors:
         diffs = [
             row
@@ -148,6 +175,20 @@ def compute_agent_comparison(
             if row["seq"] in rejected_sequences
             or row.get("decision") in REJECTED_DECISIONS
         )
+        # FR-M41-15: the ranking's comparability check needs each agent's
+        # own coverage — the attribution states and sequence range of the
+        # agent's proposed-change population.
+        diff_states = [ledger_row_attribution_state(row) for row in diffs]
+        diff_coverage = attribution_coverage(diff_states, attribution_floor)
+        evidence[actor] = {
+            "proposed": proposed,
+            "seqRange": (
+                (min(row["seq"] for row in diffs), max(row["seq"] for row in diffs))
+                if diffs
+                else None
+            ),
+            "attribution": diff_coverage,
+        }
         if proposed:
             rate = round(rejected_count / proposed, 6)
             yield_component = _component(
@@ -162,6 +203,17 @@ def compute_agent_comparison(
                 rejected=0,
                 note="no proposed changes by this agent on the story",
             )
+        # FR-M41-14: the yield figure carries its sample count, a Wilson
+        # interval on the yield proportion, and the unattributed (missing)
+        # share of the agent's proposed-change population. An empty sample
+        # reads insufficient_evidence — the component already does; the
+        # statistics say it in the FR-M41-14 vocabulary too.
+        yield_component["statistics"] = proportion_statistics(
+            proposed - rejected_count,
+            proposed,
+            missing=diff_coverage.unattributed,
+            available=proposed,
+        )
 
         # Rejection reasons attributed to this agent on the story — the
         # rejected change's author, falling back to the entry's own actor.
@@ -255,16 +307,115 @@ def compute_agent_comparison(
     else:
         story_classification = classify(story_id) or "unclassified"
 
+    definitions = current_definitions()
     return {
         "scope": scope,
         "storyId": story_id,
         "storyClassification": story_classification,
         "agents": agents,
+        "ranking": _ranking(agents, evidence, attribution_floor),
+        "measurementDefinitions": definitions.to_dict(),
         # Multi-figure result: the envelope carries no single value.
         ATTACH_KEY: envelope_for(
             None,
             scoped_rows,
             rows_available,
             aux_scans=((rejection_scanned, rejection_available),),
+            measurement_definitions=definitions.version,
+            data_gaps=data_gaps,
         ).to_dict(),
+    }
+
+
+def _ranking(
+    agents: dict[str, dict[str, Any]],
+    evidence: dict[str, dict[str, Any]],
+    attribution_floor: float | None,
+) -> dict[str, Any]:
+    """FR-M41-15: the by-yield ranking, or a suppressed ranking with the
+    reason named.
+
+    Comparable cohorts rank; incomparable ones read ``suppressed`` — the
+    two material differences are an agent's attributed share below the
+    configured floor (a ranking over a population the ledger cannot
+    attribute is not evidence) and non-overlapping proposed-change
+    sequence ranges between agents (the figures cover materially different
+    ledger spans, so the yields are not like-for-like). Agents without
+    yield evidence are unranked, named, never silently skipped.
+    """
+    ranked_agents = [
+        actor
+        for actor, components in agents.items()
+        if components["yield"]["status"] == _STATUS_OK
+    ]
+    if not ranked_agents:
+        return {
+            "by": "yield",
+            "status": _STATUS_INSUFFICIENT,
+            "ranked": [],
+            "unranked": {
+                actor: "no proposed changes on the story"
+                for actor in agents
+            },
+            "reason": (
+                "insufficient_evidence: no compared agent proposed changes"
+                " on the story — there is no yield to rank (FR-M41-15)"
+            ),
+        }
+
+    for actor in ranked_agents:
+        coverage = evidence[actor]["attribution"]
+        if coverage.belowFloor:
+            return {
+                "by": "yield",
+                "status": "suppressed",
+                "ranked": [],
+                "unranked": {},
+                "reason": (
+                    "coverage_not_comparable: the attributed share of "
+                    f"{actor}'s proposed changes is below the configured "
+                    f"floor ({coverage.coverage} < {coverage.floor}) — a "
+                    "ranking over a population the ledger cannot "
+                    "attribute is not evidence (FR-M41-15, FR-M41-06)"
+                ),
+            }
+
+    ranges = [
+        evidence[actor]["seqRange"] for actor in ranked_agents
+    ]
+    if len(ranges) > 1:
+        latest_start = max(range_[0] for range_ in ranges if range_)
+        earliest_end = min(range_[1] for range_ in ranges if range_)
+        if latest_start > earliest_end:
+            spans = ", ".join(
+                f"{actor}={evidence[actor]['seqRange']}"
+                for actor in ranked_agents
+            )
+            return {
+                "by": "yield",
+                "status": "suppressed",
+                "ranked": [],
+                "unranked": {},
+                "reason": (
+                    "coverage_not_comparable: the agents' proposed-change "
+                    "sequence ranges do not overlap "
+                    f"({spans}) — the yields cover materially different "
+                    "ledger spans and are not like-for-like (FR-M41-15)"
+                ),
+            }
+
+    ranked = sorted(
+        ranked_agents,
+        key=lambda actor: (-agents[actor]["yield"]["value"], actor),
+    )
+    return {
+        "by": "yield",
+        "status": "ok",
+        "ranked": ranked,
+        "unranked": {
+            actor: components["yield"].get("note") or "no yield evidence"
+            for actor, components in agents.items()
+            if components["yield"]["status"] != _STATUS_OK
+        },
+        "reason": None,
     }
