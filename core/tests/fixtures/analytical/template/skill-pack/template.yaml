@@ -1,0 +1,5 @@
+# Skill-pack template manifest: declares the substitution syntax so the
+# scaffold capability never has to guess it.
+syntax:
+  open: "${"
+  close: "}"

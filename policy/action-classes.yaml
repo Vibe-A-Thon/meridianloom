@@ -104,6 +104,17 @@ actionClasses:
       unknown means no rate exists, never a model guess (FR-M26-01,
       FR-M39-04).
 
+  map_coverage:
+    mode: deterministic
+    capability: coverage_mapping
+    engine: rules
+    schema: CoverageMap
+    rationale: >-
+      Coverage-to-criteria mapping is token overlap between acceptance
+      criteria text and parsed test names, scored with fixed thresholds;
+      the classification is a pure function of the two inputs
+      (FR-M33-02, FR-M33-06).
+
   apply_patch:
     mode: deterministic
     capability: diff_patch

@@ -1,0 +1,26 @@
+# Dependency license map (FR-M33-02; D16-style policy artefact).
+#
+# The migration_classifier capability classifies dependency licences from
+# THIS pinned SPDX-identifier map — config/policy, never hard-coded in code.
+# A workspace overrides it at .meridian/policy/licenses.yaml (first readable
+# file wins, the same convention as the other packs).
+#
+# Keys are dependency names in the ecosystem's canonical coordinates:
+#   Gradle      "group:name"
+#   npm         package name
+#   Python      distribution name (normalised, case-insensitive)
+# Values are SPDX license identifiers (https://spdx.org/licenses/).
+# A dependency with no entry here reports license "unknown" — never guessed.
+
+version: 1
+
+licenses:
+  "com.acme:ledger-core": Apache-2.0
+  "org.flywaydb:flyway-core": Apache-2.0
+  "junit:junit": EPL-2.0
+  "react": MIT
+  "lodash": MIT
+  "pg": MIT
+  "flask": BSD-3-Clause
+  "alembic": MIT
+  "requests": Apache-2.0
