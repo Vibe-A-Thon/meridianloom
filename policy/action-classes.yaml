@@ -104,6 +104,27 @@ actionClasses:
       unknown means no rate exists, never a model guess (FR-M26-01,
       FR-M39-04).
 
+  apply_patch:
+    mode: deterministic
+    capability: diff_patch
+    engine: diff
+    schema: PatchResult
+    rationale: >-
+      Unified diff production and hunk application are pure functions over
+      text; a hunk that does not match is a named rejection in the result,
+      never silently dropped (FR-M33-02, FR-M25-04).
+
+  hunk_edit:
+    mode: deterministic
+    capability: hunk_edit
+    engine: hunks
+    schema: HunkEditResult
+    rationale: >-
+      Edits to large files are hunk-scoped — only the target hunks are
+      loaded, never the whole file — and generated or binary files are
+      refused with the path named before any byte is touched
+      (FR-M28-05, FR-M28-07).
+
   # --- assisted (engine does the work; model fills a bounded gap) ----------
 
   detect_ambiguity:
