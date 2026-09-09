@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** N1 — True and Visible (N0 quiesce COMPLETE — summary below)
-- **Current workstream:** N1 Workstream B — Attribution truth (T07–T12); Workstream A done
-- **Current task:** N1-T07 three-state attribution + T08 unknown-reason vocabulary + T09 attribution-coverage floor + T10 per-field provenance + T11 labelled corpus 200 spans + T12 greenfield/brownfield on score+DORA
-- **Last commit:** 45928f1 — N1 Workstream A (G-01 fix): cursor pagination, CoverageEnvelope, all six metrics + spend/tokenmaxxing migrated, NFR-33 proven at 50k (0.29–3.48s/metric), AC-41 full-scan equality, 272 tests green. D36 c78daa9. D43 a1b9b36. N0 8a9b787. Follow-ups: webview must consume envelope instead of local 1000-detection (GUI session); limit=1000 sweep for engine/reporting.py + PR-ingest call sites.
+- **Current workstream:** N1 Workstream C — Statistical honesty and ingestion (T13–T17); A + B done
+- **Current task:** N1-T13 measurement-definition versioning + T14 sample counts/CI/insufficient_evidence + T15 ranking suppression + T16 ingestion keys/reconciliation fixture + T17 named coverage gaps
+- **Last commit:** 8574658 — N1 Workstream B complete (963b1b3/e027749/596939a/8574658: three-state attribution, closed unknown vocabulary, coverage floor 0.8 in governance pack, per-field provenance in signed form, 206-span corpus precision 1.0000 floor 0.95, score+DORA greenfield split; 332 tests green). Workstream A at 45928f1.
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## Phase N0 — Quiesce (COMPLETE)
