@@ -8,7 +8,7 @@
 | **Governs** | The build order for everything specified in `futures_requirements.md` v1.0 |
 | **Does not supersede** | `gaps_implementation.md` v1.0. That plan's F-phases remain the delivery spine; this plan is the hardening and assurance track that runs from the F1 exit through the F2 evidence gate. §13 states the interlock. |
 | **Companions** | `futures.md` · `futures_requirements.md` · `status.md` (9 September re-audit) · `gaps_implementation.md` · `DECISIONS.md` |
-| **Scale** | 5 phases (N0–N4) · 6 modules · 84 functional requirements · 12 acceptance criteria · 68 numbered tasks |
+| **Scale** | 5 phases (N0–N4) · 6 modules · 84 functional requirements · 13 acceptance criteria · 69 numbered tasks |
 | **Baseline** | Commit `4b79bef`, branch `dev_local`; F0 tagged `f0-complete`, F1 tagged `f1-complete`, F2 pending-human-evidence (D35), F3 begun at M33 slice 2a |
 
 ---
@@ -100,6 +100,7 @@ Rows are new to this plan; the rest inherit from `gaps_implementation.md` §3.
 
 | Concern | Decision | Rationale |
 |---|---|---|
+| **Fresh-workspace policy** | **`D43` — open.** Ship-and-copy on first run, guided scaffolding, or fail-closed with a remedy. Whichever is chosen applies uniformly to all seven sidecar-loaded packs; a new pack may not introduce an eighth behaviour. | Two loaders currently fail closed and four carry embedded defaults, so an installed extension is half-inert in any repository but this one. `AC-53`, `N0-T09`. |
 | **Full-history aggregation** | **`D36` — open.** Cursor pagination with in-process aggregation, an incremental materialised summary, or a read model rebuilt on append. Must close before N1 task 1. | `NFR-33` sets a performance budget; the shape determines whether it is reachable without a second store. |
 | **Coverage envelope** | A single typed result wrapper carrying `value`, `rowsConsidered`, `rowsAvailable`, `truncated`, `sequenceRange` and `coverage`, returned by every metric function. Not an optional field on each result shape. | `J2`. One wrapper is enforceable by type; six conventions are not. |
 | **Approval classification** | **`D40` — open.** Closed vocabulary owned by Meridian, or extensible and owned by policy. | A closed vocabulary is testable; an open one survives vendors inventing new approval paths. |
@@ -150,6 +151,32 @@ Rows are new to this plan; the rest inherit from `gaps_implementation.md` §3.
 6. **N0-T06 — Stabilise or quarantine the real-sidecar end-to-end tests.** Give them a contention-tolerant budget or a serial lane. A suite that only passes when nothing else runs is not a regression gate.
 7. **N0-T07 — Reconcile `BUILD_STATE.md` with the git log.** Its F1 workstream table lists C through H as not started; the log shows C through G complete. The build state is the resumption contract.
 8. **N0-T08 — Triage the five dependency findings.** Upgrade, or record an accepted-risk note with a date and an owner.
+9. **N0-T09 — Reconcile the fresh-workspace policy behaviour.** Surfaced by a clean-tree build on 9 September: the policy loaders disagree with each other about what an unconfigured workspace gets, and two of them leave the Governor inert. **Close `D43`**, then make the behaviour uniform and prove it on an empty workspace. Evidence below.
+
+#### N0-T09 evidence — measured on an empty workspace at commit `8cede03`
+
+Policy packs resolve **workspace-relative** (`<ws>/.meridian/policy/…`, then `<ws>/policy/…`), not from the extension. That is correct and deliberate: policy is team-owned, git-backed and PR-reviewable (`FR-M12-01`, `FR-M12-12`), and packaging it into the VSIX would undermine that. The defect is not the resolution rule — it is that the loaders behave in three different ways when the file is absent, and nothing ships or scaffolds a starting pack.
+
+| Pack | Loader shape | Behaviour with no file present |
+|---|---|---|
+| `governance.yaml` | `load_policy_pack(paths[])` | **Fail-closed** — every gate evaluation blocks with "no policy file found" |
+| `action-classes.yaml` | `load_catalogue(paths[])` | **Fail-closed** — the deterministic engine refuses every action class |
+| `roles.yaml` | `load_role_pack(paths[])` | Embedded default; works silently |
+| `pricing.yaml` | tolerant | Works; unpriced models report unknown |
+| `stories.yaml` | tolerant | Works; unmapped stories land in unknown |
+| `rework-reasons.yaml` | embedded default | Works |
+| `licenses.yaml` | `load_license_map(path)` — **single path, no override chain** | Records an error and returns an empty map. Its own header documents a `.meridian/policy/` override "the same convention as the other packs" — **the loader does not implement one** |
+| `acp-permissions.yaml` | extension-host read | The only pack packaged into the VSIX, because the TypeScript host reads it from the extension directory |
+
+**Consequence.** Install the VSIX into any repository other than this one and the Governor is half-alive: gates and the deterministic engine fail closed with a path-not-found message, while roles, pricing, story metadata and rework reasons quietly work from embedded defaults. A user cannot tell from the interface which half is misconfigured and which is working as designed.
+
+**Tasks.**
+
+- **T09a** — Close `D43`: ship defaults, scaffold on first run, or fail closed with a guided remedy. The three are not equivalent — see `D43`.
+- **T09b** — Make the absent-file behaviour uniform across all seven sidecar-loaded packs, and state it once in the loader documentation.
+- **T09c** — Give `load_license_map` the same override chain as its own header already documents, or correct the header. Documentation and code must agree.
+- **T09d** — Add a fresh-workspace test that asserts the agreed behaviour for **every** pack, so a new pack cannot land with a fourth behaviour.
+- **T09e** — Whatever `D43` decides, a fail-closed pack's error must name the remedy, not just the paths it tried (`NFR-10`).
 
 ### Exit criteria
 
@@ -157,6 +184,7 @@ Rows are new to this plan; the rest inherit from `gaps_implementation.md` §3.
 - [ ] Zero unexplained reds: every remaining failure has a disposition — fixed, quarantined with a reason, or a restated requirement
 - [ ] `BUILD_STATE.md` matches the git log
 - [ ] Each dependency finding is upgraded or has a dated accepted-risk note
+- [ ] **`AC-53`** A fresh workspace produces one agreed, documented policy state across all seven sidecar-loaded packs, and any fail-closed pack names its remedy
 - [ ] `J9` holds for the remainder of the plan
 
 **Duration: days.** If N0 exceeds two weeks, the concurrency problem is organisational rather than technical and needs an owner decision, not more engineering.
@@ -532,6 +560,7 @@ Cut in this order. Each cut leaves a coherent, honest product.
 
 | # | Decision | Must close by |
 |---|---|---|
+| **`D43`** | **Fresh-workspace policy strategy** — ship default packs inside the extension and copy them on first run, scaffold them through a guided setup step, or fail closed with a remedy the interface can act on. Ship-and-copy is fastest but puts a Meridian-authored policy in a customer repository without review; scaffolding keeps authorship with the team but adds a first-run step; fail-closed-with-remedy is the most honest and the least usable. Also decides whether `licenses.yaml` gains the override chain its header documents. | **N0-T09a** |
 | **`D36`** | Full-history aggregation shape | **N1-T01 — before any consumer migrates** |
 | **`D40`** | `approvedBy` vocabulary: closed or policy-extensible | **N1-T18** |
 | **`D42`** | Whether the deterministic-engine investment gate binds the build agent or advises the owner | **Before any M33 slice beyond the structural set** |
@@ -578,6 +607,7 @@ Cut in this order. Each cut leaves a coherent, honest product.
 
 | Phase | Acceptance criteria |
 |---|---|
+| **N0** | AC-53 |
 | **N1** | AC-41, AC-42, AC-43, AC-44, AC-47 |
 | **N2** | AC-45, AC-46, AC-48, AC-49, AC-51, AC-52; AC-50 *(human-gated, needs a customer)* |
 | **N3** | None — the deliverable is a written decision with its ledger slice |

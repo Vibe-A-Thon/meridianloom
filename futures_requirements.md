@@ -9,7 +9,7 @@
 | **Complements** | `Requirements_Final.md` v2.1 · `gaps-requirements.md` v1.0 · `gaps_initiation.md` v1.0 |
 | **Governed by** | `futures-implementation.md` — the phase-by-phase build order for everything specified here |
 | **Purpose** | To turn the 36 `FUT-nnn` proposals in `futures.md` into normative, testable requirements that slot into the existing specification family without renumbering anything |
-| **Scale** | 6 new modules · 84 functional requirements · 11 NFRs · 8 security requirements · 12 acceptance criteria · 5 principles · 6 risks · 7 decisions |
+| **Scale** | 6 new modules · 84 functional requirements · 11 NFRs · 8 security requirements · 13 acceptance criteria · 5 principles · 6 risks · 8 decisions |
 
 ---
 
@@ -208,7 +208,7 @@ Each amendment refines scope that an existing module already owns. No identifier
 | ID | Module | Amendment | FUT |
 |---|---|---|---|
 | **AMD-M10** | Ledger | `FR-M10-12`'s query API SHALL satisfy `FR-M41-07` pagination and `FR-M41-08` coverage reporting. `FR-M10-09`'s performance target SHALL be restated against a measured figure on named reference hardware, or the claim withdrawn — it is currently unmet under load. | FUT-020 |
-| **AMD-M12** | Governance | `FR-M12-05` merge enforcement SHALL be extended to the SCM boundary per `FR-M42-03`. `FR-M12-07` approver identity SHALL carry the `approvedBy` class of `FR-M42-07`. `FR-M12-11` compliance export SHALL carry the enforcement point of `FR-M42-12`. | FUT-002, FUT-023, FUT-025 |
+| **AMD-M12** | Governance | `FR-M12-05` merge enforcement SHALL be extended to the SCM boundary per `FR-M42-03`. `FR-M12-07` approver identity SHALL carry the `approvedBy` class of `FR-M42-07`. `FR-M12-11` compliance export SHALL carry the enforcement point of `FR-M42-12`. **`FR-M12-01` SHALL additionally define what an unconfigured workspace receives.** Policy is workspace-resolved and deliberately not packaged, but the loaders currently disagree about the absent-file case: governance and the action-class catalogue fail closed while roles, pricing, story metadata and rework reasons carry embedded defaults, and the licence map implements no override chain despite documenting one. All seven sidecar-loaded packs SHALL share one documented behaviour, selected by `D43`, and a fail-closed pack SHALL name its remedy rather than only the paths it tried (`NFR-10`). | FUT-002, FUT-023, FUT-025, `AC-53` |
 | **AMD-M17** | Measurement | Every KPI SHALL carry the coverage and sample disclosures of `FR-M41-08` and `FR-M41-14`. The DORA four keys SHALL continue to declare that they are ledger proxies, not deployment events, wherever they are displayed or exported. | FUT-008, FUT-020 |
 | **AMD-M20** | Human roles | `FR-M20-01` SHALL be satisfied by a verified identity per `FR-M42-04`; the git-identity implementation is an interim assurance level, not the requirement. `FR-M20-06` approval hygiene SHALL capture whether the artefact was expanded before approval, which requires an interface signal that does not yet exist. | FUT-003 |
 | **AMD-M25** | Human-in-the-loop | The two parallel steering implementations SHALL be reduced to one — `status.md` finding G-03. The retained path SHALL be the one carrying the clarifying-question protocol, uncertainty escalation and partial acceptance, and the interface SHALL use it. | G-03 |
@@ -271,6 +271,7 @@ Each amendment refines scope that an existing module already owns. No identifier
 | **AC-50** | **Two editors, two SCMs, one evidence shape.** The same change is worked in two supported editors and merged through two SCM providers with no Orchestra tier installed. Both produce signed bundles that verify with the open verifier on a clean machine and carry the same evidence schema. | FUT-033 |
 | **AC-51** | **Cost binds to the decision.** For 20 merged changes, the per-change cost reconciles to the ledger and to the vendor-reported total within the stated tolerance, separates merged from abandoned attempts, and reports unreconciled residue rather than absorbing it. No displayed or exported total blends provenance classes without a breakdown. | FUT-030, FUT-031 |
 | **AC-52** | **A binary swap is visible.** An agent executable is replaced with a different build carrying the same declared name. The recorded agent identity changes, a warning is visible, and any attribution made under the unverified identity is labelled as such. | FUT-028, FUT-029 |
+| **AC-53** | **A fresh workspace has one policy behaviour, and it is documented.** The packaged extension is pointed at a repository containing no `policy/` and no `.meridian/policy/` directory. All seven sidecar-loaded packs — governance, roles, action-classes, pricing, stories, rework-reasons, licenses — exhibit the single behaviour `D43` selected. Where a pack fails closed, its error names the remedy and not merely the paths it tried. A test asserts this for every pack, so a newly added pack cannot introduce a different behaviour. | AMD-M12 |
 
 ---
 
@@ -298,6 +299,7 @@ Each amendment refines scope that an existing module already owns. No identifier
 | **D40** | Whether the `approvedBy` taxonomy is a closed vocabulary owned by Meridian or an extensible one owned by policy. A closed vocabulary is testable; an open one survives vendors inventing new approval paths. | Architecture | Start of N1 |
 | **D41** | Whether the compatibility matrix is published publicly, shared under agreement, or kept internal. A public matrix is the strongest honesty signal and the fastest to become wrong. | Founder | N2 |
 | **D42** | Whether the deterministic-engine investment gate (`FR-M46-16`) is binding on the build agent or advisory to the owner. Determines whether M33 work can proceed without the measurement. | Founder | Before further M33 slices |
+| **D43** | Fresh-workspace policy strategy: ship default packs inside the extension and copy them on first run, scaffold them through a guided setup step, or fail closed with a remedy the interface can act on. The three differ in who authors the policy a customer ends up governed by — ship-and-copy puts a Meridian-authored policy into a customer repository without review, scaffolding keeps authorship with the team at the cost of a first-run step, and fail-closed-with-remedy is the most honest and the least usable. Also decides whether `licenses.yaml` gains the override chain its header documents, or the header is corrected. | Architecture + Founder | N0-T09a |
 
 ---
 
