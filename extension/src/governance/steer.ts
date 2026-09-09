@@ -2,6 +2,20 @@
  * Steer & clarify over hosted ACP sessions (FR-M25-01/02/03/04/06;
  * F1 Workstream D tasks 17-18).
  *
+ * CANONICAL STEERING IMPLEMENTATION — AMD-M25 (futures_requirements.md,
+ * status.md G-03): the two parallel steering paths are being reduced to
+ * this one, because it is the path that carries the clarifying-question
+ * protocol, uncertainty escalation and partial acceptance. The duplicate
+ * being retired is the workbench service's `run/steer`
+ * (extension/src/workbench/service.ts, consumed from
+ * webview/src/workbench/catalogue/RunsTab.tsx and
+ * webview/src/workbench/operations/WorkspaceOperations.tsx): it forwards
+ * bare messages through steer.send only, with no question/escalation/
+ * acceptance protocol. MIGRATION TARGET: the workbench steer view calls
+ * the governor.steer RPC family (steer.send/question/answer/escalate/
+ * accept/acceptanceStatus/status/plan) through the canonical controller;
+ * `run/steer` and its webview callers are deleted by the GUI session.
+ *
  * The HostedSteerController is the extension-host half of the M25 steering
  * surface. The sidecar owns the durable record (governor.steer RPCs, each
  * ledger-recorded before it returns — FR-M10-08); this controller owns the
