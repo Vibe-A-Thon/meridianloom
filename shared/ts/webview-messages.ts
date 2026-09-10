@@ -12,9 +12,11 @@ import type { WorkbenchAction } from './workbench';
 
 /** Bump when either union's shape changes incompatibly.
  *  v2: init gained `workspaceDir`; the webview→host union gained the
- *  `download` message (audit-bundle export, FR-M36-04). Both sides are
- *  always built from the same commit, so the handshake version check is
- *  the enforcement. */
+ *  `download` message (audit-bundle export, FR-M36-04).
+ *  v3: portable agent workbench actions and events.
+ *  v4: studio documents, steering, and native source navigation.
+ *  Build-manifest validation and the live handshake reject incompatible
+ *  pairs; rebuilding files does not restart an already running host. */
 export const WEBVIEW_PROTOCOL_VERSION = 4;
 
 export type { RequestId, RequestMethod };

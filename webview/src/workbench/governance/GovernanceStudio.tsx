@@ -2,6 +2,7 @@ import { Approvals, Gates } from './Gates';
 import { Calibration, Trust } from './Analytics';
 import { Pipeline, Security, Verification } from './DeliveryEvidence';
 import { Repositories } from './Repositories';
+import { EvidenceGate } from './EvidenceGate';
 import {
   CompareAgents,
   DoraExport,
@@ -28,6 +29,7 @@ export function GovernanceStudio({ view, ...props }: GovernanceProps & { view: s
     // spend/pricing and spend/forecast rather than recomputing a simpler
     // view from ledger.query with a local 1,000-row truncation guess.
     case 'spend': return <SpendObservatory {...props} />;
+    case 'f2-gate': return <EvidenceGate {...props} />;
     case 'trust-score': return <TrustScore {...props} />;
     case 'rejection-reasons': return <ReasonDistribution {...props} />;
     case 'agent-comparison': return <CompareAgents {...props} />;

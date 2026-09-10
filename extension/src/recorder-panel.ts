@@ -4,7 +4,7 @@ import { resolveWorkspaceSource } from './editor-surfaces';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { dispatchWebviewMessage, type ProxyContext } from './webview/webview-rpc-proxy';
-import type { HostEvent } from '../../shared/ts/webview-messages';
+import { WEBVIEW_PROTOCOL_VERSION, type HostEvent } from '../../shared/ts/webview-messages';
 import type { WorkbenchService } from './workbench';
 
 /**
@@ -83,31 +83,60 @@ export function buildPanelHtml(options: {
 }
 
 /**
- * Where the built webview bundle lives, in both install shapes (same
- * two-shape pattern as resolveCoreDir):
+ * Resolve one install shape, then validate its build contract before serving it.
  *  - packaged VSIX: <extensionPath>/webview-dist (populated by
  *    scripts/package-extension.mjs);
- *  - development checkout: <repoRoot>/webview/dist.
+ *  - verified development checkout: <repoRoot>/webview/dist only. Packaging
+ *    leaves a staging copy inside extension/, which must not shadow a new build.
  */
 export async function resolveWebviewDist(extensionPath: string): Promise<string> {
-  const candidates = [
-    path.join(extensionPath, 'webview-dist'),
-    path.resolve(extensionPath, '..', 'webview', 'dist'),
-  ];
-  const { access } = await import('node:fs/promises');
-  for (const candidate of candidates) {
-    try {
-      await access(path.join(candidate, 'index.html'));
-      return candidate;
-    } catch {
-      // try the next shape
-    }
+  const repositoryRoot = path.resolve(extensionPath, '..');
+  let development = false;
+  try {
+    const [rootPackage, webviewPackage] = await Promise.all([
+      readFile(path.join(repositoryRoot, 'package.json'), 'utf8'),
+      readFile(path.join(repositoryRoot, 'webview', 'package.json'), 'utf8'),
+    ]);
+    development =
+      JSON.parse(rootPackage)?.name === 'meridian-loom-root' &&
+      JSON.parse(webviewPackage)?.name === 'meridian-loom-webview';
+  } catch {
+    // Installed extensions do not have the two repository workspace manifests.
   }
-  throw new Error(
-    'The recorder webview bundle is missing. Built assets were not found in: ' +
-      candidates.join(', ') +
-      '. Run `npm run build` from the repository root, or reinstall the extension.',
-  );
+  const distDir = development
+    ? path.join(repositoryRoot, 'webview', 'dist')
+    : path.join(extensionPath, 'webview-dist');
+  const recovery = development
+    ? 'Run `npm run build` from the repository root, then run Developer: Reload Window.'
+    : 'Reinstall the complete Meridian Loom VSIX, then run Developer: Reload Window. For a source checkout, run `npm run build` from its repository root.';
+  const { access } = await import('node:fs/promises');
+  try {
+    await access(path.join(distDir, 'index.html'));
+  } catch {
+    throw new Error(`The recorder webview bundle is missing at ${distDir}. ${recovery}`);
+  }
+  const manifestPath = path.join(distDir, 'meridian-webview.json');
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  } catch {
+    throw new Error(`The recorder webview build manifest is missing or unreadable at ${manifestPath}. ${recovery}`);
+  }
+  if (
+    typeof manifest !== 'object' || manifest === null || Array.isArray(manifest) ||
+    !('formatVersion' in manifest) || manifest.formatVersion !== 1 ||
+    !('protocolVersion' in manifest) ||
+    typeof manifest.protocolVersion !== 'number' || !Number.isSafeInteger(manifest.protocolVersion)
+  ) {
+    throw new Error(`The recorder webview build manifest is invalid at ${manifestPath}. ${recovery}`);
+  }
+  if (manifest.protocolVersion !== WEBVIEW_PROTOCOL_VERSION) {
+    throw new Error(
+      `Meridian webview build mismatch: the running host uses protocol v${WEBVIEW_PROTOCOL_VERSION}, ` +
+      `but ${manifestPath} declares v${manifest.protocolVersion}. ${recovery}`,
+    );
+  }
+  return distDir;
 }
 
 export class RecorderPanel {

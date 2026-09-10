@@ -129,6 +129,7 @@ const GOVERNANCE = [
   "trust",
   "calibration",
   "spend",
+  "f2-gate",
   "trust-score",
   "rejection-reasons",
   "agent-comparison",

@@ -13,6 +13,20 @@ Specifications (read-only, in precedence order):
 
 Build progress is tracked in `BUILD_STATE.md`; decisions in `DECISIONS.md`.
 
+## Recovering from a webview protocol mismatch
+
+Run **Developer: Reload Window** from the VS Code command palette (`Ctrl+Shift+P`).
+An extension host already running in memory can still speak the previous protocol
+after its files have been rebuilt or updated. Closing and reopening the Meridian
+panel does not restart that host.
+
+For development, run `npm run build` at the repository root, then start **Run
+Meridian Loom** with F5. The launch task builds both components and verifies their
+protocol versions. Development uses `webview/dist`; installed extensions use their
+packaged `webview-dist`. A build manifest prevents loading a mismatched webview.
+If an installed extension still reports a mismatch after reloading, install a
+fresh VSIX created with `npm run package`, then reload the window once more.
+
 ## Layout
 
 The new [agent workbench](docs/gui-implementation.md) opens with **Meridian: Open

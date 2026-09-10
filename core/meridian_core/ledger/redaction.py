@@ -54,6 +54,70 @@ _PATTERNS: list[tuple[re.Pattern[str], str]] = [
 def redact_secrets(text: str) -> str:
     """Return `text` with any detected credential material redacted."""
     redacted = text
-    for pattern, replacement in _PATTERNS:
+    for pattern, replacement in [*_PATTERNS, *_EXTRA_PATTERNS]:
         redacted = pattern.sub(replacement, redacted)
     return redacted
+
+
+# -- FR-M43-06 (N2 Workstream D task 17): profile- and field-level redaction --
+
+#: Runtime-registered patterns (FR-M43-06 field redaction): an operator
+#: or test can register organisation-specific secret shapes without
+#: editing this file. Applied after the built-in set, same asymmetry:
+#: over-redaction is preferred over a leak.
+_EXTRA_PATTERNS: list[tuple[re.Pattern[str], str]] = []
+
+
+def register_redaction_pattern(pattern: str, replacement: str = REDACTED) -> None:
+    """Register an extra credential shape, e.g. an org-specific token
+    prefix. Idempotent: registering the same pattern twice is a no-op."""
+    compiled = re.compile(pattern)
+    if all(existing.pattern != compiled.pattern for existing, _ in _EXTRA_PATTERNS):
+        _EXTRA_PATTERNS.append((compiled, replacement))
+
+
+def clear_registered_patterns() -> None:
+    """Drop all runtime-registered patterns (test isolation)."""
+    _EXTRA_PATTERNS.clear()
+
+
+def _set_path(value: Any, parts: list[str], replacement: str) -> bool:
+    """Set the value at a dotted path (``tool_calls.0.command``) inside
+    nested dicts/lists to `replacement`; False when the path does not
+    exist."""
+    if not parts:
+        return False
+    head, *tail = parts
+    if isinstance(value, list) and head.isdigit():
+        index = int(head)
+        if index >= len(value):
+            return False
+        if not tail:
+            value[index] = replacement
+            return True
+        return _set_path(value[index], tail, replacement)
+    if isinstance(value, dict) and head in value:
+        if not tail:
+            value[head] = replacement
+            return True
+        return _set_path(value[head], tail, replacement)
+    return False
+
+
+def redact_fields(payload: dict, fields: set[str]) -> dict:
+    """FR-M43-06 field and path redaction: return a copy of `payload`
+    with each named top-level field — or dotted path into nested
+    dicts/lists — replaced by ``[REDACTED]``. Unknown fields are left
+    untouched (a redaction request for data that is not there is a
+    no-op, not an error)."""
+    import copy
+
+    out = copy.deepcopy(payload)
+    for field in fields:
+        parts = field.split(".")
+        if len(parts) == 1:
+            if field in out and out[field] is not None:
+                out[field] = REDACTED
+            continue
+        _set_path(out, parts, REDACTED)
+    return out

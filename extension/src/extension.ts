@@ -25,6 +25,7 @@ import { registerViews } from './views';
 
 let supervisor: SidecarSupervisor | undefined;
 let workbench: WorkbenchService | undefined;
+let runtimeGeneration = 0;
 
 /** FR-M39-02/D33: pause-pending state for hosted sessions that breached a spend ceiling. */
 const spendCeilingPauses = new SpendCeilingPauseTracker();
@@ -106,6 +107,8 @@ function onConfigurationChanged(event: vscode.ConfigurationChangeEvent): void {
  * stack so the extension host thread is never blocked.
  */
 export function activate(context: vscode.ExtensionContext): void {
+  const generation = ++runtimeGeneration;
+  const initialWorkspace = workspaceDir();
   workbench = new WorkbenchService({
     workspaceDir, trusted: () => vscode.workspace.isTrusted,
     enabledTiers: readEnabledTiers, sidecar: () => {
@@ -121,6 +124,11 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   context.subscriptions.push(workbench);
   const workspaceListener = vscode.workspace.onDidChangeWorkspaceFolders?.(() => {
+    if (workspaceDir() !== initialWorkspace) {
+      ++runtimeGeneration;
+      void supervisor?.stop();
+      void vscode.window.showWarningMessage('The Meridian workspace changed. Run Developer: Reload Window before continuing.');
+    }
     void workbench?.reconcile().catch(error => void vscode.window.showErrorMessage(String(error)));
   });
   if (workspaceListener) context.subscriptions.push(workspaceListener);
@@ -247,12 +255,13 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push({
     dispose: () => {
+      if (runtimeGeneration === generation) ++runtimeGeneration;
       // FR-M3-02: any deactivation path — window close, reload, disable —
       // disposes subscriptions, and disposal terminates the sidecar.
       void supervisor?.stop();
     },
   });
-  void startRuntime(context);
+  void startRuntime(context, generation);
 }
 
 /**
@@ -260,11 +269,14 @@ export function activate(context: vscode.ExtensionContext): void {
  * extension surfaces an actionable error and refuses to start — no
  * plaintext fallback, no half-started runtime.
  */
-export async function startRuntime(context: vscode.ExtensionContext): Promise<void> {
+export async function startRuntime(context: vscode.ExtensionContext, generation = ++runtimeGeneration): Promise<void> {
+  const current = () => generation === runtimeGeneration && vscode.workspace.isTrusted;
   // Yield first: even the probe call itself must not run inside activate().
   await Promise.resolve();
+  if (!current()) return;
   try {
     await SecretStore.verifyAvailable(context.secrets);
+    if (!current()) return;
   } catch (error) {
     if (error instanceof SecretStorageUnavailableError) {
       void vscode.window.showErrorMessage(error.message);
@@ -277,9 +289,11 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
   statusBar.showStarting();
   try {
     const coreDir = await resolveCoreDir(context.extensionPath);
+    if (!current()) return;
     // FR-M3-05: the interpreter comes from the resolution chain; the
     // resolved path is shown in the status bar.
     const interpreter = await resolveInterpreter();
+    if (!current()) return;
     // A resolved interpreter that cannot import the sidecar's dependencies
     // will die at spawn with a ModuleNotFoundError buried in stderr. Say what
     // is wrong and give the exact command, before that happens.
@@ -301,6 +315,7 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
     const ledgerSigningKey = await SecretStore.getOrCreateLedgerSigningKey(
       context.secrets,
     );
+    if (!current()) return;
     const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     // FR-M20-01 (D9): the identity source of record, read at spawn time so
     // a supervisor restart picks up a settings change. "git" resolves the
@@ -344,9 +359,11 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
         });
       },
     });
-    await supervisor.start();
-    statusBar.showReady(interpreter);
+    const started = supervisor;
+    await started.start();
+    if (current() && supervisor === started && started.isRunning) statusBar.showReady(interpreter);
   } catch (error) {
+    if (!current()) return;
     // supervisor.start() failures are already surfaced via onError; layout
     // and interpreter-resolution failures are not — surface them here.
     if (supervisor === undefined) {
@@ -362,6 +379,7 @@ export async function startRuntime(context: vscode.ExtensionContext): Promise<vo
  * SIGTERM, then a tree kill). VS Code awaits the returned promise.
  */
 export async function deactivate(): Promise<void> {
+  ++runtimeGeneration;
   workbench?.dispose();
   workbench = undefined;
   const current = supervisor;

@@ -1,8 +1,18 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
+import { WEBVIEW_PROTOCOL_VERSION } from '../shared/ts/webview-messages';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), {
+    name: 'meridian-webview-protocol',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'meridian-webview.json',
+        source: JSON.stringify({ formatVersion: 1, protocolVersion: WEBVIEW_PROTOCOL_VERSION }),
+      });
+    },
+  }],
   base: './',
   build: {
     outDir: 'dist',

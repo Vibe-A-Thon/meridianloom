@@ -149,7 +149,7 @@ describe('runDoctor (FR-M30-01)', () => {
     expect(check?.status).toBe('fail');
     expect(check?.detail).toContain('cannot import: cryptography');
     // The remediation is the exact command, not "install the dependencies".
-    expect(check?.remediation).toContain('-m pip install cryptography');
+    expect(check?.remediation).toContain("-m pip install 'cryptography==49.0.0'");
   });
 
   it('an unreachable sidecar produces the same shape, with the RPC error named', async () => {

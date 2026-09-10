@@ -1,5 +1,5 @@
 import { WEBVIEW_PROTOCOL_VERSION } from '../../shared/ts/webview-messages';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -33,14 +33,31 @@ const SAMPLE_INDEX = `<!doctype html>
 </html>
 `;
 
+function writeDist(distDir: string, protocolVersion = WEBVIEW_PROTOCOL_VERSION): void {
+  mkdirSync(path.join(distDir, 'assets'), { recursive: true });
+  writeFileSync(path.join(distDir, 'index.html'), SAMPLE_INDEX);
+  writeFileSync(path.join(distDir, 'meridian-webview.json'), JSON.stringify({ formatVersion: 1, protocolVersion }));
+  writeFileSync(path.join(distDir, 'assets', 'index-BI7uVXe-.js'), '// bundle');
+  writeFileSync(path.join(distDir, 'assets', 'index-Cf-NOZyb.css'), '/* styles */');
+}
+
 function fakeDist(): { extensionRoot: string; distDir: string } {
   const extensionRoot = mkdtempSync(path.join(tmpdir(), 'meridian-ext-'));
   const distDir = path.join(extensionRoot, 'webview-dist');
-  mkdirSync(path.join(distDir, 'assets'), { recursive: true });
-  writeFileSync(path.join(distDir, 'index.html'), SAMPLE_INDEX);
-  writeFileSync(path.join(distDir, 'assets', 'index-BI7uVXe-.js'), '// bundle');
-  writeFileSync(path.join(distDir, 'assets', 'index-Cf-NOZyb.css'), '/* styles */');
+  writeDist(distDir);
   return { extensionRoot, distDir };
+}
+
+function fakeCheckout() {
+  const repositoryRoot = mkdtempSync(path.join(tmpdir(), 'meridian-checkout-'));
+  const extensionRoot = path.join(repositoryRoot, 'extension');
+  const sourceDist = path.join(repositoryRoot, 'webview', 'dist');
+  const stagedDist = path.join(extensionRoot, 'webview-dist');
+  writeDist(sourceDist);
+  writeDist(stagedDist, WEBVIEW_PROTOCOL_VERSION - 1);
+  writeFileSync(path.join(repositoryRoot, 'package.json'), JSON.stringify({ name: 'meridian-loom-root' }));
+  writeFileSync(path.join(repositoryRoot, 'webview', 'package.json'), JSON.stringify({ name: 'meridian-loom-webview' }));
+  return { repositoryRoot, extensionRoot, sourceDist, stagedDist };
 }
 
 /** Poll until fn stops throwing (async work landing on the thread pool). */
@@ -120,6 +137,63 @@ describe('resolveWebviewDist — both install shapes', () => {
   it('throws an actionable error when the bundle is missing', async () => {
     const empty = mkdtempSync(path.join(tmpdir(), 'meridian-empty-'));
     await expect(resolveWebviewDist(empty)).rejects.toThrow(/npm run build/);
+  });
+
+  it('prefers the current development bundle over a stale packaging copy', async () => {
+    const { extensionRoot, sourceDist } = fakeCheckout();
+    await expect(resolveWebviewDist(extensionRoot)).resolves.toBe(sourceDist);
+  });
+
+  it('never falls back to staged assets when a verified checkout has not been built', async () => {
+    const { extensionRoot, sourceDist, stagedDist } = fakeCheckout();
+    writeDist(stagedDist);
+    unlinkSync(path.join(sourceDist, 'index.html'));
+    await expect(resolveWebviewDist(extensionRoot)).rejects.toThrow(sourceDist);
+    await expect(resolveWebviewDist(extensionRoot)).rejects.toThrow(/npm run build.*Reload Window/);
+  });
+
+  it('requires both repository identities before selecting development assets', async () => {
+    const { repositoryRoot, extensionRoot, stagedDist } = fakeCheckout();
+    writeDist(stagedDist);
+    writeFileSync(path.join(repositoryRoot, 'webview', 'package.json'), JSON.stringify({ name: 'unrelated-webview' }));
+    await expect(resolveWebviewDist(extensionRoot)).resolves.toBe(stagedDist);
+  });
+
+  it('does not serve a sibling webview when installed assets are missing', async () => {
+    const { repositoryRoot, extensionRoot, stagedDist } = fakeCheckout();
+    unlinkSync(path.join(repositoryRoot, 'package.json'));
+    unlinkSync(path.join(stagedDist, 'index.html'));
+    await expect(resolveWebviewDist(extensionRoot)).rejects.toThrow(/Reinstall the complete Meridian Loom VSIX/);
+  });
+
+  it.each(['packaged', 'development'])('rejects missing %s build manifests', async (shape) => {
+    const packaged = shape === 'packaged' ? fakeDist() : undefined;
+    const development = shape === 'development' ? fakeCheckout() : undefined;
+    const extensionRoot = packaged?.extensionRoot ?? development!.extensionRoot;
+    const distDir = packaged?.distDir ?? development!.sourceDist;
+    unlinkSync(path.join(distDir, 'meridian-webview.json'));
+    await expect(resolveWebviewDist(extensionRoot)).rejects.toThrow(/build manifest is missing or unreadable/);
+  });
+
+  it.each(['packaged', 'development'])('rejects %s assets built for another protocol', async (shape) => {
+    const packaged = shape === 'packaged' ? fakeDist() : undefined;
+    const development = shape === 'development' ? fakeCheckout() : undefined;
+    const extensionRoot = packaged?.extensionRoot ?? development!.extensionRoot;
+    const distDir = packaged?.distDir ?? development!.sourceDist;
+    writeDist(distDir, WEBVIEW_PROTOCOL_VERSION - 1);
+    await expect(resolveWebviewDist(extensionRoot)).rejects.toThrow(`running host uses protocol v${WEBVIEW_PROTOCOL_VERSION}`);
+    await expect(resolveWebviewDist(extensionRoot)).rejects.toThrow(`declares v${WEBVIEW_PROTOCOL_VERSION - 1}`);
+  });
+
+  it.each([
+    [],
+    null,
+    { formatVersion: 2, protocolVersion: WEBVIEW_PROTOCOL_VERSION },
+    { formatVersion: 1, protocolVersion: String(WEBVIEW_PROTOCOL_VERSION) },
+  ])('refuses an invalid manifest shape: %j', async (manifest) => {
+    const { extensionRoot, distDir } = fakeDist();
+    writeFileSync(path.join(distDir, 'meridian-webview.json'), JSON.stringify(manifest));
+    await expect(resolveWebviewDist(extensionRoot)).rejects.toThrow(/build manifest is invalid/);
   });
 });
 

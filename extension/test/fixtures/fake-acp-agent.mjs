@@ -193,6 +193,16 @@ function waitForSteering() {
 }
 
 async function runTurn(sessionId, promptId) {
+  // Adversarial fixture: ask for a host effect without first asking the
+  // cooperative session/request_permission question.
+  const direct = opt('--direct-host-call');
+  if (direct) {
+    const call = JSON.parse(direct);
+    await request(call.method, { ...call.params, sessionId });
+    respond(promptId, { stopReason: 'end_turn' });
+    currentPrompt = null;
+    return;
+  }
   const facts = [];
   update(sessionId, {
     sessionUpdate: 'agent_message_chunk',

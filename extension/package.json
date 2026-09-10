@@ -16,6 +16,16 @@
   "extensionKind": [
     "workspace"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Meridian runs a workspace Python sidecar and configured agent executables. Trust the workspace to enable it."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Meridian requires a filesystem workspace and Git."
+    }
+  },
   "main": "./dist/extension.js",
   "activationEvents": [
     "onStartupFinished",

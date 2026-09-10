@@ -129,4 +129,49 @@ describe('SidecarSupervisor health checks and restart policy (FR-M3-06)', () => 
     expect(clients).toHaveLength(1); // no restart fired
     expect(supervisor.currentState).toBe('stopped');
   });
+
+  it('ignores duplicate exits from a retired child before and after replacement', async () => {
+    await supervisor.start();
+    const retired = clients[0];
+    retired.emit('exit', 1, null);
+    retired.emit('exit', 1, null);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const replacement = supervisor.currentClient;
+    retired.emit('exit', null, 'SIGTERM');
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(clients).toHaveLength(2);
+    expect(supervisor.currentClient).toBe(replacement);
+    expect(supervisor.currentState).toBe('ready');
+    expect(errors).toHaveLength(1);
+  });
+
+  it('does not resurrect readiness when a handshake completes after stop', async () => {
+    let finish!: () => void;
+    const pending = new FakeClient();
+    pending.start = () => new Promise<void>(resolve => { finish = resolve; });
+    supervisor = new SidecarSupervisor({ clientFactory: () => pending });
+    const starting = supervisor.start();
+    await supervisor.stop();
+    finish();
+    await starting;
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(supervisor.currentState).toBe('stopped');
+    expect(supervisor.currentClient).toBeUndefined();
+    expect(pending.pings).toBe(0);
+  });
+
+  it('ignores a heartbeat failure arriving after a replacement is ready', async () => {
+    await supervisor.start();
+    const retired = clients[0];
+    let reject!: (reason: Error) => void;
+    retired.request = () => new Promise((_resolve, fail) => { reject = fail; });
+    await vi.advanceTimersByTimeAsync(5_000);
+    retired.emit('exit', 1, null);
+    await vi.advanceTimersByTimeAsync(1_000);
+    reject(new Error('late heartbeat failure'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(supervisor.currentClient).toBe(clients[1]);
+    expect(supervisor.currentState).toBe('ready');
+    expect(errors).toHaveLength(1);
+  });
 });

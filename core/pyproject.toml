@@ -32,7 +32,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+# pytest-xdist is what makes the suite runnable in practice. Much of it spawns
+# real git and sidecar subprocesses, so a serial run is ~1h45m on eight cores,
+# long enough that people stop running it, which is how every stale claim in
+# this repository happened. Each xdist worker is its own process with its own
+# tmp dirs, so the parallelism is isolated by construction rather than by hoping.
+dev = ["pytest>=8", "pytest-xdist>=3.5"]
 
 [tool.setuptools.packages.find]
 include = ["meridian_core*"]
@@ -49,4 +54,5 @@ norecursedirs = ["tests/fixtures"]
 pythonpath = [".", "../shared/py"]
 markers = [
     "perf: performance assertions (still run in CI; generous floors, measured rates reported)",
+    "slow: builds a real corpus or spawns many subprocesses; excluded from the fast tier",
 ]

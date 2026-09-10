@@ -140,8 +140,9 @@ describe('session lifecycle and streaming (FR-M34-01)', () => {
       const plan = updates[1].update;
       expect(plan.sessionUpdate === 'plan' && plan.entries[0].content).toBe('Do the scripted work');
 
-      // The host approved exactly the tool call the agent asked about.
-      expect(seen).toHaveLength(1);
+      // Host effects each need approval, even if the agent requested a
+      // broader tool permission earlier. A cooperative request is no grant.
+      expect(seen.map(request => request.toolCall.kind)).toEqual(['execute', 'read', 'edit', 'execute', 'edit']);
       expect(seen[0].toolCall.toolCallId).toBe('tc-permission');
       expect(seen[0].options.map((o) => o.optionId)).toContain('allow-once');
 
@@ -259,7 +260,7 @@ describe('client-provided fs and terminal access (FR-M34-01)', () => {
 
 describe('failure honesty', () => {
   it('an agent crash mid-turn rejects the in-flight prompt with a named error', { timeout: TIMEOUT }, async () => {
-    const client = await startClient(agentOptions('--crash'));
+    const client = await startClient({ ...agentOptions('--crash'), approvePermission: fixedApprover('allow-once') });
     try {
       const sessionId = await client.newSession();
       const failure = await client.prompt(sessionId, 'crash now').then(

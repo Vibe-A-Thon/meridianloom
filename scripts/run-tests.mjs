@@ -59,10 +59,22 @@ if (status !== 0) {
 // (FR-M3-05); if no interpreter is on PATH we warn rather than fail so an
 // extension-only edit loop still works.
 const python = process.platform === 'win32' ? 'python' : 'python3';
-const pytest = spawnSync(python, ['-m', 'pytest', 'tests', '-q'], {
-  cwd: path.join(root, 'core'),
-  stdio: 'inherit',
-});
+// -n auto: a serial run of this suite is about an hour and three quarters,
+// because most of it spawns real git and sidecar subprocesses. A suite nobody
+// waits for is a suite nobody runs, which is how every stale claim in this
+// repository happened. Workers are separate processes with separate tmp dirs,
+// so the parallelism is isolated by construction. Budgets are excluded here
+// and measured serially by `npm run test:budgets` — a timing taken under
+// parallel load is the noise that made NFR-33 read PASS while failing.
+const pytest = spawnSync(
+  python,
+  ['-m', 'pytest', 'tests', '-q', '-m', 'not perf', '-n', 'auto'],
+  {
+    cwd: path.join(root, 'core'),
+    stdio: 'inherit',
+    env: { ...process.env, MERIDIAN_PERF_REPORT_ONLY: '1' },
+  },
+);
 if (pytest.error && pytest.error.code === 'ENOENT') {
   console.warn(`WARNING: '${python}' not found; skipping core/ pytest suite.`);
 } else if (pytest.status !== 0) {

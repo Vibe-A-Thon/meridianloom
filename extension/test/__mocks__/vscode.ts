@@ -449,6 +449,7 @@ export interface StatusBarItem {
 }
 
 export const workspace = {
+  get isTrusted(): boolean { return true; },
   get workspaceFolders(): Array<{ uri: Uri; name: string }> | undefined {
     return __workspaceFolders.length > 0 ? [...__workspaceFolders] : undefined;
   },

@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as vscode from 'vscode';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import {
   InterpreterResolutionError,
   MIN_PYTHON_VERSION,
   pathCandidates,
   resolveInterpreter,
+  installCommand,
+  RUNTIME_DEPENDENCIES,
   type Probe,
 } from '../src/interpreter';
 
@@ -30,6 +34,30 @@ function probeOf(map: Record<string, typeof OK | Error>): Probe {
 }
 
 beforeEach(() => mock.__reset());
+
+describe('sidecar dependency contract and recovery', () => {
+  it('checks every pinned runtime distribution in pyproject.toml', () => {
+    const project = readFileSync(path.resolve(__dirname, '../../core/pyproject.toml'), 'utf8');
+    const dependencies = project.split('dependencies = [')[1].split(']')[0];
+    const pins = [...dependencies.matchAll(/"([A-Za-z0-9_-]+==[^"\s]+)"/g)].map(match => match[1]);
+    expect(Object.values(RUNTIME_DEPENDENCIES).sort()).toEqual(pins.sort());
+  });
+
+  it('uses pinned pip distribution names and a literal PowerShell executable', () => {
+    const command = installCommand({ ...OK, source: 'setting', executable: "C:\\O'Brien $tools\\python.exe", missing: ['yaml', 'tree_sitter'] }, 'win32');
+    expect(command).toBe("& 'C:\\O''Brien $tools\\python.exe' -m pip install 'PyYAML==6.0.2' 'tree-sitter==0.25.1'");
+  });
+
+  it('quotes shell metacharacters in POSIX recovery commands', () => {
+    expect(installCommand({ ...OK, source: 'setting', executable: "/opt/it's $(safe)/python", missing: ['cryptography'] }, 'linux'))
+      .toBe("'/opt/it'\\''s $(safe)/python' -m pip install 'cryptography==49.0.0'");
+  });
+
+  it('refuses to turn an unknown probe result into a pip argument', () => {
+    expect(() => installCommand({ ...OK, source: 'path', missing: ['--index-url=untrusted'] }))
+      .toThrow('Unknown sidecar dependency');
+  });
+});
 
 describe('interpreter resolution chain (FR-M3-05)', () => {
   it('prefers the configured interpreterPath over everything', async () => {

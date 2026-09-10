@@ -45,7 +45,8 @@ export class RpcProtocolError extends Error {
   ) {
     super(
       `Webview protocol mismatch: host speaks v${actual}, the webview requires v${expected}. ` +
-        'Reload the window; if this persists, the extension and webview were built from different commits.',
+        'Run Developer: Reload Window from the VS Code command palette. Reopening this panel does not restart the extension host. ' +
+        'If the mismatch persists, rebuild both components with npm run build at the repository root or reinstall the matching VSIX.',
     );
     this.name = 'RpcProtocolError';
   }

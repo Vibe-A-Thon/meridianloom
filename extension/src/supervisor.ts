@@ -64,6 +64,9 @@ export class SidecarSupervisor {
   private heartbeat: NodeJS.Timeout | undefined;
   private restartTimer: NodeJS.Timeout | undefined;
   private restartTimestamps: number[] = [];
+  private generation = 0;
+  private stopPromise: Promise<void> | undefined;
+  private readonly pendingPings = new WeakSet<ManagedClient>();
 
   constructor(private readonly deps: SupervisorDeps) {}
 
@@ -81,30 +84,37 @@ export class SidecarSupervisor {
   }
 
   async start(): Promise<void> {
-    if (this.client) {
+    if (this.client || this.stopPromise || this.restartTimer) {
       throw new Error('supervisor already started');
     }
     await this.spawnClient();
   }
 
   private async spawnClient(): Promise<void> {
+    const generation = ++this.generation;
     const client = this.deps.clientFactory();
     this.client = client;
+    const ownsClient = () => this.client === client && this.generation === generation && !this.stopping;
     client.on('spawnError', (error: Error) => {
-      this.deps.onError?.(error.message);
+      if (ownsClient()) this.deps.onError?.(error.message);
     });
     client.on('exit', (code, signal) => {
-      if (!this.stopping) {
+      if (ownsClient()) {
         this.handleUnexpectedExit(code, signal);
       }
     });
     try {
       await client.start();
     } catch (error) {
-      this.client = undefined;
-      this.deps.onError?.(error instanceof Error ? error.message : String(error));
+      if (ownsClient()) {
+        this.client = undefined;
+        client.kill();
+        this.deps.onError?.(error instanceof Error ? error.message : String(error));
+      }
       throw error;
     }
+    // A late handshake must never resurrect a stopped or replaced runtime.
+    if (!ownsClient()) return;
     this.setState('ready');
     this.startHeartbeat();
   }
@@ -113,7 +123,17 @@ export class SidecarSupervisor {
    * Graceful teardown with escalation. Always resolves: teardown must never
    * throw out of deactivate().
    */
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
+    if (!this.stopPromise) {
+      this.stopPromise = this.stopOwnedClient().finally(() => {
+        this.stopPromise = undefined;
+      });
+    }
+    return this.stopPromise;
+  }
+
+  private async stopOwnedClient(): Promise<void> {
+    ++this.generation;
     this.stopHeartbeat();
     if (this.restartTimer) {
       clearTimeout(this.restartTimer);
@@ -173,9 +193,11 @@ export class SidecarSupervisor {
 
   private async beat(): Promise<void> {
     const client = this.client;
-    if (!client || this.stopping || this.state !== 'ready') {
+    if (!client || this.stopping || this.state !== 'ready' || this.pendingPings.has(client)) {
       return;
     }
+    const generation = this.generation;
+    this.pendingPings.add(client);
     const timeoutMs = this.deps.pingTimeoutMs ?? 3_000;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -183,9 +205,13 @@ export class SidecarSupervisor {
       await client.request('ping', {}, controller.signal);
     } catch {
       // Unresponsive: treat as dead and run the restart policy.
-      client.kill();
-      this.handleUnexpectedExit(null, 'heartbeat-timeout');
+      if (this.client === client && this.generation === generation && !this.stopping) {
+        // Revoke ownership before kill: its exit event may arrive immediately.
+        this.handleUnexpectedExit(null, 'heartbeat-timeout');
+        client.kill();
+      }
     } finally {
+      this.pendingPings.delete(client);
       clearTimeout(timeout);
     }
   }
@@ -193,6 +219,8 @@ export class SidecarSupervisor {
   // -- FR-M3-06: bounded restart --------------------------------------------
 
   private handleUnexpectedExit(code: number | null, signal: string | null): void {
+    this.client = undefined;
+    const generation = ++this.generation;
     this.stopHeartbeat();
     const now = Date.now();
     const windowMs = this.deps.restartWindowMs ?? 300_000;
@@ -219,10 +247,15 @@ export class SidecarSupervisor {
     );
     this.restartTimer = setTimeout(() => {
       this.restartTimer = undefined;
-      void this.spawnClient().catch(() => {
+      if (this.stopping || this.generation !== generation) return;
+      const pending = this.spawnClient();
+      const spawnGeneration = this.generation;
+      void pending.catch(() => {
         // spawnClient already reported; run the budget check again so a
         // failing spawn consumes restart budget like a crash does.
-        this.handleUnexpectedExit(null, 'spawn-failed');
+        if (!this.stopping && this.generation === spawnGeneration) {
+          this.handleUnexpectedExit(null, 'spawn-failed');
+        }
       });
     }, backoffMs);
     this.restartTimer.unref?.();

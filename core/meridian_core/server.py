@@ -49,6 +49,7 @@ from .governance import revocations as governance_revocations
 from .governance import roles as governance_roles
 from . import hooks as provenance_hooks
 from . import metrics as metrics_mod
+from .metrics import evidence_gate
 from . import rejection as rejection_mod
 from .rejection import taxonomy as rejection_taxonomy
 from .ledger import core as ledger_core
@@ -192,6 +193,11 @@ class SidecarServer:
             "trust/jcurve": SidecarServer._handle_trust_jcurve,
             "trust/tokenmaxxing": SidecarServer._handle_trust_tokenmaxxing,
             "trust/doraExport": SidecarServer._handle_trust_dora_export,
+            # F2 (gaps_implementation.md §F2): the evidence gate, computed.
+            # Its measures were all computable and all in different places;
+            # assembling the verdict by hand is exactly the manual step this
+            # project has repeatedly got wrong.
+            "evidence/gate": SidecarServer._handle_evidence_gate,
             # FR-M39-01/02/03/04 (F1 Workstream F tasks 26-29): cross-vendor
             # spend — the real feed onto the SpendSeries protocol, config-
             # driven ceilings (pause hosted / warn observed), the monthly
@@ -2642,6 +2648,37 @@ class SidecarServer:
         }
 
     # -- rejection rate (FR-M17-05 + FR-M37-01, task 30) ----------------------
+
+    def _handle_evidence_gate(
+        self, params: bus_types.EvidenceGateParams
+    ) -> bus_types.EvidenceGateResult:
+        """F2's gate over this workspace's own ledger.
+
+        Approval hygiene (FR-M20-06) is bound here rather than inside the
+        metric, because it needs the workspace's role pack: `assess_hygiene`
+        has existed since F1 and was never reachable over the bus, which is
+        why the F2 measure it was written for could not be taken.
+        """
+        params = params or {}
+        ledger = self._ensure_ledger()
+
+        hygiene = None
+        try:
+            pack = self._role_pack(params)
+        except Exception:  # noqa: BLE001 — an unreadable pack is not a crash
+            pack = None
+        if pack is not None:
+
+            def hygiene(subject: str) -> list[str]:  # type: ignore[misc]
+                return governance_roles.assess_hygiene(ledger, pack, subject=subject)
+
+        return evidence_gate.compute_evidence_gate(
+            ledger,
+            from_sequence=params.get("fromSequence"),
+            to_sequence=params.get("toSequence"),
+            baseline_change_failure_rate=params.get("baselineChangeFailureRate"),
+            hygiene=hygiene,
+        )  # type: ignore[return-value]
 
     def _handle_trust_rejection_rate(
         self, params: bus_types.TrustRejectionRateParams

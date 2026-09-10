@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
-import { activate, startRuntime } from '../src/extension';
+import { activate, deactivate, startRuntime } from '../src/extension';
 import { SecretStorageUnavailableError, SecretStore } from '../src/secrets';
 
 function mockContext(secrets: vscode.SecretStorage): vscode.ExtensionContext {
@@ -92,6 +92,25 @@ describe('SecretStore (FR-M1-06)', () => {
     expect(probeStarted).toBe(false);
     await new Promise((resolve) => setImmediate(resolve));
     expect(probeStarted).toBe(true);
+  });
+
+  it('deactivation cancels startup before its deferred keychain probe', async () => {
+    const secrets = new vscode.MemorySecretStorage();
+    const probe = vi.spyOn(secrets, 'store');
+    activate(mockContext(secrets));
+    await deactivate();
+    await new Promise(resolve => setImmediate(resolve));
+    expect(probe).not.toHaveBeenCalled();
+  });
+
+  it('does not start the runtime in an untrusted workspace', async () => {
+    const trust = vi.spyOn(vscode.workspace, 'isTrusted', 'get').mockReturnValue(false);
+    const secrets = new vscode.MemorySecretStorage();
+    const probe = vi.spyOn(secrets, 'store');
+    try {
+      await startRuntime(mockContext(secrets));
+      expect(probe).not.toHaveBeenCalled();
+    } finally { trust.mockRestore(); }
   });
 });
 

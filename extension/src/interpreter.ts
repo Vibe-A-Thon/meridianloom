@@ -42,8 +42,19 @@ export interface InterpreterResolution {
 }
 
 /** The command that fixes a missing-dependency resolution, in full. */
-export function installCommand(resolution: InterpreterResolution): string {
-  return `"${resolution.executable}" -m pip install ${resolution.missing.join(' ')}`;
+export function installCommand(
+  resolution: InterpreterResolution,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  const quote = (value: string) => platform === 'win32'
+    ? `'${value.replace(/'/g, "''")}'`
+    : `'${value.replace(/'/g, "'\\''")}'`;
+  const packages = resolution.missing.map((name) => {
+    const requirement = RUNTIME_DEPENDENCIES[name as keyof typeof RUNTIME_DEPENDENCIES];
+    if (!requirement) throw new Error(`Unknown sidecar dependency: ${name}`);
+    return quote(requirement);
+  });
+  return `${platform === 'win32' ? '& ' : ''}${quote(resolution.executable)} -m pip install ${packages.join(' ')}`;
 }
 
 export interface ProbeResult {
@@ -74,15 +85,27 @@ export class InterpreterResolutionError extends Error {
  * ModuleNotFoundError — a diagnosis that says "pass" while the product does
  * not work is worse than no diagnosis.
  */
-export const REQUIRED_MODULES = ['cryptography'] as const;
+// Keep distribution pins aligned with core/pyproject.toml (contract-tested).
+// Import names differ from pip distributions; a discoverable module can also
+// fail to load because its native library or a transitive dependency is absent.
+export const RUNTIME_DEPENDENCIES = {
+  cryptography: 'cryptography==49.0.0',
+  tree_sitter: 'tree-sitter==0.25.1',
+  tree_sitter_java: 'tree-sitter-java==0.23.5',
+  tree_sitter_python: 'tree-sitter-python==0.25.0',
+  yaml: 'PyYAML==6.0.2',
+  jsonschema: 'jsonschema==4.26.0',
+} as const;
+export const REQUIRED_MODULES = Object.keys(RUNTIME_DEPENDENCIES);
 
 const VERSION_PROBE_SNIPPET =
-  'import sys, json, importlib.util as u; ' +
+  'import sys, json, importlib\n' +
+  'missing = []\n' +
+  `for name in ${JSON.stringify(REQUIRED_MODULES)}:\n` +
+  ' try:\n  importlib.import_module(name)\n' +
+  ' except Exception:\n  missing.append(name)\n' +
   'print(json.dumps({"executable": sys.executable, ' +
-  '"version": list(sys.version_info[:3]), ' +
-  '"missing": [m for m in ' +
-  JSON.stringify([...REQUIRED_MODULES]) +
-  ' if u.find_spec(m) is None]}))';
+  '"version": list(sys.version_info[:3]), "missing": missing}))';
 
 /** Default probe: spawn the candidate, parse its self-reported version. */
 export const spawnProbe: Probe = async (command) => {

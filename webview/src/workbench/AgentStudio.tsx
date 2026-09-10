@@ -274,10 +274,14 @@ export function AgentStudio({
         <span>
           Deactivating an agent stops its queued or running tasks and moves it to Learning.
           Activation controls participation; permissions still apply.{' '}
+          Learning stores reviewed feedback for future tasks; it does not run a background training process.{' '}
           <button className={s.quietButton} onClick={() => onNavigate?.('learning')}>
             Explore the dojo →
           </button>
         </span>
+      </p>
+      <p className={s.footnote}>
+        Hosted agents are local programs with your operating-system access. Meridian gates host-provided file and terminal operations; it does not sandbox the agent executable or control tools it runs directly.
       </p>
       {editing && (
         <AgentEditor

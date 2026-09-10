@@ -103,17 +103,22 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - run: pip install -e ./core
+      - run: pip install -e './core[dev]'
       # Correctness everywhere; budgets nowhere near a shared runner. A 50k
       # measurement taken while three other suites are running is noise, and
       # noise that fails the build teaches people to ignore the build.
       # MERIDIAN_PERF_REPORT_ONLY keeps every AC-41 equality assertion live
       # and prints the timings without enforcing them.
+      #
+      # -n auto because a serial run is about an hour and three quarters:
+      # most of this suite spawns real git and sidecar subprocesses, and each
+      # xdist worker is its own process with its own tmp dirs, so the
+      # parallelism is isolated by construction.
       - name: core suite
         working-directory: core
         env:
           MERIDIAN_PERF_REPORT_ONLY: '1'
-        run: python -m pytest tests -q -s -m "not perf" --tb=short
+        run: python -m pytest tests -q -m "not perf" -n auto --tb=short
 
   # ---------------------------------------------------------------------
   # Budgets, alone, on a runner doing nothing else. This is the only place
@@ -131,6 +136,9 @@ jobs:
           cache: pip
       - run: pip install -e ./core
 
+      # Deliberately NOT parallel. A budget measured while seven other workers
+      # compete for the machine is the noise this arrangement exists to
+      # remove, and it is why NFR-33 read PASS while failing.
       # Reported on every run, not only when they break: a budget creeping
       # toward its ceiling should be visible before it crosses it. NFR-33
       # was recorded PASS while failing for two commits precisely because

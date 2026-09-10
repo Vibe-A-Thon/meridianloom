@@ -189,6 +189,7 @@ export const WORKBENCH_TABS: readonly WorkbenchTab[] = [
       "trust",
       "calibration",
       "spend",
+      "f2-gate",
       "trust-score",
       "rejection-reasons",
       "agent-comparison",

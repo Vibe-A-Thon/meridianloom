@@ -28,6 +28,7 @@
  * It contains no model client of any kind (FR-M36-07 holds by nature).
  */
 import { spawn, type ChildProcess } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
@@ -126,6 +127,7 @@ export interface AcpClientOptions {
 }
 
 interface TerminalRecord {
+  sessionId: string;
   child: ChildProcess;
   buffer: string;
   truncated: boolean;
@@ -155,6 +157,33 @@ export function resolveWorkspacePath(workspaceDir: string, requested: string): s
   return abs;
 }
 
+/** Check the real target (or nearest existing parent for a new file). */
+export async function resolveContainedWorkspacePath(workspaceDir: string, requested: string): Promise<string> {
+  const absolute = resolveWorkspacePath(workspaceDir, requested);
+  const root = await fsp.realpath(workspaceDir);
+  let candidate = absolute;
+  while (true) {
+    try {
+      const real = await fsp.realpath(candidate);
+      resolveWorkspacePath(root, real);
+      return absolute;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      // A dangling link must not become an escape when its target appears.
+      try {
+        if ((await fsp.lstat(candidate)).isSymbolicLink()) {
+          throw new AcpError('refusing a dangling workspace link', 'PATH_OUTSIDE_WORKSPACE');
+        }
+      } catch (statError) {
+        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') throw statError;
+      }
+      const parent = path.dirname(candidate);
+      if (parent === candidate) throw error;
+      candidate = parent;
+    }
+  }
+}
+
 /** Deny by default: pick the agent's reject option if it offered one. */
 const denyByDefault: PermissionApprover = async (request) => {
   const reject = request.options.find((option) => option.kind.startsWith('reject'));
@@ -172,6 +201,7 @@ async function decideWithCancellation(
   request: RequestPermissionRequest,
   signal: AbortSignal | undefined,
 ): Promise<AcpPermissionDecision> {
+  if (signal?.aborted) return { outcome: 'cancelled' };
   if (!signal) {
     return approver(request, {});
   }
@@ -207,6 +237,7 @@ export class AcpClient extends EventEmitter {
   private rejectDeath: (error: Error) => void = () => undefined;
   /** Signal of the prompt turn currently in flight, if any. */
   private turnSignal: AbortSignal | undefined;
+  private readonly knownSessions = new Set<string>();
 
   constructor(private readonly options: AcpClientOptions) {
     super();
@@ -364,6 +395,7 @@ export class AcpClient extends EventEmitter {
         mcpServers: [],
       }),
     );
+    this.knownSessions.add(response.sessionId);
     return response.sessionId;
   }
 
@@ -383,6 +415,7 @@ export class AcpClient extends EventEmitter {
         mcpServers: [],
       }),
     );
+    this.knownSessions.add(sessionId);
   }
 
   /**
@@ -482,12 +515,33 @@ export class AcpClient extends EventEmitter {
     return { outcome: decision };
   }
 
+  /** Gate the effect itself. An agent may omit its own permission request. */
+  private async authorizeHostOperation(sessionId: string, kind: 'read' | 'edit' | 'execute', title: string, rawInput: Record<string, unknown>): Promise<void> {
+    this.assertUsable();
+    if (!this.knownSessions.has(sessionId)) throw RequestError.resourceNotFound(sessionId);
+    const signal = this.turnSignal;
+    const result = await decideWithCancellation(this.options.approvePermission ?? denyByDefault, {
+      sessionId,
+      toolCall: { toolCallId: `meridian-host-${randomUUID()}`, kind, title, rawInput },
+      options: [
+        { optionId: 'allow-once', kind: 'allow_once', name: 'Allow once' },
+        { optionId: 'reject-once', kind: 'reject_once', name: 'Reject' },
+      ],
+    }, signal);
+    this.assertUsable();
+    if (signal?.aborted || result.outcome !== 'selected' || result.optionId !== 'allow-once') {
+      throw new RequestError(-32603, `Host ${kind} permission denied or cancelled`);
+    }
+  }
+
   // -- client-provided file system (rooted at the workspace) ---------------------
 
   private async readTextFile(
     params: ReadTextFileRequest,
   ): Promise<ReadTextFileResponse> {
-    const abs = resolveWorkspacePath(this.options.workspaceDir, params.path);
+    const abs = await resolveContainedWorkspacePath(this.options.workspaceDir, params.path);
+    await this.authorizeHostOperation(params.sessionId, 'read', `Read ${params.path}`, { path: params.path });
+    await resolveContainedWorkspacePath(this.options.workspaceDir, abs);
     let content: string;
     try {
       content = await fsp.readFile(abs, 'utf8');
@@ -510,8 +564,11 @@ export class AcpClient extends EventEmitter {
   private async writeTextFile(
     params: WriteTextFileRequest,
   ): Promise<Record<string, never>> {
-    const abs = resolveWorkspacePath(this.options.workspaceDir, params.path);
+    const abs = await resolveContainedWorkspacePath(this.options.workspaceDir, params.path);
+    await this.authorizeHostOperation(params.sessionId, 'edit', `Write ${params.path}`, { path: params.path, bytes: Buffer.byteLength(params.content, 'utf8') });
+    await resolveContainedWorkspacePath(this.options.workspaceDir, abs);
     await fsp.mkdir(path.dirname(abs), { recursive: true });
+    await resolveContainedWorkspacePath(this.options.workspaceDir, abs);
     await fsp.writeFile(abs, params.content, 'utf8');
     return {};
   }
@@ -521,7 +578,12 @@ export class AcpClient extends EventEmitter {
   private async createTerminal(
     params: CreateTerminalRequest,
   ): Promise<CreateTerminalResponse> {
-    const cwd = resolveWorkspacePath(this.options.workspaceDir, params.cwd ?? this.options.workspaceDir);
+    const cwd = await resolveContainedWorkspacePath(this.options.workspaceDir, params.cwd ?? this.options.workspaceDir);
+    await this.authorizeHostOperation(params.sessionId, 'execute', `Run ${JSON.stringify([params.command, ...(params.args ?? [])])} in ${cwd}`, {
+      command: params.command, args: params.args ?? [], cwd,
+      environmentKeys: (params.env ?? []).map(variable => variable.name),
+    });
+    await resolveContainedWorkspacePath(this.options.workspaceDir, cwd);
     const env: NodeJS.ProcessEnv = { ...process.env };
     for (const variable of params.env ?? []) {
       env[variable.name] = variable.value;
@@ -534,10 +596,11 @@ export class AcpClient extends EventEmitter {
       windowsHide: true,
     });
     const record: TerminalRecord = {
+      sessionId: params.sessionId,
       child,
       buffer: '',
       truncated: false,
-      byteLimit: params.outputByteLimit ?? null,
+      byteLimit: Math.min(8_000_000, Math.max(0, params.outputByteLimit ?? 1_000_000)),
       exited: false,
       exitStatus: { exitCode: null, signal: null },
       spawnError: null,
@@ -555,6 +618,8 @@ export class AcpClient extends EventEmitter {
         },
       ),
     };
+    // Spawn failure can arrive before terminal/wait_for_exit is requested.
+    void record.exitPromise.catch(() => undefined);
     const append = (chunk: Buffer): void => {
       record.buffer += chunk.toString('utf8');
       if (record.byteLimit != null) {
@@ -577,7 +642,7 @@ export class AcpClient extends EventEmitter {
     truncated: boolean;
     exitStatus: { exitCode: number | null; signal: string | null } | null;
   }> {
-    const record = this.mustGetTerminal(params.terminalId);
+    const record = this.mustGetTerminal(params.terminalId, params.sessionId);
     return Promise.resolve({
       output: record.buffer,
       truncated: record.truncated,
@@ -588,26 +653,26 @@ export class AcpClient extends EventEmitter {
   private async waitForTerminalExit(
     params: WaitForTerminalExitRequest,
   ): Promise<{ exitCode: number | null; signal: string | null }> {
-    const record = this.mustGetTerminal(params.terminalId);
+    const record = this.mustGetTerminal(params.terminalId, params.sessionId);
     return record.exitPromise;
   }
 
   private async killTerminal(params: KillTerminalCommandRequest): Promise<Record<string, never>> {
-    const record = this.mustGetTerminal(params.terminalId);
+    const record = this.mustGetTerminal(params.terminalId, params.sessionId);
     this.killTerminalProcess(record);
     return {};
   }
 
   private async releaseTerminal(params: ReleaseTerminalRequest): Promise<Record<string, never>> {
-    const record = this.mustGetTerminal(params.terminalId);
+    const record = this.mustGetTerminal(params.terminalId, params.sessionId);
     this.killTerminalProcess(record);
     this.terminals.delete(params.terminalId);
     return {};
   }
 
-  private mustGetTerminal(terminalId: string): TerminalRecord {
+  private mustGetTerminal(terminalId: string, sessionId: string): TerminalRecord {
     const record = this.terminals.get(terminalId);
-    if (!record) {
+    if (!record || record.sessionId !== sessionId) {
       throw RequestError.resourceNotFound(terminalId);
     }
     return record;
@@ -638,6 +703,7 @@ export class AcpClient extends EventEmitter {
   // -- plumbing -------------------------------------------------------------------
 
   private assertUsable(): void {
+    if (this.stopped) throw new AcpError('ACP agent has been stopped', 'NOT_RUNNING');
     if (!this.initialized || !this.connection) {
       throw new AcpError('ACP agent is not initialized — call start() first', 'NOT_RUNNING');
     }

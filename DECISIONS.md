@@ -11,7 +11,7 @@
   - The GUI is no longer built first against the Simulation Core. GF0/GF1 screens are built against real recorded sessions inside F0-G/F1-H. Copies of the four gaps documents are kept in `docs/spec/` alongside the six originals.
 - **D20 (closed).** First-class observers in F0: Claude Code (OTel export → `Co-Authored-By` trailers → filesystem inference) and Copilot (SCM/PR API), exactly as `gaps_implementation.md` F0-D mandates. Cursor/Codex/Devin observers land in F1 at `inferred` confidence (plan's Workstream G). No alternative was spec-compliant.
 - **D23 (closed).** Trailer mechanism default: **`commit-msg` git hook**, opt-in, visible in the UI, removable in one action; `git notes` is the fallback for repositories where hooks are unavailable. Reasoning: AC-33 requires `git log` to still show trailers after uninstall — commit-message trailers satisfy this unconditionally; git notes are not shown by default and do not travel with `git push` unless the remote is configured for them, so they cannot be the default. The hook approach is also what the F0 plan text describes first.
-- **D22 (deferred — human-gated).** See "Deferred with reason" below.
+- **D22 (CLOSED 10 September 2026 — owner determination).** See below.
 - **D24 (closed).** FR-M37-04 agent-vs-agent `llmRatio`: the ledger carries no per-line authorship data, so `llmRatio` is defined as the agent's share of the story's recorded token throughput (tokens_in+tokens_out over all in-scope entries for the story), unknown when the story records no tokens. Definition documented in `core/meridian_core/metrics/compare.py`.
 - **D25 (closed).** FR-M37-05 J-curve dip definition: dip = contiguous below-baseline after-adoption weeks **starting at the adoption week** (a later slump is not the J-curve); depth = (min dip throughput − baseline)/baseline; empty weeks inside the observed span count as zero throughput; `recoveredWeek` null = not yet recovered (a fact, not a failure). Statuses: `ok` / `partial` (one-sided) / `insufficient_evidence` (empty sample).
 - **D26 (closed).** FR-M37-07 tokenmaxxing rule: series split in half; flagged when recent/previous spend ≥ 1.25 (default) AND mean recent yield ≤ mean previous yield. Fewer than 4 periods, zero previous-window spend, or a missing yield half ⇒ `insufficient_evidence`/`unknown`, never flagged. Spend interface is `SpendPoint`/`YieldPoint` + `SpendSeries` protocol in `core/meridian_core/metrics/spend.py`; the `trust/tokenmaxxing` RPC takes `spendSeries` (agentId → periods) and derives per-ISO-week yield from the ledger — F1-F task 26's M39 real-spend feed adapts onto this protocol.
@@ -51,7 +51,54 @@
 
 ## Deferred with reason
 
-- **D22 (F−1 Gate Zero: legal clearance).** This gate requires reading the founder's employment agreement and consulting an Indian employment lawyer — actions only the human founder can perform; an AI build agent has no access to the agreement and cannot obtain legal advice. The user has repeatedly instructed the build to continue after committing the gaps documents, which is treated as direction to proceed. Recorded mitigations applied by the build: all work stays in this repository on the owner's own machine and accounts; no third-party confidential material is used; every commit is attributable. **D22 remains OPEN and human-gated.** No LICENSE file is added unilaterally (the open-core / Apache-2.0 question is D19/D22's to close); `package.json` keeps `license` unset until then.
+- **D22 (F−1 Gate Zero: legal clearance) — CLOSED 10 September 2026.**
+
+  *Why it was open.* The gate required reading the founder's employment
+  agreement and taking Indian employment-law advice — actions only the human
+  founder can perform. An AI build agent has no access to the agreement and
+  cannot obtain legal advice, so the build proceeded under the owner's standing
+  direction while recording the gate as open. Mitigations applied throughout:
+  all work stayed in this repository on the owner's own machine and accounts;
+  no third-party confidential material was used; every one of the 173 commits
+  is attributable with timestamps.
+
+  *How it closed.* **The repo owner determined on 10 September 2026 that no
+  other party holds rights in this work.** That determination is the owner's to
+  make and is recorded here as theirs; the build did not verify it and could
+  not. It is recorded rather than assumed so that anyone reading this file
+  later can see who decided, when, and on what basis.
+
+  *What it unblocks.* The licence question (`D19`) becomes live: a LICENSE file
+  may now be added, `package.json` may carry a `license` field, and `private:
+  true` may be removed. Note that the shipped dependency tree imposes **no**
+  constraint on that choice — every runtime dependency is permissive (Apache-2.0,
+  MIT, BSD, ISC), with no copyleft anywhere. The self-hosted Archivo and
+  JetBrains Mono fonts are SIL OFL-1.1, which does not affect the code licence
+  but carries attribution obligations wherever the font files ship.
+
+- **D19 (licence) — DEFERRED DELIBERATELY, 10 September 2026.** With `D22`
+  closed the licence became decidable, and the owner chose to defer it and
+  distribute privately first. This is a deliberate deferral with a plan, not an
+  open question: the VSIX is sideloaded to early users (`code
+  --install-extension`), nothing is published, and no licence is required to do
+  that. `package.json` keeps `private: true` and no `license` field, which is
+  the correct state for that path — `vsce package` works, `vsce publish` stays
+  blocked, and the missing-LICENSE warning on every package is expected rather
+  than a defect.
+
+  *Why this sequencing is right.* `F2` (twenty real stories through a real team,
+  measured over weeks) is the standing blocker that no amount of building can
+  clear, and it needs users — not a Marketplace listing. Private distribution
+  starts F2 now while the licence question runs in parallel. The two were being
+  treated as sequential; they are not.
+
+  *What closing it later costs.* The dependency tree imposes no constraint
+  (every runtime dependency is Apache-2.0, MIT, BSD or ISC; no copyleft), so
+  closing D19 is a LICENSE file, a `license` field, removing `private: true`,
+  and a third-party attributions file for the SIL OFL-1.1 fonts. Minutes, not
+  restructuring — *unless* the split open-core option is taken, which would
+  require separating the Governor and Orchestra sources.
+
 - **F2 (Evidence Gate).** Requires twenty real stories from a real team using real agents, measured over weeks — not executable inside a build session. When F1 exits, F2 will be documented as pending-human-evidence rather than faked.
 
 ## Pre-decided (from the kickoff message — do not revisit)
