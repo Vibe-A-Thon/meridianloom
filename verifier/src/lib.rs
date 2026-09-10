@@ -13,6 +13,16 @@
 //!    public key bundled inside (no trust in Meridian's servers — SEC-29);
 //! 5. signature — the bundle signature covers the canonical JSON of every
 //!    other field, so any tampering anywhere is detected.
+//!
+//! FR-M43-02 / FR-M43-03 (N2 Workstream D task 14): [`verify_bundle_verdicts`]
+//! reports THREE SEPARATE VERDICTS — `valid_signature` (checks 1–5;
+//! changed-entry detection), `trusted_signer` (the bundled key is in the
+//! caller's trusted set) and `evidence_coverage` (the bundle extends every
+//! root recorded in the supplied witness receipts; rollback/truncation and
+//! wholesale-replacement detection land here, NOT in the signature
+//! verdict). A witness mismatch is therefore `valid_signature: true` +
+//! `evidence_coverage: false`, never a signature failure. With no
+//! receipts, coverage fails with the stated FR-M43-03 limitation.
 
 use std::collections::BTreeSet;
 
@@ -303,6 +313,309 @@ pub fn verify_bundle(bundle: &Value) -> Vec<String> {
     problems
 }
 
+// -- FR-M43-02: three independent verdicts ------------------------------------
+
+/// FR-M43-03 / T15: the honest limitation of an unwitnessed ledger,
+/// stated in the interface. Keep in sync with `verifier/verify.py`.
+pub const UNWITNESSED_LIMITATION: &str = "No witness receipts are configured. Without a witness, Meridian cannot claim to detect wholesale ledger replacement or rollback by a machine administrator: a re-signed fork of the ledger still verifies cryptographically. Changed-entry and chain-link tampering ARE detected by signature verification alone.";
+
+/// FR-M43-02's three independent verdicts over a bundle plus witness
+/// receipts. `trusted_signer` is `None` when the caller supplied no
+/// trusted-key set — the verifier refuses to invent a trust opinion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Verdicts {
+    pub valid_signature: bool,
+    pub trusted_signer: Option<bool>,
+    pub evidence_coverage: bool,
+    pub detail: String,
+    pub problems: Vec<String>,
+}
+
+impl Verdicts {
+    /// The overall pass/fail: every verdict that has an opinion passes.
+    pub fn ok(&self) -> bool {
+        self.valid_signature
+            && self.evidence_coverage
+            && self.trusted_signer != Some(false)
+    }
+
+    /// The human-readable three-line report (same wording as
+    /// `verifier/verify.py --witness`).
+    pub fn lines(&self) -> Vec<String> {
+        let trusted = match self.trusted_signer {
+            Some(true) => "pass",
+            Some(false) => "FAIL",
+            None => "unknown (no trusted-key set supplied)",
+        };
+        let mut lines = vec![
+            format!(
+                "VERDICT valid_signature: {}",
+                if self.valid_signature { "pass" } else { "FAIL" }
+            ),
+            format!("VERDICT trusted_signer: {trusted}"),
+            format!(
+                "VERDICT evidence_coverage: {}",
+                if self.evidence_coverage { "pass" } else { "FAIL" }
+            ),
+            format!("coverage detail: {}", self.detail),
+        ];
+        for problem in &self.problems {
+            lines.push(format!("signature problem: {problem}"));
+        }
+        lines
+    }
+}
+
+/// Compute the three FR-M43-02 verdicts. `receipts` are witness receipts
+/// (`meridian-tree-head-receipt` documents); `trusted_keys` and
+/// `trusted_witness_keys` are pinned raw Ed25519 public keys (None = no
+/// opinion / no pinning).
+pub fn verify_bundle_verdicts(
+    bundle: &Value,
+    receipts: &[Value],
+    trusted_keys: Option<&[[u8; 32]]>,
+    trusted_witness_keys: Option<&[[u8; 32]]>,
+) -> Verdicts {
+    let problems: Vec<String> = verify_bundle(bundle)
+        .into_iter()
+        .filter(|p| !p.starts_with("compliance"))
+        .collect();
+    let valid_signature = problems.is_empty();
+
+    let bundled_key = bundle
+        .pointer("/signer/publicKey")
+        .and_then(Value::as_str)
+        .and_then(|text| base64_decode(text).ok())
+        .and_then(|bytes| <[u8; 32]>::try_from(bytes.as_slice()).ok());
+    let trusted_signer = trusted_keys.map(|keys| {
+        bundled_key
+            .map(|key| keys.contains(&key))
+            .unwrap_or(false)
+    });
+
+    let (evidence_coverage, detail) = evidence_coverage(bundle, receipts, trusted_witness_keys);
+
+    Verdicts {
+        valid_signature,
+        trusted_signer,
+        evidence_coverage,
+        detail,
+        problems,
+    }
+}
+
+fn receipt_body(receipt: &Value) -> Vec<u8> {
+    let mut body = receipt.as_object().cloned().unwrap_or_default();
+    body.remove("witnessSignature");
+    canonical::canonical_json(&Value::Object(body)).unwrap_or_default()
+}
+
+fn hex_decode_vec(text: &str) -> Option<Vec<u8>> {
+    if !text.bytes().all(|b| b.is_ascii_hexdigit()) || text.len() % 2 != 0 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(text.len() / 2);
+    for chunk in text.as_bytes().chunks(2) {
+        out.push(u8::from_str_radix(std::str::from_utf8(chunk).ok()?, 16).ok()?);
+    }
+    Some(out)
+}
+
+/// The embedded witness signature verifies with the embedded witness
+/// public key (self-asserted; pinning is the caller's job).
+pub fn witness_signature_valid(receipt: &Value) -> bool {
+    let Some(signature) = receipt
+        .pointer("/witnessSignature")
+        .and_then(Value::as_str)
+        .and_then(hex_decode_vec)
+    else {
+        return false;
+    };
+    let Some(key) = receipt
+        .pointer("/witness/publicKey")
+        .and_then(Value::as_str)
+        .and_then(|text| base64_decode(text).ok())
+    else {
+        return false;
+    };
+    let Ok(key) = <[u8; 32]>::try_from(key.as_slice()) else {
+        return false;
+    };
+    let Ok(signature) = <[u8; 64]>::try_from(signature.as_slice()) else {
+        return false;
+    };
+    ed25519_verify(key, signature, &receipt_body(receipt))
+}
+
+/// The receipt's embedded ledger tree-head signature verifies with the
+/// embedded ledger public key.
+pub fn receipt_tree_head_valid(receipt: &Value) -> bool {
+    let Some(head) = receipt.get("treeHead") else {
+        return false;
+    };
+    let Some(public_key) = receipt
+        .pointer("/ledgerPublicKey")
+        .and_then(Value::as_str)
+        .and_then(|text| base64_decode(text).ok())
+    else {
+        return false;
+    };
+    let Ok(public_key) = <[u8; 32]>::try_from(public_key.as_slice()) else {
+        return false;
+    };
+    let Some(signature) = head
+        .get("signature")
+        .and_then(Value::as_str)
+        .and_then(hex_decode_vec)
+    else {
+        return false;
+    };
+    let Ok(signature) = <[u8; 64]>::try_from(signature.as_slice()) else {
+        return false;
+    };
+    let (Some(root_hex), Some(seq), Some(signed_at)) = (
+        head.get("rootHash").and_then(Value::as_str),
+        head.get("seq").and_then(Value::as_u64),
+        head.get("signedAt").and_then(Value::as_str),
+    ) else {
+        return false;
+    };
+    let message = canonical::canonical_json(&json!({
+        "root_hash": root_hex,
+        "seq": seq,
+        "signed_at": signed_at,
+    }))
+    .unwrap_or_default();
+    ed25519_verify(public_key, signature, &message)
+}
+
+fn contiguous_prefix_length(entries: &[Value]) -> usize {
+    entries
+        .iter()
+        .enumerate()
+        .take_while(|(position, entry)| {
+            entry.get("sequence").and_then(Value::as_i64) == Some(*position as i64 + 1)
+        })
+        .count()
+}
+
+/// Rollback/truncation and wholesale-replacement detection against
+/// previously recorded roots. Mirrors `core/meridian_core/ledger/witness.py`.
+fn evidence_coverage(
+    bundle: &Value,
+    receipts: &[Value],
+    trusted_witness_keys: Option<&[[u8; 32]]>,
+) -> (bool, String) {
+    if receipts.is_empty() {
+        return (false, UNWITNESSED_LIMITATION.to_string());
+    }
+    let entries = bundle
+        .get("entries")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let mut entry_hashes: Vec<[u8; 32]> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let Some(digest) = entry
+            .get("entryHash")
+            .and_then(Value::as_str)
+            .and_then(|text| hex_decode(text))
+        else {
+            return (false, "bundle has malformed entries; coverage undetermined".into());
+        };
+        entry_hashes.push(digest);
+    }
+    let prefix = contiguous_prefix_length(entries);
+
+    let mut checked = 0;
+    for receipt in receipts {
+        let Some(witnessed_seq) = receipt
+            .pointer("/treeHead/seq")
+            .and_then(Value::as_u64)
+            .map(|n| n as usize)
+        else {
+            continue;
+        };
+        if witnessed_seq < 1 || !receipt_tree_head_valid(receipt) {
+            continue;
+        }
+        let provenance = if receipt.pointer("/witnessSignature").is_some() {
+            if !witness_signature_valid(receipt) {
+                continue;
+            }
+            if let Some(pinned) = trusted_witness_keys {
+                let embedded = receipt
+                    .pointer("/witness/publicKey")
+                    .and_then(Value::as_str)
+                    .and_then(|text| base64_decode(text).ok())
+                    .and_then(|bytes| <[u8; 32]>::try_from(bytes.as_slice()).ok());
+                match embedded {
+                    Some(key) if pinned.contains(&key) => {}
+                    _ => continue, // self-asserted witness key, not pinned
+                }
+            }
+            format!(
+                "witness '{}' countersignature",
+                receipt
+                    .pointer("/witness/id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown")
+            )
+        } else {
+            "reception receipt (unsigned, local store)".to_string()
+        };
+        checked += 1;
+        if prefix < witnessed_seq {
+            return (
+                false,
+                format!(
+                    "rollback/truncation: a root at sequence {witnessed_seq} was \
+                     recorded ({provenance}), but this bundle presents only \
+                     {prefix} contiguous entries from genesis"
+                ),
+            );
+        }
+        let Some(witnessed_root) = receipt
+            .pointer("/treeHead/rootHash")
+            .and_then(Value::as_str)
+            .and_then(|text| hex_decode(text))
+        else {
+            continue;
+        };
+        let prefix_root = merkle::tree_root(&entry_hashes[..witnessed_seq]);
+        if prefix_root != witnessed_root {
+            let root_hex: String = witnessed_root.iter().map(|b| format!("{b:02x}")).collect();
+            return (
+                false,
+                format!(
+                    "wholesale replacement or fork: entries 1..{witnessed_seq} of \
+                     this bundle do not hash to the recorded root {root_hex} \
+                     ({provenance})"
+                ),
+            );
+        }
+        return (
+            true,
+            format!(
+                "recorded root at sequence {witnessed_seq} ({provenance}); \
+                 this bundle extends it"
+            ),
+        );
+    }
+    if checked == 0 {
+        return (
+            false,
+            "no usable witness receipts (bad ledger signature, bad witness \
+             signature, or witness key not pinned); coverage undetermined"
+                .into(),
+        );
+    }
+    (
+        false,
+        "witness receipts did not match this bundle's history".into(),
+    )
+}
+
 fn ed25519_verify(public_key: [u8; 32], signature: [u8; 64], message: &[u8]) -> bool {
     let Ok(key) = VerifyingKey::from_bytes(&public_key) else {
         return false;
@@ -360,6 +673,13 @@ fn hex_bytes<const N: usize>(
         out[index] = byte;
     }
     Some(out)
+}
+
+/// Strict base64 decode that must yield exactly 32 bytes — a raw Ed25519
+/// public key as used in bundles, receipts and trusted-key files.
+pub fn base64_decode_pub(text: &str) -> Option<[u8; 32]> {
+    let bytes = base64_decode(text).ok()?;
+    <[u8; 32]>::try_from(bytes.as_slice()).ok()
 }
 
 fn base64_decode(text: &str) -> Result<Vec<u8>, ()> {

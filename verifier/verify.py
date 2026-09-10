@@ -9,7 +9,10 @@ Python implementation of RFC 8032, so no cryptography dependency exists).
 Usage:
     python verify.py <bundle.json>
     python verify.py -            (read the bundle from stdin)
-    meridian-verify <bundle.json> (the Rust twin, verifier/, identical checks)
+    python verify.py <bundle.json> --witness r1.json [--witness r2.json]
+        --trusted-keys keys.txt [--trusted-witness-keys wkeys.txt]
+    meridian-verify <bundle.json> [--witness ... --trusted-keys ...]
+                                  (the Rust twin, verifier/, same checks)
 
 Exit 0 and a one-line summary on stdout when the bundle verifies; exit 1
 with one actionable line per problem on stderr otherwise. The verification
@@ -26,6 +29,26 @@ What is checked, with only the bundle's own material:
                   servers — SEC-29);
   5. signature  — the bundle signature covers the canonical JSON of every
                   other field, so any tampering anywhere is detected.
+
+FR-M43-02 / FR-M43-03 (N2 Workstream D task 14): with --witness and
+--trusted-keys the verifier reports THREE SEPARATE VERDICTS instead of a
+single pass/fail:
+
+  VERDICT valid_signature    — checks 1-5 above (changed-entry detection
+                               lands here);
+  VERDICT trusted_signer     — the bundled public key is in the
+                               --trusted-keys set (signer enrolment);
+  VERDICT evidence_coverage  — the bundle extends every root recorded in
+                               the --witness receipts (rollback/truncation
+                               and wholesale-replacement detection land
+                               HERE, not in the signature verdict). A
+                               witness mismatch is therefore reported as
+                               valid_signature: pass + evidence_coverage:
+                               fail, never as a signature failure.
+
+Without --witness the coverage verdict cannot pass, and the interface
+says so (FR-M43-03 / T15): no witness, no claim of detecting wholesale
+ledger replacement by a machine administrator.
 """
 
 from __future__ import annotations
@@ -373,15 +396,322 @@ def verify_bundle(bundle: Any) -> list[str]:
     return problems
 
 
-def main(argv: list[str]) -> int:
-    if len(argv) > 2 or (len(argv) == 2 and argv[1] in ("-h", "--help")):
-        print(__doc__.strip(), file=sys.stderr)
-        return 2 if len(argv) > 2 else 0
+# -- FR-M43-02: three independent verdicts ------------------------------------
+#
+# Kept deliberately separate from verify_bundle() above: the classic mode
+# stays a single pass/fail, while --witness mode reports valid_signature,
+# trusted_signer and evidence_coverage independently. Semantics are
+# identical to core/meridian_core/ledger/witness.py and to the Rust
+# verifier's verify_with_witness (verifier/src/lib.rs).
+
+UNWITNESSED_LIMITATION = (
+    "No witness receipts are configured. Without a witness, Meridian cannot "
+    "claim to detect wholesale ledger replacement or rollback by a machine "
+    "administrator: a re-signed fork of the ledger still verifies "
+    "cryptographically. Changed-entry and chain-link tampering ARE detected "
+    "by signature verification alone."
+)
+
+
+def _receipt_canonical_bytes(receipt: Any) -> bytes:
+    body = {k: v for k, v in receipt.items() if k != "witnessSignature"}
+    return canonical_json(body)
+
+
+def verify_witness_signature(receipt: Any) -> bool:
+    """The embedded witness signature verifies with the embedded witness
+    public key (the key is self-asserted; pinning is the caller's job)."""
+    if not isinstance(receipt, dict):
+        return False
+    signature = receipt.get("witnessSignature")
+    witness = receipt.get("witness") or {}
+    public_key = witness.get("publicKey")
+    if not isinstance(signature, str) or not isinstance(public_key, str):
+        return False
     try:
-        if len(argv) == 1 or argv[1] == "-":
+        key_bytes = base64.b64decode(public_key, validate=True)
+        return ed25519_verify(
+            key_bytes, bytes.fromhex(signature), _receipt_canonical_bytes(receipt)
+        )
+    except (ValueError, binascii.Error):
+        return False
+
+
+def verify_receipt_tree_head(receipt: Any) -> bool:
+    """The receipt's embedded ledger tree-head signature verifies with the
+    embedded ledger public key."""
+    if not isinstance(receipt, dict):
+        return False
+    try:
+        head = receipt["treeHead"]
+        public_key = base64.b64decode(receipt["ledgerPublicKey"], validate=True)
+        signature = bytes.fromhex(head["signature"])
+        root_hash = bytes.fromhex(head["rootHash"])
+        message = canonical_json(
+            {
+                "root_hash": head["rootHash"],
+                "seq": head["seq"],
+                "signed_at": head["signedAt"],
+            }
+        )
+        return ed25519_verify(public_key, signature, message)
+    except (KeyError, TypeError, ValueError, binascii.Error):
+        return False
+
+
+def _contiguous_prefix_length(entries: list[Any]) -> int:
+    """How many entries form the gapless prefix 1..N."""
+    prefix = 0
+    for expected, entry in enumerate(entries, start=1):
+        if not isinstance(entry, dict) or entry.get("sequence") != expected:
+            break
+        prefix += 1
+    return prefix
+
+
+def _merkle_root(leaves: list[bytes]) -> bytes:
+    """RFC 6962 tree hash over leaf payloads (entry hashes)."""
+    if not leaves:
+        return sha256(b"")
+    if len(leaves) == 1:
+        return _leaf_hash(leaves[0])
+    # largest power of two < n
+    split = 1 << (len(leaves).bit_length() - 1)
+    if split == len(leaves):
+        split >>= 1
+    return _node_hash(_merkle_root(leaves[:split]), _merkle_root(leaves[split:]))
+
+
+def _signature_problems(bundle: Any) -> list[str]:
+    """Checks 1-5 of verify_bundle scoped to cryptographic validity
+    (shape, chain, inclusion, tree head, bundle signature) — everything
+    that belongs to the valid_signature verdict. Compliance is excluded:
+    a missing compliance section is not a signature failure."""
+    problems = verify_bundle(bundle)
+    return [
+        p
+        for p in problems
+        if not p.startswith("compliance section")
+        and not p.startswith("compliance.standards")
+        and not p.startswith("compliance.mappings")
+    ]
+
+
+def verify_bundle_verdicts(
+    bundle: Any,
+    receipts: list[Any] | None = None,
+    trusted_keys: set[bytes] | None = None,
+    trusted_witness_keys: set[bytes] | None = None,
+) -> dict[str, Any]:
+    """FR-M43-02: compute the three verdicts independently.
+
+    Returns {"valid_signature": bool, "trusted_signer": bool | None,
+    "evidence_coverage": bool, "detail": str, "problems": [str]}.
+    A witness mismatch yields valid_signature True and
+    evidence_coverage False — never a signature failure.
+    """
+    signature_problems = _signature_problems(bundle)
+    valid_signature = not signature_problems
+
+    signer = bundle.get("signer") or {} if isinstance(bundle, dict) else {}
+    key_b64 = signer.get("publicKey") if isinstance(signer, dict) else None
+    bundled_key: bytes | None = None
+    if isinstance(key_b64, str):
+        try:
+            decoded = base64.b64decode(key_b64, validate=True)
+            if len(decoded) == 32:
+                bundled_key = decoded
+        except (ValueError, binascii.Error):
+            bundled_key = None
+    if trusted_keys is None:
+        trusted_signer: bool | None = None
+    else:
+        trusted_signer = bundled_key in trusted_keys if bundled_key else False
+
+    coverage, detail = _evidence_coverage(bundle, receipts or [], trusted_witness_keys)
+
+    return {
+        "valid_signature": valid_signature,
+        "trusted_signer": trusted_signer,
+        "evidence_coverage": coverage,
+        "detail": detail,
+        "problems": signature_problems,
+    }
+
+
+def _evidence_coverage(
+    bundle: Any, receipts: list[Any], trusted_witness_keys: set[bytes] | None
+) -> tuple[bool, str]:
+    """Rollback/truncation and wholesale-replacement detection against
+    previously recorded roots. Mirrors ledger/witness.py exactly."""
+    if not receipts:
+        return False, UNWITNESSED_LIMITATION
+
+    entries = bundle.get("entries") if isinstance(bundle, dict) else None
+    entries = entries if isinstance(entries, list) else []
+    entry_hashes: list[bytes] = []
+    for entry in entries:
+        digest = _hex_bytes(entry.get("entryHash"), "entryHash", []) if isinstance(entry, dict) else None
+        if digest is None:
+            return False, "bundle has malformed entries; coverage undetermined"
+        entry_hashes.append(digest)
+    prefix = _contiguous_prefix_length(entries)
+
+    checked = 0
+    for receipt in receipts:
+        if not isinstance(receipt, dict):
+            continue
+        head = receipt.get("treeHead") or {}
+        witnessed_seq = head.get("seq")
+        if not isinstance(witnessed_seq, int) or witnessed_seq < 1:
+            continue
+        if not verify_receipt_tree_head(receipt):
+            continue
+        witness = receipt.get("witness") or {}
+        if "witnessSignature" in receipt:
+            if not verify_witness_signature(receipt):
+                continue
+            if trusted_witness_keys is not None:
+                try:
+                    embedded = base64.b64decode(
+                        witness.get("publicKey") or "", validate=True
+                    )
+                except (ValueError, binascii.Error):
+                    continue
+                if embedded not in trusted_witness_keys:
+                    continue
+            provenance = f"witness '{witness.get('id')}' countersignature"
+        else:
+            provenance = "reception receipt (unsigned, local store)"
+        checked += 1
+        if prefix < witnessed_seq:
+            return (
+                False,
+                f"rollback/truncation: a root at sequence {witnessed_seq} was "
+                f"recorded ({provenance}), but this bundle presents only "
+                f"{prefix} contiguous entries from genesis",
+            )
+        witnessed_root = _hex_bytes(head.get("rootHash"), "rootHash", [])
+        if witnessed_root is None:
+            continue
+        prefix_root = _merkle_root(entry_hashes[:witnessed_seq])
+        if prefix_root != witnessed_root:
+            return (
+                False,
+                "wholesale replacement or fork: entries "
+                f"1..{witnessed_seq} of this bundle do not hash to the "
+                f"recorded root {head.get('rootHash')} ({provenance})",
+            )
+        return (
+            True,
+            f"recorded root at sequence {witnessed_seq} ({provenance}); "
+            "this bundle extends it",
+        )
+    if checked == 0:
+        return (
+            False,
+            "no usable witness receipts (bad ledger signature, bad witness "
+            "signature, or witness key not pinned); coverage undetermined",
+        )
+    return False, "witness receipts did not match this bundle's history"
+
+
+def _load_trusted_keys(path: str) -> set[bytes]:
+    """One base64 Ed25519 public key per line; '#' starts a comment."""
+    keys_set: set[bytes] = set()
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                raw = base64.b64decode(line, validate=True)
+            except (ValueError, binascii.Error) as error:
+                raise ValueError(f"{path}: not valid base64: {line[:12]}…") from error
+            if len(raw) != 32:
+                raise ValueError(f"{path}: key is not 32 bytes: {line[:12]}…")
+            keys_set.add(raw)
+    return keys_set
+
+
+def verdict_lines(verdicts: dict[str, Any]) -> list[str]:
+    trusted = verdicts["trusted_signer"]
+    lines = [
+        "VERDICT valid_signature: "
+        + ("pass" if verdicts["valid_signature"] else "FAIL"),
+        "VERDICT trusted_signer: "
+        + (
+            "pass"
+            if trusted
+            else "FAIL" if trusted is False else "unknown (no trusted-key set supplied)"
+        ),
+        "VERDICT evidence_coverage: "
+        + ("pass" if verdicts["evidence_coverage"] else "FAIL"),
+        f"coverage detail: {verdicts['detail']}",
+    ]
+    for problem in verdicts["problems"]:
+        lines.append(f"signature problem: {problem}")
+    return lines
+
+
+def _parse_args(argv: list[str]) -> tuple[str | None, dict[str, Any]] | None:
+    """argv -> (bundle_path, options) or None for help/usage error."""
+    options: dict[str, Any] = {
+        "witness": [],
+        "trusted_keys": None,
+        "trusted_witness_keys": None,
+    }
+    path: str | None = None
+    index = 1
+    flags = {
+        "--witness": ("witness", list),
+        "--trusted-keys": ("trusted_keys", str),
+        "--trusted-witness-keys": ("trusted_witness_keys", str),
+    }
+    while index < len(argv):
+        arg = argv[index]
+        if arg in flags:
+            key, kind = flags[arg]
+            index += 1
+            if index >= len(argv):
+                return None
+            value = argv[index]
+            if kind is list:
+                options[key].append(value)
+            else:
+                options[key] = value
+        elif arg in ("-h", "--help"):
+            return None
+        elif path is None:
+            path = arg
+        else:
+            return None
+        index += 1
+    return path, options
+
+
+def main(argv: list[str]) -> int:
+    parsed = _parse_args(argv)
+    if parsed is None:
+        print(__doc__.strip(), file=sys.stderr)
+        return 0 if len(argv) == 2 else 2
+    path, options = parsed
+
+    def read_json(source: str, what: str) -> Any:
+        try:
+            with open(source, "rb") as handle:
+                return json.loads(handle.read())
+        except OSError as error:
+            print(f"cannot read {what}: {error}", file=sys.stderr)
+        except ValueError as error:
+            print(f"{what} is not valid JSON: {error}", file=sys.stderr)
+        raise SystemExit(2)
+
+    try:
+        if path is None or path == "-":
             raw = sys.stdin.buffer.read()
         else:
-            with open(argv[1], "rb") as handle:
+            with open(path, "rb") as handle:
                 raw = handle.read()
     except OSError as error:
         print(f"cannot read bundle: {error}", file=sys.stderr)
@@ -391,6 +721,40 @@ def main(argv: list[str]) -> int:
     except ValueError as error:
         print(f"bundle is not valid JSON: {error}", file=sys.stderr)
         return 2
+
+    verdict_mode = bool(options["witness"] or options["trusted_keys"])
+    if not verdict_mode:
+        # FR-M43-03 / T15: the interface states the unwitnessed limitation.
+        print(f"NOTE: {UNWITNESSED_LIMITATION}", file=sys.stderr)
+
+    receipts = [read_json(p, "witness receipt") for p in options["witness"]]
+    try:
+        trusted_keys = (
+            _load_trusted_keys(options["trusted_keys"])
+            if options["trusted_keys"]
+            else None
+        )
+        trusted_witness_keys = (
+            _load_trusted_keys(options["trusted_witness_keys"])
+            if options["trusted_witness_keys"]
+            else None
+        )
+    except (OSError, ValueError) as error:
+        print(f"cannot load trusted keys: {error}", file=sys.stderr)
+        return 2
+
+    if verdict_mode:
+        verdicts = verify_bundle_verdicts(
+            bundle, receipts, trusted_keys, trusted_witness_keys
+        )
+        for line in verdict_lines(verdicts):
+            print(line)
+        ok = (
+            verdicts["valid_signature"]
+            and verdicts["evidence_coverage"]
+            and verdicts["trusted_signer"] is not False
+        )
+        return 0 if ok else 1
 
     problems = verify_bundle(bundle)
     if problems:

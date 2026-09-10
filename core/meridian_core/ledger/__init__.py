@@ -31,6 +31,10 @@ _SUBMODULES = {
     "redaction": "redaction",
     "range_verify": "range_verify",
     "wire": "wire",
+    "receipts": "receipts",
+    "witness": "witness",
+    "archive": "archive",
+    "privacy": "privacy",
     "core": "core",
 }
 

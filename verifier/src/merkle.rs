@@ -57,6 +57,29 @@ pub fn verify_inclusion(
     sn == 0 && r == *expected_root
 }
 
+/// RFC 6962 tree hash over leaf payloads (entry hashes). Used by the
+/// FR-M43-02 coverage check to recompute the root of the witnessed
+/// prefix; byte-identical to `core/meridian_core/ledger/merkle.py`.
+pub fn tree_root(leaves: &[[u8; 32]]) -> [u8; 32] {
+    fn root_range(leaves: &[[u8; 32]], lo: usize, hi: usize) -> [u8; 32] {
+        let n = hi - lo;
+        if n == 0 {
+            let mut hasher = Sha256::new();
+            hasher.update(b"");
+            return hasher.finalize().into();
+        }
+        if n == 1 {
+            return leaf_hash(&leaves[lo]);
+        }
+        let k = 1usize << ((n - 1).ilog2());
+        node_hash(
+            &root_range(leaves, lo, lo + k),
+            &root_range(leaves, lo + k, hi),
+        )
+    }
+    root_range(leaves, 0, leaves.len())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -84,6 +107,12 @@ mod tests {
             acc = node_hash(subtree, &acc);
         }
         assert_eq!(hex(&acc), expected);
+    }
+
+    #[test]
+    fn tree_root_matches_frontier_root() {
+        let leaves: Vec<[u8; 32]> = (0u8..10).map(|i| [i; 32]).collect();
+        assert_eq!(tree_root(&leaves), python_root(&leaves));
     }
 
     #[test]
