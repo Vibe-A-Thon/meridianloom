@@ -105,11 +105,48 @@ that looks broken.
 
 1. Open a workspace folder. Meridian records into `.meridian/` inside it.
 2. Select **Meridian Loom** in the Activity Bar.
-3. On **Agents**, add an agent — you need an ACP-speaking executable on your
+3. **Enable the Governor tier** in the `meridian.tiers` setting. Running an
+   agent from Meridian is a Governor capability, because a run is a session
+   whose permission decisions get recorded. Without it you can observe agents
+   you start yourself, but the Run button will tell you it is blocked.
+4. On **Agents**, add an agent — you need an ACP-speaking executable on your
    PATH — or import one.
-4. Activate it, and tag it to the SDLC phases it should take part in.
-5. On **Deliverables**, write a brief and dispatch it.
-6. Watch it on **Runs**; read the evidence on **Evidence**.
+5. Activate it, and tag it to the SDLC phases it should take part in.
+6. **Widen the permission policy if your agent needs to write.** A new agent is
+   on probation, and the shipped default grants probationary agents only
+   `read` and `search`. An agent that edits files or runs commands will refuse
+   until you say otherwise — see below.
+7. On **Deliverables**, write a brief and dispatch it.
+8. Watch it on **Runs**; read the evidence on **Evidence**.
+
+### The permission floor, and why an agent may refuse
+
+Meridian checks its own policy **before** asking you to approve anything
+(`FR-M34-04`), so a tool kind that policy does not cover is denied and you are
+never prompted. The shipped default is deliberately conservative:
+
+```yaml
+adapters:
+  '*':
+    probation: [read, search]          # a brand-new agent
+    active:    [read, search, edit, execute]
+```
+
+A newly added agent is on **probation** until it is admitted, so it cannot edit
+or execute. That is the intended floor, not a bug — but it means your first
+dispatch may come back as a refusal. Widen it for your workspace by creating
+`.meridian/policy/acp-permissions.yaml`, which is read before the shipped
+default:
+
+```yaml
+version: 1
+adapters:
+  '*':
+    probation: [read, search, edit, execute]
+```
+
+This is policy, not code: it is a file in your repository, versioned and
+reviewable like anything else.
 
 ### Requirements
 
@@ -138,8 +175,8 @@ Nowhere.
 
 | Tier | What it adds |
 | --- | --- |
-| **Flight Recorder** | Always on: agents, skills, instructions, phases, runs, integrations, the ledger and signed export. |
-| **Governor** | Policy gates, roles and approvals, trust measurement, recorded spend, hosted agent sessions. |
+| **Flight Recorder** | Always on: **observing** agent sessions others start, the ledger, signed export and verification, the agent/skill/instruction/phase catalogues, integrations, and trust measurement over what was recorded. |
+| **Governor** | **Running agents from Meridian**, plus policy gates, roles and approvals, and recorded spend. |
 | **Orchestra** | Multi-agent orchestration and autonomous loops. Not yet built. |
 
 Enable them in the `meridian.tiers` setting. A disabled tier's surfaces are

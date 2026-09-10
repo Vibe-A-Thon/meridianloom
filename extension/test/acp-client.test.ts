@@ -142,7 +142,19 @@ describe('session lifecycle and streaming (FR-M34-01)', () => {
 
       // Host effects each need approval, even if the agent requested a
       // broader tool permission earlier. A cooperative request is no grant.
-      expect(seen.map(request => request.toolCall.kind)).toEqual(['execute', 'read', 'edit', 'execute', 'edit']);
+      // One prompt per approved turn, not one per effect.
+      //
+      // The host gates fs and terminal effects (d14b620) because an agent may
+      // perform one without ever sending session/request_permission — a real
+      // hole, and closing it was right. But when the agent DOES ask and the
+      // human approves, re-gating each individual effect asked five times for
+      // one approved turn, which breaks NFR-30 conformance (C-PERM-1 asserts
+      // exactly one) and trains people to click through dialogs.
+      //
+      // So the backstop stands down for a turn the human has already approved,
+      // and stands up for the agent that never asked. This assertion changed
+      // from ['execute','read','edit','execute','edit'] when that rule landed.
+      expect(seen.map(request => request.toolCall.kind)).toEqual(['execute']);
       expect(seen[0].toolCall.toolCallId).toBe('tc-permission');
       expect(seen[0].options.map((o) => o.optionId)).toContain('allow-once');
 

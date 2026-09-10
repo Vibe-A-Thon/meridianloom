@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -113,11 +113,39 @@ run('the evidence chain, end to end', () => {
       const workspace = await mkdtemp(path.join(os.tmpdir(), 'meridian-chain-'));
       await writeFile(path.join(workspace, 'input.txt'), 'real workspace input');
 
+      // The ACP permission policy is checked BEFORE the human is asked
+      // (FR-M34-04), and the shipped default is deliberately conservative: an
+      // adapter with no specific entry gets `[read, search]` while on
+      // probation, so a brand-new agent cannot edit or execute at all. That
+      // fail-closed floor is correct, and it is what made the first version of
+      // this test see the agent refuse. A team that has configured Meridian
+      // widens it in the workspace, which is what this writes — the same
+      // override path production reads first.
+      await mkdir(path.join(workspace, '.meridian', 'policy'), { recursive: true });
+      await writeFile(
+        path.join(workspace, '.meridian', 'policy', 'acp-permissions.yaml'),
+        [
+          'version: 1',
+          'adapters:',
+          "  '*':",
+          '    probation: [read, search, edit, execute]',
+          '',
+        ].join('\n'),
+      );
+
       // --- 1. a real sidecar over real stdio -------------------------------
       const client = new StdioSidecarClient({
         command: python!,
         cwd: coreDir,
         workspaceDir: workspace,
+        // Running an agent is a Governor capability: `acp/sessionBegin` lives
+        // in governor.acp-host, because a hosted session is one whose
+        // permission decisions Meridian records. The tier has to reach the
+        // SIDECAR through the handshake, not only the workbench — the first
+        // version of this test enabled it on one side and the run failed with
+        // "acp/sessionBegin belongs to the governor tier", which is the gate
+        // working exactly as intended.
+        tiers: ['flight-recorder', 'governor'],
       });
       clients.push(client);
       await client.start();
@@ -131,6 +159,7 @@ run('the evidence chain, end to end', () => {
         sidecar: () => ({
           request: (method, params) => client.request(method, params, signal()),
         }),
+        policyPaths: [path.join(root, 'policy', 'acp-permissions.yaml')],
         // The fixture agent asks for permission; granting it keeps the run
         // moving and exercises the approval path the ledger records.
         humanApprover: async (request) => ({

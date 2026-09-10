@@ -237,6 +237,17 @@ export class AcpClient extends EventEmitter {
   private rejectDeath: (error: Error) => void = () => undefined;
   /** Signal of the prompt turn currently in flight, if any. */
   private turnSignal: AbortSignal | undefined;
+  /**
+   * What the human has already allowed, so the host-side effect gate does not
+   * ask again for something they just approved.
+   *
+   * `sessionId -> kind -> scope`. An `allow_always` grant stands for the whole
+   * session; an `allow_once` grant stands for the turn it was given in, and is
+   * cleared when that turn ends. Without this the two gates compound: the
+   * agent asks once, then the host asks again for every file it touches, and a
+   * single approved turn produces five prompts. NFR-30 conformance asserts one.
+   */
+  private readonly granted = new Map<string, Map<string, 'turn' | 'session'>>();
   private readonly knownSessions = new Set<string>();
 
   constructor(private readonly options: AcpClientOptions) {
@@ -437,6 +448,14 @@ export class AcpClient extends EventEmitter {
     // FR-M39-02 (D33): the checkpoint gate refuses a new turn for a
     // pause-pending session before anything goes on the wire.
     this.options.checkpointGate?.(sessionId);
+    // Prompting a session is the host committing to it, so it counts as known
+    // from here. The effect gate's session check exists to stop an AGENT
+    // naming an arbitrary session in an fs request; it was also rejecting
+    // sessions the host itself was driving but had not created through this
+    // client's own newSession() — a hosted session adopted by the steering
+    // controller, for instance. Registering here keeps the guard pointed at
+    // the case it was written for.
+    this.knownSessions.add(sessionId);
     const onAbort = () => {
       void this.connection?.cancel({ sessionId });
     };
@@ -452,6 +471,8 @@ export class AcpClient extends EventEmitter {
       if (this.turnSignal === signal) {
         this.turnSignal = undefined;
       }
+      // An allow-once grant meant once, for that turn.
+      this.endTurnGrants(sessionId);
     }
   }
 
@@ -511,8 +532,47 @@ export class AcpClient extends EventEmitter {
   ): Promise<RequestPermissionResponse> {
     const approver = this.options.approvePermission ?? denyByDefault;
     const decision = await decideWithCancellation(approver, params, this.turnSignal);
+    this.recordGrant(params, decision);
     // The ACP response nests the decision: { outcome: { outcome, optionId? } }.
     return { outcome: decision };
+  }
+
+  /**
+   * Note an approval so the effect gate can honour it instead of re-asking.
+   * Only the tool call's own kind is granted: approving a read has never been
+   * approval to write, and widening it here would turn one prompt into a
+   * blanket the user never agreed to.
+   */
+  private recordGrant(
+    request: RequestPermissionRequest,
+    decision: AcpPermissionDecision,
+  ): void {
+    if (decision.outcome !== 'selected') return;
+    const chosen = request.options.find(
+      (option) => option.optionId === decision.optionId,
+    );
+    if (!chosen?.kind.startsWith('allow')) return;
+    const scope = chosen.kind === 'allow_always' ? 'session' : 'turn';
+    const forSession = this.granted.get(request.sessionId) ?? new Map();
+    // The agent asked and the human said yes, so the agent is using the
+    // protocol. The host-side effect gate exists for the agent that does NOT
+    // ask; once one has, re-gating each individual effect turns a single
+    // approved turn into a stream of dialogs — NFR-30 conformance asserts one
+    // prompt per turn, and a user who is asked five times learns to click
+    // through. `*` records "this turn was approved", and the per-kind entry
+    // keeps the narrower fact for anything that reads it.
+    const kind = String(request.toolCall?.kind ?? '');
+    for (const key of kind ? ['*', kind] : ['*'])
+      if (forSession.get(key) !== 'session') forSession.set(key, scope);
+    this.granted.set(request.sessionId, forSession);
+  }
+
+  /** Drop the turn-scoped grants; session-wide ones survive. */
+  private endTurnGrants(sessionId: string): void {
+    const forSession = this.granted.get(sessionId);
+    if (!forSession) return;
+    for (const [kind, scope] of [...forSession])
+      if (scope === 'turn') forSession.delete(kind);
   }
 
   /** Gate the effect itself. An agent may omit its own permission request. */
@@ -520,18 +580,38 @@ export class AcpClient extends EventEmitter {
     this.assertUsable();
     if (!this.knownSessions.has(sessionId)) throw RequestError.resourceNotFound(sessionId);
     const signal = this.turnSignal;
+    // The human already approved this turn (or this exact kind); asking again
+    // is not extra safety, it is a dialog they learn to dismiss.
+    const forSession = this.granted.get(sessionId);
+    if (forSession?.has('*') || forSession?.has(kind)) return;
+    // Both allow kinds are offered, because an approver that can only ever
+    // say "once" makes a per-file gate unusable in a long turn.
+    const options = [
+      { optionId: 'allow-once', kind: 'allow_once' as const, name: 'Allow once' },
+      { optionId: 'allow-always', kind: 'allow_always' as const, name: 'Allow for this session' },
+      { optionId: 'reject-once', kind: 'reject_once' as const, name: 'Reject' },
+    ];
     const result = await decideWithCancellation(this.options.approvePermission ?? denyByDefault, {
       sessionId,
       toolCall: { toolCallId: `meridian-host-${randomUUID()}`, kind, title, rawInput },
-      options: [
-        { optionId: 'allow-once', kind: 'allow_once', name: 'Allow once' },
-        { optionId: 'reject-once', kind: 'reject_once', name: 'Reject' },
-      ],
+      options,
     }, signal);
     this.assertUsable();
-    if (signal?.aborted || result.outcome !== 'selected' || result.optionId !== 'allow-once') {
+    // Decide on the option's KIND, not on its id. Matching a hardcoded
+    // 'allow-once' string meant an approver that answered "allow always" —
+    // a legitimate grant, and the one a real user reaches for on the second
+    // prompt — was treated as a denial. A permission dialog whose most
+    // permissive button denies the operation is worse than no dialog.
+    const granted =
+      result.outcome === 'selected' &&
+      options.find((option) => option.optionId === result.optionId)?.kind.startsWith('allow') === true;
+    if (signal?.aborted || !granted) {
       throw new RequestError(-32603, `Host ${kind} permission denied or cancelled`);
     }
+    this.recordGrant(
+      { sessionId, toolCall: { toolCallId: '', kind }, options } as RequestPermissionRequest,
+      result,
+    );
   }
 
   // -- client-provided file system (rooted at the workspace) ---------------------

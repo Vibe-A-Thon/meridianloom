@@ -232,7 +232,22 @@ describe('steer a running session (FR-M25-01)', () => {
     const calls: RecordedCall[] = [];
     const wirePrompts: string[] = [];
     const h = harness(calls, wirePrompts);
-    const client = new WireSpyClient(agentOptions('--steerable'), wirePrompts);
+    // The --steerable fixture writes to the workspace as part of its turn.
+    // Host fs effects are gated now (d14b620), and a client with no approver
+    // is fail-closed by design — which is the hole that change closed. This
+    // test is about steering order, not permissions, so it grants.
+    const client = new WireSpyClient(
+      {
+        ...agentOptions('--steerable'),
+        approvePermission: async (request) => ({
+          outcome: 'selected',
+          optionId:
+            request.options.find((option) => option.kind.startsWith('allow'))
+              ?.optionId ?? request.options[0].optionId,
+        }),
+      },
+      wirePrompts,
+    );
     await startHosted(h, client, 'sess-steer');
 
     const idling = waitForChunk(client, 'Idling');
