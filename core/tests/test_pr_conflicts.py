@@ -217,6 +217,7 @@ class TestConflictDetection:
         assert pr_conflicts.detect_conflicts(hunks) == []
 
 
+@pytest.mark.slow
 class TestPrConflictsRpc:
     def test_conflicts_detected_attributed_classified_recorded(
         self, server: SidecarServer, repo: Path, tmp_path: Path

@@ -52,7 +52,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from .blobs import BlobNotFound, BlobStore
+from .blobs import BlobNotFound, BlobStore, normalise_ref
 
 MANIFEST_VERSION = 1
 MANIFEST_NAME = "manifest.json"
@@ -214,11 +214,15 @@ class ArchiveStore:
             for kind, ref in (("input", row[1]), ("output", row[2])):
                 if not ref:
                     continue
-                hot = blob_root / ref
+                # The ref decides where a file is read from and written
+                # to. It comes from a ledger row, and a ledger can be a
+                # restored backup, so it is validated rather than trusted.
+                safe_ref = normalise_ref(ref)
+                hot = blob_root / safe_ref
                 if not hot.is_file():
                     continue  # already archived, or never present
                 digest = hashlib.sha256(hot.read_bytes()).hexdigest()
-                cold_file = batch_dir / "blobs" / ref
+                cold_file = batch_dir / "blobs" / safe_ref
                 cold_file.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(hot, cold_file)
                 size = cold_file.stat().st_size
@@ -267,7 +271,14 @@ class ArchiveStore:
         for manifest_path, manifest in self.manifests():
             batch_dir = manifest_path.parent
             for archived in manifest.files:
-                cold_file = batch_dir / "blobs" / archived.ref
+                # `manifest.json` lives in cold storage, which the customer
+                # (and anyone else who can write there) controls. This ref is
+                # joined onto a root and then written through
+                # `mkdir(parents=True)` + `write_bytes`, so an unvalidated
+                # `../../..` was an arbitrary-file write. The digest checks
+                # below constrain the content, never the path.
+                safe_ref = normalise_ref(archived.ref)
+                cold_file = batch_dir / "blobs" / safe_ref
                 if not cold_file.is_file():
                     raise ArchiveError(f"archived blob missing: {archived.ref}")
                 column = "input_digest" if archived.kind == "input" else "output_digest"
@@ -279,7 +290,7 @@ class ArchiveStore:
                         f"ledger row {archived.seq} has no {archived.kind} digest"
                     )
                 plan.append(
-                    (cold_file, Path(ledger.dir) / "blobs" / archived.ref,
+                    (cold_file, Path(ledger.dir) / "blobs" / safe_ref,
                      archived.digest, bytes(row[0]).hex())
                 )
 
@@ -322,13 +333,14 @@ class ArchiveStore:
             archived = next((f for f in manifest.files if f.ref == ref), None)
             if archived is None:
                 continue
-            cold_file = manifest_path.parent / "blobs" / ref
+            safe_ref = normalise_ref(ref)
+            cold_file = manifest_path.parent / "blobs" / safe_ref
             if not cold_file.is_file():
                 raise ArchiveError(f"archived blob missing: {ref}")
             data = cold_file.read_bytes()
             if hashlib.sha256(data).hexdigest() != archived.digest:
                 raise ArchiveError(f"archived blob digest mismatch: {ref}")
-            hot = Path(ledger.dir) / "blobs" / ref
+            hot = Path(ledger.dir) / "blobs" / safe_ref
             hot.parent.mkdir(parents=True, exist_ok=True)
             tmp = hot.with_suffix(".restoring")
             tmp.write_bytes(data)

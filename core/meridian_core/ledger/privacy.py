@@ -482,7 +482,17 @@ def attach_privacy_section(
     signed, so it cannot be widened after export without detection."""
     bundle = dict(bundle)
     bundle["privacy"] = privacy_section
-    digest = hashlib.sha256(canonical.canonical_json(bundle)).digest()
+    # Digest the bundle *core* — everything except the signature block —
+    # which is what `verifier/verify.py` recomputes and what `build_bundle`
+    # signs. `build_bundle` gets this right for free, because it signs before
+    # a signature key exists; here one is already present from that first
+    # signing, and including it made the digest cover a field the verifier
+    # excludes. Every recipient-filtered export therefore failed the shipped
+    # verifier with "a field was tampered with after signing" — the one
+    # export path a privacy-conscious customer is most likely to use, and
+    # exactly the claim the verifier exists to support.
+    core = {key: value for key, value in bundle.items() if key != "signature"}
+    digest = hashlib.sha256(canonical.canonical_json(core)).digest()
     bundle["signature"] = {
         "algorithm": "Ed25519",
         "signedAt": bundle.get("generatedAt"),

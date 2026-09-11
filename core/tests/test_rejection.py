@@ -113,6 +113,7 @@ class TestForceAmended:
         assert [r for r in rejections if r.rejected_commit == original] == []
 
 
+@pytest.mark.slow
 class TestReplacedWithinWindow:
     def test_replacement_inside_window_is_detected(self, repo):
         rejected = _replace_two(repo, "two-agent")
@@ -182,6 +183,7 @@ class TestNotRejected:
         assert rejection_mod.detect(repo, base=base) == []
 
 
+@pytest.mark.slow
 class TestDetectRejectionsRpc:
     """trust/detectRejections over the dispatch layer: ledger recording,
     idempotency, trailer-based sequence resolution, tier ownership."""

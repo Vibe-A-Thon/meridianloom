@@ -154,6 +154,7 @@ def _independent_recomputation(ledger, repo_id, classifications):
     return overall, split, by_agent
 
 
+@pytest.mark.slow
 class TestRejectionRate:
     def test_rate_split_by_greenfield_brownfield(self, world):
         server, _ledger, repo, shas = world

@@ -380,6 +380,8 @@ function AgentCard({
             {isActive ? "Active" : "Learning"}
           </Tag>
           {agent.runtime === "running" ? <Tag tone="warn">Running</Tag> : null}
+          {agent.source === "builtin" ? <Tag>Built-in</Tag> : null}
+          {agent.source === "imported" ? <Tag>Imported</Tag> : null}
           {!isActive && agent.learningState === "review" ? (
             <Tag tone="warn">Notes to review</Tag>
           ) : null}

@@ -843,3 +843,139 @@ describe("persisted agent workbench", () => {
     expect(imported.agents[0].mode).toBe("learning");
   }, 15_000);
 });
+
+describe("run history is a window, not an archive", () => {
+  /**
+   * Every run carries its full briefing and up to 100 KB of captured output,
+   * and nothing used to remove one. A few hundred runs reach the 20 MB
+   * ceiling on `persist()`, and past that the workbench cannot save anything
+   * at all — while the in-memory state keeps moving, so the panel shows work
+   * that disappears on the next reload. These pin the window that replaced
+   * that cliff, and the two cases the window must never trim.
+   */
+  const finished = (index: number, deliverableId?: string) => ({
+    id: `run-${String(index).padStart(4, "0")}`,
+    agentId: "atlas",
+    agentName: "ATLAS",
+    prompt: `Briefing ${index}`,
+    state: "completed" as const,
+    startedAt: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+    finishedAt: new Date(Date.UTC(2026, 0, 1, 0, 1, index)).toISOString(),
+    ...(deliverableId ? { deliverableId } : {}),
+  });
+  const reopen = async (root: string) => {
+    const service = new WorkbenchService({
+      workspaceDir: () => root,
+      trusted: () => true,
+      enabledTiers: () => ["flight-recorder"],
+      sidecar: () => undefined,
+    });
+    services.push(service);
+    return (await service.request({ action: "snapshot" })) as WorkbenchSnapshot;
+  };
+
+  it("trims the oldest finished runs on open, keeping the most recent", async () => {
+    const { service, root } = await setup();
+    await save(service, "atlas");
+    const file = path.join(root, ".meridian/workbench/state.json");
+    const state = JSON.parse(await readFile(file, "utf8"));
+    state.runs = Array.from({ length: 640 }, (_, index) => finished(index));
+    await writeFile(file, JSON.stringify(state));
+    const snapshot = await reopen(root);
+    expect(snapshot.runs).toHaveLength(200);
+    // The window keeps the *recent* end: run-0639 is the newest of 640.
+    expect(snapshot.runs.at(-1)!.id).toBe("run-0639");
+    expect(snapshot.runs[0].id).toBe("run-0440");
+  });
+
+  it("never trims a run whose deliverable has not settled", async () => {
+    // `settleDeliverable` decides a deliverable's state by reading exactly
+    // these rows. Trimming them would make an open deliverable unreachable.
+    const { service, root } = await setup();
+    await save(service, "atlas");
+    const file = path.join(root, ".meridian/workbench/state.json");
+    const state = JSON.parse(await readFile(file, "utf8"));
+    state.deliverables = [
+      {
+        id: "open-deliverable",
+        title: "Still in review",
+        brief: "Unsettled",
+        state: "review",
+        agentIds: ["atlas"],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+    // The pinned runs are the *oldest*, so a window that ignored the pin
+    // would drop every one of them.
+    state.runs = [
+      ...Array.from({ length: 30 }, (_, index) =>
+        finished(index, "open-deliverable"),
+      ),
+      ...Array.from({ length: 400 }, (_, index) => finished(1000 + index)),
+    ];
+    await writeFile(file, JSON.stringify(state));
+    const snapshot = await reopen(root);
+    const pinned = snapshot.runs.filter(
+      (run) => run.deliverableId === "open-deliverable",
+    );
+    expect(pinned).toHaveLength(30);
+    // Live work is a floor the window yields to, so the total may exceed it.
+    expect(snapshot.runs.length).toBeGreaterThanOrEqual(200);
+  });
+
+  it("leaves a deliverable's verdict alone when it has no runs to read", async () => {
+    // A failed deliverable with an empty run set must not become "review".
+    // The pin above prevents this, so this is the guard behind the guard.
+    const { service, root } = await setup();
+    await save(service, "atlas");
+    const file = path.join(root, ".meridian/workbench/state.json");
+    const state = JSON.parse(await readFile(file, "utf8"));
+    state.deliverables = [
+      {
+        id: "orphaned",
+        title: "Runs already gone",
+        brief: "Failed earlier",
+        state: "failed",
+        agentIds: ["atlas"],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+    state.runs = [];
+    await writeFile(file, JSON.stringify(state));
+    const snapshot = await reopen(root);
+    expect(snapshot.deliverables[0].state).toBe("failed");
+  });
+
+  it("keeps saving once the window is full, rather than failing to persist", async () => {
+    // The point of the whole change: a workspace at the cap can still record
+    // new work. Before, this is where persist() began throwing for good.
+    const { service, root, snapshot } = await setup();
+    await save(service, "atlas");
+    await activate(service, "atlas");
+    const file = path.join(root, ".meridian/workbench/state.json");
+    const state = JSON.parse(await readFile(file, "utf8"));
+    state.runs = Array.from({ length: 200 }, (_, index) => finished(index));
+    await writeFile(file, JSON.stringify(state));
+    const reloaded = new WorkbenchService({
+      workspaceDir: () => root,
+      trusted: () => true,
+      enabledTiers: () => ["flight-recorder"],
+      sidecar: () => undefined,
+    });
+    services.push(reloaded);
+    await reloaded.request({
+      action: "deliverable/save",
+      params: { title: "New work", brief: "After the window filled." },
+    });
+    const after = (await reloaded.request({
+      action: "snapshot",
+    })) as WorkbenchSnapshot;
+    expect(after.deliverables).toHaveLength(1);
+    // And it reached disk, which is the part that used to throw.
+    const written = JSON.parse(await readFile(file, "utf8"));
+    expect(written.deliverables).toHaveLength(1);
+    expect(snapshot).toBeTruthy();
+  });
+});

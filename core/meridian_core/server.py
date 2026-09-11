@@ -92,6 +92,49 @@ def _parse_iso(value: Any, field: str) -> datetime:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed
 
+#: Every ledger sequence a caller can name. SQLite's ``seq`` is a positive
+#: 64-bit rowid, so anything outside that range cannot address a row and is a
+#: caller error rather than an empty result.
+_MAX_SEQUENCE = 2**63 - 1
+
+
+def _check_sequence_params(method: str, params: Any) -> None:
+    """Refuse a malformed sequence filter instead of quietly answering wrong.
+
+    Twenty RPCs take ``fromSequence`` / ``toSequence`` / ``afterSequence`` /
+    ``sequence`` and none of them validated it. A string, a float or a negative
+    number reached the SQL layer as a bound parameter, where SQLite compares
+    across types rather than failing — so ``fromSequence: "abc"`` returned a
+    figure computed over the wrong rows, silently.
+
+    For a product whose whole claim is that its numbers can be trusted, a
+    silently-wrong figure is a worse outcome than a crash. This runs once at
+    the dispatch boundary rather than in twenty handlers, so a method added
+    later inherits the check by naming its parameter the same way.
+
+    Booleans are rejected explicitly: ``isinstance(True, int)`` is True in
+    Python, and ``fromSequence: true`` is a caller error, not sequence 1.
+    """
+    if not isinstance(params, dict):
+        return
+    for field, value in params.items():
+        if value is None or not field.endswith(("Sequence", "sequence")):
+            continue
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"{field} must be a whole number; {method} was given "
+                f"{type(value).__name__}. Refusing rather than computing a "
+                "figure over the wrong rows.",
+            )
+        if value < 0 or value > _MAX_SEQUENCE:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"{field} must be between 0 and {_MAX_SEQUENCE}; {method} was "
+                f"given {value}. No ledger row can carry that sequence.",
+            )
+
+
 # Method handlers take (server, params) and return a JSON-able result.
 Handler = Callable[["SidecarServer", Any], Any]
 
@@ -379,7 +422,12 @@ class SidecarServer:
                 request_id, protocol.METHOD_NOT_FOUND, f"unknown method: {method}"
             )
         try:
-            result = handler(self, message.get("params") or {})
+            request_params = message.get("params") or {}
+            # One boundary check for every sequence filter in the registry
+            # (see _check_sequence_params). Inside the try so its refusal is
+            # returned as a structured INVALID_PARAMS like any other.
+            _check_sequence_params(method, request_params)
+            result = handler(self, request_params)
         except _RpcError as error:
             return make_error_response(request_id, error.code, error.message, error.data)
         except Exception:  # noqa: BLE001 - never let a handler kill the loop

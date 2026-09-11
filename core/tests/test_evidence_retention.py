@@ -271,14 +271,24 @@ class TestServerSurfaces:
         return SidecarServer(ledger=Ledger(tmp_path / "ledger", EphemeralSigningKeyProvider()))
 
     def test_capture_evidence_rpc_records_within_window(self, server):
+        # Anchored to the real clock, not to T0. The RPC derives its
+        # `expired` list from `markers()` with no injected `now`, and
+        # deliberately so: an evidence surface that let a caller declare the
+        # current time could be told a closed window is still open. That
+        # makes "still inside the window" a statement about *today*, so the
+        # evidence time has to be recent. Pinned to T0 (2026-09-09) with a
+        # one-day window, this test asserted `expired == []` and passed only
+        # until 2026-09-10, then failed on every run after.
+        captured_at = datetime.now(timezone.utc)
+        evidence_time = captured_at - timedelta(hours=6)
         response = call(
             server,
             "observe/captureEvidence",
             {
                 "vendor": "copilot",
                 "source": "agent-session-logs",
-                "evidenceTime": T0.isoformat(),
-                "capturedAt": (T0 + timedelta(hours=6)).isoformat(),
+                "evidenceTime": evidence_time.isoformat(),
+                "capturedAt": captured_at.isoformat(),
                 "unavailable": ["prompt-transcript"],
             },
         )

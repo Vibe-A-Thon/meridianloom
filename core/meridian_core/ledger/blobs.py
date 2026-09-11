@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from pathlib import Path
 
 from cryptography.exceptions import InvalidTag
@@ -49,6 +50,47 @@ class BlobNotFound(BlobError):
 class BlobTampered(BlobError):
     """AES-GCM authentication failed: ciphertext was modified, or the
     wrong key was supplied."""
+
+
+class BlobRefInvalid(BlobError):
+    """A blob reference is not the shape this store issues.
+
+    Refs are content-addressed and fully determined: two hex characters of
+    the digest, a separator, the full digest, ``.blob``. Nothing else is
+    ever produced, so anything else is either corruption or an attempt to
+    steer a file write, and both are refused the same way.
+    """
+
+
+#: The only shape a ref may take. An allow-list rather than a hunt for
+#: ``..``, because the set of ways to escape a directory is open-ended
+#: (``..``, absolute paths, ``C:`` drive-relative paths, UNC roots, NUL
+#: truncation) while the set of valid refs is exactly this.
+_REF_PATTERN = re.compile(r"^[0-9a-f]{2}/[0-9a-f]{64}\.blob$")
+
+
+def normalise_ref(ref: str) -> str:
+    """Validate a blob ref and return it in posix form.
+
+    Refs reach this process from three places, and two of them are outside
+    its control: rows in a ledger database that may have been restored from
+    a backup, and ``manifest.json`` files in customer-controlled cold
+    storage. Both are joined onto a root and written to
+    (``mkdir(parents=True)`` then ``write_bytes``), so a ref of
+    ``../../../x`` was an arbitrary-file write, and an absolute ref replaced
+    the root outright. The digest checks downstream do not help: they
+    constrain the *content* written, never the path.
+
+    Backslash separators are accepted and converted. Older archives carry
+    them because the ref used to be built with ``str(Path.relative_to(...))``,
+    which emits the local separator — so an archive written on Windows named
+    a file no POSIX machine could find, and cold storage meant to be handed
+    to an auditor was not portable between them.
+    """
+    candidate = str(ref).replace("\\", "/")
+    if not _REF_PATTERN.match(candidate):
+        raise BlobRefInvalid(f"not a blob reference: {ref!r}")
+    return candidate
 
 
 class BlobStore:
@@ -83,13 +125,13 @@ class BlobStore:
             except BaseException:
                 path.unlink(missing_ok=True)
                 raise
-        return digest_hex, str(path.relative_to(self._root))
+        return digest_hex, f"{digest_hex[:2]}/{digest_hex}{SUFFIX}"
 
     def get(self, ref: str, blob_key_id: str) -> bytes:
         raw_key = self._keys.get(blob_key_id)
         if raw_key is None:
             raise BlobKeyMissing(f"no key for {blob_key_id}")
-        path = self._root / ref
+        path = self._root / normalise_ref(ref)
         if not path.is_file():
             raise BlobNotFound(ref)
         blob = path.read_bytes()

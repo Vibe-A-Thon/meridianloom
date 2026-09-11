@@ -156,7 +156,15 @@ export class RecorderPanel {
       vscode.ViewColumn.One,
       {
         enableScripts: true,
-        retainContextWhenHidden: false,
+        // True now that the editor area is the workbench's primary home
+        // rather than a secondary dashboard. An editor tab is backgrounded
+        // every time the user looks at a file, and rebuilding the whole
+        // interface on the way back — losing scroll position, open panels
+        // and in-progress form state — is the wrong trade for a tool people
+        // keep open all day. Correctness still does not depend on it: the
+        // webview restores from getState() and re-issues its RPCs on boot,
+        // which is what the serializer path below continues to exercise.
+        retainContextWhenHidden: true,
         localResourceRoots: [],
       },
     );

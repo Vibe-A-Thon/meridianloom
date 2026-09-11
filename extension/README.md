@@ -11,8 +11,9 @@ already have — Claude Code, Gemini CLI, or anything that speaks the
 that are missing when agents start writing production code: who did what, on
 whose authority, and whether the result can be trusted.
 
-Select **Meridian Loom** in the Activity Bar and the workbench opens. There is
-no command to run first.
+Select **Meridian Loom** in the Activity Bar and the workbench opens as an
+editor tab. There is no command to run first. If you would rather it lived in
+the side bar, set `meridianLoom.surface` to `sidebar`.
 
 ---
 
@@ -37,6 +38,21 @@ A skill pack turns a role agent into a stack specialist — bind
 `java-spring-gradle` and the Developer becomes a Java developer. Instruction
 files (`AGENTS.md` and its kin) carry how your organisation works, ordered so
 the most specific scope wins.
+
+**A library ships in the box.** A new workspace is seeded with nine role
+agents — one for each SDLC phase, from Requirements Analyst through to
+Reliability Engineer — plus skill packs and instruction documents covering
+engineering standards, a definition of done, a review checklist and a security
+baseline. They are marked **Built-in**, and they are ordinary records: read
+them, edit them, disable them, export them, or delete them. A deleted built-in
+stays deleted.
+
+The shipped agents arrive in **Learning** mode with `read`, `search` and
+`think`, and with no executable bound. Something that came free in the box has
+not earned more trust than something you chose to install, so you bind it to an
+ACP adapter and activate it deliberately — the same two steps as an import.
+Your own agents, skills and instructions load the same way, as `.md` or `.zip`;
+built-in and uploaded are one mechanism with two sources, not two systems.
 
 All of it is written into the agent's briefing on every run, and the Runs tab
 shows you the exact briefing that was sent. Tag agents to the nine SDLC phases
@@ -104,13 +120,15 @@ that looks broken.
 ## Getting started
 
 1. Open a workspace folder. Meridian records into `.meridian/` inside it.
-2. Select **Meridian Loom** in the Activity Bar.
+2. Select **Meridian Loom** in the Activity Bar. It opens as an editor tab,
+   already seeded with the built-in library.
 3. **Enable the Governor tier** in the `meridian.tiers` setting. Running an
    agent from Meridian is a Governor capability, because a run is a session
    whose permission decisions get recorded. Without it you can observe agents
    you start yourself, but the Run button will tell you it is blocked.
-4. On **Agents**, add an agent — you need an ACP-speaking executable on your
-   PATH — or import one.
+4. On **Agents**, pick a built-in role — or add your own, or import one — and
+   give it the command for an ACP-speaking executable on your PATH. Built-in
+   agents ship without one deliberately.
 5. Activate it, and tag it to the SDLC phases it should take part in.
 6. **Widen the permission policy if your agent needs to write.** A new agent is
    on probation, and the shipped default grants probationary agents only
@@ -149,7 +167,6 @@ This is policy, not code: it is a file in your repository, versioned and
 reviewable like anything else.
 
 ### Requirements
-
 
 - VS Code 1.95 or later
 - Python 3.11+ on PATH (the sidecar that owns the ledger and policy engine)

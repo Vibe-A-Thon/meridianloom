@@ -98,8 +98,13 @@ export interface WorkbenchSkillInput {
 export interface WorkbenchSkill extends WorkbenchSkillInput {
   /** Disabled skills stay in the catalogue but bind to no agent. */
   enabled: boolean;
-  /** Where it came from, so a packaged import is never mistaken for authored work. */
-  source: "authored" | "imported";
+  /**
+   * Where it came from, so a packaged import is never mistaken for authored
+   * work — and so a shipped one is never mistaken for either. `builtin`
+   * entries arrive with the extension; they are ordinary records in every
+   * other respect, and editing, disabling or deleting one is allowed.
+   */
+  source: "authored" | "imported" | "builtin";
   createdAt: string;
   updatedAt: string;
 }
@@ -116,12 +121,18 @@ export interface WorkbenchInstructionInput {
 
 export interface WorkbenchInstruction extends WorkbenchInstructionInput {
   enabled: boolean;
-  source: "authored" | "imported";
+  source: "authored" | "imported" | "builtin";
   createdAt: string;
   updatedAt: string;
 }
 
 export interface WorkbenchAgent extends WorkbenchAgentInput {
+  /**
+   * How this agent got here. Optional because state files written before
+   * the shipped library existed have no such field, and an agent with no
+   * recorded provenance is an authored one by definition.
+   */
+  source?: "authored" | "imported" | "builtin";
   mode: AgentMode;
   runtime: "idle" | "running";
   learningState: "waiting" | "review";

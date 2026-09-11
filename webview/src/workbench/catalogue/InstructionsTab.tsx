@@ -216,6 +216,7 @@ export function InstructionsTab({ controller, client }: InstructionsTabProps) {
                         {entry.enabled ? "Enabled" : "Disabled"}
                       </Tag>
                       {entry.source === "imported" ? <Tag>Imported</Tag> : null}
+                      {entry.source === "builtin" ? <Tag>Built-in</Tag> : null}
                     </div>
                   </div>
                   {entry.summary ? (

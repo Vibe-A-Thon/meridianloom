@@ -23,7 +23,8 @@ will hold OIDC tokens in SecretStorage later; the sidecar only ever calls
 
 from __future__ import annotations
 
-import subprocess
+from ..gitcmd import GitTimeout, run_git_command
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
@@ -101,13 +102,7 @@ class GitIdentityProvider:
         self._repo = Path(repo)
 
     def _config(self, key: str) -> str:
-        result = subprocess.run(
-            ["git", "config", "--get", key],
-            cwd=self._repo,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        )
+        result = run_git_command(self._repo, "config", "--get", key)
         if result.returncode != 0:
             return ""
         return result.stdout.strip()

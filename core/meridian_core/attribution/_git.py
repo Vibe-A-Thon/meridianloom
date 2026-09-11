@@ -6,9 +6,10 @@ quoting and colour disabled so output is parseable and deterministic.
 
 from __future__ import annotations
 
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+
+from ..gitcmd import GitTimeout, run_git_command
 
 
 class AttributionError(Exception):
@@ -22,18 +23,15 @@ def run_git(repo: Path, *args: str) -> str:
     can surface a readable message instead of an internal error.
     """
     try:
-        result = subprocess.run(
-            ["git", "-c", "core.quotepath=false", "--no-pager", *args],
-            cwd=repo,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        result = run_git_command(repo, *args)
     except FileNotFoundError as error:
         raise AttributionError(
             "git executable not found on PATH; attribution requires git"
         ) from error
+    except GitTimeout as error:
+        # A hang is not a repository problem, so it does not get git's stderr
+        # treatment — it gets its own message, which names the usual causes.
+        raise AttributionError(str(error)) from error
     if result.returncode != 0:
         raise AttributionError(result.stderr.strip() or f"git {' '.join(args)} failed")
     return result.stdout

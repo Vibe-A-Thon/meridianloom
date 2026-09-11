@@ -186,6 +186,11 @@ export function SkillsTab({ controller, client }: SkillsTabProps) {
                         {skill.enabled ? "Enabled" : "Disabled"}
                       </Tag>
                       {skill.source === "imported" ? <Tag>Imported</Tag> : null}
+                      {/* Shipped with the extension. Worth showing for the
+                          same reason "Imported" is: a user deciding whether
+                          to trust or edit something should be able to see
+                          where it came from without opening it. */}
+                      {skill.source === "builtin" ? <Tag>Built-in</Tag> : null}
                     </div>
                   </div>
                   {skill.summary ? (

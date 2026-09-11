@@ -279,6 +279,7 @@ class TestIngestUnit:
         assert "detail" not in DataGap(gapClass="x", count=1).to_dict()
 
 
+@pytest.mark.slow
 class TestReconciliationFixture:
     """The FR-M41-11 fixture: a synthetic event stream reconciled exactly
     under each delivery condition."""

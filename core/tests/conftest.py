@@ -26,7 +26,19 @@ import pytest
 
 from test_attribution import ALICE, T0, git
 
-_LOCK = Path(tempfile.gettempdir()) / "meridian-core-pytest.lock"
+#: One lock for **every** Meridian suite, not one per language.
+#:
+#: The first version of this guarded pytest against pytest, which was the
+#: contention that had already burned a day. It did nothing about the
+#: extension's vitest suite, which spawns the same real sidecars and the same
+#: real ACP subprocesses — and a Python run measured while that suite ran
+#: alongside it produced 11 failures and took twice as long as the same tests
+#: had taken unattended. Same mistake, different pair of processes, and the
+#: lock watched it happen.
+#:
+#: So the name is suite-agnostic and `extension/test/run-lock.ts` takes this
+#: same file. Whichever starts second waits or refuses.
+_LOCK = Path(tempfile.gettempdir()) / "meridian-suite.lock"
 
 
 def _holder_is_alive(pid: int) -> bool:
@@ -87,7 +99,8 @@ def pytest_configure(config: pytest.Config) -> None:
             holder = 0
         if _holder_is_alive(holder):
             raise pytest.UsageError(
-                f"another meridian-core suite run is already going (pid {holder}). "
+                f"another Meridian suite run is already going (pid {holder}) — "
+                "it may be pytest or the extension's vitest suite. "
                 "Two runs on one machine spawn competing git and sidecar "
                 "subprocesses and starve each other; the failures that produces "
                 "are not regressions, and chasing them wastes more time than "

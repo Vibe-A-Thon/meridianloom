@@ -52,6 +52,11 @@
     },
     "commands": [
       {
+        "command": "meridianLoom.open",
+        "title": "Meridian Loom: Open Workbench",
+        "category": "Meridian Loom"
+      },
+      {
         "command": "meridian.ingestStory",
         "title": "Ingest Story",
         "category": "Meridian Loom"
@@ -192,7 +197,7 @@
           "default": [
             "flight-recorder"
           ],
-          "description": "Enabled product tiers (FR-M36-05). Flight Recorder is the base tier and is always on. Enabling Governor or Orchestra is a settings change only — no reinstall; disabling a tier leaves the tiers below fully functional (G5)."
+          "description": "Enabled product tiers (FR-M36-05). Flight Recorder is the base tier and is always on. Enabling Governor or Orchestra is a settings change only \u2014 no reinstall; disabling a tier leaves the tiers below fully functional (G5)."
         },
         "meridian.rejectionWindowDays": {
           "type": "number",
@@ -222,12 +227,25 @@
             "oidc"
           ],
           "default": "git",
-          "description": "FR-M20-01 (D9; F1 Workstream C): the human identity source of record the sidecar resolves approver/halting/ingesting identity through. \"git\" (default) reads user.name/user.email from the workspace repository — assurance local, never verified. \"oidc\" is the enterprise SSO/OIDC provider (verified assurance); contracted stub until the enterprise tier lands. Provisioned to the sidecar over the handshake."
+          "description": "FR-M20-01 (D9; F1 Workstream C): the human identity source of record the sidecar resolves approver/halting/ingesting identity through. \"git\" (default) reads user.name/user.email from the workspace repository \u2014 assurance local, never verified. \"oidc\" is the enterprise SSO/OIDC provider (verified assurance); contracted stub until the enterprise tier lands. Provisioned to the sidecar over the handshake."
         },
         "meridian.editor.provenance": {
           "type": "boolean",
           "default": true,
           "description": "Show Git provenance hovers and the source inspector CodeLens. Edited working copies do not inherit committed line authorship."
+        },
+        "meridianLoom.surface": {
+          "type": "string",
+          "enum": [
+            "editor",
+            "sidebar"
+          ],
+          "enumDescriptions": [
+            "Open the workbench as an editor tab. The phase board, agent roster and ledger get editor width.",
+            "Render the workbench inside the Activity Bar rail, as it was before."
+          ],
+          "default": "editor",
+          "description": "Where the Meridian Loom workbench renders. Selecting it in the Activity Bar opens it either way."
         }
       }
     }

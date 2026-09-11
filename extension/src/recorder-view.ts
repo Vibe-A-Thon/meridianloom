@@ -104,12 +104,99 @@ export function createProxyContext(deps: RecorderPanelDeps): ProxyContext {
   };
 }
 
+/** Where the workbench interface actually renders. */
+export type WorkbenchSurface = 'editor' | 'sidebar';
+
+/**
+ * The configured home for the interface, defaulting to the editor area.
+ *
+ * The Activity Bar container is how the product is *entered* — that part of
+ * the requirement is unchanged, and is still the thing no command stands in
+ * front of. What changed is where the interface then appears. A sidebar view
+ * is a column a few hundred pixels wide, and this is a workbench: nine SDLC
+ * phases, agent rosters, ledger tables, metric envelopes, diff review. Those
+ * are editor-width surfaces, and squeezing them into a rail made the density
+ * choices worse everywhere.
+ *
+ * `sidebar` remains available because a second monitor is not universal and
+ * some people genuinely want the rail. Both paths share the same HTML, the
+ * same RPC dispatch and the same tier gate, so neither can quietly grow a
+ * capability the other lacks.
+ */
+export function readWorkbenchSurface(): WorkbenchSurface {
+  const configured = vscode.workspace
+    .getConfiguration('meridianLoom')
+    .get<string>('surface');
+  return configured === 'sidebar' ? 'sidebar' : 'editor';
+}
+
+/** The launcher's request to (re)open the editor-area workbench. */
+const OPEN_EDITOR_SURFACE = 'meridian/openEditorSurface';
+
+function isOpenSurfaceRequest(message: unknown): boolean {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    (message as { type?: unknown }).type === OPEN_EDITOR_SURFACE
+  );
+}
+
+/**
+ * The compact rail placard shown when the workbench lives in the editor.
+ *
+ * Deliberately not the application: rendering the full interface here as
+ * well would mean two live copies of it, two sets of RPCs against one
+ * service, and a user editing the same agent in two places. It carries its
+ * own CSP with the same `default-src 'none'` posture as the real panel, and
+ * no inline handler — the one script is nonced and does nothing but post a
+ * message.
+ */
+function buildLauncherHtml(nonce: string, cspSource: string): string {
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="en"><head><meta charset="utf-8">',
+    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; ' +
+      `style-src ${cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">`,
+    `<style nonce="${nonce}">`,
+    ':root{color-scheme:light dark}',
+    'body{margin:0;padding:16px;font:13px var(--vscode-font-family,system-ui);',
+    'color:var(--vscode-foreground);background:transparent}',
+    'h1{font-size:13px;font-weight:600;margin:0 0 6px}',
+    'p{margin:0 0 14px;color:var(--vscode-descriptionForeground);line-height:1.5}',
+    'button{width:100%;padding:6px 12px;border:0;border-radius:2px;cursor:pointer;',
+    'font:inherit;color:var(--vscode-button-foreground);',
+    'background:var(--vscode-button-background)}',
+    'button:hover{background:var(--vscode-button-hoverBackground)}',
+    'code{font-family:var(--vscode-editor-font-family,monospace)}',
+    '</style></head><body>',
+    '<h1>Meridian Loom</h1>',
+    '<p>The workbench opens in the editor area, where there is room for the ',
+    'phase board, agent roster and ledger.</p>',
+    `<button type="button" id="open">Open workbench</button>`,
+    '<p style="margin-top:14px">Prefer it docked here? Set ',
+    '<code>meridianLoom.surface</code> to <code>sidebar</code>.</p>',
+    `<script nonce="${nonce}">`,
+    'const vscode = acquireVsCodeApi();',
+    "document.getElementById('open').addEventListener('click', () => " +
+      `vscode.postMessage({ type: '${OPEN_EDITOR_SURFACE}' }));`,
+    '</script></body></html>',
+  ].join('\n');
+}
+
 export class RecorderViewProvider implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | undefined;
   private readonly context: ProxyContext;
   private workbenchSubscription: vscode.Disposable | undefined;
 
-  constructor(private readonly deps: RecorderPanelDeps) {
+  /**
+   * @param openEditorSurface Opens the editor-area workbench. Injected
+   *   rather than imported so this module does not depend on the panel's
+   *   construction, and so tests can observe the call without a window.
+   */
+  constructor(
+    private readonly deps: RecorderPanelDeps,
+    private readonly openEditorSurface?: () => void,
+  ) {
     this.context = createProxyContext(deps);
   }
 
@@ -120,6 +207,25 @@ export class RecorderViewProvider implements vscode.WebviewViewProvider {
 
   async resolveWebviewView(view: vscode.WebviewView): Promise<void> {
     this.view = view;
+
+    // Selecting Meridian Loom in the Activity Bar still *is* opening the
+    // product — no command in between. It now opens in the editor area, and
+    // the rail keeps a placard so a closed tab can be reopened without the
+    // palette (resolveWebviewView does not fire again once resolved).
+    if (readWorkbenchSurface() === 'editor') {
+      const nonce = getNonce();
+      view.webview.options = { enableScripts: true, localResourceRoots: [] };
+      view.webview.html = buildLauncherHtml(nonce, view.webview.cspSource);
+      view.webview.onDidReceiveMessage((message: unknown) => {
+        if (isOpenSurfaceRequest(message)) this.openEditorSurface?.();
+      });
+      view.onDidDispose(() => {
+        if (this.view === view) this.view = undefined;
+      });
+      this.openEditorSurface?.();
+      return;
+    }
+
     const distDir = await resolveWebviewDist(this.deps.extensionPath);
     view.webview.options = {
       enableScripts: true,

@@ -18,6 +18,10 @@ import { renderDoctorReport } from './doctor';
  * single source of truth; the manifest test asserts package.json matches.
  */
 export const COMMANDS = [
+  // The palette route to the workbench. The Activity Bar remains the route
+  // that needs no command at all; this exists for keybindings and for
+  // reopening a closed editor tab.
+  { id: 'meridianLoom.open', title: 'Open Workbench' },
   { id: 'meridian.ingestStory', title: 'Ingest Story' },
   { id: 'meridian.openRecorder', title: 'Open Recorder' },
   { id: 'meridian.inspectSource', title: 'Inspect Source Provenance' },
@@ -39,6 +43,12 @@ export const COMMANDS = [
 export type CommandId = (typeof COMMANDS)[number]['id'];
 
 export interface CommandDeps {
+  /**
+   * Opens the workbench on its configured surface. The Activity Bar reaches
+   * it without a command; this is the palette and keybinding route, and the
+   * way back after someone closes the editor tab.
+   */
+  openWorkbench?: () => Promise<void>;
   inspectSource?: () => Promise<void>;
   /**
    * F0 Workstream G: opens the Flight Recorder dashboard webview panel.
@@ -98,6 +108,16 @@ async function runCommand(id: CommandId, deps: CommandDeps, args: unknown[] = []
   const enabled = deps.enabledTiers?.();
   if (enabled && !isCommandEnabled(id, enabled)) {
     await vscode.window.showInformationMessage(tierLockMessage(id));
+    return;
+  }
+  if (id === 'meridianLoom.open') {
+    if (!deps.openWorkbench) {
+      await vscode.window.showWarningMessage(
+        "Meridian Loom: 'meridianLoom.open' needs the extension runtime, which is not started yet.",
+      );
+      return;
+    }
+    await deps.openWorkbench();
     return;
   }
   if (id === 'meridian.openRecorder') {

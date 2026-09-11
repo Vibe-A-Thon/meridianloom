@@ -8,7 +8,8 @@ attribution engine's convention).
 
 from __future__ import annotations
 
-import subprocess
+from ..gitcmd import GitTimeout, run_git_command
+
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -124,12 +125,10 @@ def _reflog_shas(repo: Path) -> list[str]:
 
 def _is_ancestor(repo: Path, sha: str, ref: str) -> bool:
     try:
-        result = subprocess.run(
-            ["git", "--no-pager", "merge-base", "--is-ancestor", sha, ref],
-            cwd=repo,
-            capture_output=True,
-        )
-    except OSError:
+        result = run_git_command(repo, "merge-base", "--is-ancestor", sha, ref)
+    except (OSError, GitTimeout):
+        # An ancestry question that cannot be answered is answered "no" — the
+        # caller treats it as "not linked", which is the conservative reading.
         return False
     return result.returncode == 0
 

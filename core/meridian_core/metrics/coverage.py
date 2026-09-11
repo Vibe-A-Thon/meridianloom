@@ -69,8 +69,12 @@ Zero model calls (FR-M36-07): counting and arithmetic over ledger rows.
 
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
+
+logger = logging.getLogger("meridian_core.metrics.coverage")
 
 __all__ = [
     "ATTACH_KEY",
@@ -96,6 +100,38 @@ ATTACH_KEY_SCORE = "coverageEnvelope"
 #: Default page size for full-history scans — the old hard clamp, now
 #: just a page on a cursor (FR-M41-07).
 DEFAULT_PAGE_SIZE = 1000
+
+#: How many rows one scan will hold in memory at once.
+#:
+#: Not a row cap on the *answer* — `FR-M41-07`/`D36` removed that deliberately,
+#: and the coverage envelope exists so a partial figure says it is partial.
+#: This is the point past which materialising another dict per row costs more
+#: than the answer is worth: the sidecar dies, and it dies mid-analysis.
+#:
+#: 200,000 is four times the largest corpus this suite exercises (the 50k AC-41
+#: ledger), which at roughly 2-4 KB per row dict is on the order of a gigabyte.
+#: An operator with the memory can raise it; one running on a small machine can
+#: lower it. Either way the figure reports what it actually saw.
+DEFAULT_MAX_SCAN_ROWS = 200_000
+
+
+def max_scan_rows() -> int:
+    """The scan ceiling, read per call so an operator can change it without a
+    restart. A malformed value is ignored rather than crashing the sidecar on
+    a diagnostic setting."""
+    raw = os.environ.get("MERIDIAN_MAX_SCAN_ROWS")
+    if raw:
+        try:
+            configured = int(raw)
+            if configured > 0:
+                return configured
+        except ValueError:
+            logger.warning(
+                "MERIDIAN_MAX_SCAN_ROWS=%r is not a positive integer; using %d",
+                raw,
+                DEFAULT_MAX_SCAN_ROWS,
+            )
+    return DEFAULT_MAX_SCAN_ROWS
 
 _LABEL_COMPLETE = "complete"
 _LABEL_PARTIAL = "partial"
@@ -367,6 +403,7 @@ def scan_scope(
     rows_available = ledger.count(**filters)
     rows: list[dict[str, Any]] = []
     after: int | None = None
+    ceiling = max_scan_rows()
     while len(rows) < rows_available:
         page = ledger.query(after_sequence=after, limit=page_size, **filters)
         if not page:
@@ -374,6 +411,29 @@ def scan_scope(
         rows.extend(page)
         after = page[-1]["seq"]
         if len(page) < page_size:
+            break
+        if len(rows) >= ceiling:
+            # FR-M41-07/D36 removed the 1,000-row cap deliberately, because a
+            # silently capped figure is a lying figure. This is not that cap
+            # coming back: it is a MEMORY ceiling, and the difference matters.
+            # Every row is materialised as a dict, so an unbounded scope on a
+            # long-lived ledger eventually exhausts the sidecar and kills the
+            # user's session mid-analysis — the loudest possible failure, at
+            # the least useful moment.
+            #
+            # Stopping here costs nothing in honesty: `envelope_for` derives
+            # `truncated` from considered < available, so the figure already
+            # says it saw part of the scope, and every metric already refuses
+            # to project from a truncated population (FR-M41-09). A partial
+            # answer that admits it is partial beats a dead process.
+            logger.warning(
+                "scan ceiling reached: read %d of %d rows for scope %s. "
+                "The figure will report itself truncated. Raise "
+                "MERIDIAN_MAX_SCAN_ROWS if this machine has the memory.",
+                len(rows),
+                rows_available,
+                {k: v for k, v in filters.items() if v is not None} or "all",
+            )
             break
     return rows, rows_available
 

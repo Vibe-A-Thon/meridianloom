@@ -53,6 +53,15 @@ norecursedirs = ["tests/fixtures"]
 # config and puts core/ (and the generated bus types) on sys.path.
 pythonpath = [".", "../shared/py"]
 markers = [
-    "perf: performance assertions (still run in CI; generous floors, measured rates reported)",
-    "slow: builds a real corpus or spawns many subprocesses; excluded from the fast tier",
+    # Anything whose verdict depends on wall-clock time, which means anything
+    # a busy machine can make lie. CI runs these in a job of their own that is
+    # deliberately serial, where a timing failure means what it says. Budgets,
+    # and also the AC-08 teardown deadline: it is a correctness assertion, but
+    # it is asserted with a stopwatch, so it belongs with the stopwatches.
+    "perf: verdict depends on wall-clock timing; run serially, never under -n auto",
+    # Measured, not guessed: every test carrying this appeared in the
+    # --durations of a full run. This is a local inner-loop tier — CI runs the
+    # slow tests on every push, because a check that only some people run is
+    # the failure mode this project already had once.
+    "slow: minutes, not seconds (real git repos, 100k corpora); skip locally with -m 'not slow'",
 ]

@@ -94,9 +94,20 @@ jobs:
   # checks that went stale; they run on every push now.
   # ---------------------------------------------------------------------
   core:
-    name: python core
+    name: python core (${{ matrix.os }})
     needs: contracts
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      # The sidecar is Python and ships to Windows users, and several of its
+      # load-bearing paths are Windows-specific: the orphan guard's job
+      # objects, the suite run-lock's ctypes liveness probe (os.kill(pid, 0)
+      # raises SystemError there), path separators through every git call.
+      # None of that was covered — both Python jobs ran on ubuntu only, so
+      # "the Python suite passes" meant "passes on the one platform the
+      # product is least often installed on".
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

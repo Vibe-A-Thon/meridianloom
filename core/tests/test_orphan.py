@@ -75,6 +75,15 @@ class TestMonitorWiring:
         assert parent_alive(monitor._parent_pid) is False
 
 
+# A correctness test that carries the `perf` marker, which needs saying.
+# AC-08 is about the orphan being reaped, but the only way to assert that is
+# a wall-clock deadline, and a wall-clock deadline measured while eight other
+# xdist workers spawn their own git and sidecar subprocesses measures the
+# machine, not the product. It failed exactly that way in a `-n auto` run and
+# passed alone. `perf` is the marker whose CI job runs deliberately serial,
+# with budgets enforced rather than merely reported, so this belongs there —
+# the assertion stays hard, it just stops being taken under contention.
+@pytest.mark.perf
 @pytest.mark.skipif(not sys.executable, reason="needs a real interpreter")
 def test_no_orphan_after_parent_is_killed():
     """AC-08: hard-kill the parent; the sidecar must be gone within 10 s."""

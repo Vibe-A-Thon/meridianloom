@@ -36,6 +36,8 @@ create/remove/abort facts with ``worktree_ref`` set.
 
 from __future__ import annotations
 
+from ..gitcmd import GitTimeout, run_git_command
+
 import json
 import re
 import subprocess
@@ -164,16 +166,14 @@ def _validate_branch(branch: str) -> None:
 def _run(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     """Like run_git but without raising — for existence probes."""
     try:
-        return subprocess.run(
-            ["git", "-c", "core.quotepath=false", "--no-pager", *args],
-            cwd=repo,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        return run_git_command(repo, *args)
     except FileNotFoundError as error:
         raise WorktreeError("git executable not found on PATH") from error
+    except GitTimeout as error:
+        # Worktree operations take a repository lock, so a hang here is the
+        # most likely of all: another git process is holding index.lock. Say
+        # that rather than waiting for it forever.
+        raise WorktreeError(str(error)) from error
 
 
 def _ref_exists(repo: Path, ref: str) -> bool:

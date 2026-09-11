@@ -84,6 +84,12 @@ export function isRpcMethodEnabled(method: string, enabled: readonly TierName[])
  * adapter management are Orchestra.
  */
 export const COMMAND_TIERS: Record<string, TierName> = {
+  // The same tier as the workbench view it opens: the base tier, so the
+  // product always has a way in. Gating the entry point behind a tier would
+  // leave a user with a locked tier unable to reach the interface that
+  // explains what the tier adds — the X-28 failure this arrangement exists
+  // to avoid.
+  'meridianLoom.open': 'flight-recorder',
   'meridian.ingestStory': 'orchestra',
   'meridian.openRecorder': 'flight-recorder',
   'meridian.inspectSource': 'flight-recorder',

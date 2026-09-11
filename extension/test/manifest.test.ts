@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { COMMANDS } from '../src/commands';
@@ -42,8 +42,12 @@ describe('extension manifest', () => {
     expect(TREE_VIEWS).toHaveLength(0);
   });
 
-  it('contributes the twelve FR-M1-03 commands plus provenance hook, worktree and source-inspector commands', () => {
+  it('contributes the twelve FR-M1-03 commands plus provenance hook, worktree, source-inspector and workbench commands', () => {
     const expected = [
+      // The palette route to the workbench. The Activity Bar still reaches it
+      // without any command; this is for keybindings and for reopening a
+      // closed editor tab.
+      'meridianLoom.open',
       'meridian.ingestStory',
       'meridian.openRecorder',
       'meridian.inspectSource',
@@ -65,7 +69,7 @@ describe('extension manifest', () => {
     const contributed = manifest.contributes.commands.map(
       (c: { command: string }) => c.command,
     );
-    expect(contributed).toHaveLength(15);
+    expect(contributed).toHaveLength(expected.length);
     expect([...contributed].sort()).toEqual([...expected].sort());
     // Code and manifest share one source of truth.
     expect(COMMANDS.map((c) => c.id)).toEqual(contributed);
@@ -102,6 +106,28 @@ describe('what the package promises to ship', () => {
     // so a user who installed the extension had no way to check anything.
     // If this staging is ever removed, the README starts lying again.
     expect(packager).toContain("'verifier', 'verify.py'");
+  });
+
+  it('does not exclude the shipped library from the package', () => {
+    // The library is what a new workspace is seeded from. Excluded from the
+    // VSIX, every install would open to the empty catalogues the library
+    // exists to fix — and nothing at runtime would say why, because an
+    // unreadable library is deliberately not fatal.
+    const ignore = readFileSync(
+      path.resolve(__dirname, '..', '.vscodeignore'),
+      'utf8',
+    );
+    for (const line of ignore.split(/\r?\n/)) {
+      const rule = line.trim();
+      if (!rule || rule.startsWith('#')) continue;
+      expect(rule.startsWith('library')).toBe(false);
+    }
+    // And the files themselves are present to be shipped.
+    expect(
+      readdirSync(path.resolve(__dirname, '..', 'library', 'agents')).filter((name) =>
+        name.endsWith('.md'),
+      ).length,
+    ).toBeGreaterThan(0);
   });
 
   it('ships the sidecar sources the extension resolves at runtime', () => {

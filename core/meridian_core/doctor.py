@@ -19,6 +19,8 @@ a network or model call (FR-M36-07).
 
 from __future__ import annotations
 
+from .gitcmd import GitTimeout, run_git_command
+
 import os
 import sys
 import time
@@ -206,16 +208,10 @@ def _hooks_dir(workspace: Path) -> Path | None:
     linked worktrees and submodules use.
     """
     try:
-        import subprocess
 
-        result = subprocess.run(
-            ["git", "--no-pager", "rev-parse", "--git-path", "hooks"],
-            cwd=workspace,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        # The doctor must never be the thing that hangs: it is what a user
+        # runs precisely when something already is.
+        result = run_git_command(workspace, "rev-parse", "--git-path", "hooks")
         if result.returncode == 0 and result.stdout.strip():
             path = Path(result.stdout.strip())
             return path if path.is_absolute() else (workspace / path).resolve()

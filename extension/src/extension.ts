@@ -16,7 +16,11 @@ import { hostedSessionRegistry } from './governance/session-registry';
 import { installCommand, resolveInterpreter } from './interpreter';
 import { resolveCoreDir } from './layout';
 import { RecorderPanel } from './recorder-panel';
-import { RECORDER_VIEW_ID, RecorderViewProvider } from './recorder-view';
+import {
+  RECORDER_VIEW_ID,
+  RecorderViewProvider,
+  readWorkbenchSurface,
+} from './recorder-view';
 import { SecretStorageUnavailableError, SecretStore } from './secrets';
 import { SidecarStatusBar } from './status';
 import { StdioSidecarClient } from './stdio-client';
@@ -110,6 +114,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const generation = ++runtimeGeneration;
   const initialWorkspace = workspaceDir();
   workbench = new WorkbenchService({
+    // Where the shipped agents, skills and instruction documents live.
+    extensionPath: context.extensionPath,
     workspaceDir, trusted: () => vscode.workspace.isTrusted,
     enabledTiers: readEnabledTiers, sidecar: () => {
       const client = supervisor?.isRunning ? supervisor.currentClient : undefined;
@@ -140,10 +146,13 @@ export function activate(context: vscode.ExtensionContext): void {
     return client.request(method, params, signal);
   } });
   context.subscriptions.push(...editorSurfaces.disposables);
-  // The Activity Bar container hosts the workbench itself: selecting
-  // Meridian Loom resolves this view and the interface is there, with no
-  // command in between (the product requirement, and the only VS Code
-  // mechanism that satisfies it).
+  // Selecting Meridian Loom in the Activity Bar opens the product, with no
+  // command in between — a resolved webview view is the only VS Code
+  // mechanism that does that, so the view still exists and still resolves.
+  // What it resolves *into* now depends on `meridianLoom.surface`: by
+  // default it opens the workbench as an editor tab and leaves a placard in
+  // the rail, because a workbench of nine phases, rosters and ledger tables
+  // wants editor width. Set it to `sidebar` to render in the rail instead.
   const workbenchViewDeps = {
     workbench,
     extensionPath: context.extensionPath,
@@ -153,7 +162,13 @@ export function activate(context: vscode.ExtensionContext): void {
     onDownload: saveDownload,
     onError: (message: string) => void vscode.window.showErrorMessage(message),
   };
-  const workbenchView = new RecorderViewProvider(workbenchViewDeps);
+  const openEditorSurface = () => {
+    RecorderPanel.createOrShow(workbenchViewDeps);
+  };
+  const workbenchView = new RecorderViewProvider(
+    workbenchViewDeps,
+    openEditorSurface,
+  );
   context.subscriptions.push(
     ...registerViews(),
     workbenchView,
@@ -173,6 +188,15 @@ export function activate(context: vscode.ExtensionContext): void {
       onError: (message) => void vscode.window.showErrorMessage(message),
     }),
     ...registerCommands({
+      openWorkbench: async () => {
+        // Honours the surface setting: an editor tab normally, or a reveal
+        // of the rail view for anyone who chose `sidebar`.
+        if (readWorkbenchSurface() === 'sidebar') {
+          await vscode.commands.executeCommand(`${RECORDER_VIEW_ID}.focus`);
+          return;
+        }
+        openEditorSurface();
+      },
       inspectSource: editorSurfaces.inspect,
       enabledTiers: readEnabledTiers,
       // F0 Workstream G: the recorder command opens the dashboard webview;

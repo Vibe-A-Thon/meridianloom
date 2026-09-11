@@ -58,10 +58,19 @@ import {
   STUDIO_DOCUMENT_KINDS,
   type StudioDocument,
 } from "../../../shared/ts/studio";
+import { loadBuiltinLibrary, planSeed } from "./library";
 
 interface StoredState {
   schemaVersion: 1;
   revision: number;
+  /**
+   * Every library entry this workspace has ever been offered, as
+   * `kind:id`. Recorded rather than inferred from what is present, because
+   * "not present" cannot distinguish *never seeded* from *seeded and then
+   * deleted*, and reseeding a deleted entry would make the delete button a
+   * suggestion. Absent in state files written before the shipped library.
+   */
+  seededBuiltins?: string[];
   agents: WorkbenchAgent[];
   skills: WorkbenchSkill[];
   instructions: WorkbenchInstruction[];
@@ -74,6 +83,12 @@ interface StoredState {
 }
 
 export interface WorkbenchServiceOptions {
+  /**
+   * The installed extension directory, used to find the shipped library.
+   * Optional: tests that do not care about it omit it and get the empty
+   * catalogues they had before.
+   */
+  extensionPath?: string;
   workspaceDir(): string | undefined;
   trusted(): boolean;
   enabledTiers(): readonly TierName[];
@@ -355,6 +370,27 @@ export function validateWorkbenchAgent(value: unknown): WorkbenchAgentInput {
   return agent;
 }
 
+/**
+ * How many finished runs the workbench keeps in its own state file.
+ *
+ * This is a display window, not a retention policy. The durable record of a
+ * run is the hash-chained ledger — `acp/sessionBegin` and `acp/sessionEnd`
+ * are written to it before and after every run, and that is what an audit
+ * reads. What lives in `state.json` is the recent-activity list the panel
+ * renders, and keeping it unbounded was a real fault rather than a
+ * conservative one: each run carries its full briefing (up to the 60 KB
+ * briefing budget) plus up to 100 KB of captured output, so a few hundred
+ * runs reach the 20 MB ceiling on `persist()`. Past that the workbench
+ * cannot save *anything* — not a new run, not an accepted memory note, not
+ * an integration change — while the in-memory state keeps moving, so the
+ * panel shows work that silently vanishes on the next reload.
+ *
+ * A bounded window turns that cliff into a boundary nobody notices. Two
+ * hundred is roughly a month of steady use and tens of megabytes below the
+ * ceiling, leaving it as the backstop it was meant to be.
+ */
+const RETAINED_RUNS = 200;
+
 /** Local drafts and participation are independent from the sidecar. Only
  * explicit run actions start ACP processes; one agent writes at a time. */
 export class WorkbenchService {
@@ -508,7 +544,12 @@ export class WorkbenchService {
       content = await fs.readFile(file, "utf8");
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      // No state file: a workspace opening Meridian for the first time. This
+      // is the *main* case for seeding, not an edge of it — returning here
+      // without seeding is what left every genuinely new workspace with the
+      // empty catalogues the library exists to fill.
       this.loadedRoot = root;
+      await this.seedLibrary();
       return;
     }
     const raw = record(JSON.parse(content));
@@ -547,6 +588,14 @@ export class WorkbenchService {
       if (typeof entry.enabled !== "boolean")
         throw new Error("Invalid stored instruction state.");
     }
+    // Absent in files written before the shipped library; an absent record
+    // means "never offered anything", which is exactly right for those.
+    if (loaded.seededBuiltins === undefined) loaded.seededBuiltins = [];
+    if (
+      !Array.isArray(loaded.seededBuiltins) ||
+      loaded.seededBuiltins.some((entry) => typeof entry !== "string")
+    )
+      throw new Error("Invalid stored library record.");
     if (loaded.integrations === undefined) loaded.integrations = [];
     if (!Array.isArray(loaded.integrations))
       throw new Error("Invalid stored integrations.");
@@ -603,7 +652,87 @@ export class WorkbenchService {
         throw new Error("Invalid stored learning note.");
     }
     this.state = loaded;
+    // A state file written before the window existed can be sitting just
+    // under the ceiling, where the next change of any kind fails to save.
+    // Trimming on open is what lets such a workspace recover by itself,
+    // rather than needing someone to hand-edit JSON to get their tool back.
+    this.pruneRuns();
     this.loadedRoot = root;
+    await this.seedLibrary();
+  }
+
+  /**
+   * Put the shipped library into a workspace that has not seen it yet.
+   *
+   * Runs on every open and adds only what has never been offered, so a later
+   * extension version delivers its new entries without disturbing anything
+   * the user has edited, disabled or deleted. Shipped agents land in Learning
+   * with the import permission floor — `read`, `search`, `think` — and no
+   * command, so nothing shipped can run until a person binds it to an adapter
+   * and activates it.
+   *
+   * Failure here is never fatal. An empty catalogue is the behaviour this
+   * replaced; refusing to open the workspace would be strictly worse.
+   */
+  private async seedLibrary(): Promise<void> {
+    const extensionPath = this.options.extensionPath;
+    if (!extensionPath) return;
+    try {
+      const library = await loadBuiltinLibrary(extensionPath);
+      const plan = planSeed(
+        library,
+        {
+          agents: this.state.agents.map((entry) => entry.id),
+          skills: this.state.skills.map((entry) => entry.id),
+          instructions: this.state.instructions.map((entry) => entry.id),
+        },
+        this.state.seededBuiltins ?? [],
+      );
+      const added =
+        plan.agents.length + plan.skills.length + plan.instructions.length;
+      const unchanged =
+        added === 0 &&
+        (this.state.seededBuiltins ?? []).length === plan.seeded.length;
+      if (unchanged) return;
+
+      const now = new Date().toISOString();
+      for (const input of plan.agents)
+        this.state.agents.push({
+          ...input,
+          source: "builtin",
+          mode: "learning",
+          runtime: "idle",
+          learningState: "waiting",
+          createdAt: now,
+          updatedAt: now,
+        });
+      for (const input of plan.skills)
+        this.state.skills.push({
+          ...input,
+          enabled: true,
+          source: "builtin",
+          createdAt: now,
+          updatedAt: now,
+        });
+      for (const input of plan.instructions)
+        this.state.instructions.push({
+          ...input,
+          enabled: true,
+          source: "builtin",
+          createdAt: now,
+          updatedAt: now,
+        });
+      this.state.seededBuiltins = plan.seeded;
+      this.state.revision++;
+      await this.persist();
+      this.notify();
+    } catch (error) {
+      this.options.onError?.(
+        `The built-in library could not be installed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
   private async persist(): Promise<void> {
     if (!this.loadedRoot)
@@ -637,7 +766,11 @@ export class WorkbenchService {
     const serialized = JSON.stringify(this.state, null, 2);
     if (Buffer.byteLength(serialized, "utf8") > 20_000_000)
       throw new Error(
-        "Workbench state would exceed 20 MB. Export and remove unused profiles or memory before adding more data.",
+        "Workbench state would exceed 20 MB. Run history is trimmed " +
+          `automatically to the last ${RETAINED_RUNS} runs, so the size is ` +
+          "coming from stored agents, studio documents or accepted memory — " +
+          "export and remove what you no longer need. Completed runs remain " +
+          "in the ledger either way.",
       );
     try {
       await fs.writeFile(temporary, serialized, {
@@ -705,6 +838,11 @@ export class WorkbenchService {
     const runs = this.state.runs.filter(
       (run) => run.deliverableId === deliverableId,
     );
+    // No rows left to read means no verdict to reach. `pruneRuns` pins the
+    // runs of an unsettled deliverable precisely so this cannot happen, but
+    // inferring "review" from an empty set would turn a failed deliverable
+    // into a passed one, and that is not a conclusion to reach by accident.
+    if (!runs.length) return;
     item.state = runs.some(
       (run) => run.state === "queued" || run.state === "running",
     )
@@ -785,6 +923,46 @@ export class WorkbenchService {
       startedAt: new Date().toISOString(),
       ...(deliverableId ? { deliverableId } : {}),
       ...(phase ? { phase } : {}),
+    });
+    this.pruneRuns();
+  }
+
+  /**
+   * Drop the oldest finished runs once the display window is full.
+   *
+   * Two things are never dropped, whatever the cap says. A queued or running
+   * run owns a live session and is what `run/steer`, cancellation and the
+   * queue pump look up by id; forgetting one would strand a subprocess with
+   * nothing able to reach it. And a run belonging to a deliverable that has
+   * not settled is still load-bearing, because `settleDeliverable` decides
+   * that deliverable's state by reading exactly these rows.
+   *
+   * So the window is a floor, not a ceiling: it can be exceeded by live work,
+   * and it shrinks back on its own as that work finishes.
+   */
+  private pruneRuns(): void {
+    if (this.state.runs.length <= RETAINED_RUNS) return;
+    const open = new Set(
+      this.state.deliverables
+        .filter((item) => item.state !== "completed")
+        .map((item) => item.id),
+    );
+    const pinned = (run: WorkbenchRun): boolean =>
+      run.state === "queued" ||
+      run.state === "running" ||
+      (run.deliverableId !== undefined && open.has(run.deliverableId));
+    let removable = this.state.runs.length - RETAINED_RUNS;
+    if (removable <= 0) return;
+    // Oldest first: `runs` is append-ordered, so a forward pass is
+    // chronological without having to trust a timestamp an import may have
+    // written.
+    this.state.runs = this.state.runs.filter((run) => {
+      if (removable > 0 && !pinned(run)) {
+        removable -= 1;
+        this.output.delete(run.id);
+        return false;
+      }
+      return true;
     });
   }
 
@@ -2034,6 +2212,11 @@ export class WorkbenchService {
           if (stopReason) current.stopReason = stopReason;
         }
         this.settleDeliverable(current.deliverableId);
+        // Settling may have released runs this deliverable was pinning, and
+        // a finished run is itself the largest thing the state file just
+        // grew by. Reclaim here rather than only on the next dispatch, so a
+        // workspace that stops queueing work does not sit at the ceiling.
+        this.pruneRuns();
         this.state.revision++;
         await this.persist();
         this.notify();

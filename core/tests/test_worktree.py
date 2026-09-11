@@ -226,6 +226,7 @@ class TestAgentIdentityAndTrailer:
 # -- list / remove ------------------------------------------------------------
 
 
+@pytest.mark.slow
 class TestListAndRemove:
     def test_list_only_meridian_worktrees(self, repo):
         mgr = manager(repo)
@@ -263,6 +264,7 @@ class TestListAndRemove:
 # -- FR-M18-04 / AC-14: story abort --------------------------------------------
 
 
+@pytest.mark.slow
 class TestStoryAbort:
     def test_ac14_abort_leaves_primary_tree_byte_identical(self, repo):
         mgr = manager(repo)
@@ -318,6 +320,7 @@ class TestStoryAbort:
 # -- FR-M18-03 / AC-13: pre-flight conflict detection ---------------------------
 
 
+@pytest.mark.slow
 class TestConflicts:
     def test_clean_tree_has_no_conflicts(self, repo):
         report = manager(repo).conflicts(story_id="story-1")
@@ -498,6 +501,7 @@ class TestRpcTierGate:
         assert created["worktree"]["branch"] == "meridian/story-1"
 
 
+@pytest.mark.slow
 class TestWorktreeRpc:
     def test_create_result_shape_and_ledger_entry(self, governed_server, repo):
         server = governed_server

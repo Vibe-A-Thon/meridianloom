@@ -218,14 +218,27 @@ def test_field_and_path_redaction():
 
 
 def test_registered_patterns_extend_redaction():
-    register_redaction_pattern(r"CANARY-[A-Z]+-[0-9]{6,}")
+    # The pattern has to actually match PLAIN_CANARY
+    # ("CANARY-PLAINTEXT-xyzzy-9988776655"), which is the whole point of
+    # using it here: it is deliberately *not* a credential shape, so if it
+    # comes out redacted, that can only be the registered pattern doing it.
+    # An earlier version of this test registered `CANARY-[A-Z]+-[0-9]{6,}`,
+    # which never matches the lowercase middle segment — so it asserted the
+    # feature worked while exercising nothing.
+    pattern = r"CANARY-[A-Z]+-[a-z]+-[0-9]{6,}"
+    register_redaction_pattern(pattern)
     try:
         assert redact_secrets(f"token {PLAIN_CANARY} end") == f"token {REDACTED} end"
-        # Idempotent registration.
-        register_redaction_pattern(r"CANARY-[A-Z]+-[0-9]{6,}")
-        assert len(redact_secrets("x")) == 1
+        # Idempotent registration: the same shape twice must not redact twice
+        # (which would nest replacements) or stop matching.
+        register_redaction_pattern(pattern)
+        once = redact_secrets(f"token {PLAIN_CANARY} end")
+        assert once == f"token {REDACTED} end"
+        assert once.count(REDACTED) == 1
     finally:
         clear_registered_patterns()
+    # And clearing really restores the default behaviour, or the leak this
+    # guards against would simply move to the next test.
     assert PLAIN_CANARY in redact_secrets(f"token {PLAIN_CANARY} end")
 
 
@@ -304,23 +317,66 @@ def test_export_for_recipient_without_consent_withholds_that_subject(
     assert "subject-b prompt" not in joined
 
 
+def test_attaching_a_privacy_section_keeps_the_bundle_verifiable(tmp_path):
+    """The re-signed bundle must satisfy the SHIPPED verifier, not just an
+    internal check.
+
+    `attach_privacy_section` digested the bundle with the *previous*
+    signature block still inside it, while `verifier/verify.py` recomputes
+    the digest over the bundle minus that block. Every recipient-filtered
+    export therefore failed independent verification with "a field was
+    tampered with after signing" — the one export path a privacy-conscious
+    customer is most likely to use, failing the exact claim the verifier
+    exists to support. Re-attaching (the docstring's "or replace") repeats
+    the same signing step, so it is exercised here too.
+    """
+    ledger = Ledger(tmp_path / "ledger", EphemeralSigningKeyProvider())
+    controller = privacy.PrivacyController(ledger, "content_redacted")
+    controller.append(
+        make_entry(1, input=f"payload {PLAIN_CANARY}", blob_subject="subject-sig")
+    )
+    bundle = build_bundle(ledger, {})
+    verify_bundle_with_open_verifier(bundle, tmp_path)
+
+    once = privacy.attach_privacy_section(
+        ledger, bundle, {"recipient": "auditor-x", "withheldSubjects": []}
+    )
+    verify_bundle_with_open_verifier(once, tmp_path)
+
+    # Replacing the section re-signs over an already-signed bundle, which is
+    # precisely the shape that was broken.
+    twice = privacy.attach_privacy_section(
+        ledger, once, {"recipient": "auditor-y", "withheldSubjects": ["subject-sig"]}
+    )
+    assert twice["privacy"]["recipient"] == "auditor-y"
+    assert twice["signature"]["digest"] != once["signature"]["digest"]
+    verify_bundle_with_open_verifier(twice, tmp_path)
+    ledger.close()
+
+
 # -- FR-M43-07: seeded secrets across archives and restore ------------------------
 
 
 def test_secret_canary_absent_across_archive_and_restore(tmp_path):
     ledger = Ledger(tmp_path / "ledger", EphemeralSigningKeyProvider())
     controller = privacy.PrivacyController(ledger, "content_redacted")
+    # Both blob kinds: an entry seeded only with `input` produces one blob,
+    # and output is the other place a secret can reach cold storage. The
+    # count below is what says both made the round trip.
     controller.append(
         make_entry(
             1,
             input=f"prompt {SECRET_CANARY} {PLAIN_CANARY}",
+            output=f"reply {SECRET_CANARY} {PLAIN_CANARY}",
             blob_subject="subject-arc",
         )
     )
     store = ArchiveStore(tmp_path / "cold")
     store.archive(ledger, RetentionPolicy(horizon_sequences=1))
     # Cold storage holds only ciphertext: neither canary shape appears.
-    for blob_file in (tmp_path / "cold").rglob("*.blob"):
+    blob_files = list((tmp_path / "cold").rglob("*.blob"))
+    assert blob_files, "nothing was archived, so the scan below proves nothing"
+    for blob_file in blob_files:
         raw = blob_file.read_bytes()
         assert SECRET_CANARY.encode() not in raw
         assert PLAIN_CANARY.encode() not in raw
@@ -399,7 +455,14 @@ def test_pre_erasure_backup_restore_requires_erasure_replay(tmp_path):
     live ledger, and replaying them re-shreds the subject in the restored
     copy. SEC-37 holds; the hazard is stated, not hidden."""
     source = tmp_path / "ledger"
-    ledger = Ledger(source, EphemeralSigningKeyProvider())
+    # One provider throughout. The blob master key is HKDF-derived from the
+    # signing key, so a fresh EphemeralSigningKeyProvider is a different key
+    # and every wrapped blob key fails to unwrap. That would make the test
+    # pass for the wrong reason — "unreadable because the backup was opened
+    # on a machine that never had the key" is not the hazard being described.
+    # The hazard is an operator restoring a backup where the KEK is intact.
+    keys = EphemeralSigningKeyProvider()
+    ledger = Ledger(source, keys)
     controller = privacy.PrivacyController(ledger, "content_redacted")
     controller.append(
         make_entry(1, input=f"payload {PLAIN_CANARY}", blob_subject="subject-bak")
@@ -410,13 +473,15 @@ def test_pre_erasure_backup_restore_requires_erasure_replay(tmp_path):
     backup = tmp_path / "backup"
     shutil.copytree(source, backup)
 
-    ledger = Ledger(source, EphemeralSigningKeyProvider())
+    ledger = Ledger(source, keys)
     controller = privacy.PrivacyController(ledger)
     controller.erase_subject("subject-bak", reason="request")
-    ledger.close()
+    # The live ledger stays OPEN: the erasure events replayed below are read
+    # out of it, so closing it here makes the replay operate on a closed
+    # database instead of demonstrating the protection.
 
     # Verbatim restore: the hazard is real — the old wrapped key is back.
-    restored = Ledger(backup, EphemeralSigningKeyProvider())
+    restored = Ledger(backup, keys)
     key_id = keystore.key_id_for("subject-bak")
     ref = restored.conn.execute(
         "SELECT input_ref FROM ledger_entry WHERE blob_key_id = ?", (key_id,)
@@ -430,6 +495,7 @@ def test_pre_erasure_backup_restore_requires_erasure_replay(tmp_path):
         restored.read_blob(ref, key_id)
     assert restored.verify().ok
     restored.close()
+    ledger.close()
 
 
 def test_erasure_survives_archived_blobs(tmp_path):

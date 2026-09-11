@@ -232,6 +232,7 @@ def _rejection_row(server: SidecarServer) -> dict:
 
 
 @pytest.mark.parametrize("class_id", CANONICAL_IDS)
+@pytest.mark.slow
 def test_each_class_stamps_a_rejection_end_to_end(
     server: SidecarServer, tmp_path: Path, class_id: str
 ):
@@ -248,6 +249,7 @@ def test_each_class_stamps_a_rejection_end_to_end(
     assert detail[0]["shape"] == "reverted"
 
 
+@pytest.mark.slow
 def test_unknown_reason_fails_closed_end_to_end(server: SidecarServer, tmp_path: Path):
     repo = _reverted_repo(tmp_path)
     result = _detect(server, repo, reason="made-the-tests-angry")
@@ -271,6 +273,7 @@ def test_absent_reason_stamps_other_with_explanatory_note(
     assert row["rework_reason"] == "other"
 
 
+@pytest.mark.slow
 def test_rerun_reports_the_recorded_class(server: SidecarServer, tmp_path: Path):
     repo = _reverted_repo(tmp_path)
     first = _detect(server, repo, reason="incorrect-implementation")
