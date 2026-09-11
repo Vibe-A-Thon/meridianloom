@@ -4,10 +4,10 @@
 
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
-- **Current phase:** N1 — True and Visible (N0 quiesce COMPLETE — summary below)
-- **Current workstream:** N2 Workstream D — Durability, portability, privacy (T13–T20); N2 A+B+C done
-- **Current task:** D1 — T13 receipt storage/witness, T14 verifier three verdicts, T16 multi-year retention + compaction, T17 privacy lifecycle
-- **Last commit:** dd71929 — N2-C done: five bypass detectors with durable entries + same-session coverage downgrade (AC-48), signed policy bundles with activation/expiry/precedence + emergency revocation + offline lease stop, policy simulator (verdict diffs, read-only); 42+69 green. NOTE: server.py/schema/bus wiring deferred — parallel session holds those files dirty; follow-ups listed in agent report.
+- **Current phase:** N2 — Unassailable (N0 quiesce COMPLETE, N1 COMPLETE)
+- **Current workstream:** N2 Workstream D part 2 — T18 trailer spec + AC-49, T19 headless collector, T20 in-toto attestation
+- **Current task:** D2 — delegate T18/T19/T20 to a coder agent
+- **Last commit:** cf45fa6 — N2-D part 1 verified GREEN: T13 receipt storage/witness (`ledger/receipts.py`: File/HTTP/Null stores, signer enrolment history, key rotation+revocation), T14 verifier three verdicts (`verifier/` Rust + `verifier/verify.py`: valid_signature / trusted_signer / evidence_coverage); d14b620 — T16 multi-year retention/compaction/archive (`ledger/archive.py`) + T17 privacy lifecycle (`ledger/privacy.py`, `ledger/redaction.py`: CollectionProfile, Consent, ErasureEvent) + evidence gate. Provenance note: cf45fa6 was committed by the parallel session sweeping agent-40's uncommitted files; verified no duplication — receipts/verdicts (cf45fa6) and archive/privacy (d14b620) are complementary. T15 satisfied via `unwitnessed_limitation()` seam + module docstring + tests (`test_ledger_receipts.py`, `test_ledger_verdicts.py`). Tests: 53 passed (receipts+archive+privacy+evidence-gate), verifier cargo 9 passed.
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## N1 status + CROSS-SESSION TASK LIST for the GUI session (owner's second session — read this)
