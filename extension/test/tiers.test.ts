@@ -127,6 +127,10 @@ describe('command and view filtering (FR-M36-05, X-28)', () => {
     const base = normalizeEnabledTiers(undefined);
     expect(enabledCommands(base).sort()).toEqual(
       [
+        // The entry point belongs to the base tier for the same reason the
+        // view does: gating it would leave someone with a locked tier unable
+        // to reach the interface that explains what the tier adds.
+        'meridianLoom.open',
         'meridian.doctor',
         'meridian.inspectSource',
         'meridian.installHook',

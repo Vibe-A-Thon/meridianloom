@@ -127,6 +127,21 @@ export function AgentsTab({ controller, client }: AgentsTabProps) {
         : `${agent.name} moved to Learning and takes no delivery work.`,
     );
 
+  const bindRuntime = (agent: WorkbenchAgent, runtimeId: string) => {
+    const runtime = (snapshot?.runtimes ?? []).find(
+      (entry) => entry.id === runtimeId,
+    );
+    return action.run(
+      () => controller.execute("agent/bindRuntime", { id: agent.id, runtimeId }),
+      // Say what still has to be true. Binding sets a command; it does not
+      // install the program or sign anyone in, and a message that implied
+      // otherwise would send people to a failed run to find out.
+      runtime
+        ? `${agent.name} will launch ${runtime.name}. You need ${runtime.requires}. ${runtime.auth}`
+        : `${agent.name} runtime bound.`,
+    );
+  };
+
   const importPackage = async () => {
     await action.run(async () => {
       const picked = await client.pickFile();
@@ -248,6 +263,7 @@ export function AgentsTab({ controller, client }: AgentsTabProps) {
                 onRun={() => setRunning(agent)}
                 onExport={() => void exportAgent(agent)}
                 onRemove={() => setRemoving(agent)}
+                onBindRuntime={(runtimeId) => void bindRuntime(agent, runtimeId)}
               />
             ))}
           </div>
@@ -345,6 +361,7 @@ function AgentCard({
   onRun,
   onExport,
   onRemove,
+  onBindRuntime,
 }: {
   agent: WorkbenchAgent;
   snapshot: WorkbenchSnapshot | undefined;
@@ -354,6 +371,7 @@ function AgentCard({
   onRun: () => void;
   onExport: () => void;
   onRemove: () => void;
+  onBindRuntime: (runtimeId: string) => void;
 }) {
   const isActive = agent.mode === "active";
   const skillNames = (snapshot?.skills ?? [])
@@ -394,7 +412,30 @@ function AgentCard({
 
       {!agent.command ? (
         <Notice tone="info">
-          No executable set yet. Add one before this agent can run.
+          <p style={{ margin: "0 0 8px" }}>
+            No agent runtime bound yet. Meridian does not bundle an AI — it
+            governs one you already have. Pick one, or set the executable
+            yourself under Edit.
+          </p>
+          {/* The shipped presets. Before these, binding a runtime meant
+              knowing an executable's name and typing it into a text box:
+              a fine interface for someone who already knew the answer, and
+              a dead end for everyone else. */}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {(snapshot?.runtimes ?? []).map((runtime) => (
+              <Button
+                key={runtime.id}
+                icon="link"
+                disabled={busy}
+                onClick={() => onBindRuntime(runtime.id)}
+                title={`${runtime.command} ${runtime.args.join(" ")} — requires ${
+                  runtime.requires
+                }. ${runtime.auth}`}
+              >
+                {runtime.name}
+              </Button>
+            ))}
+          </div>
         </Notice>
       ) : null}
 

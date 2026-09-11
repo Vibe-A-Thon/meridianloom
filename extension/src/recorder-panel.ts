@@ -184,7 +184,21 @@ export class RecorderPanel {
   ): vscode.Disposable {
     return vscode.window.registerWebviewPanelSerializer(RECORDER_VIEW_TYPE, {
       deserializeWebviewPanel: async (panel) => {
+        // Both this and the Activity Bar view can produce a panel during
+        // startup, in an order VS Code does not promise. That was harmless
+        // while the panel only opened from an explicit command; now that
+        // selecting Meridian Loom opens it, a window reload could leave two
+        // — and `broadcast` only reaches `current`, so the other would sit
+        // there never updating.
+        //
+        // The restored panel wins: VS Code has already placed it in the tab
+        // position the user left it in. Anything opened in the meantime is
+        // the duplicate. Replacing `current` first matters, because the
+        // disposal below only clears `current` when it still points at the
+        // panel being disposed.
+        const superseded = RecorderPanel.current;
         RecorderPanel.current = new RecorderPanel(panel, deps);
+        if (superseded && !superseded.disposed) superseded.dispose();
       },
     });
   }

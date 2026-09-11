@@ -16,6 +16,7 @@ import pytest
 from meridian_core.ledger import (
     BlobKeyMissing,
     BlobNotFound,
+    BlobRefInvalid,
     BlobStore,
     BlobTampered,
     EphemeralBlobKeyStore,
@@ -105,9 +106,24 @@ class TestBlobStore:
             store.put(b"x", "bk:never-created")
 
     def test_missing_file_raises(self, store, keys):
+        # A well-formed reference to a blob that is not there. This used to be
+        # spelled "00/nope.blob", which is not a reference at all — refs are
+        # content addresses, and that convenience stand-in stopped being
+        # accepted once refs were validated. The distinction matters to the
+        # caller: ArchiveStore.fetch catches BlobNotFound to fall through to
+        # cold storage, and a malformed ref must not send it looking there.
         key_id = keys.key_for("subject-a")
         with pytest.raises(BlobNotFound):
+            store.get(f"00/{'0' * 64}.blob", key_id)
+
+    def test_a_malformed_reference_is_refused_before_any_lookup(self, store, keys):
+        key_id = keys.key_for("subject-a")
+        with pytest.raises(BlobRefInvalid):
             store.get("00/nope.blob", key_id)
+        # The one that matters: a ref is joined onto the store root and then
+        # written to, so an escape is a file write outside the ledger.
+        with pytest.raises(BlobRefInvalid):
+            store.get("../../../etc/passwd", key_id)
 
 
 class TestRedaction:

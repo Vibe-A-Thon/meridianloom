@@ -77,6 +77,23 @@ export function readEnabledTiers(): TierName[] {
 }
 
 /**
+ * An operator's override for the sidecar handshake budget.
+ *
+ * `undefined` means "use the shipped default", which is the right answer
+ * almost always. A malformed or absurd value falls back rather than taking
+ * the extension down — a diagnostic knob must never be the thing that breaks
+ * startup.
+ */
+function readHandshakeTimeoutMs(): number | undefined {
+  const configured = vscode.workspace
+    .getConfiguration('meridian')
+    .get<number>('sidecar.handshakeTimeoutMs');
+  if (typeof configured !== 'number' || !Number.isFinite(configured)) return undefined;
+  if (configured < 1_000 || configured > 600_000) return undefined;
+  return Math.round(configured);
+}
+
+/**
  * X-28: publish tier state as context keys so the manifest's `when` clauses
  * hide disabled-tier commands and views — not even empty states render.
  */
@@ -359,6 +376,12 @@ export async function startRuntime(context: vscode.ExtensionContext, generation 
           ...(workspaceDir ? { workspaceDir } : {}),
           ledgerSigningKey,
           ...(identityProvider ? { identityProvider } : {}),
+          // Overridable because the failure it guards against is a slow
+          // machine, and no single number is right for every machine. The
+          // timeout message names this setting, so it has to exist.
+          ...(readHandshakeTimeoutMs() !== undefined
+            ? { handshakeTimeoutMs: readHandshakeTimeoutMs() }
+            : {}),
           onStderr: (line) => console.debug('[sidecar]', line),
         }),
       onError: (message) => {

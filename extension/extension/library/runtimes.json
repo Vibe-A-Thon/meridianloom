@@ -1,0 +1,59 @@
+{
+  "$comment": "ACP agent runtimes, recorded from the ACP Registry index. Meridian does not bundle an AI: it governs one you already have. These say how each is launched; you supply the account.",
+  "version": 1,
+  "runtimes": [
+    {
+      "id": "claude-acp",
+      "name": "Claude Agent",
+      "vendor": "Anthropic",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@zed-industries/claude-agent-acp"
+      ],
+      "requires": "Node.js, so that npx is on PATH",
+      "auth": "Sign in with your Anthropic account, or set ANTHROPIC_API_KEY in your environment before starting VS Code. Meridian never asks for it and never stores it.",
+      "docs": "https://github.com/zed-industries/claude-agent-acp"
+    },
+    {
+      "id": "gemini-cli",
+      "name": "Gemini CLI",
+      "vendor": "Google",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@google/gemini-cli",
+        "--experimental-acp"
+      ],
+      "requires": "Node.js, so that npx is on PATH",
+      "auth": "Sign in with `gemini auth`, or set GEMINI_API_KEY in your environment. Meridian never asks for it and never stores it.",
+      "docs": "https://github.com/google-gemini/gemini-cli"
+    },
+    {
+      "id": "codex-acp",
+      "name": "Codex CLI",
+      "vendor": "OpenAI / Zed",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@zed-industries/codex-acp"
+      ],
+      "requires": "Node.js, so that npx is on PATH",
+      "auth": "Authenticate the Codex CLI itself. Meridian never asks for a credential and never stores one.",
+      "docs": "https://github.com/zed-industries/codex-acp"
+    },
+    {
+      "id": "minion-code",
+      "name": "Minion Code",
+      "vendor": "Minion",
+      "command": "uvx",
+      "args": [
+        "minion-code",
+        "acp"
+      ],
+      "requires": "uv, so that uvx is on PATH",
+      "auth": "Configure Minion Code itself. Meridian never asks for a credential and never stores one.",
+      "docs": "https://pypi.org/project/minion-code/"
+    }
+  ]
+}

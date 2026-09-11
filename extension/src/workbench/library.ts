@@ -46,15 +46,65 @@ import type {
 /** Directory name inside the extension, and inside the packaged VSIX. */
 export const LIBRARY_DIRECTORY = "library";
 
+/**
+ * How to launch one real ACP agent.
+ *
+ * Meridian does not bundle an AI — it governs one you already have — so every
+ * shipped agent has an empty command until a person supplies one. Until these
+ * existed, supplying one meant knowing an executable's name and typing it
+ * into a text box, which is a fine interface for someone who already knows
+ * the answer and a dead end for everyone else.
+ *
+ * Recorded from the ACP Registry rather than fetched, so the choice works
+ * offline and on a first run. A preset carries no credential and never will:
+ * it says how the process is started, and the user's own account or key stays
+ * where that agent keeps it.
+ */
+export interface RuntimePreset {
+  id: string;
+  name: string;
+  vendor: string;
+  command: string;
+  args: string[];
+  /** What must already be installed for this command to resolve. */
+  requires: string;
+  /** How the user authenticates — with that agent, never with Meridian. */
+  auth: string;
+  docs: string;
+}
+
 export interface BuiltinLibrary {
   agents: WorkbenchAgentInput[];
   skills: WorkbenchSkillInput[];
   instructions: WorkbenchInstructionInput[];
+  runtimes: RuntimePreset[];
 }
 
 /** Nothing shipped, or nothing readable. Never a reason to fail activation. */
 export function emptyLibrary(): BuiltinLibrary {
-  return { agents: [], skills: [], instructions: [] };
+  return { agents: [], skills: [], instructions: [], runtimes: [] };
+}
+
+function asPreset(value: unknown): RuntimePreset | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const raw = value as Record<string, unknown>;
+  const text = (key: string) =>
+    typeof raw[key] === "string" ? (raw[key] as string) : "";
+  const id = text("id");
+  const command = text("command");
+  if (!id || !command) return undefined;
+  return {
+    id,
+    name: text("name") || id,
+    vendor: text("vendor"),
+    command,
+    args: Array.isArray(raw.args)
+      ? raw.args.filter((arg): arg is string => typeof arg === "string")
+      : [],
+    requires: text("requires"),
+    auth: text("auth"),
+    docs: text("docs"),
+  };
 }
 
 async function readMarkdownDirectory(
@@ -124,6 +174,20 @@ export async function loadBuiltinLibrary(
     } catch {
       /* as above */
     }
+  }
+
+  try {
+    const raw = JSON.parse(
+      await readFile(path.join(root, "runtimes.json"), "utf8"),
+    ) as { runtimes?: unknown };
+    if (Array.isArray(raw.runtimes))
+      for (const entry of raw.runtimes) {
+        const preset = asPreset(entry);
+        if (preset) library.runtimes.push(preset);
+      }
+  } catch {
+    // No presets is a degraded first run, not a broken one: the command
+    // field still accepts anything typed into it.
   }
   return library;
 }

@@ -12,3 +12,8 @@ extension/webview-dist/
 /extension/policy/
 /.meridian/workbench/
 !webview/index.html
+
+# Gradle's build cache inside the analytical test fixture. It is regenerated
+# by every run that touches that fixture, so tracking it produces a permanent
+# stream of binary diffs that mean nothing.
+core/tests/fixtures/**/.gradle/

@@ -197,9 +197,29 @@ export interface LearningArtifact {
   surface: "memory";
 }
 
+/**
+ * How to launch one real ACP agent. Meridian does not bundle an AI; it
+ * governs one you already have, so these say how each is started and the
+ * user supplies their own account. No credential is ever present here.
+ */
+export interface RuntimePreset {
+  id: string;
+  name: string;
+  vendor: string;
+  command: string;
+  args: string[];
+  /** What must already be installed for the command to resolve. */
+  requires: string;
+  /** How the user authenticates: with that agent, never with Meridian. */
+  auth: string;
+  docs: string;
+}
+
 export interface WorkbenchSnapshot {
   revision: number;
   agents: WorkbenchAgent[];
+  /** Shipped ACP runtimes an agent can be bound to. Read-only. */
+  runtimes?: RuntimePreset[];
   skills: WorkbenchSkill[];
   instructions: WorkbenchInstruction[];
   /** Configured tool connections. Secrets are never present here. */
@@ -268,6 +288,15 @@ export interface WorkbenchActionMap {
   "agent/remove": { params: { id: string }; result: WorkbenchSnapshot };
   "agent/mode": {
     params: { id: string; mode: AgentMode };
+    result: WorkbenchSnapshot;
+  };
+  /**
+   * Point an agent at one of the shipped ACP runtimes. A convenience over
+   * typing the same command by hand: it grants nothing and carries no
+   * credential.
+   */
+  "agent/bindRuntime": {
+    params: { id: string; runtimeId: string };
     result: WorkbenchSnapshot;
   };
   "agent/import": { params: { content: string }; result: WorkbenchSnapshot };

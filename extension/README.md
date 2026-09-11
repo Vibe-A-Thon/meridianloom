@@ -39,13 +39,28 @@ A skill pack turns a role agent into a stack specialist — bind
 files (`AGENTS.md` and its kin) carry how your organisation works, ordered so
 the most specific scope wins.
 
-**A library ships in the box.** A new workspace is seeded with nine role
-agents — one for each SDLC phase, from Requirements Analyst through to
-Reliability Engineer — plus skill packs and instruction documents covering
+**A library ships in the box.** A new workspace is seeded with the twelve
+Role Agents — Analyst, Solution Architect, Tech Lead, Developer, Frontend,
+QA Engineer, QA Lead, Reviewer, Security, Release, SRE and Scrum Master —
+covering all nine SDLC phases; the ten skill packs of the GA catalogue
+(`java-spring-gradle`, `java-fullstack`, `python-service`, `golang-service`,
+`react-frontend`, `node-service`, `dotnet-service`, `aws-iac`,
+`sql-migration`, `api-contract-first`); and instruction documents for
 engineering standards, a definition of done, a review checklist and a security
 baseline. They are marked **Built-in**, and they are ordinary records: read
 them, edit them, disable them, export them, or delete them. A deleted built-in
 stays deleted.
+
+Each skill pack carries what a pack is supposed to carry — project layout,
+build and test invocations, framework idioms, a review checklist, and an empty
+**House rules** section for your own conventions. That section is the point of
+them being editable.
+
+The instruction documents are bound to the shipped agents, so they reach every
+briefing. The **skill packs are not** — binding all ten would make the
+Developer ten contradictory specialists at once. Bind the one that matches
+your stack, and that is the moment the Developer becomes a Go engineer or a
+Java engineer. The identity is data, not code.
 
 The shipped agents arrive in **Learning** mode with `read`, `search` and
 `think`, and with no executable bound. Something that came free in the box has
@@ -74,7 +89,7 @@ green light older than thirty minutes reads *Stale*, not *Reachable*.
 Every recorded action lands in a hash-chained, Ed25519-signed ledger. The audit
 bundle exports to JSON and **verifies without Meridian installed**:
 
-```
+```console
 python <extension>/sidecar/verify.py my-bundle.json
 ```
 

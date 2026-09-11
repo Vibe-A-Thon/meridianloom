@@ -55,6 +55,7 @@ _EXPORTS = {
     "BlobError": "blobs",
     "BlobKeyMissing": "blobs",
     "BlobNotFound": "blobs",
+    "BlobRefInvalid": "blobs",
     "BlobTampered": "blobs",
     "canonical_json": "canonical",
     "entry_hash": "canonical",

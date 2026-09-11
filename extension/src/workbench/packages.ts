@@ -128,6 +128,12 @@ function asText(value: unknown, fallback = ''): string {
 export interface Frontmatter {
   data: Record<string, unknown>;
   body: string;
+  /**
+   * Why the frontmatter did not parse, when it did not. Present means every
+   * declared field was lost and the record fell back to filename and
+   * heading — which looks like a successful import unless somebody says so.
+   */
+  error?: string;
 }
 
 /**
@@ -135,21 +141,38 @@ export interface Frontmatter {
  * error: the document is still importable as a body, because refusing a
  * user's instruction file over a stray colon is worse than importing it
  * without its metadata.
+ *
+ * It is, however, *reported* — see `error`. Silently importing a package
+ * stripped of its id, name, tags and phase tags is a worse outcome than
+ * either refusing it or importing it, because the user cannot tell which
+ * happened.
  */
 export function parseFrontmatter(text: string): Frontmatter {
   const normalised = text.replace(/^﻿/, '').replace(/\r\n/g, '\n');
   const match = /^---\n([\s\S]*?)\n---\n?/.exec(normalised);
   if (!match) return { data: {}, body: normalised.trim() };
   let data: Record<string, unknown> = {};
+  let error: string | undefined;
   try {
     const parsed: unknown = parseYaml(match[1]);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       data = parsed as Record<string, unknown>;
     }
-  } catch {
-    // Keep the body; the caller falls back to filename and heading.
+  } catch (caught) {
+    // Keep the body and fall back to filename and heading — a document with
+    // broken frontmatter is still a document, and refusing the whole import
+    // over it would be worse.
+    //
+    // But report it. This used to be a bare `catch {}`, and the failure it
+    // hides is quiet and plausible: `description: Node services: strictness`
+    // is invalid YAML (a plain scalar cannot contain ": "), so the *entire*
+    // block is discarded and the record silently arrives with a
+    // filename-derived id, no declared name, no tags and no phases. Nothing
+    // said so. It happened to a skill pack shipped in this repository, and a
+    // test noticing the missing tags is what found it.
+    error = caught instanceof Error ? caught.message : String(caught);
   }
-  return { data, body: normalised.slice(match[0].length).trim() };
+  return { data, body: normalised.slice(match[0].length).trim(), error };
 }
 
 /** The first ATX heading, used as a name when frontmatter gives none. */
@@ -228,7 +251,14 @@ export function agentFromMarkdown(
       SURFACES,
     ) as LearningSurface[],
     phases: asStringArray(data.phases ?? data.sdlc, SDLC_PHASES) as SdlcPhase[],
-    skillIds: [],
+    // A package may declare which skills it expects to be bound to. This is
+    // what makes a *stack* agent expressible as data — "Developer bound to
+    // java-spring-gradle" is a Java engineer, and that binding is the whole
+    // L3 mechanic. Unlike integrations below, a skill id is a reference into
+    // this workspace's own catalogue, not a credential the package brings: an
+    // id naming a skill that is not here binds to nothing, and the caller
+    // filters to what exists.
+    skillIds: asStringArray(data.skills ?? data.skillIds).slice(0, 50),
     instructionIds: [],
     // A package cannot bring its own tool connections: those are the user's
     // credentials and endpoints, bound deliberately after the import.
@@ -461,6 +491,14 @@ export function assembleFromArchive(entries: ArchiveEntry[]): {
         continue;
       }
       const parsed = parseFrontmatter(entry.text);
+      if (parsed.error)
+        // Imported, not skipped — the body is still useful — but the user is
+        // told, because every declared field was dropped and the result
+        // otherwise looks like a clean import of a differently-named thing.
+        skipped.push({
+          path: entry.path,
+          reason: `imported without its frontmatter (${parsed.error.split('\n')[0]}); id, name and tags fell back to the filename`,
+        });
       const inSkills = /(^|\/)skills\//.test(lower);
       const inInstructions = /(^|\/)instructions\//.test(lower);
       const kind = inSkills

@@ -58,7 +58,11 @@ import {
   STUDIO_DOCUMENT_KINDS,
   type StudioDocument,
 } from "../../../shared/ts/studio";
-import { loadBuiltinLibrary, planSeed } from "./library";
+import {
+  loadBuiltinLibrary,
+  planSeed,
+  type RuntimePreset,
+} from "./library";
 
 interface StoredState {
   schemaVersion: 1;
@@ -408,6 +412,8 @@ export class WorkbenchService {
     }
   >();
   private readonly output = new Map<string, string>();
+  /** Runtime presets from the shipped library; empty until `load` runs. */
+  private runtimes: RuntimePreset[] = [];
   /**
    * AMD-M25 / G-03: the one steering implementation. The workbench used to
    * call `steer.send` itself and inject the turn itself, which meant the
@@ -492,6 +498,9 @@ export class WorkbenchService {
     });
     return {
       revision: result.revision,
+      // How to launch a real ACP agent, so binding one is a choice rather
+      // than a guess. Read-only, and carries no credential.
+      runtimes: this.runtimes,
       skills: result.skills,
       instructions: result.instructions,
       integrations: result.integrations,
@@ -679,6 +688,10 @@ export class WorkbenchService {
     if (!extensionPath) return;
     try {
       const library = await loadBuiltinLibrary(extensionPath);
+      // Presets are not seeded into state — they are a read-only catalogue
+      // that follows the installed extension, so an updated list arrives with
+      // an update rather than being frozen into a workspace at first run.
+      this.runtimes = library.runtimes;
       const plan = planSeed(
         library,
         {
@@ -696,9 +709,32 @@ export class WorkbenchService {
       if (unchanged) return;
 
       const now = new Date().toISOString();
+      // The shipped instruction documents are bound to the shipped agents.
+      // `brief()` selects instruction files by `instructionIds`, so unbound
+      // they would reach nobody — and the engineering-standards document
+      // opens by saying it applies to every agent in the workspace, which
+      // would then be false. They ship as a set and are written for each
+      // other. Binding text grants no permission; it only decides what the
+      // agent reads.
+      //
+      // Skills are deliberately *not* bound. A skill pack specialises a role
+      // — bind `golang-service` and the Developer is a Go developer — so
+      // binding all ten would make it ten contradictory things at once. That
+      // choice is the user's, and it is the mechanic the product is built on.
+      const libraryInstructions = library.instructions.map((entry) => entry.id);
+      // A shipped stack agent declares the pack that specialises it. Bind
+      // only to packs this workspace actually has: a declared id is a
+      // reference into the catalogue, and a dangling one would show a binding
+      // that resolves to nothing in the briefing.
+      const available = new Set([
+        ...this.state.skills.map((entry) => entry.id),
+        ...plan.skills.map((entry) => entry.id),
+      ]);
       for (const input of plan.agents)
         this.state.agents.push({
           ...input,
+          skillIds: input.skillIds.filter((id) => available.has(id)),
+          instructionIds: libraryInstructions,
           source: "builtin",
           mode: "learning",
           runtime: "idle",
@@ -1472,6 +1508,26 @@ export class WorkbenchService {
             this.state.learning = this.state.learning.filter(
               (note) => note.agentId !== agent.id,
             );
+            break;
+          }
+          case "agent/bindRuntime": {
+            // Set an agent's executable from a shipped preset. Purely a
+            // convenience over typing the same command by hand — it grants
+            // nothing, changes no permission, and leaves the agent in
+            // whatever mode it was in. A preset carries no credential, so
+            // there is nothing here to leak into the workspace file.
+            const agent = this.agent(id(params.id));
+            const preset = this.runtimes.find(
+              (entry) => entry.id === string(params.runtimeId, "Runtime", 200),
+            );
+            if (!preset)
+              throw new Error(
+                "That agent runtime is not one of the shipped presets. Set " +
+                  "the executable directly if you are using your own build.",
+              );
+            agent.command = preset.command;
+            agent.args = [...preset.args];
+            agent.updatedAt = now;
             break;
           }
           case "agent/mode": {

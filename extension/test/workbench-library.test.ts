@@ -144,14 +144,31 @@ describe('reading the shipped library', () => {
     expect(library.skills.map((s) => s.id)).toEqual(['shipped-skill']);
   });
 
-  it('ships a real library with the extension, covering every SDLC phase', async () => {
-    // Not a fixture — the actual shipped files. A library that parses in a
-    // unit test and not in the box would be the same empty-catalogue problem
-    // wearing a passing test.
+  it('ships the twelve Role Agents vision.md 2.3 names', async () => {
+    // Not a fixture — the actual shipped files, checked against the roster
+    // the product defines. An earlier pass shipped an invented set of nine
+    // roles instead, which is the quiet kind of scope substitution that looks
+    // finished and answers a different question.
     const library = await loadBuiltinLibrary(path.resolve(__dirname, '..'));
-    expect(library.agents.length).toBeGreaterThanOrEqual(9);
-    expect(library.skills.length).toBeGreaterThan(0);
-    expect(library.instructions.length).toBeGreaterThan(0);
+    const ids = library.agents.map((agent) => agent.id);
+    for (const role of [
+      'analyst-agent',
+      'architect-agent',
+      'developer-agent',
+      'frontend-agent',
+      'qa-engineer-agent',
+      'qa-lead-agent',
+      'release-agent',
+      'reviewer-agent',
+      'scrummaster-agent',
+      'security-agent',
+      'sre-agent',
+      'techlead-agent',
+    ]) {
+      expect(ids).toContain(role);
+    }
+    // Every SDLC phase has somebody to convene, or a dispatch falls through
+    // to the unphased fallback and the phase tagging means nothing.
     const phases = new Set(library.agents.flatMap((agent) => agent.phases));
     for (const phase of [
       'intake',
@@ -166,10 +183,106 @@ describe('reading the shipped library', () => {
     ]) {
       expect(phases.has(phase as never)).toBe(true);
     }
-    // Nothing shipped may arrive able to change anything.
+    // Nothing shipped may arrive able to change anything, and nothing shipped
+    // may arrive able to run: the command is bound by a person.
     for (const agent of library.agents) {
-      expect(agent.permissions.sort()).toEqual(['read', 'search', 'think']);
+      expect([...agent.permissions].sort()).toEqual([
+        'read',
+        'search',
+        'think',
+      ]);
       expect(agent.command).toBe('');
+    }
+  });
+
+  it('ships the GA skill catalogue vision.md 2.4 names', async () => {
+    const library = await loadBuiltinLibrary(path.resolve(__dirname, '..'));
+    expect(library.skills.map((skill) => skill.id).sort()).toEqual(
+      [
+        'api-contract-first',
+        'aws-iac',
+        'dotnet-service',
+        'golang-service',
+        'java-fullstack',
+        'java-spring-gradle',
+        'node-service',
+        'python-service',
+        'react-frontend',
+        'sql-migration',
+      ].sort(),
+    );
+    // 2.4 says what a pack carries. A pack missing its build invocation is a
+    // description of a stack rather than something an agent can work from.
+    for (const skill of library.skills) {
+      expect(skill.body).toContain('## Project layout');
+      expect(skill.body).toContain('## Build and test');
+      expect(skill.body).toContain('## Review checklist');
+      expect(skill.tags.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('ships stack agents that are a role plus exactly one pack', async () => {
+    // vision.md 2.4: a Stack Agent is not a separate hard-coded agent, it is
+    // a Role Agent bound to a Skill Pack. These ship the composition made up,
+    // because "a Spring Boot agent" is what people look for — but each must
+    // still *be* that composition, or the claim is decoration.
+    const library = await loadBuiltinLibrary(path.resolve(__dirname, '..'));
+    const packs = new Set(library.skills.map((skill) => skill.id));
+    const stack = library.agents.filter((agent) => agent.skillIds.length);
+    expect(stack.length).toBeGreaterThanOrEqual(10);
+    for (const agent of stack) {
+      expect(agent.skillIds).toHaveLength(1);
+      // A binding that names a pack this library does not ship would show a
+      // specialisation that resolves to nothing in the briefing.
+      expect(packs.has(agent.skillIds[0])).toBe(true);
+    }
+    // Every shipped pack is reachable through at least one ready-made agent.
+    const bound = new Set(stack.flatMap((agent) => agent.skillIds));
+    for (const pack of packs) expect(bound.has(pack)).toBe(true);
+  });
+
+  it('parses every shipped file with its declared frontmatter intact', async () => {
+    // The trap this guards: a plain YAML scalar cannot contain ": ", so
+    // `description: Node services: strictness` throws, parseFrontmatter
+    // discards the WHOLE block, and the record arrives with a
+    // filename-derived id and no tags — looking, from the outside, like a
+    // perfectly good import. One shipped pack was in exactly that state.
+    const library = await loadBuiltinLibrary(path.resolve(__dirname, '..'));
+    for (const skill of library.skills) {
+      expect(skill.tags.length).toBeGreaterThan(0);
+      expect(skill.version).not.toBe('0.1.0'); // the no-frontmatter default
+    }
+    for (const agent of library.agents) {
+      expect(agent.vendor).toBe('Meridian Loom');
+      expect(agent.phases.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('ships runtime presets so binding an agent is a choice, not a guess', async () => {
+    // Meridian does not bundle an AI; it governs one you already have. Until
+    // these existed, supplying one meant knowing an executable's name and
+    // typing it into a text box.
+    const library = await loadBuiltinLibrary(path.resolve(__dirname, '..'));
+    expect(library.runtimes.length).toBeGreaterThan(0);
+    for (const runtime of library.runtimes) {
+      expect(runtime.command).toBeTruthy();
+      expect(runtime.requires).toBeTruthy();
+      // Every preset must say how the user authenticates, because Meridian
+      // never does it for them and never holds the credential.
+      expect(runtime.auth).toBeTruthy();
+      const serialised = JSON.stringify(runtime).toLowerCase();
+      for (const leak of ['api_key=', 'apikey=', 'token=', 'password='])
+        expect(serialised).not.toContain(leak);
+    }
+  });
+
+  it('ships instruction documents at a declared precedence scope', async () => {
+    const library = await loadBuiltinLibrary(path.resolve(__dirname, '..'));
+    expect(library.instructions.length).toBeGreaterThan(0);
+    for (const entry of library.instructions) {
+      expect(['adapter', 'workspace', 'user', 'organisation']).toContain(
+        entry.scope,
+      );
     }
   });
 });
@@ -251,6 +364,12 @@ describe('seeding a workspace', () => {
     const agent = state.agents.find((entry) => entry.id === 'shipped-agent')!;
     expect(agent.mode).toBe('learning');
     expect([...agent.permissions].sort()).toEqual(['read', 'search', 'think']);
+    // The shipped instruction documents are bound, or they reach no briefing
+    // and the house rules they state apply to nobody.
+    expect(agent.instructionIds).toEqual(['shipped-instruction']);
+    // Skill packs are not: binding every pack would make one role several
+    // contradictory specialists at once.
+    expect(agent.skillIds).toEqual([]);
   });
 
   it('does not resurrect a built-in the user removed', async () => {

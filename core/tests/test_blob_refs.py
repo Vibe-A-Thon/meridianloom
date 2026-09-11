@@ -91,6 +91,7 @@ def test_no_call_site_joins_an_unvalidated_ref_onto_a_root():
     this closed, and nothing would notice until a crafted manifest wrote
     outside a ledger directory.
     """
+    import re
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1] / "meridian_core"
@@ -104,9 +105,14 @@ def test_no_call_site_joins_an_unvalidated_ref_onto_a_root():
             stripped = line.strip()
             if stripped.startswith("#"):
                 continue
-            # A ref joined onto anything, without going through the validator
-            # on the same line.
-            if ("/ ref" in stripped or "/ archived.ref" in stripped) and (
+            # The shape of a pathlib join: a slash, whitespace, then the name.
+            # Narrowed twice, both times because prose tripped it — first the
+            # substring "/ ref" matched "generative / executed / refused", then
+            # a word boundary still matched "repoPath/ref/since", a git ref in
+            # a docstring. Requiring whitespace after the slash separates the
+            # expression `blob_root / ref` from both. A guard that cries wolf
+            # gets deleted rather than fixed, so it is worth narrowing.
+            if re.search(r"/\s+(?:archived\.)?ref\b", stripped) and (
                 "normalise_ref" not in stripped
             ):
                 offenders.append(f"{path.relative_to(root)}:{number}")

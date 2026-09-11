@@ -9,6 +9,7 @@ and asserts detection through the actual platform process table.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
@@ -31,6 +32,16 @@ from meridian_core.observers.sessions import (
 )
 
 X29_BUDGET_SECONDS = 2.0
+
+#: Same split as the NFR-33 budgets in test_full_history_metrics.py, and for
+#: the same reason: *whether* a session becomes visible is correctness, and
+#: *how fast* is a measurement of the machine. Conflating them means a busy
+#: runner reports a correctness failure and a real regression reads as noise.
+#: The latency is always measured and always printed; the budget is enforced
+#: unless the runner says it is sharing the machine. CI enforces it on a
+#: dedicated serial runner, and a developer running the suite enforces it by
+#: default — a budget nobody sees is how a stale PASS happens.
+_PERF_REPORT_ONLY = os.environ.get("MERIDIAN_PERF_REPORT_ONLY") == "1"
 
 HELPER_SOURCE = """\
 import time
@@ -157,8 +168,18 @@ class TestX29DetectionBudget:
                 ),
                 timeout=X29_BUDGET_SECONDS + 2,
             )
-            print(f"\nX-29 detection latency: {elapsed * 1000:.0f} ms")
-            assert elapsed < X29_BUDGET_SECONDS
+            print(
+                f"\nX-29 detection latency: {elapsed * 1000:.0f} ms "
+                + (
+                    "(reported only, shared runner)"
+                    if _PERF_REPORT_ONLY
+                    else f"(budget {X29_BUDGET_SECONDS:.0f}s)"
+                )
+            )
+            # The wait above already proved the session became visible; that
+            # part is asserted on every runner. Only the budget stands down.
+            if not _PERF_REPORT_ONLY:
+                assert elapsed < X29_BUDGET_SECONDS
 
             session = next(
                 s

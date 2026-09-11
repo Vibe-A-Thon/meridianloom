@@ -99,7 +99,11 @@ def pytest_configure(config: pytest.Config) -> None:
             holder = 0
         if _holder_is_alive(holder):
             raise pytest.UsageError(
-                f"another Meridian suite run is already going (pid {holder}) — "
+                # ASCII only: this prints to a console, and on Windows the
+                # default code page turns an em-dash into a replacement
+                # character. A diagnostic that looks corrupted undermines the
+                # thing it is trying to tell you.
+                f"another Meridian suite run is already going (pid {holder}); "
                 "it may be pytest or the extension's vitest suite. "
                 "Two runs on one machine spawn competing git and sidecar "
                 "subprocesses and starve each other; the failures that produces "

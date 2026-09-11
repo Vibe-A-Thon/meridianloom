@@ -58,7 +58,9 @@ function takeLock(): boolean {
     }
     if (holderIsAlive(holder)) {
       throw new Error(
-        `Another Meridian suite run is already going (pid ${holder}) — it may ` +
+        // ASCII only: this reaches a console, and on Windows the default code
+        // page renders an em-dash as a replacement character.
+        `Another Meridian suite run is already going (pid ${holder}); it may ` +
           'be the core pytest suite or another vitest run. Both spawn real ' +
           'sidecar and ACP subprocesses, and two at once starve each other ' +
           'into failures that are not regressions. Wait for it, or set ' +

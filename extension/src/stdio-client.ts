@@ -16,6 +16,24 @@ import type { SidecarClient } from './sidecar';
 // shared/schema/ drives; both halves of the wire read the same constant.
 export { PROTOCOL_VERSION };
 
+/**
+ * How long the sidecar may take to answer its first handshake.
+ *
+ * Was ten seconds, which is comfortable on a warm machine and too tight on
+ * the case that matters most: the very first launch after installing, on
+ * Windows, where the interpreter and every module of `meridian_core` are read
+ * from a directory the antivirus has never seen and scans on the way past. A
+ * user whose first experience is "the sidecar did not answer" concludes the
+ * extension is broken, and they are not obviously wrong.
+ *
+ * Thirty seconds costs nothing in the normal case — the race resolves as soon
+ * as the handshake returns, so a fast start is still fast. What it buys is
+ * not failing a cold start that was going to succeed a second later. It
+ * surfaced here as a test that failed only under load, which is the same
+ * shape as a slow machine.
+ */
+export const DEFAULT_HANDSHAKE_TIMEOUT_MS = 30_000;
+
 export interface StdioSidecarOptions {
   /** Interpreter command (already resolved; FR-M3-05). */
   command: string;
@@ -172,7 +190,7 @@ export class StdioSidecarClient extends EventEmitter implements SidecarClient {
       }
     });
 
-    const timeoutMs = this.options.handshakeTimeoutMs ?? 10_000;
+    const timeoutMs = this.options.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS;
     let timer: NodeJS.Timeout | undefined;
     try {
       await Promise.race([
@@ -211,8 +229,21 @@ export class StdioSidecarClient extends EventEmitter implements SidecarClient {
             () =>
               reject(
                 new SidecarSpawnError(
-                  `sidecar handshake timed out after ${timeoutMs} ms. ` +
-                    `Recent stderr: ${this.stderrTail || '(empty)'}`,
+                  `The Meridian sidecar did not answer within ${Math.round(
+                    timeoutMs / 1000,
+                  )} s. ` +
+                    (this.stderrTail
+                      ? `It reported: ${this.stderrTail}`
+                      : // Silence is the common case and the least helpful
+                        // one: the process started and is simply still
+                        // importing. Saying "(empty)" told the user nothing
+                        // they could act on.
+                        'It started but printed nothing, which usually means ' +
+                        'it is still starting up — a first launch on Windows ' +
+                        'can be slow while the interpreter and its modules ' +
+                        'are scanned. Raise meridian.sidecar.handshakeTimeoutMs ' +
+                        'if this persists, or run Meridian: Doctor to check ' +
+                        'the interpreter.'),
                   'HANDSHAKE_TIMEOUT',
                 ),
               ),

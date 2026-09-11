@@ -246,6 +246,13 @@
           ],
           "default": "editor",
           "description": "Where the Meridian Loom workbench renders. Selecting it in the Activity Bar opens it either way."
+        },
+        "meridian.sidecar.handshakeTimeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 1000,
+          "maximum": 600000,
+          "description": "How long the Meridian sidecar may take to answer its first handshake, in milliseconds. Raise it if a first launch times out on a slow machine \u2014 a cold start on Windows reads the whole sidecar past the antivirus. Out-of-range values fall back to the default."
         }
       }
     }
