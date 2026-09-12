@@ -304,14 +304,15 @@ Specified in full at **§17**, after the competitive review that produced them.
 
 ### 4.1 Measured
 
-**Re-measured at the final freeze audit: one clean sequential run of all three suites, `scripts/run-tests.mjs`, at commit `0f39a52` plus the working tree, Windows 11.** Not carried forward from a prior run — that is what §4.3 records going wrong.
+**Re-measured at the `MV0` phase exit: one quiesced sequential run of all three suites, `scripts/run-tests.mjs`, at commit `6b0b36a`, Windows 11 / Node 22.20.0 / Python 3.11.9, 33 m 15 s wall-clock.** The run log is committed at `docs/baselines/6b0b36a.txt`. Not carried forward from a prior run — that is what §4.3 records going wrong.
 
 | Check | Result |
 |---|---|
-| Python sidecar suite | **1,629 passed · 0 failed** · 24 m 47 s |
-| Extension suite | **534 passed · 0 failed · 1 skipped** (50 files, incl. real-sidecar e2e and ACP conformance) |
+| Python sidecar suite | **1,629 passed · 0 failed** · 27 m 53 s |
+| Extension suite | **536 passed · 0 failed · 1 skipped** (50 files, incl. real-sidecar e2e and ACP conformance) |
 | Webview suite | **242 passed · 0 failed** (26 files) |
-| **Total** | **2,405 passed · 0 failed · 1 skipped** |
+| **Total** | **2,407 passed · 0 failed · 1 skipped** |
+| Document gates (`MV0`) | traceability, claims and licences all green **before** the suites run |
 | Type checking | Clean, both projects |
 | Contract freshness | Generated bus types verified against the schema before the suites ran (`FR-M32-09`) |
 | Package | `dist/meridian-loom-0.1.0.vsix`, 232 files, verifier staged, library staged **once** (37 files), both review documents staged |

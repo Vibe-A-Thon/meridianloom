@@ -1,6 +1,6 @@
 {
   "$schema": "meridian-loom/surface-coverage@1",
-  "generatedAt": "2026-09-12T13:43:14.134Z",
+  "generatedAt": "2026-09-12T15:45:03.594Z",
   "registry": "shared/schema/tiers.json",
   "allowlist": "shared/schema/unsurfaced.json",
   "roots": [
