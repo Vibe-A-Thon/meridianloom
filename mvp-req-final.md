@@ -8,7 +8,7 @@
 | **Composed from** | `vision.md` v1.1 · `Requirements_Final.md` v2.1 · `Requirements-implementation.md` v2.0 · `VIGUIX_Final.md` v2.1 · `viguix-implementation.md` v2.1 · `gaps-requirements.md` v1.0 · `gaps_implementation.md` v1.0 · `gaps_guix.md` v1.0 · `gaps_guix_implementation.md` v1.0 · `gaps_initiation.md` v1.0 · `futures.md` · `futures_requirements.md` v1.0 · `futures-implementation.md` v1.0 · `jit-requirements.md` v1.0 · `jit-impl.md` v1.0 · `status.md` · `DECISIONS.md` · `BUILD_STATE.md` · `sample-meridian-loom-gui.html` |
 | **Governed by** | `mvp-impl-plan.md` |
 | **Baseline** | Commit `b2c2d9c` + working tree, release `0.1.0`. Verified 12 September 2026: Python 1629 passed / 0 failed · extension 534 passed / 0 failed · webview 242 passed / 0 failed · VSIX 232 files |
-| **Scale** | 52 modules · ~700 functional requirements (incl. 67 SDLC phase requirements) · 54 NFRs · 48 security requirements · 68 acceptance criteria · 8 ecosystem requirements · 11 module amendments · 34 principles · 55 screens · 33 cross-cutting systems · 10 competitive findings |
+| **Scale** | 52 modules · ~700 functional requirements (incl. 67 SDLC phase requirements) · 55 NFRs · 49 security requirements · 71 acceptance criteria · 8 ecosystem requirements · 11 module amendments · 34 principles · 55 screens · 33 cross-cutting systems · 10 competitive findings |
 
 ---
 
@@ -304,13 +304,19 @@ Specified in full at **§17**, after the competitive review that produced them.
 
 ### 4.1 Measured
 
+**Re-measured at the final freeze audit: one clean sequential run of all three suites, `scripts/run-tests.mjs`, at commit `0f39a52` plus the working tree, Windows 11.** Not carried forward from a prior run — that is what §4.3 records going wrong.
+
 | Check | Result |
 |---|---|
-| Python sidecar suite | **1,629 passed, 0 failed** |
-| Extension suite | **534 passed, 0 failed** (50 files, incl. 9 real-sidecar e2e) |
-| Webview suite | **242 passed, 0 failed** (26 files) |
+| Python sidecar suite | **1,629 passed · 0 failed** · 24 m 47 s |
+| Extension suite | **534 passed · 0 failed · 1 skipped** (50 files, incl. real-sidecar e2e and ACP conformance) |
+| Webview suite | **242 passed · 0 failed** (26 files) |
+| **Total** | **2,405 passed · 0 failed · 1 skipped** |
 | Type checking | Clean, both projects |
-| Package | `meridian-loom-0.1.0.vsix`, 232 files, SHA-256 published |
+| Contract freshness | Generated bus types verified against the schema before the suites ran (`FR-M32-09`) |
+| Package | `dist/meridian-loom-0.1.0.vsix`, 232 files, verifier staged, library staged **once** (37 files), both review documents staged |
+
+**The one skipped test is recorded rather than rounded away.** A count that quietly drops a skip is the same class of imprecision as a metric without its coverage envelope (`P25`).
 
 ### 4.2 Shipped capability
 
@@ -407,6 +413,7 @@ The single most valuable property of this product is that its statements are tru
 | **MVP-R3.4** | `FR-M42-04`/`05` — locally asserted identity SHALL be distinguished from verified identity, and a git identity SHALL never satisfy a policy requiring verification. | **`BUILT`** (`D38`, assurance levels) |
 | **MVP-R3.5** | `FR-M44-08`…`10` — a machine-readable compatibility matrix SHALL be published, every "supported" claim backed by a smoke test. | **`MVP-GAP`** |
 | **MVP-R3.6** | `NFR-39` — a bundle SHALL verify on a clean machine using only the published specification and reference verifier. | **`BUILT`** (`AC-49`) |
+| **MVP-R3.7** | Every banned pattern this document claims is test-enforced SHALL have a named test. Patterns **28** and **30** currently do not. | **`MVP-GAP`** — found by the final freeze audit; see §9.3 |
 
 ### 5.4 MVP-R4 — Starting work is possible and governed · `MVP-GAP`
 
@@ -462,9 +469,23 @@ From the 12 September competitive review (§16). Four items, each small, each de
 | **MVP-R7.3** | `FR-M50-04` — a CycloneDX **AI-BOM** for everything the package ships SHALL be published beside the VSIX and its checksum. | **`MVP-GAP`** — 22 agents, 10 skills, 4 instruction documents and 4 runtime presets currently ship with no bill of materials |
 | **MVP-R7.4** | §16.2 — the differentiator SHALL be restated in its narrower, still-true form in every shipped document, and the broader wording withdrawn. | **`MVP-GAP`** — `MP5` applied to the one claim this review made partly false |
 
+### 5.8 MVP-R8 — The organisation can operate it and leave · `MVP-GAP`
+
+§0.4 says the MVP is a package an organisation can **evaluate, install, configure, roll out, operate and leave — without talking to us**. The final freeze audit checked that sentence against the repository and found *operate* unserved: three artefacts an enterprise security review and a procurement desk ask for as a matter of routine are absent, and nothing in the plan created them.
+
+| ID | Requirement | Status |
+|---|---|---|
+| **MVP-R8.1** | A **vulnerability disclosure process** SHALL ship with the package: where to report, what is in scope, what response the reporter can expect, and the disclosure posture. The commitment SHALL be one a single maintainer can actually meet — **an unmeetable response-time promise is the same defect class as an unbacked claim** (`MP5`). | **`MVP-GAP`** — no `SECURITY.md` exists |
+| **MVP-R8.2** | **Third-party notices** SHALL be generated from the lockfiles and shipped in the package, enumerating every runtime dependency with its licence. This turns `docs/SECURITY-AND-DATA.md` §7 — which asserts no copyleft runtime dependency — from an assertion into something a reviewer can check. | **`MVP-GAP`** — the claim exists, the enumeration does not |
+| **MVP-R8.3** | A **support and upgrade policy** SHALL state which versions are supported, what notice a breaking change carries, how state migrates across an upgrade, and the export path on the way out. `futures.md` names "a supported upgrade policy" as part of the commercial test. | **`MVP-GAP`** |
+
+**Why these are `MVP` and not `POST-MVP`.** Each one blocks the MVP's own definition rather than extending it: a security review that finds no disclosure process stops the evaluation, and a procurement desk that cannot enumerate dependencies stops the install. None of them is a feature; all three are the difference between a package an organisation can adopt and one it must ask about.
+
 ---
 
-## 6. Non-functional requirements — NFR-01 to NFR-54
+---
+
+## 6. Non-functional requirements — NFR-01 to NFR-55
 
 | Range | Source | MVP disposition |
 |---|---|---|
@@ -494,10 +515,11 @@ From the 12 September competitive review (§16). Four items, each small, each de
 | `NFR-52` **Interoperable verification** — a DSSE-enveloped attestation verifies with standard tooling, not only with Meridian's verifier | §16 (`M50`) | `POST-MVP` |
 | `NFR-53` **Conflict reporting** — a disagreement between two provenance tools is reported within one session, never silently resolved | §16 (`M52`) | `POST-MVP` |
 | `NFR-54` **Review cadence** — the competitive position (§16) is re-verified against primary sources at every release | §16 | **In force** |
+| `NFR-55` **Support window** — the supported version set, the breaking-change notice period and the state-migration guarantee are published and honoured | §5.8 | **`MVP-GAP`** (`MVP-R8.3`) |
 
 ---
 
-## 7. Security requirements — SEC-01 to SEC-48
+## 7. Security requirements — SEC-01 to SEC-49
 
 | Range | Source | MVP disposition |
 |---|---|---|
@@ -522,10 +544,11 @@ From the 12 September competitive review (§16). Four items, each small, each de
 | `SEC-46` An agent SHALL NOT be able to obtain a credential attested to a different workload | §16 (`M49`) | `POST-MVP` |
 | `SEC-47` Attestation material SHALL never leave the machine, and SHALL never enter an export | §16 (`M49`) | `POST-MVP` |
 | `SEC-48` A C2PA content credential SHALL be emitted only for content Meridian observed being produced, never inferred | §16 (`M50`) | `POST-MVP` |
+| `SEC-49` A vulnerability disclosure process ships with the package, naming scope, contact and the response a reporter can expect — **and promising only what one maintainer can meet** | §5.8 | **`MVP-GAP`** (`MVP-R8.1`) |
 
 ---
 
-## 8. Acceptance criteria — AC-01 to AC-68
+## 8. Acceptance criteria — AC-01 to AC-71
 
 | Range | Source | MVP disposition |
 |---|---|---|
@@ -562,6 +585,9 @@ From the 12 September competitive review (§16). Four items, each small, each de
 | `AC-65` **An existing gateway is kept, not replaced.** An organisation with its own agent gateway has its decision log observed by Meridian with no change to that gateway | §16 (`M48`) | `POST-MVP` |
 | `AC-66` **Attested beats asserted.** An agent whose binary is attested records a different, higher assurance level than one that only declares a name, and both are distinguishable on every surface | §16 (`M49`) | `POST-MVP` |
 | `AC-67` **Outcomes bind to the decision.** A merged change's 30-day revert and incident record resolves to the gate decision that allowed it, with the censoring rule stated | §16 (`M51`) | `POST-MVP` |
+| `AC-69` **A reporter knows where to go.** The package carries a disclosure process naming scope, contact and expected response; the response commitment is one the maintainer can meet | §5.8 | **`MVP-GAP`** (`MVP-R8.1`) |
+| `AC-70` **The dependency claim is checkable.** Third-party notices generated from the lockfiles enumerate every runtime dependency and its licence, and back the no-copyleft statement in `docs/SECURITY-AND-DATA.md` §7 | §5.8 | **`MVP-GAP`** (`MVP-R8.2`) |
+| `AC-71` **An organisation can plan around us.** The published policy states the supported versions, the breaking-change notice period, the migration guarantee and the exit path | §5.8 | **`MVP-GAP`** (`MVP-R8.3`) |
 | `AC-68` **Standard tooling verifies the attestation.** A DSSE-enveloped in-toto attestation verifies with off-the-shelf tooling on a machine with no Meridian installed | §16 (`M50`) | `POST-MVP` |
 
 ---
@@ -583,6 +609,16 @@ From the 12 September competitive review (§16). Four items, each small, each de
 
 **All 55 screens are dispositioned: 15 `BUILT` · 4 partly `BUILT` · 1 `MVP-GAP` · 35 `POST-MVP` · 0 deleted.** `MVP-R7.1`'s notarisation surfaces inside the existing Ledger screen (10.7); 10.54 is the fuller view and is `POST-MVP`.
 
+
+**Correction from the final freeze audit — routed shells are not the same as unbuilt.** §9.1 originally dispositioned every modelling and organisation screen as flat `POST-MVP`. The repository disagrees:
+
+| Surface | What actually exists | Correct reading |
+|---|---|---|
+| `webview/src/workbench/modeling/` | `ModelingStudio` routes **eight views** — codemap, comprehension, diff, replay, architecture, uml, flows, loops — each a **20–62 line shell**, reachable today | **Routed shell present; the specified screen is not.** Dispositioned `POST-MVP` as *capability*, but the shells are built and **must not be deleted** (`MP6`) |
+| `webview/src/workbench/organization/` | `OrganizationStudio` 934 lines, `DocumentEditor` 657, `DocumentDetail` 451, `ExchangeStudio` 424, with real `document/save` and `document/remove` RPCs and a 626-line test | **Substantially `BUILT`.** Calling this `POST-MVP` risked a developer rebuilding or removing working, tested code |
+
+**One distinction worth stating so it is never misread.** The modelling tab's `loops` view is `DiagramStudio kind="loop"` — a **loop-diagram authoring surface** alongside architecture, UML and flow. It is **not** screen 10.9 Loop Graph, which shows *live running loops* and is Orchestra-tier. The two must not be conflated: rendering 10.9 below Orchestra would be banned pattern 30, and rendering a loop *diagram* editor is not.
+
 **A screen nobody asked for is not built.** `GF2`/`N3` sets the post-MVP screen list from measured usage, not from the specification.
 
 ### 9.2 Cross-cutting systems
@@ -591,7 +627,16 @@ From the 12 September competitive review (§16). Four items, each small, each de
 
 ### 9.3 Banned patterns
 
-All 32 (`VIGUIX_Final.md` §18 plus `gaps_guix.md` §7) remain in force. Patterns 28–32 — missing vendor tag, vendor logos as glyphs, Orchestra surfaces below Orchestra, `inferred` rendered as `direct`, and any first-run requiring a model credential — are **enforced by component tests**, not by review.
+All 32 (`VIGUIX_Final.md` §18 plus `gaps_guix.md` §7) remain in force.
+
+**Corrected at the final freeze audit.** This section previously stated that patterns 28–32 are "enforced by component tests, not by review". Checked against the tree, that is true of some and not of others:
+
+| Pattern | Enforcement actually found |
+|---|---|
+| **29** vendor logos as glyphs · **31** `inferred` rendered as `direct` · **32** first-run needing a credential | Enforced in components with named tests (`vendors.ts`, `AnyLinePanel.tsx`, `first-run.test.tsx`) |
+| **28** missing vendor tag · **30** Orchestra surfaces below Orchestra | **Referenced in source comments; no dedicated webview test found.** The sidecar half of 30 *is* enforced — a real-sidecar e2e proves governor and orchestra RPCs are refused at the base tier — but that is RPC absence, not surface absence |
+
+**`MVP-R3.7` closes the gap**, scheduled `MV1-T13`. Until it does, this document claims only what the tests prove. *A document that overstates its own enforcement is the same defect as a product that overstates its own controls (`P27`) — it is simply pointed inward.*
 
 ### 9.4 Accessibility
 

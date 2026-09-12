@@ -73,9 +73,10 @@ Three collisions exist across the source plans. Each is resolved once, here, and
 
 | Check | Result |
 |---|---|
-| Python sidecar | 1,629 passed · 0 failed |
-| Extension | 534 passed · 0 failed |
+| Python sidecar | 1,629 passed · 0 failed · 24 m 47 s |
+| Extension | 534 passed · 0 failed · 1 skipped |
 | Webview | 242 passed · 0 failed |
+| **Total** | **2,405 passed · 0 failed · 1 skipped** |
 | Surface coverage (`FR-M46-02`) | 63/71 registry methods consumed · 18 declared · **green** |
 | Package | `meridian-loom-0.1.0.vsix`, 232 files, SHA-256 published |
 
@@ -157,11 +158,11 @@ Inherits `Requirements-implementation.md` §3, `gaps_implementation.md` §3, `ga
 
 | Phase | Kind | Name | Closes | Band | Exit |
 |---|---|---|---|---|---|
-| **MV0** | Gate | **Quiesce and baseline** | — | 3–5 days | A quiesced tree, a recorded baseline, a complete claims inventory, a green traceability check |
-| **MV1** | Build | **Truthful surfaces** | `MVP-R3.1`, `MVP-R3.5`, `MVP-R5.1`, `MVP-R6.1`, `MVP-R6.2`, `MVP-R7.2`, `MVP-R7.4` | 3–4 wk | No surface renders a control without its enforcement point · a generated compatibility matrix · thresholds written before the study · drift and forgery visible, never silent |
+| **MV0** | Gate | **Quiesce and baseline** | — | 4–6 days | A quiesced tree, a recorded baseline, a complete claims inventory, a green traceability check |
+| **MV1** | Build | **Truthful surfaces** | `MVP-R3.1`, `MVP-R3.5`, `MVP-R3.7`, `MVP-R5.1`, `MVP-R6.1`, `MVP-R6.2`, `MVP-R7.2`, `MVP-R7.4` | 3–4 wk | No surface renders a control without its enforcement point · a generated compatibility matrix · thresholds written before the study · drift and forgery visible, never silent |
 | **MV2** | Build | **Run initiation** | `MVP-R4.1`…`R4.5` | 2–3 wk | One initiation contract · mandatory preflight · role-checked launch · clean cancellation · absent below Governor |
 | **MV3** | Build | **Supply chain and reach** | `MVP-R2.3`, `MVP-R2.4`, `MVP-R2.5`, `MVP-R6.3`, `MVP-R7.1` | 4–5 wk | Adapters pinned by digest · sessions bound to a verified agent identity · the registry browsable to probation · a PR evidence card |
-| **MV4** | Gate | **Release readiness** | `MVP-R1.6`, `MVP-R1.7`, `MVP-R6.4`, `MVP-R6.5`, `MVP-R7.3` | 2 wk *(the 7-day soak starts on day one and runs inside the band)* | A tested support matrix · five failure rehearsals on four configurations · zero acknowledged-entry loss · a clean soak · the assistive journeys · a cold-start evaluation timed |
+| **MV4** | Gate | **Release readiness** | `MVP-R1.6`, `MVP-R1.7`, `MVP-R6.4`, `MVP-R6.5`, `MVP-R7.3`, `MVP-R8.1`–`8.3` | 2 wk *(the 7-day soak starts on day one and runs inside the band)* | A tested support matrix · five failure rehearsals on four configurations · zero acknowledged-entry loss · a clean soak · the assistive journeys · a cold-start evaluation timed |
 | **MV5** | Gate | **The evidence gate** | `MVP-R5.2`…`R5.4` | People, not weeks | A written go / stop / pivot / kill decision with the raw ledger slice attached |
 
 **Engineering band: 11–15 weeks from `MV0`** — the lower figure with `MV2` and `MV3` in parallel, the upper with one engineer working serially. `MK6` fires at 15. *(The 12 September competitive review added `MVP-R7`: about one week, mostly in `MV3-T06`.)*
@@ -298,6 +299,13 @@ Cross-vendor line-level provenance is now a shipped product category (`CMP-01`).
 *Evidence:* `AC-63` — no shipped document contains the withdrawn wording.
 *Principle:* `MP5`. **A claim that was true in July and is not true in September is a defect with a date, not a matter of tone.**
 
+
+**`MV1-T13` — Make the banned-pattern claim true (`MVP-R3.7`).**
+§9.3 of the requirements claimed patterns 28–32 were enforced by component tests. Two are not: **28** (an agent-attributed element rendering without its vendor tag) and **30** (an Orchestra surface rendering below Orchestra) are referenced in source comments only. The sidecar half of 30 is genuinely enforced — a real-sidecar e2e proves governor and orchestra RPCs are refused at the base tier — but RPC absence is not surface absence.
+Add the two missing tests: an `AgentToken`, weft row, ledger row or hunk constructed without a vendor tag must fail; and with Orchestra disabled, no Orchestra surface may be in the route table or the command registry.
+*Negative control (`MP2`):* register an Orchestra surface at the base tier; the test must fail. Strip a vendor tag from one rendered element; the test must fail.
+*Principle:* `H2`, `H3`, `MP5`. *The requirements document overstated its own enforcement — the same defect as a product overstating its controls, pointed inward.*
+
 ### Exit criteria
 
 - [ ] No control surface renders without a declared enforcement point — enforced by the primitive, not by review
@@ -308,6 +316,7 @@ Cross-vendor line-level provenance is now a shipped product category (`CMP-01`).
 - [ ] A forged trailer and forged telemetry each stay at `inferred` (`SEC-34`)
 - [ ] The bundle carries the `ISO/IEC 24970` mapping, the Article 26 retention margin, and the not-a-conformity sentence (`AC-61`)
 - [ ] The withdrawn broader claim appears in no shipped document (`AC-63`)
+- [ ] Banned patterns 28 and 30 each have a named test, each demonstrated failing (`MVP-R3.7`)
 - [ ] `docs/claims.md` updated: every claim this phase touched re-bound to its test
 - [ ] Three suites green, sequential, one commit
 
@@ -472,6 +481,16 @@ The package ships 22 agents, a 10-pack skill catalogue, 4 instruction documents 
 *Evidence:* `AC-62` — every shipped component appears with a matching digest; a deliberate mismatch fails.
 *Why it is in the MVP:* an enterprise that cannot enumerate what an extension installed cannot approve it, and the fix is a build step.
 
+
+**`MV4-T09` — What an organisation needs to operate it and leave (`MVP-R8.1`…`8.3`).**
+Three artefacts the MVP definition implies and the repository does not have:
+- **`SECURITY.md`** (`MVP-R8.1`, `SEC-49`) — vulnerability disclosure: scope, contact, and the response a reporter can expect. **Promise what one maintainer can meet.** A 24-hour commitment nobody can honour is an unbacked claim with a deadline attached (`AC-69`).
+- **Third-party notices** (`MVP-R8.2`), generated from the lockfiles in the same build step as the AI-BOM (`MV4-T08`) — same machinery, different manifest. This makes `docs/SECURITY-AND-DATA.md` §7's no-copyleft statement checkable rather than asserted (`AC-70`, `NFR-48` drift rule applies).
+- **Support and upgrade policy** (`MVP-R8.3`) — supported versions, breaking-change notice period, state-migration guarantee across upgrade, and the export path on exit (`AC-71`, `NFR-55`). The exit path already exists and is tested; this is the sentence that tells a buyer it does.
+
+*Why in `MV4`:* these are release artefacts, and two of the three are generated by the release build.
+*Principle:* `MP5` — each of the three is a claim, so each binds to a test or a generator, never to good intentions.
+
 **`MV4-T05` — Release notes and decision record.**
 Release notes that agree with `DECISIONS.md`, name the tier set, state the limitations from `docs/SECURITY-AND-DATA.md` §6 without softening them, and say plainly what the MVP does **not** claim (`mvp-req-final.md` §13).
 
@@ -484,6 +503,7 @@ Release notes that agree with `DECISIONS.md`, name the tier set, state the limit
 - [ ] The installed package validated, not the checkout
 - [ ] A stranger reached a verified bundle unaided; the time is recorded
 - [ ] The CycloneDX AI-BOM matches the package exactly; a deliberate mismatch fails the build (`AC-62`)
+- [ ] `SECURITY.md`, third-party notices and the support/upgrade policy ship with the package (`AC-69`…`AC-71`)
 - [ ] Release notes agree with the decision record
 - [ ] `docs/claims.md` green: every shipped claim bound to a passing test
 
@@ -758,6 +778,8 @@ Run once, at `MV4` exit. Every step produces an artefact; a step with no artefac
 | `MVP-R7.2` `FR-M50-01`…`03` `ISO/IEC 24970` and Article 26 mapping | `MV1` | `MV1-T11` |
 | `MVP-R7.3` `FR-M50-04` CycloneDX AI-BOM | `MV4` | `MV4-T08` |
 | `MVP-R7.4` §16.2 the narrowed claim | `MV1` | `MV1-T12` |
+| `MVP-R3.7` banned patterns 28 and 30 get named tests | `MV1` | `MV1-T13` |
+| `MVP-R8.1`…`8.3` disclosure, notices, support policy | `MV4` | `MV4-T09` |
 | `AC-38` one contract, five origins · `AC-40` no surface below Governor | `MV2` | `MV2-T01`, `MV2-T05` |
 | `SEC-33` adapter refused on digest mismatch | `MV3` | `MV3-T01` |
 | `NFR-42` zero acknowledged-entry loss, 15-minute recovery | `MV4` | `MV4-T02` |
@@ -836,6 +858,9 @@ Several tasks reference files that **do not exist yet**. That is correct — the
 | `shared/schema/compatibility.json` | `MV1-T05` | The machine-readable support matrix; the published table and `doctor` output are generated from it |
 | `docs/baselines/resilience/` | `MV4-T02` | One recorded run per failure per configuration |
 | `meridian-loom-<version>.cdx.json` | `MV4-T08` | The CycloneDX AI-BOM, published beside the VSIX and its checksum |
+| `SECURITY.md` | `MV4-T09` | Vulnerability disclosure: scope, contact, expected response |
+| `THIRD-PARTY-NOTICES.md` | `MV4-T09` | Generated from the lockfiles; backs the no-copyleft claim |
+| `docs/SUPPORT.md` | `MV4-T09` | Supported versions, breaking-change notice, migration guarantee, exit path |
 
 **Already present and depended on:** `docs/SECURITY-AND-DATA.md` · `docs/DEPLOYMENT.md` · `DEMO.md` · `DECISIONS.md` · `verifier/verify.py` · `docs/spec/meridian-ledger-trailer.md` · `docs/spec/evidence-portability.md` · `shared/schema/methods.json` · `shared/schema/tiers.json` · `shared/schema/unsurfaced.json` · `scripts/check-surface-coverage.mjs` · `scripts/run-tests.mjs` · `extension/test/run-lock.ts`.
 
@@ -880,6 +905,7 @@ Per-phase exits are in each phase. **This is the single list that says the MVP i
 
 - [ ] A person who has not read the source went from the VSIX to a verified bundle **unaided**, and the time is recorded (`MK1`)
 - [ ] Every question they had to ask is fixed in the documents
+- [ ] `SECURITY.md`, third-party notices and the support/upgrade policy are in the package (`AC-69`…`AC-71`)
 - [ ] Release notes agree with `DECISIONS.md`, carry the limitations unsoftened, and state what the MVP does **not** claim
 
 ### Human-gated — tracked, never counted as engineering completion (`MP8`)
