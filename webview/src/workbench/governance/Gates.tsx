@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { GateEvaluateResult, GateStatusResult, RolesCheckResult } from '../../../../shared/ts/bus-types';
+import { EnforcementBadge } from '../../components/EnforcementBadge';
+import { useEnforcementPoints } from '../../hooks/useEnforcementPoints';
 import { useRpcQuery } from '../../hooks/useRpcQuery';
 import { Confirm, Field, GovernanceNotice, JsonDetail, Notice, Page, Panel, QueryFeedback, Result, canGovern, parseObject, useAction, type GovernanceProps } from './common';
 import s from './governance.module.css';
@@ -8,6 +10,11 @@ export function Gates(props: GovernanceProps) {
   const { client, ready, enabledTiers } = props;
   const connected = ready && enabledTiers.includes('governor');
   const profiles = useRpcQuery(connected ? client : undefined, 'gate.profiles', {});
+  // FR-M42-11: every control on this page states where it binds. Fetched
+  // from the sidecar rather than written into the markup, because a
+  // hand-written sentence about a boundary drifts from the code that
+  // implements it — which is exactly what happened before MV1-T03.
+  const enforcement = useEnforcementPoints(ready ? client : undefined);
   const history = useRpcQuery(connected ? client : undefined, 'ledger.query', { actionType: 'gate', limit: 100 });
   const action = useAction(client);
   const [story, setStory] = useState(''); const [gate, setGate] = useState('verify');
@@ -25,6 +32,7 @@ export function Gates(props: GovernanceProps) {
   return <Page title="Decisions that deserve your attention." eyebrow="GOVERNANCE / GATE ROOM" description="Inspect the criteria, provenance, and exact commit before recording a consequential decision." actions={<button onClick={() => props.onNavigate('decisions')}>Routine decision stream</button>}>
     <GovernanceNotice props={props} /><Result action={action} />
     <Panel title="Evaluate a policy gate" action={<button onClick={profiles.refresh} disabled={!connected}>Refresh policy</button>}>
+      {enforcement.data && <EnforcementBadge declaration={enforcement.lookup('policy_refusal')} />}
       <QueryFeedback query={profiles} connected={connected} />
       {profiles.data?.failClosed && <p role="alert" className={s.error}>Policy failed closed: {profiles.data.errors.join(' · ')}</p>}
       <form className={s.form} onSubmit={event => { event.preventDefault(); try { const parsed = parseObject(packet); void action.run('gate.evaluate', { storyId: story.trim(), gate, packet: parsed }).then(result => { if (result) { setEvaluation(result); history.refresh(); } }); } catch (cause) { action.setError(String(cause)); } }}>
@@ -35,6 +43,20 @@ export function Gates(props: GovernanceProps) {
       {evaluation && <section aria-label="Gate evaluation"><h3><span className={s.badge} data-state={evaluation.decision}>{evaluation.decision}</span> {evaluation.profile}</h3><p className={s.muted}>Policy {evaluation.policyVersion}{evaluation.failClosed ? ' · Failed closed' : ''}</p><ul className={s.criteria}>{evaluation.criteria.map(criterion => <li key={criterion.id}><span className={s.badge} data-state={criterion.passed ? 'pass' : 'block'}>{criterion.passed ? 'Pass' : 'Block'}</span><div><strong>{criterion.id}</strong><p>{criterion.reason}</p><small>{criterion.kind}</small></div></li>)}</ul>{evaluation.reasons.map((reason, index) => <p className={s.error} key={index}>{reason}</p>)}</section>}
     </Panel>
     <section className={`${s.panel} ${s.critical}`}><div className={s.panelHeading}><h2>Commit-bound human approval</h2></div><Notice>Approval is bound to the full head digest and the host-resolved human identity. A changed head requires a new approval. This action records approval; it does not merge a pull request.</Notice>
+      {/*
+        Two declarations, deliberately, because this control has two halves
+        and they bind in different places. The approval is recorded and
+        checked in Meridian; the SCM-side check that would stop a developer
+        who never installed Meridian is refused until a platform team
+        configures it (D37), so it reports its effective sidecar point
+        rather than the scm one it is written for. Showing only the first
+        would overstate the control; showing only the second would hide
+        what does work.
+      */}
+      {enforcement.data && <div className={s.row}>
+        <EnforcementBadge declaration={enforcement.lookup('merge_gate')} />
+        <EnforcementBadge declaration={enforcement.lookup('scm_merge_check')} verbose />
+      </div>}
       <form className={s.form} onSubmit={event => { event.preventDefault(); void checkStatus(); }}>
         <div className={s.row}><Field label="Branch or PR subject"><input placeholder="pr:owner/repository#42" required value={subject} onChange={event => { setSubject(event.target.value); setStatus(undefined); }} /></Field><Field label="Full head commit"><input value={commit} onChange={event => { setCommit(event.target.value); setStatus(undefined); }} placeholder="40 or 64 character commit digest" /></Field></div>
         <Field label="Approval role (optional)" hint="The role pack validates this role. Leaving this blank uses its configured default."><input value={role} onChange={event => setRole(event.target.value)} /></Field>
