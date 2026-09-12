@@ -1,6 +1,6 @@
 {
   "$schema": "meridian-loom/surface-coverage@1",
-  "generatedAt": "2026-09-12T15:45:03.594Z",
+  "generatedAt": "2026-09-12T18:58:07.289Z",
   "registry": "shared/schema/tiers.json",
   "allowlist": "shared/schema/unsurfaced.json",
   "roots": [
@@ -87,12 +87,10 @@
       "method": "doctor/run",
       "capability": "recorder.doctor",
       "tier": "flight-recorder",
-      "callerCount": 6,
+      "callerCount": 4,
       "callers": [
-        "extension/src/doctor.ts",
         "extension/src/extension.ts",
         "extension/src/mcp/main.ts",
-        "extension/src/mcp/server.ts",
         "webview/src/workbench/RuntimeStudio.tsx",
         "webview/src/workbench/preview.ts"
       ]
@@ -128,10 +126,8 @@
       "method": "gate.halt",
       "capability": "governor.gates",
       "tier": "governor",
-      "callerCount": 3,
+      "callerCount": 1,
       "callers": [
-        "extension/src/governance/spend-ceiling.ts",
-        "extension/src/governance/steer.ts",
         "webview/src/workbench/governance/Gates.tsx"
       ]
     },
@@ -148,49 +144,36 @@
       "method": "gate.status",
       "capability": "governor.gates",
       "tier": "governor",
-      "callerCount": 2,
+      "callerCount": 1,
       "callers": [
-        "extension/src/workbench/integrations.ts",
         "webview/src/workbench/governance/Gates.tsx"
+      ]
+    },
+    {
+      "method": "governance/enforcementPoints",
+      "capability": "recorder.enforcement-points",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/hooks/useEnforcementPoints.ts"
       ]
     },
     {
       "method": "handshake",
       "capability": "recorder.lifecycle",
       "tier": "flight-recorder",
-      "callerCount": 10,
+      "callerCount": 1,
       "callers": [
-        "extension/src/acp/client.ts",
-        "extension/src/extension.ts",
-        "extension/src/secrets.ts",
-        "extension/src/stdio-client.ts",
-        "extension/src/supervisor.ts",
-        "webview/src/hooks/useRpcQuery.ts",
-        "webview/src/rpc/client.ts",
-        "webview/src/screens/registry.ts",
-        "webview/src/test/host-harness.ts",
-        "webview/src/workbench/operations/AgentOperations.tsx"
+        "extension/src/stdio-client.ts"
       ]
     },
     {
       "method": "health",
       "capability": "recorder.lifecycle",
       "tier": "flight-recorder",
-      "callerCount": 13,
+      "callerCount": 1,
       "callers": [
-        "extension/src/doctor.ts",
-        "extension/src/supervisor.ts",
-        "extension/src/workbench/integrations.ts",
-        "webview/src/hooks/recorder-hooks.ts",
-        "webview/src/screens/ExternalAgentsScreen.tsx",
-        "webview/src/workbench/RuntimeStudio.tsx",
-        "webview/src/workbench/catalogue/Dashboard.tsx",
-        "webview/src/workbench/catalogue/IntegrationsTab.tsx",
-        "webview/src/workbench/organization/OrganizationStudio.tsx",
-        "webview/src/workbench/preview.ts",
-        "webview/src/workbench/routes.ts",
-        "webview/src/workbench/surfaces.ts",
-        "webview/src/workbench/tabs.ts"
+        "webview/src/workbench/RuntimeStudio.tsx"
       ]
     },
     {
@@ -227,9 +210,8 @@
       "method": "hook/status",
       "capability": "recorder.provenance-hooks",
       "tier": "flight-recorder",
-      "callerCount": 2,
+      "callerCount": 1,
       "callers": [
-        "extension/src/commands.ts",
         "extension/src/extension.ts"
       ]
     },
@@ -258,9 +240,8 @@
       "method": "ledger.exportBundle",
       "capability": "recorder.ledger",
       "tier": "flight-recorder",
-      "callerCount": 2,
+      "callerCount": 1,
       "callers": [
-        "extension/src/mcp/server.ts",
         "webview/src/components/ExportPanel.tsx"
       ]
     },
@@ -289,17 +270,15 @@
       "method": "ledger.query",
       "capability": "recorder.ledger",
       "tier": "flight-recorder",
-      "callerCount": 13,
+      "callerCount": 11,
       "callers": [
         "extension/src/adapters/permission-gate.ts",
-        "extension/src/mcp/server.ts",
         "webview/src/hooks/recorder-hooks.ts",
         "webview/src/screens/AnyLinePanel.tsx",
         "webview/src/screens/FirstRunScreen.tsx",
         "webview/src/workbench/governance/Analytics.tsx",
         "webview/src/workbench/governance/DeliveryEvidence.tsx",
         "webview/src/workbench/governance/Gates.tsx",
-        "webview/src/workbench/governance/GovernanceStudio.tsx",
         "webview/src/workbench/modeling/ReplayStudio.tsx",
         "webview/src/workbench/operations/WorkspaceOperations.tsx",
         "webview/src/workbench/organization/OrganizationStudio.tsx",
@@ -310,9 +289,8 @@
       "method": "ledger.verify",
       "capability": "recorder.ledger",
       "tier": "flight-recorder",
-      "callerCount": 4,
+      "callerCount": 3,
       "callers": [
-        "extension/src/mcp/server.ts",
         "webview/src/components/SelvageStrip.tsx",
         "webview/src/hooks/recorder-hooks.ts",
         "webview/src/workbench/modeling/ReplayStudio.tsx"
@@ -358,10 +336,9 @@
       "method": "mcp/invoke",
       "capability": "governor.mcp-server",
       "tier": "governor",
-      "callerCount": 2,
+      "callerCount": 1,
       "callers": [
-        "extension/src/mcp/main.ts",
-        "extension/src/mcp/server.ts"
+        "extension/src/mcp/main.ts"
       ]
     },
     {
@@ -390,13 +367,12 @@
       "method": "observe/sessions",
       "capability": "recorder.observers",
       "tier": "flight-recorder",
-      "callerCount": 6,
+      "callerCount": 5,
       "callers": [
         "webview/src/hooks/recorder-hooks.ts",
         "webview/src/screens/FirstRunScreen.tsx",
         "webview/src/screens/ThisSessionPanel.tsx",
         "webview/src/screens/registry.ts",
-        "webview/src/workbench/catalogue/Dashboard.tsx",
         "webview/src/workbench/preview.ts"
       ]
     },
@@ -404,30 +380,10 @@
       "method": "ping",
       "capability": "recorder.lifecycle",
       "tier": "flight-recorder",
-      "callerCount": 22,
+      "callerCount": 2,
       "callers": [
-        "extension/src/adapters/manifest.ts",
-        "extension/src/adapters/policy.ts",
-        "extension/src/adapters/registry-source.ts",
-        "extension/src/governance/steer.ts",
         "extension/src/mcp/server.ts",
-        "extension/src/supervisor.ts",
-        "extension/src/views.ts",
-        "extension/src/workbench/library.ts",
-        "extension/src/workbench/service.ts",
-        "webview/src/App.tsx",
-        "webview/src/components/ExportPanel.tsx",
-        "webview/src/components/vendors.ts",
-        "webview/src/hooks/useRpcQuery.ts",
-        "webview/src/workbench/catalogue/AgentsTab.tsx",
-        "webview/src/workbench/catalogue/PhasesTab.tsx",
-        "webview/src/workbench/catalogue/RunsTab.tsx",
-        "webview/src/workbench/modeling/CodeMapStudio.tsx",
-        "webview/src/workbench/operations/WorkspaceOperations.tsx",
-        "webview/src/workbench/organization/DocumentDetail.tsx",
-        "webview/src/workbench/organization/OrganizationStudio.tsx",
-        "webview/src/workbench/organization/model.ts",
-        "webview/src/workbench/surfaces.ts"
+        "extension/src/supervisor.ts"
       ]
     },
     {
@@ -510,10 +466,8 @@
       "method": "spend/forecast",
       "capability": "recorder.spend",
       "tier": "flight-recorder",
-      "callerCount": 3,
+      "callerCount": 1,
       "callers": [
-        "webview/src/workbench/governance/Analytics.tsx",
-        "webview/src/workbench/governance/GovernanceStudio.tsx",
         "webview/src/workbench/governance/Observatory.tsx"
       ],
       "declared": {
@@ -526,10 +480,8 @@
       "method": "spend/pricing",
       "capability": "recorder.spend",
       "tier": "flight-recorder",
-      "callerCount": 3,
+      "callerCount": 1,
       "callers": [
-        "webview/src/workbench/governance/Analytics.tsx",
-        "webview/src/workbench/governance/GovernanceStudio.tsx",
         "webview/src/workbench/governance/Observatory.tsx"
       ],
       "declared": {
@@ -542,10 +494,8 @@
       "method": "spend/series",
       "capability": "recorder.spend",
       "tier": "flight-recorder",
-      "callerCount": 3,
+      "callerCount": 1,
       "callers": [
-        "webview/src/workbench/governance/Analytics.tsx",
-        "webview/src/workbench/governance/GovernanceStudio.tsx",
         "webview/src/workbench/governance/Observatory.tsx"
       ],
       "declared": {
@@ -558,10 +508,9 @@
       "method": "steer.send",
       "capability": "governor.steer",
       "tier": "governor",
-      "callerCount": 2,
+      "callerCount": 1,
       "callers": [
-        "extension/src/governance/steer.ts",
-        "extension/src/workbench/service.ts"
+        "extension/src/governance/steer.ts"
       ]
     },
     {
@@ -727,9 +676,8 @@
       "method": "trust/rejectionRate",
       "capability": "recorder.trust-metrics",
       "tier": "flight-recorder",
-      "callerCount": 2,
+      "callerCount": 1,
       "callers": [
-        "extension/src/mcp/server.ts",
         "webview/src/workbench/governance/Analytics.tsx"
       ]
     },
@@ -779,9 +727,8 @@
       "method": "worktree/abortStory",
       "capability": "governor.worktrees",
       "tier": "governor",
-      "callerCount": 3,
+      "callerCount": 2,
       "callers": [
-        "extension/src/commands.ts",
         "extension/src/extension.ts",
         "webview/src/workbench/governance/Repositories.tsx"
       ]
@@ -809,9 +756,8 @@
       "method": "worktree/list",
       "capability": "governor.worktrees",
       "tier": "governor",
-      "callerCount": 3,
+      "callerCount": 2,
       "callers": [
-        "extension/src/commands.ts",
         "extension/src/extension.ts",
         "webview/src/workbench/governance/Repositories.tsx"
       ]
@@ -827,8 +773,8 @@
     }
   ],
   "summary": {
-    "total": 71,
-    "surfaced": 63,
+    "total": 72,
+    "surfaced": 64,
     "declared": 18,
     "undeclaredOrphans": 0,
     "mustSurfacePending": 0,

@@ -249,7 +249,7 @@ class TestStandaloneVerification:
 
 
 class TestBundleSections:
-    def test_compliance_section_maps_all_three_standards(self, server):
+    def test_compliance_section_maps_every_named_standard(self, server):
         server.ledger.append(make_entry(1))
         bundle = export(server)
         compliance = bundle["compliance"]
@@ -257,8 +257,21 @@ class TestBundleSections:
         assert "SSDF" in standards
         assert "42001" in standards
         assert "AI Act" in standards
+        # MV1-T11 added the draft AI-system-logging information model and the
+        # Article 26(6) deployer retention obligation.
+        assert "24970" in standards
+        assert "Article 26" in standards
+        # Deliberately a closed set. A framework that appears in the bundle
+        # without anyone deciding to put it there is a compliance claim
+        # nobody reviewed, and this equality is what makes adding one a
+        # decision rather than an accident.
         frameworks = {m["framework"] for m in compliance["mappings"]}
-        assert frameworks == {"NIST SSDF", "ISO/IEC 42001:2023", "EU AI Act"}
+        assert frameworks == {
+            "NIST SSDF",
+            "ISO/IEC 42001:2023",
+            "EU AI Act",
+            "ISO/IEC 24970 (draft)",
+        }
         for mapping in compliance["mappings"]:
             assert mapping["reference"] and mapping["requirement"]
             assert mapping["bundleFields"]

@@ -1,0 +1,39 @@
+{
+  "$id": "external-contracts.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "FR-M44-06/07, NFR-40, MVP-R6.1 (MV1-T09): every external contract Meridian derives evidence from, pinned to the version the code was built against.\n\nWhat this catches: a version the code declares drifting away from the version reviewed here, in either direction. A pin changed without the mapping being re-read, or a mapping updated without the pin moving, both fail.\n\nWhat this DOES NOT catch, stated plainly because a check whose limits are unwritten gets trusted past them: a rename upstream that nobody has noticed yet. Detecting that needs the upstream schema, which means a network call, and a gate that depends on a third party being reachable fails for reasons that have nothing to do with the code. The honest division is that this file makes drift a REVIEWED event rather than a silent one — when a vendor ships a breaking change, updating the pin is what forces someone to look at the mapping.\n\nWhen a contract is unpinned or unknown, coverage degrades visibly (NFR-40) rather than the evidence being mapped on a guess.",
+  "vocabularyVersion": "contracts-1",
+  "contracts": [
+    {
+      "id": "otel-genai-semconv",
+      "name": "OpenTelemetry GenAI semantic conventions",
+      "pinnedVersion": "development",
+      "status": "unstable",
+      "risk": "The conventions remain at Development status with documented rename risk. Attribute names Meridian reads may change without a major version.",
+      "consumedBy": ["core/meridian_core/observers/otel.py"]
+    },
+    {
+      "id": "acp-protocol",
+      "name": "Agent Client Protocol",
+      "pinnedVersion": "0.4.5",
+      "status": "stable",
+      "risk": "Single-integer protocol versioning: a bump is not required to be backward compatible, and agent identity is optional in the specification.",
+      "consumedBy": ["extension/src/adapters"]
+    },
+    {
+      "id": "git-trailers",
+      "name": "Git commit trailers (Co-Authored-By, Meridian-Ledger)",
+      "pinnedVersion": "rfc-822-style",
+      "status": "stable",
+      "risk": "A convention rather than a specification. Unauthenticated by construction — see D55.",
+      "consumedBy": ["core/meridian_core/trailers.py"]
+    }
+  ],
+  "observers": [
+    { "id": "claude", "vendorRelease": "1.0", "adapterVersion": "1.0.0" },
+    { "id": "copilot", "vendorRelease": "2025-09", "adapterVersion": "1.0.0" },
+    { "id": "cursor", "vendorRelease": "2025.09", "adapterVersion": "1.0.0" },
+    { "id": "codex", "vendorRelease": "0.3", "adapterVersion": "1.0.0" },
+    { "id": "devin", "vendorRelease": "2025.09", "adapterVersion": "1.0.0" }
+  ]
+}
