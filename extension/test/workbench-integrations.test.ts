@@ -393,11 +393,25 @@ describe('backward compatibility', () => {
       action: 'integration/save',
       params: { connection: gitlab() },
     });
+    const file = path.join(root, '.meridian/workbench/state.json');
+    const revisionBefore = JSON.parse(await readFile(file, 'utf8')).revision;
+
     service.dispose();
     services.length = 0;
 
+    // dispose() bumps the revision and persists WITHOUT being awaitable —
+    // it is a fire-and-forget `void this.serialize(...)`. Rewriting the file
+    // straight after the call is a race: under load the pending write lands
+    // afterwards and puts the integrations key back, and the test then fails
+    // claiming a legacy file was read wrongly when nothing was read wrongly
+    // at all. Wait for that write to land before touching the file.
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const current = JSON.parse(await readFile(file, 'utf8'));
+      if (current.revision > revisionBefore) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
     // Rewrite the file without the key, as an older build would have left it.
-    const file = path.join(root, '.meridian/workbench/state.json');
     const state = JSON.parse(await readFile(file, 'utf8'));
     delete state.integrations;
     const { writeFile } = await import('node:fs/promises');

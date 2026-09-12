@@ -51,12 +51,12 @@ def write_session(codex_home: Path, age_seconds: float, name: str) -> Path:
 
 
 class TestTrailerTier:
-    def test_coauthored_trailer_yields_telemetry(self, repo):
+    def test_coauthored_trailer_yields_inferred(self, repo):
         commit_codex(repo)
         observer = make_observer(repo)
         outcome = observer.observe(repo, NOW)
         assert outcome.observation is not None
-        assert outcome.observation.confidence == CONFIDENCE_TELEMETRY
+        assert outcome.observation.confidence == CONFIDENCE_INFERRED
         assert outcome.observation.source == CHAIN_GIT_TRAILERS
         assert outcome.observation.vendor == "codex"
         assert outcome.observation.session_id.startswith("git:")

@@ -46,7 +46,6 @@ from .base import (
     CHAIN_FILESYSTEM,
     CHAIN_GIT_TRAILERS,
     CONFIDENCE_INFERRED,
-    CONFIDENCE_TELEMETRY,
     ChainOutcome,
     EvidenceTier,
     Observation,
@@ -104,7 +103,7 @@ class DevinObserver:
 
     def evidence_tiers(self) -> list[EvidenceTier]:
         return [
-            EvidenceTier(CHAIN_GIT_TRAILERS, CONFIDENCE_TELEMETRY, self._scan_git),
+            EvidenceTier(CHAIN_GIT_TRAILERS, CONFIDENCE_INFERRED, self._scan_git),
             EvidenceTier(CHAIN_FILESYSTEM, CONFIDENCE_INFERRED, self._scan_filesystem),
         ]
 
@@ -159,7 +158,15 @@ class DevinObserver:
         return Observation(
             vendor=self.vendor,
             session_id=f"git:{first_commit[:12]}",
-            confidence=CONFIDENCE_TELEMETRY,
+            # D55: a git trailer is text anyone with commit access can
+            # type. `telemetry` names the agent's own instrumented output,
+            # and a commit message is not that — docs/SECURITY-AND-DATA.md
+            # §6 already tells customers the trailer "is a pointer, not a
+            # proof". Capped at `inferred` so the confidence claim matches
+            # what the evidence can carry. Nothing is lost: `source` still
+            # says CHAIN_GIT_TRAILERS, so a consumer can tell a trailer from
+            # a filesystem heuristic.
+            confidence=CONFIDENCE_INFERRED,
             source=CHAIN_GIT_TRAILERS,
             detail=(
                 f"{len(hits)} commit(s) authored by a Devin bot identity "

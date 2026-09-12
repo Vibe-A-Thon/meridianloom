@@ -222,8 +222,23 @@ class TestX29DetectionBudget:
                 ),
                 timeout=X29_BUDGET_SECONDS + 2,
             )
-            print(f"\nX-29 disappearance latency: {elapsed * 1000:.0f} ms")
-            assert elapsed < X29_BUDGET_SECONDS
+            print(
+                f"\nX-29 disappearance latency: {elapsed * 1000:.0f} ms "
+                + (
+                    "(report-only)"
+                    if _PERF_REPORT_ONLY
+                    else f"(budget {X29_BUDGET_SECONDS:.0f}s)"
+                )
+            )
+            # Guarded exactly as its sibling above is. This assertion was
+            # unconditional, so a wall-clock budget was being enforced under
+            # `-n auto` where its verdict is a statement about the machine:
+            # it failed at 3.1s against a 2s budget in a run where nothing
+            # about the code had changed. A timing that fails for load is
+            # not a regression, and a suite that reports it as one is how
+            # people learn to ignore the suite.
+            if not _PERF_REPORT_ONLY:
+                assert elapsed < X29_BUDGET_SECONDS
         finally:
             monitor.stop()
             if proc.poll() is None:
@@ -301,7 +316,10 @@ class TestX29PidScopedVendorDetection:
                 timeout=X29_BUDGET_SECONDS + 2,
             )
             print(f"\nX-29 {vendor} detection latency: {elapsed * 1000:.0f} ms")
-            assert elapsed < X29_BUDGET_SECONDS
+            # Guarded like every other X-29 budget here: under `-n auto` a
+            # wall-clock verdict describes the machine, not the code.
+            if not _PERF_REPORT_ONLY:
+                assert elapsed < X29_BUDGET_SECONDS
             session = next(
                 s
                 for s in monitor.snapshot()["sessions"]
@@ -348,7 +366,10 @@ class TestX29PidScopedVendorDetection:
                 timeout=X29_BUDGET_SECONDS + 2,
             )
             print(f"\nX-29 {vendor} disappearance latency: {elapsed * 1000:.0f} ms")
-            assert elapsed < X29_BUDGET_SECONDS
+            # Guarded like every other X-29 budget here: under `-n auto` a
+            # wall-clock verdict describes the machine, not the code.
+            if not _PERF_REPORT_ONLY:
+                assert elapsed < X29_BUDGET_SECONDS
         finally:
             monitor.stop()
             if proc.poll() is None:

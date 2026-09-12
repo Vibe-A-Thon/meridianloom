@@ -85,13 +85,10 @@ class TestForgedTrailers:
         channel, not to the content, so writing a convincing trailer by hand
         buys exactly what writing an honest one buys and never `direct`.
 
-        It is NOT the stronger guarantee that trailer evidence is capped at
-        `inferred`. Today the git-trailer tier is `telemetry` in all five
-        observers, so a line a person typed is reported on the rung whose
-        name means the agent's own instrumented output. Whether that is
-        right is an open product question, recorded as D55 — it is a change
-        to shipped behaviour across five observers, which §19.1 makes an
-        owner decision rather than a test's to force.
+        Since D55 (closed 13 September 2026) it is also the stronger
+        guarantee: trailer evidence is capped at `inferred`, because a line
+        a person typed must not be reported on the rung whose name means the
+        agent's own instrumented output.
         """
         _commit(
             repo,
@@ -105,9 +102,14 @@ class TestForgedTrailers:
         observation = outcome.observation
         assert observation is not None, "the forged trailer was not observed at all"
 
-        # Never the top rung. `direct` means Meridian identified the session
-        # itself, and no amount of commit-message text can establish that.
-        assert observation.confidence != CONFIDENCE_DIRECT
+        # D55: capped at the bottom rung. Not merely "not direct" — a
+        # trailer is unauthenticated by construction, so it may not claim a
+        # rung that implies the agent reported it.
+        assert observation.confidence == CONFIDENCE_INFERRED, (
+            f"a fabricated Co-Authored-By trailer was reported as "
+            f"{observation.confidence!r}; D55 caps trailer evidence at "
+            f"{CONFIDENCE_INFERRED!r}"
+        )
 
         # And it is pinned to the tier that read it, so the rung cannot creep
         # upward without someone changing the tier and this failing.
@@ -115,6 +117,10 @@ class TestForgedTrailers:
             t for t in observer.evidence_tiers() if t.name == CHAIN_GIT_TRAILERS
         )
         assert observation.confidence == tier.confidence
+
+        # Nothing is lost by the cap: `source` still distinguishes a trailer
+        # from a filesystem heuristic, which is the distinction the rung was
+        # carrying and carrying dishonestly.
         assert observation.source == CHAIN_GIT_TRAILERS
 
     def test_a_fabricated_meridian_ledger_trailer_is_not_evidence_of_a_ledger(self, repo):

@@ -55,22 +55,22 @@ def make_observer(tmp_path: Path, **kwargs) -> DevinObserver:
 
 
 class TestGitAttributionTier:
-    def test_bot_authored_commit_yields_telemetry(self, repo):
+    def test_bot_authored_commit_yields_inferred(self, repo):
         commit_by_devin(repo)
         observer = make_observer(repo)
         outcome = observer.observe(repo, NOW)
         assert outcome.observation is not None
-        assert outcome.observation.confidence == CONFIDENCE_TELEMETRY
+        assert outcome.observation.confidence == CONFIDENCE_INFERRED
         assert outcome.observation.source == CHAIN_GIT_TRAILERS
         assert outcome.observation.vendor == "devin"
         assert outcome.observation.session_id.startswith("git:")
 
-    def test_bot_coauthored_commit_yields_telemetry(self, repo):
+    def test_bot_coauthored_commit_yields_inferred(self, repo):
         commit_coauthored_devin(repo)
         observer = make_observer(repo)
         outcome = observer.observe(repo, NOW)
         assert outcome.observation is not None
-        assert outcome.observation.confidence == CONFIDENCE_TELEMETRY
+        assert outcome.observation.confidence == CONFIDENCE_INFERRED
 
     def test_commits_outside_window_are_not_evidence(self, repo):
         commit_by_devin(repo, when=int(NOW.timestamp()) - 6 * 3600)

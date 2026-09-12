@@ -40,12 +40,12 @@ def make_observer(tmp_path: Path, **kwargs) -> CursorObserver:
 
 
 class TestTrailerTier:
-    def test_coauthored_trailer_yields_telemetry(self, repo):
+    def test_coauthored_trailer_yields_inferred(self, repo):
         commit_cursor(repo)
         observer = make_observer(repo)
         outcome = observer.observe(repo, NOW)
         assert outcome.observation is not None
-        assert outcome.observation.confidence == CONFIDENCE_TELEMETRY
+        assert outcome.observation.confidence == CONFIDENCE_INFERRED
         assert outcome.observation.source == CHAIN_GIT_TRAILERS
         assert outcome.observation.vendor == "cursor"
         assert outcome.observation.session_id.startswith("git:")
@@ -63,7 +63,7 @@ class TestTrailerTier:
         )
         observer = make_observer(repo)
         outcome = observer.observe(repo, NOW)
-        assert outcome.observation.confidence == CONFIDENCE_TELEMETRY
+        assert outcome.observation.confidence == CONFIDENCE_INFERRED
 
     def test_trailers_outside_window_are_not_evidence(self, repo):
         commit_cursor(repo, when=int(NOW.timestamp()) - 6 * 3600)

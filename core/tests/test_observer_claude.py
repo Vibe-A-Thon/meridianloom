@@ -82,7 +82,7 @@ class TestOtelTier:
         commit_with_trailers(repo)
         outcome = observer.observe(repo, NOW)
         assert outcome.degraded_from == CHAIN_OTEL
-        assert outcome.observation.confidence == CONFIDENCE_TELEMETRY
+        assert outcome.observation.confidence == CONFIDENCE_INFERRED
         assert outcome.observation.source == CHAIN_GIT_TRAILERS
         assert outcome.warnings and "NFR-32" in outcome.warnings[0]
 
@@ -100,7 +100,7 @@ class TestOtelTier:
         commit_with_trailers(repo)
         outcome = observer.observe(repo, NOW)
         assert outcome.degraded_from is None
-        assert outcome.observation.confidence == CONFIDENCE_TELEMETRY
+        assert outcome.observation.confidence == CONFIDENCE_INFERRED
 
     def test_ndjson_exports_are_parsed(self, tmp_path):
         otel_dir = tmp_path / "otel"
@@ -133,7 +133,7 @@ class TestTrailerTier:
         observer = ClaudeCodeObserver(env={}, claude_home=repo / "no-claude-home")
         outcome = observer.observe(repo, NOW)
         assert outcome.observation is not None
-        assert outcome.observation.confidence == CONFIDENCE_TELEMETRY
+        assert outcome.observation.confidence == CONFIDENCE_INFERRED
         assert outcome.observation.source == CHAIN_GIT_TRAILERS
         assert outcome.observation.session_id.startswith("git:")
 
