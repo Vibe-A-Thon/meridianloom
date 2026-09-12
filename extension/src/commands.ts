@@ -1,6 +1,12 @@
 import * as vscode from 'vscode';
 import type {
   DoctorRunResult,
+  RunCancelParams,
+  RunCancelResult,
+  RunPreflightParams,
+  RunPreflightResult,
+  RunStartParams,
+  RunStartResult,
   HookInstallResult,
   HookRemoveResult,
   HookStatusResult,
@@ -33,6 +39,10 @@ export const COMMANDS = [
   { id: 'meridian.haltAll', title: 'Halt All' },
   { id: 'meridian.steer', title: 'Steer' },
   { id: 'meridian.dryRun', title: 'Dry Run' },
+  // FR-M40-01/02 (MV2): the command-palette door into run
+  // initiation. One of eight; what distinguishes it from the
+  // others is the `origin` it records and nothing else (AC-38).
+  { id: 'meridian.startRun', title: 'Start Run' },
   { id: 'meridian.abortStory', title: 'Abort Story' },
   // FR-M18-08 (F1 Workstream A task 5): open a story worktree in a new window.
   { id: 'meridian.openWorktree', title: 'Open Story Worktree in New Window' },
@@ -81,6 +91,17 @@ export interface CommandDeps {
    * resolves the story's worktree path and opens it in a new window.
    */
   listWorktrees?: () => Promise<WorktreeListResult>;
+  /**
+   * FR-M40-03 (MV2): assemble the preflight for a run started from the
+   * palette. The six answers are computed in the sidecar, not here — the
+   * point of the single contract is that a second door cannot arrive at a
+   * different idea of what a run is.
+   */
+  runPreflight?: (params: RunPreflightParams) => Promise<RunPreflightResult>;
+  /** FR-M40-01/05: the single entry point, after the human confirms. */
+  runStart?: (params: RunStartParams) => Promise<RunStartResult>;
+  /** FR-M40-09: cancel at preflight, recorded, creating nothing. */
+  runCancel?: (params: RunCancelParams) => Promise<RunCancelResult>;
   /**
    * FR-M36-05: the workspace's enabled tiers, read lazily so a settings
    * change takes effect without re-registration. Absent means "all tiers"
@@ -148,6 +169,10 @@ async function runCommand(id: CommandId, deps: CommandDeps, args: unknown[] = []
   }
   if (id === 'meridian.openWorktree') {
     await runOpenWorktreeCommand(deps, args[0]);
+    return;
+  }
+  if (id === 'meridian.startRun') {
+    await runStartRunCommand(deps);
     return;
   }
   await vscode.window.showWarningMessage(
@@ -458,4 +483,113 @@ async function runOpenWorktreeCommand(deps: CommandDeps, rawStoryId: unknown): P
     vscode.Uri.file(worktree.path),
     { forceNewWindow: true },
   );
+}
+
+// -- meridian.startRun (FR-M40-01/02/03/09; MV2) ------------------------------
+
+/**
+ * The command-palette door into run initiation.
+ *
+ * It renders preflight with VS Code's own modal rather than the webview
+ * dialog, and that is not a second implementation of anything: the six
+ * answers, the completeness rule, the authority check and the origin record
+ * all live in the sidecar, and this door calls the same `run/preflight` and
+ * `run/start` the workbench does. What differs between doors is presentation
+ * and the `origin` recorded — which is exactly the claim AC-38 tests.
+ *
+ * Never throws. A failure here is a message, because the alternative is an
+ * unhandled rejection where a human was expecting either a run or a reason.
+ */
+async function runStartRunCommand(deps: CommandDeps): Promise<void> {
+  if (!deps.runPreflight || !deps.runStart) {
+    await vscode.window.showWarningMessage(
+      "Meridian Loom: 'meridian.startRun' needs the sidecar, which is not connected yet.",
+    );
+    return;
+  }
+  const intent = await vscode.window.showInputBox({
+    title: 'Start a run',
+    prompt: 'What should this run do?',
+    placeHolder: 'Add an idempotency key to the payment submission endpoint',
+    ignoreFocusOut: true,
+  });
+  if (intent === undefined || intent.trim() === '') {
+    return;
+  }
+
+  let preflight: RunPreflightResult['preflight'];
+  try {
+    ({ preflight } = await deps.runPreflight({ origin: 'command', intent, repo: '.' }));
+  } catch (error) {
+    await vscode.window.showErrorMessage(
+      `Meridian Loom could not prepare this run: ${message(error)}`,
+    );
+    return;
+  }
+
+  // FR-M40-03: an incomplete preflight is not confirmable, and the palette
+  // says which answers are missing rather than offering a button that would
+  // collect consent for a run nobody could describe.
+  if (!preflight.confirmable) {
+    await vscode.window.showWarningMessage(
+      `Meridian Loom cannot start this run yet — ${preflight.missing.join(', ')} ` +
+        'not settled. Nothing has been created.',
+    );
+    return;
+  }
+
+  const live = preflight.mode === 'live';
+  const confirm = await vscode.window.showWarningMessage(
+    [
+      preflight.intent,
+      `Agents: ${Object.entries(preflight.adapters)
+        .map(([role, adapter]) => `${role} ${adapter}`)
+        .join(', ')}`,
+      `Where: ${preflight.repo} · base ${preflight.baseBranch} · branch ${preflight.branch}`,
+      `${preflight.worktree} — your working tree is untouched.`,
+      `Cost: estimated ${money(preflight.estimateUsd)} · ceiling ${money(preflight.costCeilingUsd)}`,
+      `Stops at: ${preflight.gates.join(', ')}`,
+      '',
+      'Cancelling creates nothing. Nothing exists until you confirm.',
+    ].join('\n'),
+    { modal: true },
+    live ? 'Confirm live run' : 'Start dry run',
+  );
+
+  if (confirm === undefined) {
+    // FR-M40-09: a cancellation is itself a fact worth keeping. A run that
+    // vanished without one is indistinguishable from one that never reached
+    // preflight, and the difference matters when someone asks why work was
+    // not done. The recording is best-effort *here* only because the user
+    // has already left; the guarantee that nothing was created is
+    // structural, not dependent on this call.
+    try {
+      await deps.runCancel?.({ preflight, reason: 'cancelled at preflight' });
+    } catch {
+      /* the run was never created; losing the note is not worth a dialog */
+    }
+    return;
+  }
+
+  try {
+    const started = await deps.runStart({ preflight, confirmed: true });
+    await vscode.window.showInformationMessage(
+      `Meridian Loom: run ${started.runId} started on ${started.branch} ` +
+        `(${started.mode}), authorised by ${started.authorisedBy} ` +
+        `at assurance ${started.assurance}.`,
+    );
+  } catch (error) {
+    await vscode.window.showErrorMessage(
+      `Meridian Loom did not start this run: ${message(error)}`,
+    );
+  }
+}
+
+/** `null` is unknown, not zero — "$0.00" would say the run is free (P26). */
+function money(value: number | null | undefined): string {
+  return value === null || value === undefined ? 'not estimated' : `$${value.toFixed(2)}`;
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

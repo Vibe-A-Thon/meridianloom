@@ -416,17 +416,17 @@ The single most valuable property of this product is that its statements are tru
 | **MVP-R3.6** | `NFR-39` — a bundle SHALL verify on a clean machine using only the published specification and reference verifier. | **`BUILT`** (`AC-49`) |
 | **MVP-R3.7** | Every banned pattern this document claims is test-enforced SHALL have a named test. | **`BUILT`** (`MV1-T13`) — 28 and 30 were the two that did not; see §9.3 |
 
-### 5.4 MVP-R4 — Starting work is possible and governed · `MVP-GAP`
+### 5.4 MVP-R4 — Starting work is possible and governed · `BUILT` (`MV2`)
 
-`gaps_initiation.md` identified that the product had 44 screens and no start button, and specified `M40` Run Initiation to fix it. **`M40` is absent from the code.** The MVP does not need all eleven of its requirements, but it does need the invariant behind them.
+`gaps_initiation.md` identified that the product had 44 screens and no start button, and specified `M40` Run Initiation to fix it. `M40` was absent from the code; `MV2` built **the invariant behind it**, not all eleven of its requirements. One contract (`initiation.py`), one entry point (`start_run`), and eight doors that differ in `origin` and nothing else.
 
 | ID | Requirement | Status |
 |---|---|---|
-| **MVP-R4.1** | `FR-M40-01`/`02` — every initiation path SHALL construct one request object and record its `origin`. No path SHALL have a private route into the runtime. | **`MVP-GAP`** — the workbench dispatch path exists; the single contract does not |
-| **MVP-R4.2** | `FR-M40-03` — preflight SHALL be mandatory: the parsed intent, the agents, the repository and branch, the cost estimate and ceiling, the gates, and dry-run or live. | **`MVP-GAP`** |
-| **MVP-R4.3** | `FR-M40-05`, `SEC-30` — launch authority SHALL be role-checked and the authorising identity recorded. | **`MVP-GAP`** |
-| **MVP-R4.4** | `FR-M40-09` — a run cancelled at preflight SHALL leave no worktree, no branch and no ledger entry beyond the cancellation record. | **`MVP-GAP`** |
-| **MVP-R4.5** | `FR-M40-11` — initiation SHALL be absent, not disabled, below the Governor tier. | **`MVP-GAP`** |
+| **MVP-R4.1** | `FR-M40-01`/`02` — every initiation path SHALL construct one request object and record its `origin`. No path SHALL have a private route into the runtime. | **`BUILT`** (`MV2-T01`) — `core/meridian_core/initiation.py` is the one contract and `start_run` the one entry point; an AST guard fails the build on a call that starts a run without a `RunRequest`, demonstrated red on a planted route. `AC-38` is asserted twice: over the dataclass, and over the ledger rows five doors actually write |
+| **MVP-R4.2** | `FR-M40-03` — preflight SHALL be mandatory: the parsed intent, the agents, the repository and branch, the cost estimate and ceiling, the gates, and dry-run or live. | **`BUILT`** (`MV2-T02`/`T06`) — `run/preflight`, screen 10.51 at its minimum, and the palette's modal. An unanswered question comes back as `confirmable: false` naming what is missing, never as an exception: a dialog that will not open cannot show a human what is incomplete. Preflight also refuses an adapter the worktree machinery would later reject, so a confirmable preflight is always startable |
+| **MVP-R4.3** | `FR-M40-05`, `SEC-30` — launch authority SHALL be role-checked and the authorising identity recorded. | **`BUILT`** (`MV2-T03`) — `governance.roles.launch_modes` over the existing role vocabulary: a `readOnly` role may dry-run and may not go live. The identity and its assurance are recorded, and the refusal is recorded too. **Qualified:** there is no dedicated `start-run` permission — adding one to `ACTIONS` would make every deployed `roles.yaml` fail closed on launch, which is an outage rather than a check. A launch permission is `POST-MVP` and needs a policy migration |
+| **MVP-R4.4** | `FR-M40-09` — a run cancelled at preflight SHALL leave no worktree, no branch and no ledger entry beyond the cancellation record. | **`BUILT`** (`MV2-T04`) — asserted against all three: the filesystem, `git branch --list`, and the ledger. Structural rather than janitorial — nothing is created before confirmation, so there is nothing to tidy and the promise survives a crash. Demonstrated red against a planted eager worktree, which also caught one non-discriminating assertion |
+| **MVP-R4.5** | `FR-M40-11` — initiation SHALL be absent, not disabled, below the Governor tier. | **`BUILT`** (`MV2-T05`) — `governor.initiation` owns `run/*`; the Launch screen is filtered out of the Loom Bar by tier and the palette entry by a `when` clause. Tested as absence, with the discriminating half — Flight Recorder otherwise whole — asserted alongside, and both halves demonstrated red |
 | `FR-M40-04` dry-run default · `FR-M40-06` per-run overrides · `FR-M40-07` content provenance · `FR-M40-08` editor-context · `FR-M40-10` templates | | **`POST-MVP`** |
 
 ### 5.5 MVP-R5 — The evidence gate can run · `MVP-HUMAN`
@@ -453,7 +453,7 @@ The MVP's purpose is to reach `F2`/`N3`. These are engineering-complete and bloc
 | **MVP-R6.5** `FR-M46-05` | Keyboard and screen-reader journeys complete launch, review and export without a critical barrier | **`MVP-GAP`** in its narrow form — scheduled `MV4-T07`. Full WCAG 2.1 AA certification stays **`POST-MVP`** (`GF4+`) |
 | `NFR-36`, `SEC-31`, `AC-46` | Identity revocation propagates within five minutes and binds at gate execution | **Re-dispositioned `POST-MVP`.** `D38` keeps git identity as the supported production mode; with no identity provider there is nothing to revoke *at*. The MVP ships `asserted` assurance and never describes it as verified (`NK3`). Building a revocation path against a provider that does not exist would be the kind of unbacked control `P27` forbids |
 | `FR-M43-09`, `FR-M43-10` | in-toto attestation envelope | **Re-dispositioned `POST-MVP`.** `futures-implementation.md` §16 cuts it **first** in its own slip plan; the bundle already maps to SSDF, ISO 42001 and AI Act Article 12 without it |
-| `AC-38`, `AC-40` | One contract across every origin; no initiation surface below Governor | **`MVP-GAP`, already scheduled** — `MV2-T01` and `MV2-T05` respectively |
+| `AC-38`, `AC-40` | One contract across every origin; no initiation surface below Governor | **`BUILT`** — `MV2-T01` and `MV2-T05` respectively |
 | `SEC-33` | Adapter refused on digest mismatch, naming both digests | **`MVP-GAP`, already scheduled** — `MV3-T01` |
 | `NFR-42` | Zero acknowledged entries lost; recovery within 15 minutes | **`MVP-GAP`, already scheduled** — `MV4-T02` |
 
@@ -562,7 +562,7 @@ From the 12 September competitive review (§16). Four items, each small, each de
 | `AC-35` Brownfield gate | `gaps-requirements.md` | `POST-MVP` (`M38`) |
 | `AC-36` Tiering leaves no scar | `gaps-requirements.md` | **`BUILT`** |
 | `AC-37` Cross-vendor spend | `gaps-requirements.md` | **`BUILT`** |
-| `AC-38`…`AC-40` Initiation: one contract, free cancel, tier absence | `gaps_initiation.md` | **`MVP-GAP`** (with `MVP-R4`) |
+| `AC-38`…`AC-40` Initiation: one contract, free cancel, tier absence | `gaps_initiation.md` | **`BUILT`** (with `MVP-R4`, `MV2`) |
 | `AC-41` No silent truncation | `futures_requirements.md` | **`BUILT`** |
 | `AC-42` Unattributed survives the round trip | `futures_requirements.md` | **`BUILT`** — corpus precision 1.0000 |
 | `AC-43` Every instrument reachable | `futures_requirements.md` | **`BUILT`** — orphan check green and blocking |

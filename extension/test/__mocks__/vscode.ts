@@ -116,6 +116,9 @@ export const __quickPickCalls: Array<{ items: unknown[]; options?: unknown }> = 
  * entry is returned by the next such call (modal confirmation, action pick).
  */
 export const __messageChoices: string[] = [];
+/** Queued showInputBox answers; an empty queue means the user pressed Escape. */
+export const __inputResponses: Array<string | undefined> = [];
+export const __inputBoxCalls: unknown[] = [];
 export const __progressCalls: ProgressOptions[] = [];
 export const __statusBarItems: Array<{ text: string; tooltip: unknown; shown: boolean }> = [];
 export const __configuration = new Map<string, unknown>();
@@ -232,6 +235,8 @@ export function __reset(): void {
   __shownInfos.length = 0;
   __quickPickCalls.length = 0;
   __messageChoices.length = 0;
+  __inputResponses.length = 0;
+  __inputBoxCalls.length = 0;
   __progressCalls.length = 0;
   __statusBarItems.length = 0;
   __configuration.clear();
@@ -351,6 +356,11 @@ export const window = {
   ): Promise<string | undefined> {
     __shownInfos.push(message);
     return items.some((i) => typeof i === 'string') ? __messageChoices.shift() : undefined;
+  },
+
+  async showInputBox(options?: unknown): Promise<string | undefined> {
+    __inputBoxCalls.push(options);
+    return __inputResponses.length === 0 ? undefined : __inputResponses.shift();
   },
 
   async showQuickPick<T>(items: T[] | Thenable<T[]>, options?: unknown): Promise<T | undefined> {

@@ -152,6 +152,48 @@ versioned and reviewed with the rest of the repository, which is the point.
 The refusal is the product working, and it makes the point better than the
 success does.
 
+## 6b. Start a governed run — the preflight
+
+This is the shortest way to show what Meridian is for, and it takes a minute.
+
+Open **Launch** in the Loom Bar. (It is not there with only Flight Recorder
+enabled — not greyed out, *not there*. That is the tiering working: a tier
+you have not bought should look like a product that was never designed around
+it.) Or run **Meridian Loom: Start Run** from the Command Palette — same
+contract, different door.
+
+Type something small and concrete, and press **Preflight…**.
+
+Nothing has been created yet. What comes back answers four questions and one
+more:
+
+- **what** — your intent, echoed back
+- **who** — which agent fills which role for this run
+- **where** — the repository, the base branch, and the branch and worktree
+  that *would* be created. Your working tree is untouched, and the dialog
+  says so where the decision is being made rather than in documentation
+- **how much** — the estimate and the ceiling. If nobody could price it, it
+  says **not estimated** — never `$0.00`
+- **where it will stop** — the gates this run must pass
+
+Two things to try before you confirm:
+
+**Press Cancel.** Then check: `git branch --list` shows no `meridian/run_…`
+branch, and `.meridian/worktrees/` has nothing new in it. The cancellation
+*is* recorded — a run that vanished without a trace would be
+indistinguishable from one that never reached preflight — but nothing else
+exists. That is not a cleanup path that ran; nothing was created in the first
+place, which is why the promise survives a crash.
+
+**Then start one for real.** The notice names who authorised it and at what
+assurance: `asserted` for a git identity, which is a claim and not a
+verification. A run authorised by a name in `git config` never reads later as
+one that was verified.
+
+Every door records which door it was — palette, workbench, chat, API. Open
+the **Ledger** and filter by the run id: the first entry carries `run_id` and
+`origin`, and it was written *before* the worktree existed.
+
 ## 7. Dispatch a deliverable
 
 Go to **Deliverables**, write a brief — something genuinely small, like
@@ -225,6 +267,9 @@ Demonstrate these rather than hoping nobody asks.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | Run button blocked | Governor tier not enabled | `meridian.tiers` → add `governor` |
+| No **Launch** entry in the Loom Bar | Governor tier not enabled — initiation is absent below it, by design | `meridian.tiers` → add `governor` |
+| Preflight says a run "cannot start yet" | One of the six answers is unsettled — it names which | Bind an agent runtime (step 4); set an estimate and ceiling |
+| "not permitted to start a live run" | The role is read-only in `roles.yaml`; a dry run writes nothing and is allowed, a live run is not | Use a role that is not `readOnly`, or run dry |
 | "No agent runtime bound" | Shipped agents ship without a command, deliberately | Click a preset on the agent card |
 | Agent starts then exits | Not authenticated with that agent | Authenticate that agent itself, outside Meridian |
 | `npx` not found | Node.js missing or not on PATH | Install Node 20+ |

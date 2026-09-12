@@ -113,6 +113,11 @@
         "category": "Meridian Loom"
       },
       {
+        "command": "meridian.startRun",
+        "title": "Start Run",
+        "category": "Meridian Loom"
+      },
+      {
         "command": "meridian.abortStory",
         "title": "Abort Story",
         "category": "Meridian Loom"
@@ -165,6 +170,10 @@
         },
         {
           "command": "meridian.dryRun",
+          "when": "meridian.tiers.governor"
+        },
+        {
+          "command": "meridian.startRun",
           "when": "meridian.tiers.governor"
         },
         {

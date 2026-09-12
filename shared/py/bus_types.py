@@ -669,6 +669,69 @@ class ControlDeclaration(TypedDict):
     vocabularyVersion: str
     boundaryNote: str  # What could bypass this control and who could do so. Written to be quoted into an audit bundle verbatim (FR-M42-12).
 
+class RunPreflightParams(TypedDict):
+    origin: Literal["ui", "command", "omnibar", "chat", "editor", "file", "connector", "api"]  # FR-M40-02: which door this run came through. Closed vocabulary, identical to the ledger CHECK constraint carried since schema v2.
+    intent: str  # What the human asked for, in their words.
+    repo: str
+    baseBranch: NotRequired[str]
+    adapters: NotRequired[dict[str, Any]]  # Role to adapter id. Which agent fills which role for THIS run.
+    mode: NotRequired[Literal["dry_run", "live"]]
+    gates: NotRequired[list[str]]
+    estimateUsd: NotRequired[float | None]  # null is unknown; 0 is a measured zero (P26).
+    costCeilingUsd: NotRequired[float | None]
+    runId: NotRequired[str]  # Supplied only to re-preflight an existing request.
+
+class RunPreflight(TypedDict):
+    runId: str
+    origin: Literal["ui", "command", "omnibar", "chat", "editor", "file", "connector", "api"]
+    intent: str
+    adapters: dict[str, Any]
+    repo: str
+    baseBranch: str
+    branch: str  # Derived from the run id, never supplied — two doors passing different branches for one run is the divergence the single contract prevents.
+    worktree: str  # The path that WOULD be created. Nothing exists yet.
+    estimateUsd: NotRequired[float | None]
+    costCeilingUsd: NotRequired[float | None]
+    gates: list[str]
+    mode: Literal["dry_run", "live"]
+    confirmable: bool  # false when any of FR-M40-03's six answers is missing.
+    missing: list[str]
+
+class RunPreflightResult(TypedDict):
+    preflight: RunPreflight
+
+class RunStartParams(TypedDict):
+    preflight: RunPreflight
+    confirmed: bool  # The human's confirmation of THIS preflight. false is refused.
+    role: NotRequired[str]  # FR-M40-05: the launching role, checked against the role pack; absent uses the pack's defaultRole. A read-only role may start a dry run and not a live one.
+    requiresVerifiedIdentity: NotRequired[bool]  # FR-M42-05: when set, a git-asserted identity is refused. An asserted identity never satisfies a verified requirement.
+    adapterId: NotRequired[str]  # FR-M18-07: the agent identity the run worktree's commits are attributed to. Absent uses the Developer role's adapter, else the first role by name.
+    rolePath: NotRequired[str]
+    policyPath: NotRequired[str]
+    repoPath: NotRequired[str]  # Repository root. Absent means the handshake workspaceDir.
+
+class RunStartResult(TypedDict):
+    runId: str
+    origin: Literal["ui", "command", "omnibar", "chat", "editor", "file", "connector", "api"]
+    branch: str
+    worktree: str
+    mode: str
+    authorisedBy: str
+    assurance: str  # The assurance level of the authorising identity, so a run authorised by a git name is never later read as verified.
+    sequence: NotRequired[int | None]  # The run's first ledger entry.
+
+class RunCancelParams(TypedDict):
+    preflight: RunPreflight
+    reason: NotRequired[str]
+    rolePath: NotRequired[str]
+    policyPath: NotRequired[str]
+
+class RunCancelResult(TypedDict):
+    runId: str
+    cancelled: bool
+    sequence: NotRequired[int | None]
+    note: NotRequired[str]
+
 class GateProfilesParams(TypedDict):
     policyPath: NotRequired[str]
 
@@ -1544,7 +1607,7 @@ class EvidenceGateResult(TypedDict):
     coverage: NotRequired[CoverageEnvelope]
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate"]
 
 # Every notification method on the bus.
 NotificationName = Literal["gate/halt", "spend/ceiling", "tiers/set", "$/cancel"]
@@ -1605,6 +1668,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.enforcement-points", "tier": "flight-recorder", "description": "FR-M42-11/12, SEC-32 (MV1-T01): the honest enforcement-point declaration for every control Meridian displays — the closed vocabulary (editor | extension_host | sidecar | scm | ci | advisory_only), whether each control is enforced or advisory, and the boundary note saying what could bypass it and who could do so. Returns the EFFECTIVE declaration: an scm-point control with no SCM binding configured is downgraded to sidecar with the downgrade stated (D37), so v1 never claims SCM enforcement it does not have. Flight-recorder tier because the base tier displays controls too, and a tier that cannot state its own boundaries cannot be honest about them.", "rpcMethods": ["governance/enforcementPoints"]},
     {"id": "recorder.trust-metrics", "tier": "flight-recorder", "description": "Rejection measurement and trust analytics (FR-M37-01/02/03/04/05/06/07/08, FR-M17-01/05; F0 Workstream F tasks 28-30, F1 Workstream E tasks 19-25): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), the ledger-derived, in-process-cached rejection rate per agent/repository/action-class/phase/story split by that distinction (trust/rejectionRate), the E-GR-03 rejection-reason distribution per agent (trust/reasonDistribution), the trust score with its full per-component decomposition (trust/score, trust/scoreDecomposition), same-story agent-vs-agent comparison with unknown-labelled components (trust/compareAgents), the adoption J-curve (trust/jcurve), the tokenmaxxing detector over spend series (trust/tokenmaxxing), and the DORA four-keys export in OTLP-friendly JSON (trust/doraExport). Read-only observability. Zero model calls (FR-M36-07). Also carries the F2 evidence gate (evidence/gate, gaps_implementation.md §F2): the GO / STOP / PIVOT / KILL decision computed from the same ledger, with every measure that cannot be evidenced reported as unavailable with its reason rather than as a zero, and a verdict of insufficient_evidence when fewer than twenty stories are in scope. Flight Recorder because it reads only what the recorder already records — the gate must be answerable by a team that never enabled Governor.", "rpcMethods": ["trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "evidence/gate"]},
     {"id": "recorder.spend", "tier": "flight-recorder", "description": "Cross-vendor spend and predictable pricing (FR-M39-01/02/03/04, FR-M26-03; F1 Workstream F tasks 26-29): the M39 spend feed adapts recorded ledger token/cost rows onto the SpendSeries protocol (spend/series) — the cross-vendor bill by vendor, model, agent, story, team and cost centre (dimensions without recorded evidence are 'unknown', never fabricated); spend ceilings from the governance pack's budgetCeilings (spend/ceilingCheck) that pause hosted agents at a checkpoint — ledger-recorded and dispatched to the extension host, which owns the wire — and warn honestly on observed agents, which cannot be paused (the same NOT_HOSTED honesty as steer, FR-M35-06); the monthly spend forecast per team with the budget alert (spend/forecast, a documented deterministic least-squares projection over the trailing months, alerting on budgetCeilings.usdPerMonth); and the per-vendor/model pricing table from the pricing pack, USD default (D12), so recorded tokens x configured rate = cost (spend/pricing). Ceiling checks and warnings are ledger-recorded before the RPC returns (FR-M10-08), like gate.halt. Zero model calls (FR-M36-07).", "rpcMethods": ["spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing"]},
+    {"id": "governor.initiation", "tier": "governor", "description": "M40 run initiation (FR-M40-01/02/03/05/09/11, SEC-30, AC-38/39/40; MV2): one RunRequest, one entry point, many doors. run/preflight assembles the six answers FR-M40-03 requires a human to see before anything is created; run/start refuses unless preflight was confirmed AND the launch was role-checked, and records the run's first ledger entry — carrying run_id and origin — BEFORE creating the worktree; run/cancel leaves a single cancellation record and nothing else. GOVERNOR TIER AND ABSENT BELOW IT (FR-M40-11, X-28, banned pattern 30): in Flight Recorder there is no Meridian agent to start, so these methods are not registered at all. Not registered-and-refused — a method that exists and says no is the scar G5 forbids.", "rpcMethods": ["run/preflight", "run/start", "run/cancel"]},
     {"id": "governor.gates", "tier": "governor", "description": "Policy gates over external and hosted agent work (FR-M12-01/05/07/08/09; F1 Workstream B tasks 9-10): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack, with DoR/DoD as machine-checkable criteria; the merge gate refuses merges to protected branches without a recorded human approval bound to the head commit digest (approver identity in the ledger, FR-M12-07). Every decision is ledger-recorded before the RPC returns (FR-M10-08).", "rpcMethods": ["gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke"]},
     {"id": "governor.steer", "tier": "governor", "description": "Steer and clarify over hosted ACP sessions (FR-M25-01/02/03/04/06; F1 Workstream D task 17): steer.send ledger-records a human's guidance (who/what/when, FR-M10-08) before the host injects it into the running session over the real wire (a second session/prompt); steer.question/steer.answer are the clarifying-question protocol — the question is durable before the human sees it, the recorded answer resumes the loop; steer.escalate records uncertainty-triggered escalations below a per-class confidence threshold; steer.accept + steer.acceptanceStatus are partial acceptance of a session's output per file/hunk, ledger-recorded and queryable; steer.plan records dry-run planner output (dry-run denies mutation kinds at the policy gate, FR-M25-06); steer.status (task 18) is the honest capability payload carrying hosted: boolean so an observe-only session can never be offered a dead control. Observed-not-hosted sessions get the structured NOT_HOSTED refusal, never a silent failure.", "rpcMethods": ["steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan"]},
     {"id": "governor.trust", "tier": "governor", "description": "Trust and rejection analytics (FR-M37-*; F0 subset/F1 full). Stub RPC until it lands.", "rpcMethods": ["trust.summary"]},
@@ -1616,7 +1680,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate")
 NOTIFICATION_METHODS: tuple[str, ...] = ("gate/halt", "spend/ceiling", "tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -1648,6 +1712,9 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "loop.stop": {"params": LoopStopParams, "result": LoopStatusResult},
     "loop.status": {"params": LoopStatusParams, "result": LoopStatusResult},
     "governance/enforcementPoints": {"params": EnforcementPointsParams, "result": EnforcementPointsResult},
+    "run/preflight": {"params": RunPreflightParams, "result": RunPreflightResult},
+    "run/start": {"params": RunStartParams, "result": RunStartResult},
+    "run/cancel": {"params": RunCancelParams, "result": RunCancelResult},
     "gate.evaluate": {"params": GateEvaluateParams, "result": GateEvaluateResult},
     "gate.profiles": {"params": GateProfilesParams, "result": GateProfilesResult},
     "gate.approve": {"params": GateApproveParams, "result": GateApproveResult},

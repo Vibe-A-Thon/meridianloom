@@ -4,6 +4,7 @@ import type { RpcQueryState } from '../hooks/useRpcQuery';
 import type { WebviewRpcClient } from '../rpc/client';
 import { FlightRecorderScreen } from './FlightRecorderScreen';
 import { ExternalAgentsScreen } from './ExternalAgentsScreen';
+import { LaunchScreen } from './LaunchScreen';
 import { LedgerScreen } from './LedgerScreen';
 
 /**
@@ -49,6 +50,17 @@ export const SCREEN_REGISTRY: readonly ScreenDefinition[] = [
     title: 'Ledger',
     tier: 'flight-recorder',
     component: LedgerScreen,
+  },
+  // 10.51 Launch (FR-M40-11, MV2-T06). Governor tier, which is what makes
+  // it ABSENT below that tier: `visibleScreens` filters on the tier, so a
+  // Flight Recorder user has no Launch entry in the Loom Bar at all —
+  // there is no Meridian agent to start there, and a locked entry would be
+  // a scar rather than an explanation.
+  {
+    id: 'launch',
+    title: 'Launch',
+    tier: 'governor',
+    component: LaunchScreen,
   },
 ];
 

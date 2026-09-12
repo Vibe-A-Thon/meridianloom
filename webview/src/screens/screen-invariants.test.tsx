@@ -166,14 +166,25 @@ describe('X-27: VendorTag + confidence on every agent-attributed row, on every s
 });
 
 describe('X-28: Loom Bar is registry-generated, tier-filtered, nothing upper leaks', () => {
-  it('GF0 registry holds only flight-recorder screens; the bar matches exactly', async () => {
+  it('an upper-tier screen is absent from a Flight Recorder bar, and present with its tier', async () => {
     const host = fullHost();
     const client = await renderApp(host);
 
     const visible = visibleScreens(['flight-recorder']);
     expect(visible.map((s) => s.id)).toEqual(['flight-recorder', 'external-agents', 'ledger']);
-    for (const def of SCREEN_REGISTRY) {
-      expect(def.tier).toBe('flight-recorder');
+
+    // The invariant, rather than the state of the registry on the day it was
+    // written. This assertion used to be "every screen is flight-recorder",
+    // which was true only while no upper-tier screen had been built: it would
+    // have had to be deleted the first time one was, taking the check with
+    // it. What matters is that a screen above the enabled tier does not reach
+    // the bar — and, in the other direction, that enabling the tier does
+    // bring it, so absence is tiering and not a screen that never worked.
+    const upper = SCREEN_REGISTRY.filter((def) => def.tier !== 'flight-recorder');
+    expect(upper.length).toBeGreaterThan(0);
+    for (const def of upper) {
+      expect(visible.map((s) => s.id)).not.toContain(def.id);
+      expect(visibleScreens(['flight-recorder', def.tier]).map((s) => s.id)).toContain(def.id);
     }
 
     const bar = screen.getByRole('navigation', { name: 'Workspace navigation' });

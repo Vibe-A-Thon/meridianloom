@@ -63,6 +63,13 @@ Why this exists: the freeze audit found a requirements document asserting a gree
 | A forged trailer gains nothing from being forged, and trailer evidence is capped at `inferred` (`D55`) | `docs/SECURITY-AND-DATA.md` §6 | `core/tests/test_forged_signals.py::test_a_fabricated_trailer_gains_nothing_from_being_fabricated` | backed |
 | The published platform support table is generated from a source every row of which names a passing test | `docs/DEPLOYMENT.md` | `scripts/check-compatibility.mjs` | backed |
 | An external contract that Meridian cannot parse degrades visibly within one session, never to silence | `docs/SECURITY-AND-DATA.md` §2 | `core/tests/test_contract_drift.py::test_an_unparseable_format_downgrades_rather_than_going_silent` | backed |
+| A run cancelled at preflight leaves no worktree and no branch — asserted against the filesystem and `git branch --list`, not only the ledger | `DEMO.md` step 6b · interface, Launch | `core/tests/test_initiation_rpc.py::test_cancelling_creates_no_worktree_and_no_branch` | backed |
+| Runs started from different doors produce ledger records differing only in `origin` | `DEMO.md` step 6b | `core/tests/test_initiation_rpc.py::test_five_doors_differ_only_in_origin` | backed |
+| A run's first ledger entry is written before its worktree exists | `DEMO.md` step 6b · `docs/SECURITY-AND-DATA.md` §5 | `core/tests/test_initiation_rpc.py::test_the_record_lands_before_the_worktree_exists` | backed |
+| Starting a run leaves the primary working tree byte-identical | `DEMO.md` step 6b · interface, Launch | `core/tests/test_initiation_rpc.py::test_the_primary_working_tree_is_untouched` | backed |
+| A run cannot be confirmed from a preflight missing any of its six answers | interface, Launch · command palette | `core/tests/test_initiation_rpc.py::test_an_incomplete_preflight_cannot_be_confirmed` | backed |
+| Run initiation is absent below the Governor tier — no screen, no palette entry, no menu item | `DEMO.md` step 6b | `extension/test/initiation-absent.test.ts > no menu anywhere contributes an ungated initiation item` | backed |
+| **Launch authority is derived from a role's `readOnly` flag; there is no dedicated launch permission** | `DEMO.md` troubleshooting | — | limitation |
 | **Without a witness, a re-signed fork of the whole ledger still verifies** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **The commit trailer is editable; it is a pointer, not a proof** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **Enforcement is in the editor, not the SCM** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |

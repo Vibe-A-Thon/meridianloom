@@ -55,9 +55,19 @@ class TestTheHelper:
         assert SECRET_ENV_PREFIX == isolation.SECRET_ENV_PREFIX
 
 
-def _spawns_without_env() -> list[str]:
+def _spawns_without_env(root: Path | None = None) -> list[str]:
+    """Walk `root` (the package by default).
+
+    The root is a parameter so the negative control can plant its probe
+    in a tmp dir instead of inside the package. Planting it in the
+    package raced other guards that walk the same tree under `-n auto`:
+    a worker saw the probe, then it was deleted before the read, and
+    an unrelated guard died with FileNotFoundError. A test that makes
+    another test flaky is not a test anyone can trust.
+    """
+    base = root or PACKAGE
     offenders: list[str] = []
-    for path in PACKAGE.rglob("*.py"):
+    for path in base.rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
@@ -75,7 +85,7 @@ def _spawns_without_env() -> list[str]:
                 and isinstance(func.value, ast.Name)
                 and func.value.id == "os"
             )
-            where = f"{path.relative_to(PACKAGE)}:{node.lineno}"
+            where = f"{path.relative_to(base)}:{node.lineno}"
             if shell_escape:
                 # These cannot take an environment at all.
                 offenders.append(f"{where} (os.{func.attr} cannot be scrubbed)")
@@ -100,16 +110,17 @@ def test_every_spawn_passes_an_explicit_environment():
     )
 
 
-def test_the_guard_actually_detects_an_unscrubbed_spawn(tmp_path, monkeypatch):
-    """A guard that cannot fail proves nothing — so make it fail once."""
-    import meridian_core
+def test_the_guard_actually_detects_an_unscrubbed_spawn(tmp_path):
+    """A guard that cannot fail proves nothing — so make it fail once.
 
-    planted = Path(meridian_core.__file__).parent / "_planted_spawn_probe.py"
-    planted.write_text(
+    Planted in a tmp dir rather than inside the package: the package is
+    walked concurrently by other guards under `-n auto`, and a file that
+    appears and vanishes there makes an unrelated test fail.
+    """
+    (tmp_path / "_planted_spawn_probe.py").write_text(
         "import subprocess\n\ndef leak():\n    subprocess.run(['git', 'status'])\n",
         encoding="utf-8",
     )
-    try:
-        assert any("_planted_spawn_probe.py" in hit for hit in _spawns_without_env())
-    finally:
-        planted.unlink()
+    assert any(
+        "_planted_spawn_probe.py" in hit for hit in _spawns_without_env(tmp_path)
+    )

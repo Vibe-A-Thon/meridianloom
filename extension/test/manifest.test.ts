@@ -43,7 +43,7 @@ describe('extension manifest', () => {
     expect(TREE_VIEWS).toHaveLength(0);
   });
 
-  it('contributes the twelve FR-M1-03 commands plus provenance hook, worktree, source-inspector and workbench commands', () => {
+  it('contributes the FR-M1-03 commands plus provenance hook, worktree, source-inspector, workbench and initiation commands', () => {
     const expected = [
       // The palette route to the workbench. The Activity Bar still reaches it
       // without any command; this is for keybindings and for reopening a
@@ -66,6 +66,12 @@ describe('extension manifest', () => {
       'meridian.installHook',
       // F1 Workstream A task 5 (FR-M18-08): open a story worktree in a new window.
       'meridian.openWorktree',
+      // MV2 (FR-M40-01/02): the command-palette door into run initiation.
+      // Registered even below the Governor tier — the palette entry is
+      // hidden by a `when` clause, but an unregistered id turns a keybinding
+      // into a raw "command not found" instead of the disclosure X-28 asks
+      // for. Absence is a property of the affordance, not of the id.
+      'meridian.startRun',
     ];
     const contributed = manifest.contributes.commands.map(
       (c: { command: string }) => c.command,

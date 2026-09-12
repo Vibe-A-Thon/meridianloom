@@ -616,3 +616,90 @@ def assess_hygiene(ledger: Any, pack: RolePack, *, subject: str) -> list[str]:
                 break
 
     return warnings
+
+
+# -- launch authority (FR-M40-05, SEC-30; MV2-T03) -------------------------
+
+#: The two run modes, in increasing order of what they can do. Kept here
+#: rather than imported from `initiation` so that module keeps its promise
+#: of depending on nothing: it takes `permitted_modes` as an argument, and
+#: this is the function that computes them.
+LAUNCH_MODES = ("dry_run", "live")
+
+
+@dataclass(frozen=True)
+class LaunchAuthority:
+    """Which run modes a role may start, and why.
+
+    `reason` is not decoration. FR-M40-05 refusals are recorded, and a
+    recorded refusal that says only "not permitted" cannot be acted on by
+    the person who hit it.
+    """
+
+    role: str | None
+    modes: tuple[str, ...]
+    reason: str
+
+    def permits(self, mode: str) -> bool:
+        return mode in self.modes
+
+
+def launch_modes(pack: RolePack, role: str | None = None) -> LaunchAuthority:
+    """FR-M40-05: may this role start a run, and of which kind?
+
+    There is deliberately no ``start-run`` entry in `ACTIONS`. Adding one
+    would make every existing roles.yaml silently fail closed on launch —
+    no role in any deployed policy grants a permission that did not exist
+    when the file was written — and a permission nobody can hold is not a
+    check, it is an outage.
+
+    So launch authority is derived from the distinction the vocabulary
+    already carries. ``readOnly`` is the policy's own statement that a role
+    may observe and may not cause change; a **live** run writes to a real
+    repository and spends real money, and a **dry run** writes nothing. A
+    read-only role may therefore preflight and dry-run, and may not go live.
+
+    A dedicated launch permission is POST-MVP and would need a policy
+    migration, not a code change.
+    """
+    if pack.fail_closed:
+        return LaunchAuthority(
+            role=role,
+            modes=(),
+            reason=(
+                "roles policy is fail-closed, so no run may start from any "
+                "door: " + "; ".join(pack.errors)
+            ),
+        )
+    name = (role or pack.default_role or "").strip()
+    if not name:
+        return LaunchAuthority(
+            role=None,
+            modes=(),
+            reason="no role was given and the policy defines no default role",
+        )
+    spec = pack.roles.get(name)
+    if spec is None:
+        return LaunchAuthority(
+            role=name,
+            modes=(),
+            reason=(
+                f"role '{name}' is not defined in {pack.source}; defined "
+                f"roles: {', '.join(sorted(pack.roles))}"
+            ),
+        )
+    if spec.read_only:
+        return LaunchAuthority(
+            role=name,
+            modes=("dry_run",),
+            reason=(
+                f"'{name}' is a read-only role: it may preflight and start a "
+                "dry run, which writes nothing, and may not start a live run, "
+                "which writes to the repository and spends money (FR-M40-05)"
+            ),
+        )
+    return LaunchAuthority(
+        role=name,
+        modes=LAUNCH_MODES,
+        reason=f"'{name}' is not read-only and may start a run in either mode",
+    )

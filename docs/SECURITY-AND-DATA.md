@@ -94,6 +94,12 @@ Entries are hash-chained and signed with Ed25519. Exports carry Merkle
 inclusion proofs, a signed tree head, the public key, the schema version and
 the collection profile in force.
 
+**Nothing acts before it is recorded.** A run's first ledger entry — carrying
+the run id and the door it came through — is written *before* its worktree and
+branch are created. The order is what makes the two failure states legible: an
+entry with no worktree is a run that plainly did not start, while a worktree
+with no entry would be unexplained work on a branch nobody can account for.
+
 **An export verifies without Meridian installed.** A single standard-library
 Python file (`verify.py`) ships in the package; hand it and a bundle to an
 auditor who has never heard of this tool. The `Meridian-Ledger:` commit trailer

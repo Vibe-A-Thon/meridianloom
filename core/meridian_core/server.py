@@ -47,6 +47,7 @@ from .governance import merge_gate as governance_merge_gate
 from .governance import policy as governance_policy
 from .governance import revocations as governance_revocations
 from .governance import roles as governance_roles
+from . import initiation
 from . import hooks as provenance_hooks
 from . import metrics as metrics_mod
 from .metrics import evidence_gate
@@ -258,6 +259,14 @@ class SidecarServer:
             # way to render a control's real boundary and two screens carried
             # hand-written prose notices instead. Prose does not compose.
             "governance/enforcementPoints": SidecarServer._handle_enforcement_points,
+            # M40 (MV2): one contract, many doors. The door is
+            # `origin`; nothing else about a run differs by door
+            # (FR-M40-01/02, AC-38). Governor tier — and ABSENT
+            # below it rather than registered-and-refused, which
+            # is the scar G5 forbids (FR-M40-11, AC-40).
+            "run/preflight": SidecarServer._handle_run_preflight,
+            "run/start": SidecarServer._handle_run_start,
+            "run/cancel": SidecarServer._handle_run_cancel,
             "gate.evaluate": SidecarServer._handle_gate_evaluate,
             "gate.profiles": SidecarServer._handle_gate_profiles,
             "gate.approve": SidecarServer._handle_gate_approve,
@@ -977,6 +986,321 @@ class SidecarServer:
             "controls": {
                 control: governance_enforcement.audit_record(declaration)
             },
+        }
+
+    # -- run initiation (M40, SEC-30, AC-38/39/40; MV2) ----------------------
+
+    @staticmethod
+    def _initiation_error(error: initiation.InitiationError) -> _RpcError:
+        """An initiation refusal, rendered so the surface can show it.
+
+        The code travels in `data` rather than being parsed out of the
+        message: a dialog has to distinguish "you have not confirmed" from
+        "your role may not do this", and matching on prose is how that
+        distinction rots.
+        """
+        return _RpcError(
+            protocol.INVALID_PARAMS,
+            str(error),
+            data={"code": error.code, **error.detail},
+        )
+
+    def _request_from_preflight(
+        self, wire: Any, *, where: str
+    ) -> initiation.RunRequest:
+        """Rebuild the request from the preflight the human was shown.
+
+        The branch and worktree on the wire are **not** trusted. They are
+        derived from the run id, and re-deriving them here is the check
+        that the human confirmed the target that will actually be created:
+        a preflight showing one branch and a start creating another is the
+        divergence the single contract exists to prevent. A mismatch is a
+        refusal, not a correction — silently creating the right thing would
+        mean the human confirmed something they never saw.
+        """
+        if not isinstance(wire, dict):
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"{where} needs the preflight object returned by run/preflight",
+            )
+        try:
+            request = initiation.build_run_request(
+                origin=str(wire.get("origin") or ""),
+                intent=str(wire.get("intent") or ""),
+                repo=str(wire.get("repo") or ""),
+                base_branch=str(wire.get("baseBranch") or "main"),
+                adapters={
+                    str(k): str(v)
+                    for k, v in (wire.get("adapters") or {}).items()
+                },
+                mode=str(wire.get("mode") or "dry_run"),
+                gates=tuple(str(g) for g in (wire.get("gates") or ())),
+                cost_ceiling_usd=wire.get("costCeilingUsd"),
+                estimate_usd=wire.get("estimateUsd"),
+                run_id=str(wire.get("runId") or "") or None,
+            )
+        except initiation.InitiationError as error:
+            raise self._initiation_error(error) from error
+
+        for field, expected in (
+            ("branch", request.branch),
+            ("worktree", request.worktree),
+        ):
+            supplied = wire.get(field)
+            if supplied is not None and str(supplied) != expected:
+                raise _RpcError(
+                    protocol.INVALID_PARAMS,
+                    f"the preflight was confirmed for {field} {supplied!r} but "
+                    f"run {request.run_id} would create {expected!r}. Both are "
+                    "derived from the run id, so they cannot legitimately "
+                    "differ; refusing rather than creating something the "
+                    "human did not see (FR-M40-01).",
+                    data={"code": "PREFLIGHT_TAMPERED", "field": field},
+                )
+        return request
+
+    @staticmethod
+    def _adapter_usable(adapter_id: str) -> bool:
+        """Whether the worktree machinery will accept this adapter id.
+
+        Asked at preflight rather than discovered at creation: an id the
+        worktree manager rejects makes the run unstartable, and reporting
+        `confirmable` for it means the human confirms and *then* learns
+        about a constraint nobody showed them. The rule is the manager's
+        own, called rather than copied — a second copy of the pattern is a
+        second thing to keep in step.
+        """
+        try:
+            worktree_mod.agent_identity(adapter_id)
+        except (AttributionError, ValueError, worktree_mod.WorktreeError):
+            return False
+        return True
+
+    def _handle_run_preflight(
+        self, params: bus_types.RunPreflightParams
+    ) -> bus_types.RunPreflightResult:
+        """FR-M40-03: the six answers, and any that are missing.
+
+        Missing answers come back as `confirmable: false` with `missing`
+        naming them, rather than as an error. The surface has to *show*
+        what is incomplete; an exception leaves a dialog that will not open
+        and no way to see why.
+        """
+        params = params or {}
+        try:
+            request = initiation.build_run_request(
+                origin=str(params.get("origin") or ""),
+                intent=str(params.get("intent") or ""),
+                repo=str(params.get("repo") or ""),
+                base_branch=str(params.get("baseBranch") or "main"),
+                adapters={
+                    str(k): str(v)
+                    for k, v in (params.get("adapters") or {}).items()
+                },
+                mode=str(params.get("mode") or "dry_run"),
+                gates=tuple(str(g) for g in (params.get("gates") or ())),
+                cost_ceiling_usd=params.get("costCeilingUsd"),
+                estimate_usd=params.get("estimateUsd"),
+                run_id=params.get("runId") or None,
+            )
+        except initiation.InitiationError as error:
+            raise self._initiation_error(error) from error
+        report = initiation.preflight(
+            request, adapter_usable=self._adapter_usable
+        )
+        return {"preflight": report.as_wire()}
+
+    def _handle_run_start(
+        self, params: bus_types.RunStartParams
+    ) -> bus_types.RunStartResult:
+        """FR-M40-01/02/05, SEC-30, AC-38: the single entry point.
+
+        Everything that could refuse does so before anything is created.
+        The ordering is not an implementation detail — it is what makes
+        FR-M40-09's guarantee (a cancelled run leaves no worktree and no
+        branch) achievable at all. A worktree created optimistically and
+        cleaned up on cancel is a weaker promise: it depends on the
+        cleanup running.
+        """
+        params = params or {}
+        request = self._request_from_preflight(
+            params.get("preflight"), where="run/start"
+        )
+        identity = self._human_identity()
+        # The role pack, not the governance pack: the policy that decides
+        # whether this launch may happen is the role policy, so it is the
+        # one whose version belongs on the entry. Recording a governance
+        # policy version next to a role decision would name a document that
+        # had no part in it.
+        pack = self._role_pack(params)
+        authority = governance_roles.launch_modes(pack, params.get("role"))
+        try:
+            request = initiation.authorise(
+                request,
+                identity_email=identity.email or identity.id,
+                identity_assurance=identity.assurance,
+                permitted_modes=authority.modes,
+                requires_verified=bool(params.get("requiresVerifiedIdentity")),
+            )
+        except initiation.InitiationError as error:
+            # FR-M40-05: the refusal is recorded. A refused launch that
+            # leaves no trace is indistinguishable from one nobody tried,
+            # and "who was turned away, and why" is exactly the question
+            # an audit asks after an incident.
+            self._append_gate_entry(
+                story_id=request.run_id,
+                pack=pack,
+                decision="rejected",
+                action_type="run_start_refused",
+                control="permission_policy",
+                phase="plan",
+                human_actor=identity.display(),
+                human_role=authority.role,
+                run_id=request.run_id,
+                origin=request.origin,
+                detail={
+                    "code": error.code,
+                    "reason": str(error),
+                    "mode": request.mode,
+                    "permittedModes": list(authority.modes),
+                    "roleReason": authority.reason,
+                    "assurance": identity.assurance,
+                },
+            )
+            raise self._initiation_error(error) from error
+
+        manager = self._worktree_manager(params)
+        adapter_id = self._run_adapter_id(request, params)
+
+        def record_entry(entry: dict[str, Any]) -> int:
+            return self._append_gate_entry(
+                story_id=entry["storyId"],
+                pack=pack,
+                decision=entry["decision"],
+                action_type=entry["actionType"],
+                control="permission_policy",
+                phase="plan",
+                human_actor=identity.display(),
+                human_role=authority.role,
+                run_id=entry["runId"],
+                origin=entry["origin"],
+                detail={
+                    **entry["detail"],
+                    "assurance": identity.assurance,
+                    "adapterId": adapter_id,
+                    "branch": request.branch,
+                    "worktree": request.worktree,
+                },
+            )
+
+        def create_worktree(branch: str, base_branch: str, path: str) -> str:
+            try:
+                info = manager.create(
+                    request.run_id,
+                    adapter_id,
+                    base_branch=base_branch,
+                    branch=branch,
+                )
+            except worktree_mod.WorktreeError as error:
+                raise self._worktree_error(error) from error
+            except AttributionError as error:
+                raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+            return str(info.path)
+
+        try:
+            started = initiation.start_run(
+                request,
+                confirmed=bool(params.get("confirmed")),
+                record_entry=record_entry,
+                create_worktree=create_worktree,
+                adapter_usable=self._adapter_usable,
+            )
+        except initiation.InitiationError as error:
+            raise self._initiation_error(error) from error
+
+        return {
+            "runId": started["runId"],
+            "origin": started["origin"],
+            "branch": started["branch"],
+            "worktree": started["worktree"],
+            "mode": started["mode"],
+            "authorisedBy": started["authorisedBy"],
+            "assurance": started["assurance"],
+            "sequence": started["entry"],
+        }
+
+    @staticmethod
+    def _run_adapter_id(
+        request: initiation.RunRequest, params: dict[str, Any]
+    ) -> str:
+        """Which agent identity the run's worktree commits are attributed to.
+
+        A run has a role-to-adapter map; a worktree has one git identity
+        (FR-M18-07). An explicit `adapterId` wins. Otherwise the Developer
+        role, because that is the role that writes code, and failing that
+        the first role by name — deterministic, so the same request always
+        produces the same attribution rather than one that depends on dict
+        ordering.
+        """
+        explicit = params.get("adapterId")
+        if isinstance(explicit, str) and explicit.strip():
+            return explicit.strip()
+        adapters = request.adapters
+        ordered = sorted(adapters, key=lambda name: (name != "Developer", name))
+        if ordered:
+            return adapters[ordered[0]]
+        raise _RpcError(
+            protocol.INVALID_PARAMS,
+            "the run names no adapter, so there is no agent identity to "
+            "attribute its commits to (FR-M18-07). Preflight would have "
+            "reported this as a missing answer.",
+            data={"code": "PREFLIGHT_INCOMPLETE", "missing": ["adapters"]},
+        )
+
+    def _handle_run_cancel(
+        self, params: bus_types.RunCancelParams
+    ) -> bus_types.RunCancelResult:
+        """FR-M40-09, AC-39: cancel at preflight.
+
+        One record and nothing else. There is no cleanup here because
+        run/start creates nothing until after confirmation and
+        authorisation — which is what makes this a guarantee rather than a
+        best effort.
+        """
+        params = params or {}
+        request = self._request_from_preflight(
+            params.get("preflight"), where="run/cancel"
+        )
+        pack = self._role_pack(params)
+        try:
+            identity = self._human_identity()
+            actor: str | None = identity.display()
+        except _RpcError:
+            # A cancellation is not an action that needs authority: nothing
+            # was created and nothing will be. Refusing to record it because
+            # the identity provider is unavailable would lose the trace for
+            # the one case where losing it is free.
+            actor = None
+        record = initiation.cancellation_record(
+            request, reason=str(params.get("reason") or "")
+        )
+        sequence = self._append_gate_entry(
+            story_id=record["storyId"],
+            pack=pack,
+            decision=record["decision"],
+            action_type=record["actionType"],
+            control=None,
+            phase="plan",
+            human_actor=actor,
+            run_id=record["runId"],
+            origin=record["origin"],
+            detail=record["detail"],
+        )
+        return {
+            "runId": request.run_id,
+            "cancelled": True,
+            "sequence": sequence,
+            "note": record["detail"]["note"],
         }
 
     def _handle_gate_profiles(

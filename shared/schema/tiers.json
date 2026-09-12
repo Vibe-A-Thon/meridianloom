@@ -115,6 +115,16 @@
         ]
       },
       {
+        "id": "governor.initiation",
+        "tier": "governor",
+        "description": "M40 run initiation (FR-M40-01/02/03/05/09/11, SEC-30, AC-38/39/40; MV2): one RunRequest, one entry point, many doors. run/preflight assembles the six answers FR-M40-03 requires a human to see before anything is created; run/start refuses unless preflight was confirmed AND the launch was role-checked, and records the run's first ledger entry — carrying run_id and origin — BEFORE creating the worktree; run/cancel leaves a single cancellation record and nothing else. GOVERNOR TIER AND ABSENT BELOW IT (FR-M40-11, X-28, banned pattern 30): in Flight Recorder there is no Meridian agent to start, so these methods are not registered at all. Not registered-and-refused — a method that exists and says no is the scar G5 forbids.",
+        "rpcMethods": [
+          "run/preflight",
+          "run/start",
+          "run/cancel"
+        ]
+      },
+      {
         "id": "governor.gates",
         "tier": "governor",
         "description": "Policy gates over external and hosted agent work (FR-M12-01/05/07/08/09; F1 Workstream B tasks 9-10): the governance policy engine evaluates packet/PR payloads against named gate profiles of the fail-closed policy pack, with DoR/DoD as machine-checkable criteria; the merge gate refuses merges to protected branches without a recorded human approval bound to the head commit digest (approver identity in the ledger, FR-M12-07). Every decision is ledger-recorded before the RPC returns (FR-M10-08).",

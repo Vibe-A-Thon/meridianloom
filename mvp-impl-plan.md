@@ -328,7 +328,9 @@ Add the two missing tests: an `AgentToken`, weft row, ledger row or hunk constru
 
 **Build. 2–3 weeks. `MVP-R4.1`…`R4.5`. Closes the invariant behind `M40`.**
 
-`gaps_initiation.md` found that the product had forty-four screens and no start button. The workbench dispatch path has since been built, so the product can start work — but there is **no single initiation contract**, which means there is no single place where preflight, authority and origin are guaranteed. `M40` is absent from the code; its **storage** half is not (`run_id` and `origin` columns exist on the ledger, `core/meridian_core/ledger/schema.py:181`).
+`gaps_initiation.md` found that the product had forty-four screens and no start button. The workbench dispatch path had since been built, so the product could start work — but there was **no single initiation contract**, which meant there was no single place where preflight, authority and origin were guaranteed. `M40` was absent from the code; its **storage** half was not (`run_id` and `origin` columns have been on the ledger since schema v2, `core/meridian_core/ledger/schema.py:181`).
+
+**Delivered.** `core/meridian_core/initiation.py` is the contract and `start_run` the entry point; `run/preflight`, `run/start` and `run/cancel` are the bus half, owned by the `governor.initiation` capability. Two doors are wired — the Launch screen (`origin: ui`) and the command palette (`origin: command`) — and they differ in `origin` and nothing else, which is asserted over the ledger rows rather than over the dataclass alone.
 
 The MVP needs the invariant, not all eleven requirements. `FR-M40-04`, `06`, `07`, `08` and `10` remain `POST-MVP` and remain specified.
 
@@ -337,23 +339,28 @@ The MVP needs the invariant, not all eleven requirements. `FR-M40-04`, `06`, `07
 **`MV2-T01` — One request object (`MVP-R4.1`, `FR-M40-01`/`02`).**
 Define `RunRequest` in `shared/schema`; generate the TypeScript and Python types with the existing generator. Every initiation path — command palette, workbench button, agent card, and any future path — constructs one. `origin` is a required field with a closed vocabulary, recorded on the ledger entry. **`AC-38`:** runs started from five different origins produce five ledger records differing **only** in `origin`.
 *Negative control (`MP2`):* an AST guard, in the style of the existing spawn guard, that fails the build on any call into the run dispatcher that does not pass a `RunRequest`. Demonstrated red by adding a private route.
+*Built:* `core/meridian_core/initiation.py`, `core/tests/test_initiation.py` (31), `test_initiation_guard.py`, `test_initiation_rpc.py` (21). The guard plants its probe in a tmp dir, not in the package — planting inside raced other guards under `-n auto` and made an unrelated test fail.
 
 **`MV2-T02` — Mandatory preflight (`MVP-R4.2`, `FR-M40-03`).**
 Before any work starts, the user sees and confirms: the parsed intent · the agents that will act · the repository and branch · the cost estimate and the ceiling · the gates that will apply · and whether this is a dry run or live. Preflight is **not skippable**; there is no "don't show this again".
 *Files:* sidecar preflight assembly; one webview dialog (the minimum viable form of screen 10.51).
 *Evidence:* a test that dispatches without confirmation and asserts refusal.
+*Built:* `run/preflight` plus `webview/src/components/PreflightDialog.tsx` and `screens/LaunchScreen.tsx`. Preflight also refuses an adapter id the worktree machinery would later reject — without that check it reported `confirmable` for a run that could not start, and the human learned about the constraint after confirming.
 
 **`MV2-T03` — Launch authority (`MVP-R4.3`, `FR-M40-05`, `SEC-30`).**
 The launching identity is resolved (`FR-M20-01`), role-checked against policy, and recorded **with its assurance level**. A git-asserted identity never satisfies a policy requiring verification (`FR-M42-04`, already built — reuse it, do not re-implement).
 *Evidence:* a test asserting an under-privileged identity is refused and the refusal is recorded.
+*Built:* `governance.roles.launch_modes` — a `readOnly` role may dry-run, not go live. No `start-run` permission was added to `ACTIONS`: no deployed `roles.yaml` grants a permission that did not exist when it was written, so adding one would fail every launch closed. `POST-MVP`, with a policy migration.
 
 **`MV2-T04` — Clean cancellation (`MVP-R4.4`, `FR-M40-09`).**
 A run cancelled at preflight leaves **no worktree, no branch, and no ledger entry beyond the cancellation record**. Assert all three: the filesystem, `git branch --list`, and the ledger.
 *Negative control (`MP2`):* create the worktree before the cancellation path is written; prove the test fails; then write the path.
+*Built and demonstrated red.* The planted eager worktree also caught a non-discriminating assertion: the original cleanup test compared only top-level directory names, and `.meridian` already existed for the policy files, so it could not see the thing it was about.
 
 **`MV2-T05` — Absent below Governor (`MVP-R4.5`, `FR-M40-11`).**
 The `run/*` methods are not registered below the Governor tier, and the initiation affordance is not in the route table or the command registry. The test asserts **absence**, not denial — a method that exists and refuses is the scar `G5` forbids.
 *Evidence:* `AC-36` extended to the run namespace, and **`AC-40`** — no command, no palette entry, no context-menu item, no affordance, with Flight Recorder otherwise unaffected.
+*Built:* `extension/test/initiation-absent.test.ts`, which checks every menu in the manifest rather than only `commandPalette`. The command **id** stays registered below Governor: an unregistered id turns a keybinding into a raw "command not found" rather than the X-28 disclosure, which is a worse scar than the one being avoided.
 
 **`MV2-T06` — The initiation surface.**
 Screen 10.51 at its minimum: the preflight dialog, its four states (`B2`), three access paths on the destructive confirm (`B9`), and the enforcement badge from `MV1-T02` on every control it carries. The full screen stays specified and `POST-MVP`.
@@ -860,6 +867,8 @@ Several tasks reference files that **do not exist yet**. That is correct — the
 | `docs/baselines/` | `MV0-T01` | Suite counts, commit, platform and wall-clock per phase exit |
 | `docs/evidence-gate.md` | `MV1-T08` | The Orchestra go/no-go thresholds, written before the study |
 | `shared/schema/compatibility.json` | `MV1-T05` | The machine-readable support matrix; the published table and `doctor` output are generated from it |
+| `core/meridian_core/initiation.py` | `MV2-T01` | The one run contract and the one entry point; depends on nothing, so the ordering is testable without a repository |
+| `webview/src/screens/LaunchScreen.tsx` | `MV2-T06` | Screen 10.51 at its minimum, registered at the Governor tier so it is absent below it |
 | `docs/baselines/resilience/` | `MV4-T02` | One recorded run per failure per configuration |
 | `meridian-loom-<version>.cdx.json` | `MV4-T08` | The CycloneDX AI-BOM, published beside the VSIX and its checksum |
 | `SECURITY.md` | `MV4-T09` | Vulnerability disclosure: scope, contact, expected response |

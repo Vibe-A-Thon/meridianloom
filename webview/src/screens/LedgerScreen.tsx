@@ -256,6 +256,22 @@ function EntryDrawer({
             <dd>
               {toSafeText(detail.data.storyId)} · {toSafeText(detail.data.phase)}
             </dd>
+            {detail.data.runId ? (
+              <>
+                {/*
+                  FR-M40-02 (MV2): the run and the door it came through. The
+                  ledger has carried these since schema v2 and this drawer
+                  did not show them, which made "how did this run start?"
+                  answerable only by reading the database — the one question
+                  the origin vocabulary exists to answer.
+                */}
+                <dt>Run / origin</dt>
+                <dd data-testid="entry-origin">
+                  {toSafeText(detail.data.runId)}
+                  {detail.data.origin ? ` · via ${toSafeText(detail.data.origin)}` : ''}
+                </dd>
+              </>
+            ) : null}
             {detail.data.decision ? (
               <>
                 <dt>Decision</dt>

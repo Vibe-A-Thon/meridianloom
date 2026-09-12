@@ -101,6 +101,7 @@ export const COMMAND_TIERS: Record<string, TierName> = {
   'meridian.haltAll': 'governor',
   'meridian.steer': 'governor',
   'meridian.dryRun': 'governor',
+  'meridian.startRun': 'governor',
   'meridian.abortStory': 'governor',
   'meridian.openWorktree': 'governor',
   'meridian.doctor': 'flight-recorder',

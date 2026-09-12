@@ -210,6 +210,51 @@ describe('10.7 Ledger screen', () => {
     client.dispose();
   });
 
+  it('the drawer names the run and the door it came through', async () => {
+    // FR-M40-02 (MV2): the ledger has carried `run_id` and `origin` since
+    // schema v2, and this drawer did not show them — which left "how did
+    // this run start?" answerable only by reading the database, the one
+    // question the closed origin vocabulary exists to answer.
+    const host = makeHost({
+      'observe/sessions': { sessions: [], warnings: [] },
+      'ledger.query': streamEntries(),
+      'ledger.verify': okVerify(),
+      'ledger.getEntry': () => ({
+        ...getEntryFull(),
+        runId: 'run_20260920T140500_abcd1234',
+        origin: 'omnibar',
+      }),
+    });
+    const client = await renderLedger(host);
+
+    fireEvent.click(screen.getByRole('button', { name: /#4402/ }));
+    await host.settle();
+
+    const origin = screen.getByTestId('entry-origin');
+    expect(origin).toHaveTextContent('run_20260920T140500_abcd1234');
+    expect(origin).toHaveTextContent('via omnibar');
+    client.dispose();
+  });
+
+  it('an entry that belongs to no run says nothing about a door', async () => {
+    // Most entries are not run-scoped. Rendering an empty "Run / origin" row
+    // for them would be a field with no content, which reads as missing data
+    // rather than as not applicable (P26).
+    const host = makeHost({
+      'observe/sessions': { sessions: [], warnings: [] },
+      'ledger.query': streamEntries(),
+      'ledger.verify': okVerify(),
+      'ledger.getEntry': getEntryFull(),
+    });
+    const client = await renderLedger(host);
+
+    fireEvent.click(screen.getByRole('button', { name: /#4402/ }));
+    await host.settle();
+
+    expect(screen.queryByTestId('entry-origin')).toBeNull();
+    client.dispose();
+  });
+
   it('a crypto-shredded blob degrades honestly in the drawer', async () => {
     const host = makeHost({
       'observe/sessions': { sessions: [], warnings: [] },

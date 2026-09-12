@@ -9,6 +9,7 @@ flaky, and the measured rate plus the FR-M10-09 <5 s verdict is reported.
 
 from __future__ import annotations
 
+import os
 import time
 
 import pytest
@@ -28,6 +29,20 @@ PERF_ENTRY_COUNT = 100_000
 # while any algorithmic regression (per-row sorting reintroduced, hash
 # recomputed through dict copies, etc.) fails loudly.
 PERF_MIN_ENTRIES_PER_S = 12_000
+
+# The `perf` marker keeps this out of the parallel suite, which is the first
+# line of defence and the important one. This is the second: three sibling
+# budgets elsewhere in this suite stand down when MERIDIAN_PERF_REPORT_ONLY
+# says the runner is sharing the machine, and this one did not honour the
+# same switch. A flag that some budgets obey and others ignore is worse than
+# no flag: it invites someone to set it, see a timing failure anyway, and
+# conclude the number means something when it only means the machine was
+# busy.
+#
+# The measurement is always taken and always printed. Only the assertion
+# stands down, and only on request; the CI perf job sets nothing and so
+# enforces the floor on a serial runner.
+_PERF_REPORT_ONLY = os.environ.get("MERIDIAN_PERF_REPORT_ONLY") == "1"
 
 BASE_ENTRY = {
     "ts_utc": "2026-09-01T00:00:00.000001Z",
@@ -222,8 +237,12 @@ class TestVerifyPerformance:
             f"\nFR-M10-09 100k verify: {elapsed:.2f}s "
             f"({rate:,.0f} entries/s) — "
             f"<5s target {'MET' if elapsed < 5 else 'MISSED on this machine'}"
+            + (" [reported only, shared runner]" if _PERF_REPORT_ONLY else "")
         )
-        assert rate >= PERF_MIN_ENTRIES_PER_S, (
-            f"verify too slow: {rate:,.0f} entries/s "
-            f"(floor {PERF_MIN_ENTRIES_PER_S:,})"
-        )
+        # `result.ok` above is asserted on every runner: the chain either
+        # verifies or it does not, and that is not a question about speed.
+        if not _PERF_REPORT_ONLY:
+            assert rate >= PERF_MIN_ENTRIES_PER_S, (
+                f"verify too slow: {rate:,.0f} entries/s "
+                f"(floor {PERF_MIN_ENTRIES_PER_S:,})"
+            )

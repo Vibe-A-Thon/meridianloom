@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { WorkbenchService } from './workbench';
 import { createEditorSurfaces } from './editor-surfaces';
 import { createVscodePermissionApprover } from './acp/permissions';
-import { TIERS, type TierName } from '../../shared/ts/bus-types';
+import { TIERS, type MethodMap, type TierName } from '../../shared/ts/bus-types';
 import { normalizeEnabledTiers, TIER_CONTEXT_KEYS } from '../../shared/ts/tiers';
 import { registerCommands } from './commands';
 import { runDoctor } from './doctor';
@@ -30,6 +30,30 @@ import { registerViews } from './views';
 let supervisor: SidecarSupervisor | undefined;
 let workbench: WorkbenchService | undefined;
 let runtimeGeneration = 0;
+
+/**
+ * M40 (MV2): one sidecar call for the initiation commands.
+ *
+ * The repository defaults to the handshake workspace here rather than in the
+ * command, so the palette door and any future door agree about what "this
+ * repository" means without each of them deciding.
+ */
+function runRequest<M extends keyof MethodMap>(
+  method: M,
+  params: MethodMap[M]['params'],
+): Promise<MethodMap[M]['result']> {
+  const client = supervisor?.currentClient;
+  if (!client) {
+    return Promise.reject(new Error('sidecar is not connected'));
+  }
+  const repo = workspaceDir();
+  const fields = params as { repo?: string };
+  const withRepo =
+    repo && (fields.repo === '.' || fields.repo === undefined)
+      ? { ...params, repo }
+      : params;
+  return client.request(method, withRepo, new AbortController().signal);
+}
 
 /** FR-M39-02/D33: pause-pending state for hosted sessions that breached a spend ceiling. */
 const spendCeilingPauses = new SpendCeilingPauseTracker();
@@ -296,6 +320,14 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         return client.request('worktree/list', {}, new AbortController().signal);
       },
+      // M40 (MV2): the palette door into run initiation. The three calls go
+      // straight through to the sidecar contract — preflight, the single
+      // entry point, and the cancellation record. No initiation logic lives
+      // on this side of the bus, which is what makes the palette the same
+      // door as the workbench with a different `origin` (AC-38).
+      runPreflight: (params) => runRequest('run/preflight', params),
+      runStart: (params) => runRequest('run/start', params),
+      runCancel: (params) => runRequest('run/cancel', params),
     }),
     vscode.workspace.onDidChangeConfiguration(onConfigurationChanged),
   );
