@@ -78,6 +78,14 @@
         ]
       },
       {
+        "id": "recorder.enforcement-points",
+        "tier": "flight-recorder",
+        "description": "FR-M42-11/12, SEC-32 (MV1-T01): the honest enforcement-point declaration for every control Meridian displays — the closed vocabulary (editor | extension_host | sidecar | scm | ci | advisory_only), whether each control is enforced or advisory, and the boundary note saying what could bypass it and who could do so. Returns the EFFECTIVE declaration: an scm-point control with no SCM binding configured is downgraded to sidecar with the downgrade stated (D37), so v1 never claims SCM enforcement it does not have. Flight-recorder tier because the base tier displays controls too, and a tier that cannot state its own boundaries cannot be honest about them.",
+        "rpcMethods": [
+          "governance/enforcementPoints"
+        ]
+      },
+      {
         "id": "recorder.trust-metrics",
         "tier": "flight-recorder",
         "description": "Rejection measurement and trust analytics (FR-M37-01/02/03/04/05/06/07/08, FR-M17-01/05; F0 Workstream F tasks 28-30, F1 Workstream E tasks 19-25): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), the ledger-derived, in-process-cached rejection rate per agent/repository/action-class/phase/story split by that distinction (trust/rejectionRate), the E-GR-03 rejection-reason distribution per agent (trust/reasonDistribution), the trust score with its full per-component decomposition (trust/score, trust/scoreDecomposition), same-story agent-vs-agent comparison with unknown-labelled components (trust/compareAgents), the adoption J-curve (trust/jcurve), the tokenmaxxing detector over spend series (trust/tokenmaxxing), and the DORA four-keys export in OTLP-friendly JSON (trust/doraExport). Read-only observability. Zero model calls (FR-M36-07). Also carries the F2 evidence gate (evidence/gate, gaps_implementation.md §F2): the GO / STOP / PIVOT / KILL decision computed from the same ledger, with every measure that cannot be evidenced reported as unavailable with its reason rather than as a zero, and a verdict of insufficient_evidence when fewer than twenty stories are in scope. Flight Recorder because it reads only what the recorder already records — the gate must be answerable by a team that never enabled Governor.",

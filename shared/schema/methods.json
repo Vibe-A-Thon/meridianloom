@@ -237,6 +237,15 @@
         "$ref": "#/$defs/LoopStatusResult"
       }
     },
+    "governance/enforcementPoints": {
+      "description": "FR-M42-11/12, SEC-32 (MV1-T01): every control's honest enforcement-point declaration. With no params, returns the whole registry; with `control`, that one declaration. The point comes from the closed FR-M42-11 vocabulary and the result is the EFFECTIVE declaration, not the aspirational one — an scm-point control with no SCM binding configured is reported as `sidecar` with the downgrade stated in its boundary note (D37). `enforced: false` means the control observes, records and warns; it does not intercept. No surface may render a control as enforced at a point this method does not report (SEC-32).",
+      "params": {
+        "$ref": "#/$defs/EnforcementPointsParams"
+      },
+      "result": {
+        "$ref": "#/$defs/EnforcementPointsResult"
+      }
+    },
     "gate.evaluate": {
       "description": "FR-M12-01/FR-M12-09 (F1 Workstream B task 9): evaluate a packet/PR payload against a named gate profile of the governance policy pack (FR-M12-01, fail-closed YAML). Every criterion is a machine-checkable DoR/DoD predicate (requiredFields, testEvidence, securityScan, humanApproval) with a pass/fail reason; the verdict is their conjunction. Fail-closed pack or unknown profile blocks. The decision is ledger-recorded (actionType gate) BEFORE the response returns (FR-M10-08).",
       "params": {
@@ -3298,6 +3307,66 @@
         }
       },
       "additionalProperties": false
+    },
+    "EnforcementPointsParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "control": {
+          "type": "string",
+          "description": "One control id. Omit for the whole registry. An unknown id is an error, never an empty result — a control nobody declared is a bug, not an absence (P26)."
+        },
+        "scmBindingConfigured": {
+          "type": "boolean",
+          "description": "Whether an SCM-native check is configured for this workspace. Default false, which is v1's reality (D37): with no binding, scm-point controls report their effective sidecar point instead."
+        }
+      }
+    },
+    "EnforcementPointsResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vocabularyVersion", "vocabulary", "scmBindingConfigured", "controls"],
+      "properties": {
+        "vocabularyVersion": {
+          "type": "string",
+          "description": "Bumped whenever the vocabulary or a declaration's semantics change, so a recorded declaration stays interpretable without this build."
+        },
+        "vocabulary": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The closed FR-M42-11 enforcement-point vocabulary."
+        },
+        "scmBindingConfigured": {
+          "type": "boolean"
+        },
+        "controls": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/ControlDeclaration" },
+          "description": "Control id to its effective declaration."
+        }
+      }
+    },
+    "ControlDeclaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["control", "enforcementPoint", "enforced", "vocabularyVersion", "boundaryNote"],
+      "properties": {
+        "control": { "type": "string" },
+        "enforcementPoint": {
+          "type": "string",
+          "enum": ["editor", "extension_host", "sidecar", "scm", "ci", "advisory_only"],
+          "description": "Where the control ACTUALLY binds, after any D37 downgrade."
+        },
+        "enforced": {
+          "type": "boolean",
+          "description": "false = advisory: it observes, records and warns, and no surface may render it as enforced (SEC-32)."
+        },
+        "vocabularyVersion": { "type": "string" },
+        "boundaryNote": {
+          "type": "string",
+          "description": "What could bypass this control and who could do so. Written to be quoted into an audit bundle verbatim (FR-M42-12)."
+        }
+      }
     },
     "GateProfilesParams": {
       "type": "object",

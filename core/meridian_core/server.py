@@ -252,6 +252,12 @@ class SidecarServer:
             "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
             "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
             "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
+            # FR-M42-11/12, SEC-32 (MV1-T01): the honest enforcement-point
+            # declaration. The computation already existed and fed the audit
+            # bundle; nothing exposed it to an interface, so a surface had no
+            # way to render a control's real boundary and two screens carried
+            # hand-written prose notices instead. Prose does not compose.
+            "governance/enforcementPoints": SidecarServer._handle_enforcement_points,
             "gate.evaluate": SidecarServer._handle_gate_evaluate,
             "gate.profiles": SidecarServer._handle_gate_profiles,
             "gate.approve": SidecarServer._handle_gate_approve,
@@ -926,6 +932,51 @@ class SidecarServer:
                 for c in verdict.criteria
             ],
             "reasons": list(verdict.reasons),
+        }
+
+    # -- enforcement points (FR-M42-11/12, SEC-32; MV1-T01) ------------------
+
+    def _handle_enforcement_points(
+        self, params: bus_types.EnforcementPointsParams
+    ) -> bus_types.EnforcementPointsResult:
+        """Every control's effective enforcement point, or one control's.
+
+        Effective, not aspirational: `effective_declaration` downgrades an
+        scm-point control to `sidecar` when no SCM binding is configured
+        (D37), and v1 never configures one — so in v1 nothing reported here
+        claims SCM enforcement. That downgrade is the whole value of the
+        method. A surface rendering the aspirational point would be exactly
+        the overclaim SEC-32 forbids.
+
+        An unknown control id raises rather than returning an empty set: a
+        control nobody declared is a programming error, not an absence (P26).
+        """
+        params = params or {}
+        scm_configured = bool(params.get("scmBindingConfigured", False))
+        control = params.get("control")
+
+        if control is None:
+            return governance_enforcement.enforcement_section(
+                scm_binding_configured=scm_configured
+            )
+
+        if control not in governance_enforcement.CONTROLS:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"unknown control {control!r}: it has no enforcement-point "
+                f"declaration. Known controls: "
+                f"{', '.join(sorted(governance_enforcement.CONTROLS))}.",
+            )
+        declaration = governance_enforcement.effective_declaration(
+            control, scm_binding_configured=scm_configured
+        )
+        return {
+            "vocabularyVersion": governance_enforcement.VOCABULARY_VERSION,
+            "vocabulary": list(governance_enforcement.VOCABULARY),
+            "scmBindingConfigured": scm_configured,
+            "controls": {
+                control: governance_enforcement.audit_record(declaration)
+            },
         }
 
     def _handle_gate_profiles(
