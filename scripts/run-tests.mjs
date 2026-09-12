@@ -50,6 +50,25 @@ if (surface.status !== 0) {
   process.exit(surface.status ?? 1);
 }
 
+// MV0 gates. All three are cheap, all three guard a document rather than the
+// code, and all three exist because a document drifted from the tree without
+// anything noticing: a requirements file asserting a suite that was red, a
+// README listing directories that were not there, and a security document
+// asserting a dependency licence set nobody re-checked. They run before the
+// suites so a drifted claim fails in seconds rather than after half an hour.
+const documentGates = [
+  ['scripts/check-mvp-traceability.mjs', 'MV0-T04: mvp-req-final.md and mvp-impl-plan.md disagree.'],
+  ['scripts/check-claims.mjs', 'MV0-T03: a claim in docs/claims.md names a test that does not exist.'],
+  ['scripts/check-licences.mjs', 'MV0-T05: a runtime dependency contradicts docs/SECURITY-AND-DATA.md §7.'],
+];
+for (const [script, message] of documentGates) {
+  const gate = spawnSync(process.execPath, [script], { cwd: root, stdio: 'inherit' });
+  if (gate.status !== 0) {
+    console.error(message);
+    process.exit(gate.status ?? 1);
+  }
+}
+
 let status = run(['test', '--workspace=extension']);
 if (status !== 0) {
   process.exit(status);

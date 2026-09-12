@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -32,6 +32,28 @@ if (unexpectedTopLevel.length) {
     `extension/ contains a nested directory that should not exist: ${unexpectedTopLevel.join(', ')}. ` +
       'This has happened before from a generation script run with the wrong cwd; delete it rather than packaging it.',
   );
+}
+
+// Deleting the directory is not enough, and we know that because deleting it
+// was not enough: the files stayed at HEAD and came back with the next
+// checkout. A path that must never ship has to be absent from the index too,
+// or the next clone re-creates it and the check above passes on a machine
+// where the problem is already fixed.
+const FORBIDDEN_PATHS = ['extension/extension'];
+for (const forbidden of FORBIDDEN_PATHS) {
+  const trackedUnder = execFileSync('git', ['ls-files', '--', forbidden], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+    .split('\n')
+    .filter((line) => line.trim().length > 0);
+  if (trackedUnder.length) {
+    throw new Error(
+      `git tracks ${trackedUnder.length} file(s) under ${forbidden}, which must never ship. ` +
+        `Deleting the working copy is not enough — the path is still in the index and will return on the next checkout. ` +
+        `Run: git rm -r ${forbidden}`,
+    );
+  }
 }
 
 // Ship the sidecar Python sources inside the VSIX at extension/sidecar/

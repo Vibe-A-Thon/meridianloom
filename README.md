@@ -72,8 +72,8 @@ remaining scope; a connected entry point can implement only part of a surface.
 - `webview/` — React dashboard (Vite, CSS modules, tokens)
 - `shared/` — generated message-bus types (single source for extension, webview, core, simulation)
 - `core/` — Python sidecar (`meridian_core` package)
-- `adapters/` — prebuilt agent roster, each a full adapter folder
-- `sdk/` — `meridian-adapter`: protocol, scaffold, local harness, conformance suite
+- `extension/library/` — the shipped roster: 22 agents, the 10-pack skill catalogue,
+  instruction documents and ACP runtime presets, seeded into a workspace on first open
 - `simulation/scenarios/` — scripted scenarios (FR-M32-04)
 - `golden/` — golden story corpus
 - `policy/` — default policy packs incl. phase set and action-class catalogue

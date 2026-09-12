@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -120,6 +121,27 @@ describe('extension manifest', () => {
   });
 });
 
+/**
+ * Paths that must not exist and must not be tracked. Adding an entry is how a
+ * regression of this class gets guarded for good; each one is repo-relative so
+ * the same string works on disk, in `git ls-files`, and in the packager.
+ */
+const FORBIDDEN_PATHS = ['extension/extension'] as const;
+
+const repoRoot = path.resolve(__dirname, '..', '..');
+
+/** Files git tracks under `repoPath`, or [] when there are none. */
+function tracked(repoPath: string): string[] {
+  // Deliberately not tolerant of a missing git: this guard exists to answer a
+  // question about what ships, and "git was unavailable so we assumed nothing
+  // is tracked" is the same silent pass the filesystem check already gave us.
+  const out = execFileSync('git', ['ls-files', '--', repoPath], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  return out.split('\n').filter((line) => line.trim().length > 0);
+}
+
 describe('what the package promises to ship', () => {
   const packager = readFileSync(
     path.join(__dirname, '..', '..', 'scripts', 'package-extension.mjs'),
@@ -197,6 +219,30 @@ describe('what the package promises to ship', () => {
     // a path nothing ever reads — silent bloat, not a runtime symptom, which
     // is exactly why the earlier "count > 0" check above never caught it.
     expect(existsSync(path.resolve(__dirname, '..', 'extension'))).toBe(false);
+  });
+
+  it('has no forbidden path tracked in git, not merely absent from this checkout', () => {
+    // The same regression came back, and this check is why it could. Asking
+    // the filesystem whether extension/extension exists answers a question
+    // about *this machine*: delete the folder and the assertion passes, even
+    // though the 37 files are still at HEAD and the next clone — and so the
+    // next VSIX — gets them back. That is exactly how it returned.
+    //
+    // A path that must never ship must be absent from both places. Disk
+    // catches the generation script; the index catches the commit.
+    for (const forbidden of FORBIDDEN_PATHS) {
+      expect(tracked(forbidden)).toEqual([]);
+    }
+  });
+
+  it('guards the same forbidden paths in the packager', () => {
+    // Two lists that must agree, kept honest the way the rest of this file
+    // keeps packager promises honest — by reading the packager's own text.
+    // The test gate and the shipping gate drifting apart is how a guard ends
+    // up protecting only the run nobody was worried about.
+    for (const forbidden of FORBIDDEN_PATHS) {
+      expect(packager).toContain(forbidden);
+    }
   });
 
   it('ships the sidecar sources the extension resolves at runtime', () => {
