@@ -8,6 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const extensionDir = path.join(root, 'extension');
 const outDir = path.join(root, 'dist');
 const vsceCli = path.join(root, 'node_modules', '@vscode', 'vsce', 'vsce');
+const licensePath = path.join(root, 'LICENSE');
 
 // Only generated directories immediately inside this extension may be cleaned.
 function cleanGeneratedDirectory(target) {
