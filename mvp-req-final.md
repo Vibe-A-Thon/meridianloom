@@ -414,7 +414,7 @@ The single most valuable property of this product is that its statements are tru
 | **MVP-R3.4** | `FR-M42-04`/`05` — locally asserted identity SHALL be distinguished from verified identity, and a git identity SHALL never satisfy a policy requiring verification. | **`BUILT`** (`D38`, assurance levels) |
 | **MVP-R3.5** | `FR-M44-08`…`10` — a machine-readable compatibility matrix SHALL be published, every "supported" claim backed by a smoke test. | **`MVP-GAP`** |
 | **MVP-R3.6** | `NFR-39` — a bundle SHALL verify on a clean machine using only the published specification and reference verifier. | **`BUILT`** (`AC-49`) |
-| **MVP-R3.7** | Every banned pattern this document claims is test-enforced SHALL have a named test. Patterns **28** and **30** currently do not. | **`MVP-GAP`** — found by the final freeze audit; see §9.3 |
+| **MVP-R3.7** | Every banned pattern this document claims is test-enforced SHALL have a named test. | **`BUILT`** (`MV1-T13`) — 28 and 30 were the two that did not; see §9.3 |
 
 ### 5.4 MVP-R4 — Starting work is possible and governed · `MVP-GAP`
 
@@ -635,9 +635,9 @@ All 32 (`VIGUIX_Final.md` §18 plus `gaps_guix.md` §7) remain in force.
 | Pattern | Enforcement actually found |
 |---|---|
 | **29** vendor logos as glyphs · **31** `inferred` rendered as `direct` · **32** first-run needing a credential | Enforced in components with named tests (`vendors.ts`, `AnyLinePanel.tsx`, `first-run.test.tsx`) |
-| **28** missing vendor tag · **30** Orchestra surfaces below Orchestra | **Referenced in source comments; no dedicated webview test found.** The sidecar half of 30 *is* enforced — a real-sidecar e2e proves governor and orchestra RPCs are refused at the base tier — but that is RPC absence, not surface absence |
+| **28** missing vendor tag · **30** Orchestra surfaces below Orchestra | **Enforced as of `MV1-T13`** (`webview/src/workbench/banned-patterns.test.ts`). 28: `AgentToken` and `VendorTag` cannot be constructed without a vendor, and the token composes the tag rather than reimplementing it. 30: no governor or orchestra tab is registered at the base tier, enabling Governor does not carry Orchestra, and a gated tab is **absent rather than locked**. The sidecar half of 30 was already enforced by a real-sidecar e2e — that is RPC absence; this is surface absence, and a screen can be routed while every call it makes is refused |
 
-**`MVP-R3.7` closes the gap**, scheduled `MV1-T13`. Until it does, this document claims only what the tests prove. *A document that overstates its own enforcement is the same defect as a product that overstates its own controls (`P27`) — it is simply pointed inward.*
+**`MVP-R3.7` is closed by `MV1-T13`.** All five of patterns 28–32 now have named tests, so §9.3 claims what the tests prove — which is what it said before the freeze audit checked, and did not. *A document that overstates its own enforcement is the same defect as a product that overstates its own controls (`P27`) — it is simply pointed inward.*
 
 ### 9.4 Accessibility
 
