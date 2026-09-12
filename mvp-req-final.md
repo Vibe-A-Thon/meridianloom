@@ -666,7 +666,7 @@ All models from `Requirements_Final.md` §7 are retained. Additions:
 
 ### 11.1 Closed and binding on the MVP
 
-`D4`, `D9`, `D10`, `D18`, `D19` *(licence — deliberate deferral, private distribution)*, `D20`, `D22` *(owner determination)*, `D23`, `D24`–`D35`, `D36`, `D38`, `D39`, `D40`, `D43`. Each is recorded in `DECISIONS.md` with its reasoning.
+`D4`, `D9`, `D10`, `D18`, `D19` *(licence — deliberate deferral, private distribution)*, `D20`, `D22` *(owner determination)*, `D23`, `D24`–`D35`, `D36`, `D38`, `D39`, `D40`, `D43`, **`D54`** *(MVP scope at the freeze — §11.4)*. Each is recorded in `DECISIONS.md` with its reasoning.
 
 ### 11.2 Open and gating the MVP
 
@@ -680,6 +680,20 @@ All models from `Requirements_Final.md` §7 are retained. Additions:
 ### 11.3 Open and post-MVP
 
 `D1`, `D2`, `D3`, `D5`, `D6`, `D7`, `D8`, `D11`, `D12`, `D13`, `D14`, `D15`, `D16`, `D17`, `V1`, `V5`, `V6`, `V9`, `V10`, `V11`, **`D48`** *(whether to ship an MCP gateway at all, or stay a notary — `M48`)*, **`D49`** *(SPIFFE dependency: consume-if-present or bundle — `M49`)*, **`D50`** *(which third-party provenance formats to read first — `M52`)*, **`D51`** *(witness interoperability target, reopening `D39` against the new standards bodies)*, **`D52`** *(whether the AI-BOM is published publicly or under agreement, alongside `D41`)*, **`D53`** *(whether longitudinal outcomes are offered before `MV5` returns, given `P29`)*, and **`D44`–`D47`** (harness adoption, generator, registry contents, trainable surface — renumbered from `jit-requirements.md`'s `D24`–`D27`).
+
+
+### 11.4 `D54` — MVP scope determination at the freeze · **closed**
+
+**Owner determination, 12 September 2026.** The final freeze audit found four requirements that were not in the MVP and argued they should be. Widening MVP scope is explicitly the owner's call under §19.1, not the author's, so it was put to the owner and confirmed.
+
+| Admitted | Why it qualifies under §19.1 |
+|---|---|
+| `MVP-R3.7` — banned patterns 28 and 30 get named tests | **Defends a claim already made.** §9.3 asserted those patterns were test-enforced; two were not. The choice was to build the tests or withdraw the claim, and withdrawing it weakens `X-27` and `X-28`, which the tiering and vendor-tag claims rest on |
+| `MVP-R8.1` vulnerability disclosure · `MVP-R8.2` third-party notices · `MVP-R8.3` support and upgrade policy | **Defend the MVP definition itself.** §0.4 promises an organisation can *operate and leave* without talking to us. A security review that cannot find a disclosure process, and a procurement desk that cannot enumerate dependencies, both stop the adoption the MVP exists to enable |
+
+**No trade-out was required.** §19.1 asks what moves out only when scope widens for a new capability; all four defend claims already made, which is the same test `MVP-R7` passed. Cost: roughly one week, in `MV1-T13` and `MV4-T09`.
+
+**This closes the scope question for the freeze.** Further additions follow §19.1 from here, and the default for anything discovered during build is `POST-MVP`.
 
 ---
 

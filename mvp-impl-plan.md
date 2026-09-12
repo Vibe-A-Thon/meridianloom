@@ -165,7 +165,9 @@ Inherits `Requirements-implementation.md` §3, `gaps_implementation.md` §3, `ga
 | **MV4** | Gate | **Release readiness** | `MVP-R1.6`, `MVP-R1.7`, `MVP-R6.4`, `MVP-R6.5`, `MVP-R7.3`, `MVP-R8.1`–`8.3` | 2 wk *(the 7-day soak starts on day one and runs inside the band)* | A tested support matrix · five failure rehearsals on four configurations · zero acknowledged-entry loss · a clean soak · the assistive journeys · a cold-start evaluation timed |
 | **MV5** | Gate | **The evidence gate** | `MVP-R5.2`…`R5.4` | People, not weeks | A written go / stop / pivot / kill decision with the raw ledger slice attached |
 
-**Engineering band: 11–15 weeks from `MV0`** — the lower figure with `MV2` and `MV3` in parallel, the upper with one engineer working serially. `MK6` fires at 15. *(The 12 September competitive review added `MVP-R7`: about one week, mostly in `MV3-T06`.)*
+**Engineering band: 12–16 weeks from `MV0`** — the lower figure with `MV2` and `MV3` in parallel, the upper with one engineer working serially. `MK6` fires at 16.
+
+*Two rounds widened this after it was first set, both recorded rather than absorbed: the 12 September competitive review added `MVP-R7` (about a week, mostly `MV3-T06`), and the freeze audit added `MVP-R3.7` and `MVP-R8` under `D54` (about a week, in `MV1-T13` and `MV4-T09`). A band that quietly stays the same while tasks are added is not a band.*
 
 **Hard serial:** `MV0 → MV1 → MV4 → MV5`. **`MV2` and `MV3` are parallelisable** once `MV1` closes, by one engineer each; if there is one engineer, `MV2` precedes `MV3`, because governed initiation is the thing a pilot cannot work around and registry browse is.
 
@@ -646,7 +648,7 @@ These are added, and they are the conditions under which **this plan's** work sh
 | **MK3** | Digest pinning proves impossible for a class of registry entry | `MV3-T01` | Do not ship registry browse for that class. Never ship `MV3-T02` without `MV3-T01`; an unpinned install path is weaker than what the product already has |
 | **MK4** | Any rehearsal loses an acknowledged ledger entry | `MV4-T02` | **Release blocked.** Durability is not a quality attribute of this product; it is the product |
 | **MK5** | A claimed compatibility row cannot be backed by a passing smoke test | `MV1-T05`, `MV4-T01` | Remove the row. Never mark it degraded, supported-with-caveats, or best-effort. Withdraw the claim |
-| **MK6** | The engineering band exceeds 15 weeks from `MV0` | continuous | Cut per §10. Never cut the ledger's integrity, the verifier, the coverage envelope, the enforcement declaration, or the honesty set |
+| **MK6** | The engineering band exceeds 16 weeks from `MV0` | continuous | Cut per §10. Never cut the ledger's integrity, the verifier, the coverage envelope, the enforcement declaration, or the honesty set |
 | **MK7** | An MVP task is reported complete on a concurrent or partial suite run | any | The report is void. Re-run sequentially before anything is believed (`MP3`) |
 
 | **MK8** | A competitor ships cross-vendor provenance that is **both** independently verifiable **and** bound to a merge decision | any release, via `NFR-54` | **`K6` / `NK6` fire.** Reassess honestly and in writing. The position was structural; if it closes, say so rather than re-describing it. `mvp-req-final.md` §16.2 records how close it currently is and what the two remaining clauses are |
@@ -705,6 +707,7 @@ Inherits `R1`–`R25`, `R26`–`R30`, `R31`–`R36` and `R37`–`R40` in full. T
 | `D22` | Employment and IP path | Closed by owner determination | Closed |
 | `D35` | Evidence-gate preconditions | Superseded by `MV1-T08` writing the thresholds and `MV5` running the study | Closing |
 | `D44`–`D47` | Harness adoption · generator · registry contents · trainable surface *(was `jit-impl.md` `D24`–`D27`)* | `J-2` exit · `J-3` start · `J-1` start · `J-4` | `POST-MVP`, retained |
+| `D54` | **MVP scope at the freeze** — admit `MVP-R3.7` and `MVP-R8` | **Closed 12 Sept 2026**, owner determination | `mvp-req-final.md` §11.4 |
 | `D52` | Whether the AI-BOM is published publicly or under agreement | **`MV4-T08`** | Open; default **with the release**, since it discloses only what the package ships |
 | `D50` | Which third-party provenance formats to read first | **`MV3-T06`** | Open; recommend git notes plus `Co-Authored-By`, because both are already in the repository |
 | `D48` | Whether to ship an MCP gateway at all, or stay the notary | **`CP3` start** — with a platform team in the room | Open, `POST-MVP` |
