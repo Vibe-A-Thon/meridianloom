@@ -1,6 +1,6 @@
 {
   "$schema": "meridian-loom/surface-coverage@1",
-  "generatedAt": "2026-09-12T19:21:01.547Z",
+  "generatedAt": "2026-09-12T21:00:15.049Z",
   "registry": "shared/schema/tiers.json",
   "allowlist": "shared/schema/unsurfaced.json",
   "roots": [
@@ -444,6 +444,42 @@
       ]
     },
     {
+      "method": "run/cancel",
+      "capability": "governor.initiation",
+      "tier": "governor",
+      "callerCount": 8,
+      "callers": [
+        "extension/src/extension.ts",
+        "extension/src/workbench/service.ts",
+        "webview/src/App.tsx",
+        "webview/src/screens/LaunchScreen.tsx",
+        "webview/src/workbench/AgentStudio.tsx",
+        "webview/src/workbench/DeliveryStudio.tsx",
+        "webview/src/workbench/catalogue/RunsTab.tsx",
+        "webview/src/workbench/operations/WorkspaceOperations.tsx"
+      ]
+    },
+    {
+      "method": "run/preflight",
+      "capability": "governor.initiation",
+      "tier": "governor",
+      "callerCount": 2,
+      "callers": [
+        "extension/src/extension.ts",
+        "webview/src/screens/LaunchScreen.tsx"
+      ]
+    },
+    {
+      "method": "run/start",
+      "capability": "governor.initiation",
+      "tier": "governor",
+      "callerCount": 2,
+      "callers": [
+        "extension/src/extension.ts",
+        "webview/src/screens/LaunchScreen.tsx"
+      ]
+    },
+    {
       "method": "shutdown",
       "capability": "recorder.lifecycle",
       "tier": "flight-recorder",
@@ -773,8 +809,8 @@
     }
   ],
   "summary": {
-    "total": 72,
-    "surfaced": 64,
+    "total": 75,
+    "surfaced": 67,
     "declared": 18,
     "undeclaredOrphans": 0,
     "mustSurfacePending": 0,

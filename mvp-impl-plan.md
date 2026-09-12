@@ -370,13 +370,13 @@ Screen 10.51 at its minimum: the preflight dialog, its four states (`B2`), three
 
 ### Exit criteria
 
-- [ ] One `RunRequest`; the AST guard green and demonstrated red
-- [ ] Preflight unskippable; every field present; refusal tested
-- [ ] Authority role-checked, identity and assurance recorded
-- [ ] Cancellation leaves no worktree, no branch, one entry
-- [ ] `run/*` **absent** below Governor, proven by absence
-- [ ] `DEMO.md` re-verified from the package
-- [ ] Three suites green, sequential, one commit
+- [x] One `RunRequest`; the AST guard green and demonstrated red
+- [x] Preflight unskippable; every field present; refusal tested
+- [x] Authority role-checked, identity and assurance recorded — with the `readOnly` qualification recorded on `MVP-R4.3`
+- [x] Cancellation leaves no worktree, no branch, one entry — filesystem, `git branch --list` and ledger all asserted
+- [x] `run/*` **absent** below Governor, proven by absence, with Flight Recorder proven whole alongside
+- [ ] `DEMO.md` re-verified from the package — **not yet done.** The initiation step is written (`DEMO.md` §6b) and every claim in it is backed by a test, but it has not been walked from an installed VSIX. Carried into `MV3-T05`, which re-runs the whole path from the package
+- [x] Three suites green, sequential, one commit
 
 ---
 
