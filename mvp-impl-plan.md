@@ -79,7 +79,9 @@ Three collisions exist across the source plans. Each is resolved once, here, and
 | Surface coverage (`FR-M46-02`) | 63/71 registry methods consumed · 18 declared · **green** |
 | Package | `meridian-loom-0.1.0.vsix`, 232 files, SHA-256 published |
 
-**Corrected at the freeze audit, 12 September 2026.** Re-running the suites found the extension suite red: `manifest.test.ts > has no nested extension/extension directory` failed because 37 tracked duplicate library files had returned (CRLF copies of `extension/library/`, the `d698161` regression). Removed; the baseline was re-measured afterwards. See `mvp-req-final.md` §4.3.
+**Corrected at the freeze audit, 12 September 2026.** Re-running the suites found the extension suite red: `manifest.test.ts > has no nested extension/extension directory` failed because 37 tracked duplicate library files had returned (CRLF copies of `extension/library/`, the `d698161` regression).
+
+**It then came back a second time**, because the first removal was never committed and the files were still tracked at `HEAD`. Removed for good at `3d25813`. The recurrence exposed a gap in the guard itself — it checks the filesystem, not git — and `MV0-T06` closes it. See `mvp-req-final.md` §4.3 for the full record.
 
 **This plan does not re-derive the baseline; it extends it.** Anything in this document that contradicts a measured number is wrong and the number stands.
 
@@ -204,6 +206,16 @@ Re-run the licence check over the runtime dependency set. Confirm the `docs/SECU
 *Evidence:* the sweep output, and a `docs/claims.md` row binding §7 to it.
 *Principle:* `MP5`, `ECO-03`.
 
+
+**`MV0-T06` — Make the packaging guards check what ships, not what is on this machine.**
+The freeze audit found `extension/extension/` twice: removed once, back at the next session because the 37 files were still tracked at `HEAD` (now removed for good at `3d25813`). **The guard could not tell the difference.** `manifest.test.ts` asserts `existsSync(extension/extension) === false`, which passes the moment the folder is deleted locally and says nothing about whether the path is still in version control — yet a path tracked at `HEAD` is in the next clone and therefore in the next VSIX, which is exactly what the guard exists to prevent.
+
+Extend the guard so a path that must never ship is asserted absent from **both** the working tree and git's index, and generalise it: for every path the packager is relied on to exclude, assert it is untracked. A guard that verifies the developer's machine verifies the wrong machine.
+
+*Files:* `extension/test/manifest.test.ts`, `scripts/package-extension.mjs`.
+*Negative control (`MP2`):* re-add one file under the forbidden path to the index without touching the working tree; the guard must fail. It passes today only because `3d25813` removed the path from `HEAD` — **verify that it fails when the path is tracked, or it is the same guard with a longer name.**
+*Principle:* `MP7`, pointed at version control rather than at the checkout. *Raised under `mvp-req-final.md` §19.1 as a defect discovered during the audit; it defends the package-integrity line in §18, so it is `MV0` rather than `POST-MVP`.*
+
 ### Exit criteria
 
 - [ ] One commit, one sequential suite run, three counts recorded
@@ -211,6 +223,7 @@ Re-run the licence check over the runtime dependency set. Confirm the `docs/SECU
 - [ ] `docs/claims.md` complete, with **zero** unbacked claims remaining in any shipped text
 - [ ] `check-claims.mjs` and `check-mvp-traceability.mjs` both green and both demonstrated red
 - [ ] Licence sweep clean
+- [ ] Every must-never-ship path asserted absent from the working tree **and** from git; the guard demonstrated failing on a tracked-but-locally-deleted path (`MV0-T06`)
 
 ---
 
@@ -436,7 +449,7 @@ Five failures × four configurations — Windows, macOS, Linux, and one remote (
 *Evidence:* one recorded run per failure per configuration, committed under `docs/baselines/resilience/`.
 
 **`MV4-T03` — Package and validate.**
-Build the VSIX. Verify from the **installed** extension: `cli doctor` exits non-zero on an induced failure · the staged verifier verifies a bundle · the staged documents are present · the checksum matches · there is no nested `extension/extension/` directory · the library seeds a fresh workspace on first open.
+Build the VSIX. Verify from the **installed** extension: `cli doctor` exits non-zero on an induced failure · the staged verifier verifies a bundle · the staged documents are present · the checksum matches · there is no nested `extension/extension/` directory **and nothing is tracked under it** · the library seeds a fresh workspace on first open.
 
 **`MV4-T04` — The cold-start rehearsal.**
 One person who has not read the source and has not seen this plan goes from the VSIX file to a verified evidence bundle, using only `DEMO.md`, `docs/DEPLOYMENT.md` and `docs/SECURITY-AND-DATA.md`. **Timed.** Every question they have to ask is a defect in the documents, recorded and fixed before release.
@@ -689,7 +702,7 @@ Run once, at `MV4` exit. Every step produces an artefact; a step with no artefac
 1. **Quiesce.** One commit. Three suites, sequential, under the shared lock. Record the counts (`MP3`).
 2. **Checks.** Claims binding · MVP traceability · surface coverage · tier absence · spawn-environment AST guard · no-model-call guards · packaging guards. All green.
 3. **Compatibility.** Every published row's smoke test run and passing. Failing rows removed (`MK5`).
-4. **Build.** `npm run package`. Confirm file count, no nested `extension/extension/`, verifier staged, `SECURITY-AND-DATA.md` and `DEPLOYMENT.md` staged, library staged once, icon present.
+4. **Build.** `npm run package`. Confirm file count, no nested `extension/extension/` **in the tree or the index**, verifier staged, `SECURITY-AND-DATA.md` and `DEPLOYMENT.md` staged, library staged once, icon present.
 5. **Checksum and bill of materials.** Emit `meridian-loom-<version>.vsix.sha256` **and the CycloneDX AI-BOM**, and confirm the AI-BOM matches the package (`AC-62`). Confirm `docs/SECURITY-AND-DATA.md` §7 still describes exactly what it proves and what it does not.
 6. **Install clean.** On a machine with no repository checkout: install the VSIX, open a fresh workspace, confirm the library seeds, run `cli doctor`, induce a failure, confirm the non-zero exit.
 7. **Prove the claim.** Export a bundle; verify it with the staged `verify.py` on a machine that has never had Meridian installed; then uninstall Meridian and verify the bundle again.
@@ -748,6 +761,7 @@ Run once, at `MV4` exit. Every step produces an artefact; a step with no artefac
 | `AC-38` one contract, five origins · `AC-40` no surface below Governor | `MV2` | `MV2-T01`, `MV2-T05` |
 | `SEC-33` adapter refused on digest mismatch | `MV3` | `MV3-T01` |
 | `NFR-42` zero acknowledged-entry loss, 15-minute recovery | `MV4` | `MV4-T02` |
+| *(no requirement id)* packaging guards check git, not only the filesystem | `MV0` | `MV0-T06` — defect found by the freeze audit, raised under §19.1 |
 | `MVP-R5.2`…`R5.4` the study itself | `MV5` | `MVP-HUMAN` — not engineering work |
 
 ### 15.2 Acceptance criteria touched
@@ -844,7 +858,7 @@ Per-phase exits are in each phase. **This is the single list that says the MVP i
 
 ### The package
 
-- [ ] `meridian-loom-<version>.vsix` builds; file count recorded; **no nested `extension/extension/` directory**
+- [ ] `meridian-loom-<version>.vsix` builds; file count recorded; **no nested `extension/extension/` directory, and nothing tracked under that path** (`MV0-T06`)
 - [ ] Verifier, both staged documents, the library (**once**) and the icon are all inside it
 - [ ] `.sha256` and the CycloneDX AI-BOM published beside it; the AI-BOM matches the package (`AC-62`)
 - [ ] Every behaviour verified from the **installed** extension, not the checkout (`MP7`)

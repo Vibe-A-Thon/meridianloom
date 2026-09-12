@@ -338,6 +338,19 @@ Specified in full at **§17**, after the competitive review that produced them.
 
 **Why this matters more than the bug.** A duplicate library is silent bloat. A requirements document asserting a green suite that is not green is the failure mode this project names as its characteristic defect: *verifying parts and recording conclusions about wholes.* The guard test caught the bloat. Nothing but re-running caught the false claim.
 
+#### The duplicate came back a second time, and the reason is a gap in the guard
+
+Removed during the audit; present again at the next session. Cause established, not guessed: **the 37 files are tracked at `HEAD`.** Commit `86af90b` landed the requirement documents but not the staged deletion, so the next checkout restored them.
+
+**The guard checks the filesystem, not git.** `manifest.test.ts` asserts `existsSync(extension/extension) === false`, which passes the moment the directory is deleted locally and says nothing about whether the path is still tracked. A file tracked at `HEAD` **will** be in the next clone and therefore in the next VSIX, which is precisely what the guard exists to prevent.
+
+| | |
+|---|---|
+| **Immediate** | `git rm -r extension/extension` — **the deletion must be committed.** Deleting the working copy alone lets it return on the next checkout, which is how it returned this time. **Done: `3d25813`**, verified absent from `HEAD` and the working tree |
+| **Scheduled** | Strengthen the guard to assert that git tracks nothing under that path, so "deleted locally, still at `HEAD`" fails instead of passing. Deferred while the deletion was uncommitted — applying it then would have turned the suite red for a reason the guard was right about. **The deletion landed at `3d25813`, so the blocker is gone** and it is scheduled as **`MV0-T06`**, not deferred to `POST-MVP`: it defends the package-integrity line in the MVP's definition of done |
+
+**The general lesson, recorded because it will recur in another form:** a guard that checks the working tree verifies the *developer's* state, not the *shipped* state. `MP7` already says verification happens against the installed artefact; this is the same rule pointed at version control.
+
 ---
 
 ## 5. The MVP requirement set
