@@ -162,6 +162,53 @@ chain remains intact and still verifies.
   This proves the file was not altered in transit from whoever gave it to you.
   It is not a signature and does not establish who built it.
 
+### Agents you install from somewhere else
+
+Three separate things are checked, and each one proves less than the next one
+sounds like it does.
+
+- **The adapter folder is pinned by content digest.** Whatever Meridian
+  installs — from the ACP Registry or from a package you supplied — is
+  digested at install and checked on every load. A folder that has changed
+  since does **not** load, and the refusal names the digest recorded at
+  install and the digest on disk, so you can tell your own edit from somebody
+  else's. The adapter's own `learned/` directory is excluded, because it is
+  where the adapter records what it learned and pinning it would make every
+  adapter drift the moment it learned anything.
+
+  A pin proves the bytes did not change. It says nothing about whether they
+  were trustworthy when they arrived.
+
+  An adapter you placed in the folder yourself is reported as **unpinned**,
+  not as passing. There is no baseline to compare it against.
+
+- **The agent binary is identified where it can be.** Before an agent is
+  launched, Meridian resolves its command against `PATH` and digests the file
+  it found. If that digest changes under an unchanged name, you are told —
+  this is the case where the agent's own self-reported name and version
+  cannot help you, because both are claims.
+
+  **This does not work for the common case, and it says so.** When the launch
+  command is `npx`, `uvx`, `pipx run` or `bunx`, the file on `PATH` is the
+  package fetcher and the agent is downloaded afterwards. Meridian reports
+  identity as `unverified` and names the fetcher rather than passing the npx
+  shim's digest off as the agent's. To get a verifiable identity, point the
+  command at an installed executable.
+
+- **A registry listing is a publication, not a recommendation.** Meridian can
+  browse the ACP Registry and install from it. That a thing is listed
+  establishes that somebody published an entry under that name. It is not a
+  review, not a security assessment, and not an endorsement — neither by the
+  registry nor by Meridian, and installing one is a decision you are making
+  about somebody else's code.
+
+  The index is fetched **only when you ask**, never on activation; the
+  no-phone-home statement in §2 covers this feature too. The index is treated
+  as untrusted input: it is parsed under an allow-list, only known fields
+  reach the interface, and nothing in it is executed. An installed entry
+  enters Learning with `read`, `search` and `think` and no command binding,
+  exactly like an imported agent — there is no registry fast path.
+
 ## 8. Removing it
 
 One command, documented, and it tells you what it will delete before it

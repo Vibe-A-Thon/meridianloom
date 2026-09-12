@@ -116,9 +116,22 @@ describe('adapter discovery across three tiers (FR-M31-02)', () => {
     const files = new Map<string, string>();
     const dirs = new Set<string>([fakeDir, adaptersRoot]);
     const fs: AdapterFs = {
+      // Returns the entries whose parent is `dir`, rather than one fixed
+      // name for every directory. The fixed-name version answered 'fake' for
+      // the adapter folder as well as for the root, which meant walking the
+      // folder found a child that did not exist — invisible while nothing
+      // recursed, and a phantom file the moment the digest walk (MV3-T01)
+      // did. A fake filesystem that does not model a filesystem fails the
+      // next thing to read it, not the thing it was written for.
       async readdir(dir) {
         if (!dirs.has(dir)) throw Object.assign(new Error(`ENOENT: ${dir}`), { code: 'ENOENT' });
-        return ['fake'];
+        const children = new Set<string>();
+        for (const known of [...files.keys(), ...dirs]) {
+          if (known === dir) continue;
+          const parent = path.dirname(known);
+          if (parent === dir) children.add(path.basename(known));
+        }
+        return [...children];
       },
       async readFile(p) {
         const text = files.get(p);

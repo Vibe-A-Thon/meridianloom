@@ -394,10 +394,12 @@ Screen 10.51 at its minimum: the preflight dialog, its four states (`B2`), three
 Compute a content digest for every installed adapter at install time; store it beside the installation; verify at load. A mismatch **refuses the load, names both digests, and writes a ledger entry**. Applies to sideloaded packages and registry installs identically — one path, not two (`J7`).
 *Files:* `extension/src/adapters/manifest.ts`, `extension/src/workbench/packages.ts`.
 *Negative control (`MP2`):* mutate an installed adapter by one byte; the load must refuse and the refusal must name both digests (**`SEC-33`**). Prove the test fails before the check exists.
+*Built and demonstrated red.* `extension/src/adapters/pinning.ts`. Two decisions worth stating: the pin index lives beside the adapter root rather than inside the folder, because a pin file within the folder it protects can be deleted by whoever edited the folder and the tamper would then read as a legitimately unpinned adapter; and `learned/` is excluded, because pinning an adapter's own state would make it drift the moment it learned anything, and a check that always fires is a check people turn off.
 
 **`MV3-T01b` — Agent identity, not agent name (`MVP-R6.3`, `FR-M44-01`/`02`, `AC-52`).**
 Digest-pinning an adapter package is not the same as knowing which binary ran. Bind every ACP and MCP session to a **verifiable agent identity** — executable digest, resolved version, and publisher where available — never to a self-asserted name. Attribution under an unverified identity is labelled unverified in the ledger and on every surface.
 *Negative control (`MP2`):* replace an agent executable with a different build carrying the same declared name; the recorded identity must change and a warning must appear. Prove the test fails first.
+*Built and demonstrated red.* `extension/src/adapters/identity.ts`; the identity is resolved and recorded **before** the process is spawned, so a swap is known before the agent has done anything. **The honest limit is most of the value:** `npx`, `uvx`, `pipx run` and `bunx` fetch the agent at launch, so the file on `PATH` is the fetcher. That comes back `unverified` naming the fetcher rather than reporting the shim's digest as the agent's, which would look exactly like a check and prove nothing.
 *Why it ships with `T01`:* pinning the package while trusting the binary's own name is a half-closed door, and a half-closed door is the kind of control `P27` forbids claiming.
 
 **`MV3-T02` — The registry, reachable (`MVP-R2.3`, `FR-M34-03`).**
@@ -408,6 +410,7 @@ Wire `AcpRegistrySource` to the Adapter Bay: browse, inspect an entry, install t
 - Every install goes through `MV3-T01`'s pinning.
 - Offline, unreachable and malformed-index states are three visible states, not one error (`B2`).
 *Evidence:* the surface-coverage check consumes the method; an end-to-end test installs from a fixture index to probation.
+*Built.* `registry/browse` and `registry/install` workbench actions; `webview/src/workbench/operations/RegistryBay.tsx` in the Adapter Bay. Two fixes the wiring forced: `list()` no longer fetches, so a surface cannot reach the network by asking what it already knows; and a malformed index is its own state rather than collapsing into `unreachable`, which had been sending an operator to check their network over somebody else's bad publish.
 
 **`MV3-T03` — Say what the registry proves.**
 Document, in `docs/SECURITY-AND-DATA.md` and on the surface, what a registry listing does and does not establish — in the same register as the `.sha256` paragraph, which says what it proves and then says what it does not. No claim that a listed agent is safe or endorsed.

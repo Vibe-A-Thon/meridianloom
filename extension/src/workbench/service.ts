@@ -5,7 +5,11 @@ import type { TierName } from "../../../shared/ts/bus-types";
 import type {
   ImportReport,
   LearningArtifact,
+  LearningSurface,
   PortableAgentDocument,
+  RegistryBrowseResult,
+  RegistryInstallResult,
+  RegistryListingEntry,
   SdlcPhase,
   WorkbenchAgent,
   WorkbenchAgentInput,
@@ -46,7 +50,17 @@ import {
   type AdapterSession,
   type LaunchOptions,
 } from "../adapters/launch";
-import type { DiscoveredAdapter } from "../adapters/discovery";
+import type { LaunchTarget } from "../adapters/launch";
+import {
+  noteAgentIdentity,
+  type AgentIdentity,
+} from "../adapters/identity";
+import {
+  AcpRegistrySource,
+  type RegistryEntry,
+  type RegistryStatus,
+} from "../adapters/registry-source";
+import { DEFAULT_IMPORT_PERMISSIONS } from "./packages";
 import {
   createPolicyGate,
   type PolicyGateSidecar,
@@ -94,6 +108,12 @@ export interface WorkbenchServiceOptions {
    */
   extensionPath?: string;
   workspaceDir(): string | undefined;
+  /**
+   * FR-M34-03 (MV3-T02): the ACP Registry client. Injected so tests never
+   * touch a network, and lazily constructed in production so opening a
+   * workspace builds nothing that could fetch.
+   */
+  registry?: (workspaceDir: string) => AcpRegistrySource;
   trusted(): boolean;
   enabledTiers(): readonly TierName[];
   sidecar(): PolicyGateSidecar | undefined;
@@ -103,7 +123,7 @@ export interface WorkbenchServiceOptions {
   onError?: (message: string) => void;
   /** Tests inject a conformant ACP session; production uses launchAdapter. */
   launcher?: (
-    adapter: DiscoveredAdapter,
+    adapter: LaunchTarget,
     options: LaunchOptions,
   ) => AdapterSession;
   /**
@@ -135,6 +155,49 @@ function blankState(): StoredState {
     documentRevisions: [],
   };
 }
+/**
+ * FR-M44-01 read ahead of the install: `npx` and `uvx` fetch the agent
+ * package at launch, so an agent installed from such an entry can never have
+ * a verifiable identity. Saying so on the listing — before the install —
+ * is the difference between a limitation and a surprise.
+ */
+/**
+ * This host in the registry's platform vocabulary (FORMAT.md:
+ * `darwin-aarch64`, `linux-x86_64`, `windows-x86_64`, …).
+ */
+function registryPlatformKey(): string {
+  const os =
+    process.platform === "win32"
+      ? "windows"
+      : process.platform === "darwin"
+        ? "darwin"
+        : "linux";
+  const arch = process.arch === "arm64" ? "aarch64" : "x86_64";
+  return `${os}-${arch}`;
+}
+
+function projectRegistryEntry(entry: RegistryEntry): RegistryListingEntry {
+  const distributions = Object.keys(entry.distribution ?? {});
+  return {
+    id: entry.id,
+    name: entry.name,
+    version: entry.version,
+    description: entry.description ?? "",
+    authors: [...(entry.authors ?? [])],
+    license: entry.license ?? "",
+    website: entry.website ?? entry.repository ?? "",
+    distributions,
+    identityVerifiable: distributions.includes("binary"),
+  };
+}
+
+/** The one sentence a person acts on, per state (`B2`). */
+function registryNotice(status: RegistryStatus): string | undefined {
+  if (status.state === "idle") return status.detail;
+  if (status.state === "fresh") return undefined;
+  return status.warning;
+}
+
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Expected an object.");
@@ -424,6 +487,9 @@ export class WorkbenchService {
   private steerController: HostedSteerController | undefined;
   private pumping = false;
   private disposed = false;
+  /** MV3-T02: built on first browse, never at open. */
+  private registryClient: AcpRegistrySource | undefined;
+  private registryRoot: string | undefined;
   private changeTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly options: WorkbenchServiceOptions) {}
@@ -1011,6 +1077,13 @@ export class WorkbenchService {
       request.action === "integration/read"
     )
       return this.integrationRequest(request);
+    // FR-M34-03: browsing reaches a network Meridian does not own, so it
+    // runs outside the mutation queue for the same reason a probe does — a
+    // ten-second timeout must not stall every other action behind it — and
+    // it changes nothing, so there is nothing to commit.
+    if (request.action === "registry/browse") return this.browseRegistry();
+    if (request.action === "registry/install")
+      return this.installFromRegistry(record(request.params ?? {}));
     return this.serialize(async () => {
       if (this.disposed) throw new Error("The workbench has been closed.");
       await this.load();
@@ -1808,6 +1881,233 @@ export class WorkbenchService {
    * under the queue. A read commits nothing: looking at Jira is not a change
    * to your workspace, and recording one would make the revision counter lie.
    */
+  /**
+   * Record which binary this agent actually is (FR-M44-01/02, AC-52).
+   *
+   * Two things happen and neither may stop the run: the identity is
+   * remembered locally so a later swap is visible, and it is appended to the
+   * ledger so attribution recorded afterwards can be read back against a
+   * known binary. A launch that failed because a provenance write failed
+   * would trade a governance feature for an outage, so failures here are
+   * reported and the run proceeds — with the gap itself reported, rather
+   * than passing silently.
+   */
+  private async recordAgentIdentity(
+    agentId: string,
+    vendor: string,
+    workspaceDir: string,
+    identity: AgentIdentity,
+  ): Promise<void> {
+    let warning: string | undefined;
+    try {
+      const comparison = await noteAgentIdentity(
+        path.join(workspaceDir, ".meridian"),
+        agentId,
+        identity,
+      );
+      warning = comparison.warning;
+    } catch (error) {
+      this.options.onError?.(
+        `Meridian could not remember which binary '${agentId}' is, so a future ` +
+          `swap would go unnoticed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    if (warning) this.options.onError?.(warning);
+
+    const sidecar = this.options.sidecar();
+    if (!sidecar) return;
+    try {
+      await sidecar.request("ledger.append", {
+        storyId: agentId,
+        phase: "build",
+        loopId: "agent-identity",
+        loopIteration: 1,
+        actorId: agentId,
+        actorVersion: identity.declaredVersion ?? "unknown",
+        actorKind: "external",
+        policyVersion: "agent-identity/v1",
+        actionType: "agent_identity",
+        vendor: vendor || "unknown",
+        // The entry is Meridian's own observation of which file is on disk.
+        // Digested here: `direct`. Not digestable — a run-time fetcher, or
+        // nothing on PATH: `inferred`, which is a clamp DOWN and never up
+        // (SEC-34). There is no rung for "the agent told us its name".
+        observationConfidence: identity.assurance === "verified" ? "direct" : "inferred",
+        ...(warning ? { reworkReason: warning.slice(0, 4000) } : {}),
+        input: JSON.stringify(identity),
+      });
+    } catch (error) {
+      this.options.onError?.(
+        `Agent identity for '${agentId}' was not recorded in the ledger: ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  // -- the ACP Registry (FR-M34-03, FR-M44-03; MV3-T02) ---------------------
+
+  /**
+   * The registry client for this workspace, built on demand.
+   *
+   * On demand is the point. Constructing it at open would be harmless today
+   * and would be exactly the seam through which an activation-time fetch
+   * arrives later; there is nothing to reach the network with until someone
+   * asks to browse.
+   */
+  private registrySource(): AcpRegistrySource | undefined {
+    const workspaceDir = this.options.workspaceDir();
+    if (!workspaceDir) return undefined;
+    if (!this.registryClient || this.registryRoot !== workspaceDir) {
+      this.registryClient =
+        this.options.registry?.(workspaceDir) ??
+        new AcpRegistrySource({ workspaceDir });
+      this.registryRoot = workspaceDir;
+    }
+    return this.registryClient;
+  }
+
+  /**
+   * What the registry lists, projected into the fixed shape the interface
+   * renders (`FR-M34-03`).
+   *
+   * A projection rather than a pass-through: the index is untrusted input,
+   * and handing an arbitrary parsed object to a surface is how a field
+   * nobody expected ends up rendered. Nothing in it is executed here or
+   * anywhere else; `packages.ts` has the same rule for archives.
+   */
+  private async browseRegistry(): Promise<RegistryBrowseResult> {
+    const source = this.registrySource();
+    if (!source) {
+      return {
+        state: "idle",
+        entries: [],
+        registryUrl: "",
+        notice:
+          "Open a workspace first. A registry install writes an adapter " +
+          "folder, and there is nowhere to put one.",
+      };
+    }
+    // The explicit action. This is the one call in the product that reaches
+    // a network Meridian does not own, and it happens because a person
+    // pressed something.
+    const status = await source.refresh();
+    return {
+      state: status.state,
+      entries: status.entries.map((entry) => projectRegistryEntry(entry)),
+      registryUrl: source.url,
+      ...("fetchedAt" in status ? { fetchedAt: status.fetchedAt } : {}),
+      ...(registryNotice(status) ? { notice: registryNotice(status) } : {}),
+    };
+  }
+
+  /**
+   * Install a listed agent into probation (`FR-M34-03`, `FR-M15-03`/`05`).
+   *
+   * The network and filesystem work happens outside the mutation queue and
+   * the state change is committed inside it, the same shape `integration/probe`
+   * uses. The install itself pins the adapter (`FR-M44-03`, in
+   * `AcpRegistrySource.install`), so there is no registry path that skips
+   * what a sideload gets — `J7`, one path and not two.
+   */
+  private async installFromRegistry(
+    params: Record<string, unknown>,
+  ): Promise<RegistryInstallResult> {
+    const source = this.registrySource();
+    const workspaceDir = this.options.workspaceDir();
+    if (!source || !workspaceDir) {
+      return {
+        ok: false,
+        errors: ["Open a workspace before installing from the registry."],
+        snapshot: this.snapshot(),
+      };
+    }
+    const wanted = id(params.id);
+    const result = await source.install(wanted, {
+      platformKey: registryPlatformKey(),
+      // A platform binary can be digested and therefore identified
+      // (FR-M44-01); npx and uvx fetch at launch and cannot. Preferring the
+      // binary is preferring the distribution that can be verified.
+      preferBinary: true,
+    });
+    if (!result.ok) {
+      return { ok: false, errors: result.errors, snapshot: this.snapshot() };
+    }
+
+    const { adapter } = result;
+    const permissions = [...DEFAULT_IMPORT_PERMISSIONS];
+    const snapshot = await this.serialize(async () => {
+      if (this.disposed) throw new Error("The workbench has been closed.");
+      await this.load();
+      const now = new Date().toISOString();
+      const existing = this.state.agents.findIndex(
+        (entry) => entry.id === adapter.id,
+      );
+      const agent = {
+        id: adapter.id,
+        name: adapter.manifest.id,
+        role: adapter.manifest.roles[0] ?? "Developer",
+        description:
+          `Installed from the ACP Registry on ${now}. ` +
+          `Its contents are pinned; the registry vouches for nothing.`,
+        // An entry that names no vendor is not "unknown vendor" dressed as
+        // a blank: the field is required and an empty one would render as a
+        // missing value rather than an absent claim (P26).
+        vendor: adapter.manifest.vendor ?? "unattributed",
+        version: adapter.manifest.version,
+        command: adapter.manifest.acp.command,
+        args: [...(adapter.manifest.acp.args ?? [])],
+        instructions: "",
+        // FR-M15-03/05: probation at the import floor. A registry install is
+        // not a recommendation, and there is no fast path that skips this.
+        permissions,
+        trainable: [] as LearningSurface[],
+        phases: [] as SdlcPhase[],
+        skillIds: [] as string[],
+        instructionIds: [] as string[],
+        // Nothing connected. A registry agent has been on this machine for
+        // seconds; binding it to a production system is a decision someone
+        // makes afterwards, deliberately.
+        integrationIds: [] as string[],
+      };
+      const row = {
+        ...agent,
+        source: "imported" as const,
+        mode: "learning" as const,
+        runtime: "idle" as const,
+        learningState: "waiting" as const,
+        createdAt: now,
+        updatedAt: now,
+      };
+      if (existing >= 0) {
+        // A reinstall replaces the record and re-enters probation: the
+        // binary behind it may be different, and inheriting the old agent's
+        // standing would carry trust across a change nobody reviewed.
+        this.state.agents[existing] = {
+          ...row,
+          createdAt: this.state.agents[existing].createdAt,
+        };
+      } else {
+        this.state.agents.push(row);
+      }
+      this.state.revision++;
+      await this.persist();
+      this.notify();
+      return this.snapshot();
+    });
+
+    return {
+      ok: true,
+      errors: [],
+      installed: {
+        id: adapter.id,
+        dir: adapter.dir,
+        ...(adapter.pin.expected ? { pinDigest: adapter.pin.expected } : {}),
+        permissions,
+      },
+      snapshot,
+    };
+  }
+
   private async integrationRequest(request: WorkbenchRequest): Promise<unknown> {
     const params = record(request.params ?? {});
     const connectionId = id(params.id);
@@ -2098,6 +2398,11 @@ export class WorkbenchService {
         {
           workspaceDir,
           enabledTiers: this.options.enabledTiers(),
+          // FR-M44-01/02, AC-52 (MV3-T01b): which binary is about to run,
+          // recorded before it runs. Awaited by `launchAdapter`, so a swap
+          // is known before the agent has done anything.
+          onIdentity: (identity) =>
+            this.recordAgentIdentity(agent.id, agent.vendor, workspaceDir, identity),
           approvePermission: async (request, context) => {
             if (
               this.disposed ||

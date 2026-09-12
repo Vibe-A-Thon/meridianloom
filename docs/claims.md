@@ -70,6 +70,19 @@ Why this exists: the freeze audit found a requirements document asserting a gree
 | A run cannot be confirmed from a preflight missing any of its six answers | interface, Launch · command palette | `core/tests/test_initiation_rpc.py::test_an_incomplete_preflight_cannot_be_confirmed` | backed |
 | Run initiation is absent below the Governor tier — no screen, no palette entry, no menu item | `DEMO.md` step 6b | `extension/test/initiation-absent.test.ts > no menu anywhere contributes an ungated initiation item` | backed |
 | **Launch authority is derived from a role's `readOnly` flag; there is no dedicated launch permission** | `DEMO.md` troubleshooting | — | limitation |
+| An adapter that changed after it was installed does not load, and the refusal names both digests | `docs/SECURITY-AND-DATA.md` §7 | `extension/test/adapters-pinning.test.ts > refuses a one-byte mutation and names both digests` | backed |
+| An adapter nobody installed through Meridian is reported as unpinned, never as passing | `docs/SECURITY-AND-DATA.md` §7 · Adapter Bay | `extension/test/adapters-pinning.test.ts > an adapter nobody installed is unpinned, not drifted` | backed |
+| A binary swapped under an unchanged agent name changes the recorded identity and warns | `docs/SECURITY-AND-DATA.md` §7 | `extension/test/adapters-identity.test.ts > a different binary at the same name warns and names both digests` | backed |
+| An agent launched through a run-time package fetcher is recorded as unverified, naming the fetcher | `docs/SECURITY-AND-DATA.md` §7 · Adapter Bay | `extension/test/adapters-identity.test.ts > a run-time package fetcher is NOT verified, and says which` | backed |
+| The agent identity is taken before the agent process is spawned | `docs/SECURITY-AND-DATA.md` §7 | `extension/test/adapters-identity.test.ts > resolves and reports identity before the process starts` | backed |
+| Opening the workbench makes no network call to the ACP Registry | `docs/SECURITY-AND-DATA.md` §2, §7 | `extension/test/registry-bay.test.ts > opening the workbench reaches no network` | backed |
+| The registry surface never fetches on mount, only on an explicit action | `docs/SECURITY-AND-DATA.md` §7 · Adapter Bay | `webview/src/workbench/operations/registry-bay.test.tsx > renders without reaching the network` | backed |
+| An agent installed from the registry enters Learning with read, search and think and nothing else | `docs/SECURITY-AND-DATA.md` §7 · Adapter Bay | `extension/test/registry-bay.test.ts > enters Learning with read, search and think` | backed |
+| Every registry install is pinned by content digest, on the same path a sideload uses | `docs/SECURITY-AND-DATA.md` §7 | `extension/test/registry-bay.test.ts > pins what it installed, in the index beside the root` | backed |
+| Only known fields from the registry index reach the interface; nothing in it is executed | `docs/SECURITY-AND-DATA.md` §7 | `extension/test/registry-bay.test.ts > carries no field the registry invented` | backed |
+| A registry that answers with an unreadable index is reported as a registry fault, not a network one | Adapter Bay | `extension/test/registry-bay.test.ts > a registry that answers with rubbish is NOT reported as unreachable` | backed |
+| **A registry listing is not a review, a security assessment or an endorsement** | `docs/SECURITY-AND-DATA.md` §7 · Adapter Bay | — | limitation |
+| **A content pin proves the bytes did not change, not that they were ever trustworthy** | `docs/SECURITY-AND-DATA.md` §7 | — | limitation |
 | **Without a witness, a re-signed fork of the whole ledger still verifies** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **The commit trailer is editable; it is a pointer, not a proof** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **Enforcement is in the editor, not the SCM** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |

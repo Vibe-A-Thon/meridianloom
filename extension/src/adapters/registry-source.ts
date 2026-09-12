@@ -24,6 +24,7 @@ import {
   type ManifestValidation,
   type PermissionKind,
 } from './manifest';
+import { pinAdapter, type PinVerdict } from './pinning';
 import type { DiscoveredAdapter } from './discovery';
 
 /** The official registry index, per agentclientprotocol/registry README. */
@@ -223,7 +224,37 @@ export interface RegistrySourceOptions {
   now?: () => Date;
 }
 
+/**
+ * The states a person can be in with respect to the registry.
+ *
+ * Five, not one error. `B2`, and the distinctions are the ones an operator
+ * acts on differently:
+ *
+ *  - `idle` — nothing has been fetched. This is what a freshly opened
+ *    workspace reports, because the index is fetched on explicit action and
+ *    never on activation (`docs/SECURITY-AND-DATA.md` §2: no phone-home).
+ *  - `fresh` — fetched just now.
+ *  - `cached-stale` — could not reach it; showing what was cached.
+ *  - `unreachable` — could not reach it, and nothing was cached. A network
+ *    problem.
+ *  - `malformed` — reached it, and what came back is not a usable index. Not
+ *    a network problem, and reporting it as one sends the operator to check
+ *    their VPN over somebody else's broken publish.
+ */
 export type RegistryStatus =
+  | {
+      state: 'idle';
+      entries: [];
+      registryUnreachable: false;
+      /** What the surface should offer, rather than an error nobody caused. */
+      detail: string;
+    }
+  | {
+      state: 'malformed';
+      entries: [];
+      registryUnreachable: false;
+      warning: string;
+    }
   | {
       state: 'fresh';
       entries: RegistryEntry[];
@@ -279,6 +310,19 @@ async function defaultExtractArchive(archivePath: string, destDir: string): Prom
   });
 }
 
+/**
+ * The registry answered and its content is unusable — as distinct from not
+ * answering at all. A subclass rather than a flag because it travels through
+ * the same `catch` that handles network failure, and the two must not be
+ * collapsed there.
+ */
+class MalformedIndexError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MalformedIndexError';
+  }
+}
+
 export class AcpRegistrySource {
   private entries: RegistryEntry[] = [];
   private status: RegistryStatus | undefined;
@@ -302,11 +346,13 @@ export class AcpRegistrySource {
       try {
         raw = JSON.parse(text);
       } catch (error) {
-        throw new Error(`registry index is not JSON: ${(error as Error).message}`);
+        throw new MalformedIndexError(
+          `registry index is not JSON: ${(error as Error).message}`,
+        );
       }
       const parsed = parseRegistryIndex(raw, this.url);
       if (!parsed.ok) {
-        throw new Error(parsed.errors.join('; '));
+        throw new MalformedIndexError(parsed.errors.join('; '));
       }
       this.entries = parsed.entries;
       const fetchedAt = (this.options.now ?? (() => new Date()))().toISOString();
@@ -332,6 +378,21 @@ export class AcpRegistrySource {
         }
       }
       this.entries = [];
+      if (error instanceof MalformedIndexError) {
+        // The registry answered. Calling this "unreachable" would send the
+        // operator to check their network over somebody else's bad publish.
+        this.status = {
+          state: 'malformed',
+          entries: [],
+          registryUnreachable: false,
+          warning:
+            `The ACP registry at ${this.url} answered, but its index could not be ` +
+            `read: ${error.message}. Nothing was installed and nothing in the ` +
+            `index was executed. This is a problem at the registry, not with ` +
+            `your connection.`,
+        };
+        return this.status;
+      }
       this.status = {
         state: 'unreachable',
         entries: [],
@@ -344,9 +405,26 @@ export class AcpRegistrySource {
     }
   }
 
-  /** The last known status (refresh first in a live session). */
+  /**
+   * The last known status. **Never fetches.**
+   *
+   * The index is fetched on explicit user action only — opening a workspace
+   * must not reach the network, because `docs/SECURITY-AND-DATA.md` §2 says
+   * this product does not phone home and a browse-on-activation would make
+   * that false. A surface that has not refreshed sees `idle` and offers the
+   * action, rather than quietly performing it.
+   */
   async list(): Promise<RegistryStatus> {
-    return this.status ?? (await this.refresh());
+    return (
+      this.status ?? {
+        state: 'idle',
+        entries: [],
+        registryUnreachable: false,
+        detail:
+          'The ACP registry has not been fetched in this session. Browsing it ' +
+          'reaches the network, so Meridian waits to be asked.',
+      }
+    );
   }
 
   /**
@@ -406,9 +484,38 @@ export class AcpRegistrySource {
       await fsp.rm(adapterDir, { recursive: true, force: true }).catch(() => undefined);
       return { ok: false, errors: reparsed.errors };
     }
+    // FR-M44-03 (MV3-T01): pin what was just written. Registry installs and
+    // sideloads go through the same `pinAdapter`, because two pinning paths
+    // would drift and the one that drifted would be the one nobody watched.
+    // A pin that cannot be written is not a warning — an unpinnable install
+    // is an adapter whose integrity can never be checked again, so the
+    // install is unwound rather than left in a state that looks fine.
+    const root = path.join(this.options.workspaceDir, '.meridian', 'adapters');
+    let pin: PinVerdict;
+    try {
+      const recorded = await pinAdapter(root, id, adapterDir, 'registry');
+      pin = {
+        state: 'pinned',
+        expected: recorded.digest,
+        actual: recorded.digest,
+        expectedFiles: recorded.files,
+        actualFiles: recorded.files,
+        detail: `Pinned at install on ${recorded.pinnedAt}.`,
+      };
+    } catch (error) {
+      await fsp.rm(adapterDir, { recursive: true, force: true }).catch(() => undefined);
+      return {
+        ok: false,
+        errors: [
+          `installed '${id}' but could not record its content digest, so its ` +
+            `integrity could never be checked again: ` +
+            `${error instanceof Error ? error.message : String(error)}`,
+        ],
+      };
+    }
     return {
       ok: true,
-      adapter: { id, tier: 'workspace', dir: adapterDir, manifest: reparsed.manifest },
+      adapter: { id, tier: 'workspace', dir: adapterDir, manifest: reparsed.manifest, pin },
     };
   }
 

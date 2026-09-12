@@ -72,7 +72,7 @@ const PERMISSIONS: readonly AgentPermission[] = [
  * the three that cannot alter the workspace: an import is not consent to
  * write files or run commands.
  */
-const DEFAULT_IMPORT_PERMISSIONS: readonly AgentPermission[] = [
+export const DEFAULT_IMPORT_PERMISSIONS: readonly AgentPermission[] = [
   'read',
   'search',
   'think',

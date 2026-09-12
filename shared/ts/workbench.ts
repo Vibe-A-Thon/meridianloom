@@ -402,6 +402,84 @@ export interface WorkbenchActionMap {
     params: { id: string; decision: "accepted" | "dismissed" };
     result: WorkbenchSnapshot;
   };
+  /**
+   * FR-M34-03 (MV3-T02): fetch the ACP Registry index.
+   *
+   * An action, never a subscription and never part of opening the
+   * workbench. This is the only thing in the product that reaches a network
+   * Meridian does not own, and it happens because somebody asked.
+   */
+  "registry/browse": { params: Record<string, never>; result: RegistryBrowseResult };
+  /**
+   * FR-M34-03, FR-M44-03: install a listed agent, pinned, into probation.
+   */
+  "registry/install": { params: { id: string }; result: RegistryInstallResult };
+}
+
+/**
+ * One ACP Registry listing, as the interface needs it — `FR-M34-03`.
+ *
+ * A projection of the registry's own entry, not a pass-through. The index is
+ * untrusted input: what crosses into the interface is a fixed set of fields
+ * with known types, so a field nobody expected cannot arrive and be
+ * rendered. Nothing here is executable and nothing here is executed.
+ */
+export interface RegistryListingEntry {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  /** Who publishes it, as the registry states. A claim, not a verification. */
+  authors: string[];
+  license: string;
+  website: string;
+  /** How it would be launched: `npx`, `uvx`, or a platform binary. */
+  distributions: string[];
+  /**
+   * FR-M44-01: whether installing this would yield a verifiable agent
+   * identity. `npx`/`uvx` entries fetch their package at launch, so the
+   * answer is no and the surface must say so before the install, not after.
+   */
+  identityVerifiable: boolean;
+}
+
+/**
+ * `B2`: the five states of the registry, each rendered differently, because
+ * an operator acts on each differently. `notice` carries the one sentence
+ * that says what happened and what to do.
+ */
+export type RegistryState =
+  | "idle"
+  | "fresh"
+  | "cached-stale"
+  | "unreachable"
+  | "malformed";
+
+export interface RegistryBrowseResult {
+  state: RegistryState;
+  entries: RegistryListingEntry[];
+  registryUrl: string;
+  fetchedAt?: string;
+  notice?: string;
+}
+
+export interface RegistryInstallResult {
+  ok: boolean;
+  errors: string[];
+  installed?: {
+    id: string;
+    /** Where it landed, so a person can go and look at it. */
+    dir: string;
+    /** FR-M44-03: the content digest recorded at install. */
+    pinDigest?: string;
+    /**
+     * FR-M15-03/05: every install enters probation at `suggest`, with the
+     * same read/search/think floor an imported agent gets. There is no
+     * registry fast path.
+     */
+    permissions: AgentPermission[];
+  };
+  snapshot: WorkbenchSnapshot;
 }
 
 export type WorkbenchAction = keyof WorkbenchActionMap;

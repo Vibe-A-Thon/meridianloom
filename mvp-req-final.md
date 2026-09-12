@@ -390,7 +390,7 @@ An organisation must be able to evaluate, install and validate without contactin
 **A combination not in this table is not claimed.** Adding a row requires a passing smoke test in the same change (`MK5`).
 
 
-### 5.2 MVP-R2 — The demo path works unaided · partly `MVP-GAP`
+### 5.2 MVP-R2 — The demo path works unaided · partly `MVP-GAP` (`R2.5` only)
 
 `futures.md` finding G-02 was that the product's differentiating instruments were computed and invisible. The MVP's equivalent risk is capability that exists and cannot be reached.
 
@@ -398,8 +398,8 @@ An organisation must be able to evaluate, install and validate without contactin
 |---|---|---|
 | **MVP-R2.1** | Every shipped agent SHALL be bindable to a real ACP runtime without the user knowing an executable name. | **`BUILT`** (4 presets) |
 | **MVP-R2.2** | A documented end-to-end demonstration SHALL exist, covering install → bind → dispatch → gate → export → independent verification. | **`BUILT`** (`DEMO.md`) |
-| **MVP-R2.3** | `FR-M34-03` — the ACP Registry SHALL be browsable from the Adapter Bay so a registered agent is one click from probation. | **`MVP-GAP`** — the source module (`registry-source.ts`, 505 lines, tested) exists and is **not wired to any surface** |
-| **MVP-R2.4** | `FR-M44-03`…`05` — an installed adapter SHALL be pinned by content digest, and silent drift SHALL be refused naming both digests. | **`MVP-GAP`** — required before `MVP-R2.3` ships, because registry install without pinning is a supply-chain regression |
+| **MVP-R2.3** | `FR-M34-03` — the ACP Registry SHALL be browsable from the Adapter Bay so a registered agent is one click from probation. | **`BUILT`** (`MV3-T02`) — `registry/browse` and `registry/install` workbench actions, `RegistryBay` in the Adapter Bay. The index is fetched on explicit action only; opening the workbench reaches no network, asserted on both sides of the bus. Five states, not one error: `idle`, `fresh`, `cached-stale`, `unreachable` and `malformed` — a registry that answers with an unreadable index is a registry fault, not a network one |
+| **MVP-R2.4** | `FR-M44-03`…`05` — an installed adapter SHALL be pinned by content digest, and silent drift SHALL be refused naming both digests. | **`BUILT`** (`MV3-T01`) — `adapters/pinning.ts`; the pin index lives beside the root, not inside the folder it protects, so removing a pin is an edit to a different file. Five verdicts, because `unpinned` (placed by hand) is neither a pass nor a failure. `learned/` is excluded and the docstring says why |
 | **MVP-R2.5** | `FR-M46-03` — a pull-request evidence card SHALL show change risk, tested revision, coverage gaps, failed checks, cost and the human action required. | **`MVP-GAP`** |
 
 ### 5.3 MVP-R3 — Claims match reality · partly `MVP-GAP`
@@ -448,7 +448,7 @@ The MVP's purpose is to reach `F2`/`N3`. These are engineering-complete and bloc
 |---|---|---|
 | **MVP-R6.1** `NFR-40`, `FR-M44-06`/`07` | An external contract rename degrades coverage visibly, never mis-maps silently | **`BUILT`** (`MV1-T09`) — contracts pinned in `shared/schema/external-contracts.json`, drift fails in either direction. **Stated limit:** it cannot detect an upstream rename nobody has noticed; it makes drift a reviewed event |
 | **MVP-R6.2** `SEC-34` | A forged trailer or forged telemetry SHALL never be elevated above `inferred` confidence | **`BUILT`** (`MV1-T10`, `D55`) in the **strong** reading: forgery never raises confidence, and trailer evidence is capped at `inferred` across all four trailer-reading observers. `D55` closed 13 Sept 2026. The 100-fixture corpus stays `POST-MVP` |
-| **MVP-R6.3** `AC-52`, `FR-M44-01`/`02` | A binary swap under an unchanged name changes the recorded identity and warns | **`MVP-GAP`** — distinct from adapter digest pinning and must ship with it. Scheduled `MV3-T01b` |
+| **MVP-R6.3** `AC-52`, `FR-M44-01`/`02` | A binary swap under an unchanged name changes the recorded identity and warns | **`BUILT`** (`MV3-T01b`) — `adapters/identity.ts`; the identity is taken before the process is spawned, and the ledger entry carries `direct` when Meridian digested the file and `inferred` when it could not. **Qualified:** the common launch command is a run-time package fetcher (`npx`, `uvx`, `pipx run`), where the file on `PATH` is the fetcher and not the agent. That is reported as `unverified` naming the fetcher, rather than passing the shim's digest off as the agent's |
 | **MVP-R6.4** `NFR-43`, `FR-M46-08` | Seven-day soak under explicit resource limits before any release claim | **`MVP-GAP`** — elapsed time, not effort. Scheduled `MV4-T06` |
 | **MVP-R6.5** `FR-M46-05` | Keyboard and screen-reader journeys complete launch, review and export without a critical barrier | **`MVP-GAP`** in its narrow form — scheduled `MV4-T07`. Full WCAG 2.1 AA certification stays **`POST-MVP`** (`GF4+`) |
 | `NFR-36`, `SEC-31`, `AC-46` | Identity revocation propagates within five minutes and binds at gate execution | **Re-dispositioned `POST-MVP`.** `D38` keeps git identity as the supported production mode; with no identity provider there is nothing to revoke *at*. The MVP ships `asserted` assurance and never describes it as verified (`NK3`). Building a revocation path against a provider that does not exist would be the kind of unbacked control `P27` forbids |
@@ -574,7 +574,7 @@ From the 12 September competitive review (§16). Four items, each small, each de
 | `AC-49` Evidence outlives the vendor and the tool | `futures_requirements.md` | **`BUILT`** — proven end to end this month |
 | `AC-50` Two editors, two SCMs | `futures_requirements.md` | **`MVP-HUMAN`** |
 | `AC-51` Cost binds to the decision | `futures_requirements.md` | `POST-MVP` |
-| `AC-52` A binary swap is visible | `futures_requirements.md` | **`MVP-GAP`** (`MVP-R6.3`, ships with `MVP-R2.4`) |
+| `AC-52` A binary swap is visible | `futures_requirements.md` | **`BUILT`** (`MV3-T01b`) |
 | `AC-53` A fresh workspace has one policy behaviour | `futures_requirements.md` | **`BUILT`** (`D43`) |
 | `AC-54`…`AC-58` Harness criteria *(was `AC-41`…`45`)* | `jit-requirements.md` | `POST-MVP` |
 | `AC-59` **A rival's record is read, labelled and notarised.** A repository carrying another tool's provenance notes is opened; the notes appear in the Weave attributed to that tool at `inferred`, their digest appears in the signed ledger, and the bundle verifies | §16 (`M52`) | **`MVP-GAP`** (`MVP-R7.1`) |

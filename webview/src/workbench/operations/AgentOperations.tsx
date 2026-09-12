@@ -14,6 +14,7 @@ import {
   useViewState,
   type OperationsProps,
 } from "./shared";
+import { RegistryBay } from "./RegistryBay";
 import s from "./operations.module.css";
 
 const COLUMNS = [
@@ -501,13 +502,14 @@ export function AgentOperations(props: OperationsProps) {
           </section>
         ))}
       </div>
+      <RegistryBay controller={controller} />
       <section className={s.panel}>
         <h2>Protocol readiness</h2>
         <p>
           ACP initialization is checked on each explicit launch. A handshake
           refusal or executable failure stays visible in the agent's run
-          history. Registry installation and automated adapter graduation need
-          their service integration.
+          history. Automated adapter graduation still needs its service
+          integration; registry installation is above.
         </p>
         <button onClick={() => onNavigate("onboarding")}>Add an adapter</button>
       </section>
