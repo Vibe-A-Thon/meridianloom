@@ -53,6 +53,15 @@ Why this exists: the freeze audit found a requirements document asserting a gree
 | Governor and Orchestra are refused until enabled; a disabled tier is absent | `README.md` · `docs/DEPLOYMENT.md` §5 | `extension/test/tiers-e2e.test.ts` | backed |
 | Every figure carries its coverage envelope and survives a round trip | `docs/DEPLOYMENT.md` | `core/tests/test_coverage_envelope.py::test_envelope_survives_json_round_trip` | backed |
 | No runtime dependency is copyleft; all are Apache-2.0, MIT, BSD or ISC, with fonts SIL OFL-1.1 | `docs/SECURITY-AND-DATA.md` §7 | `scripts/check-licences.mjs` | backed |
+| The evidence bundle maps to the `ISO/IEC 24970` AI-system-logging information model | evidence bundle · `docs/SECURITY-AND-DATA.md` §5 | `core/tests/test_compliance_mapping.py::test_the_new_instruments_appear` | backed |
+| Every compliance mapping states what it is **not** — evidence with a scope, never a certification, and no presumption of conformity | evidence bundle | `core/tests/test_compliance_mapping.py::test_the_section_says_what_it_is_not` | backed |
+| The bundle states the retention available against the AI Act Article 26 six-month deployer obligation | evidence bundle | `core/tests/test_compliance_mapping.py::test_it_states_the_obligation_and_the_margin` | backed |
+| A retention target below the obligation reports a negative margin rather than a clamped zero | evidence bundle | `core/tests/test_compliance_mapping.py::test_a_target_below_the_floor_reports_a_negative_margin` | backed |
+| An agent-attributed element cannot render without its vendor tag | interface, every surface | `webview/src/workbench/banned-patterns.test.ts > AgentToken cannot be constructed without a vendor` | backed |
+| A tier that is off is absent, not disabled — no Orchestra surface renders below Orchestra | interface, every surface | `webview/src/workbench/banned-patterns.test.ts > the base tier registers no governor or orchestra surface` | backed |
+| Every control on a governance surface declares where it binds | interface · Gate Room · Cross-Vendor Spend | `webview/src/workbench/governance/enforcement-surfaces.test.tsx > never presents something as enforced without naming the boundary` | backed |
+| A forged trailer gains nothing from being forged, and can never reach `direct` | `docs/SECURITY-AND-DATA.md` §6 | `core/tests/test_forged_signals.py::test_a_fabricated_trailer_gains_nothing_from_being_fabricated` | backed |
+| The published platform support table is generated from a source every row of which names a passing test | `docs/DEPLOYMENT.md` | `scripts/check-compatibility.mjs` | backed |
 | **Without a witness, a re-signed fork of the whole ledger still verifies** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **The commit trailer is editable; it is a pointer, not a proof** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **Enforcement is in the editor, not the SCM** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |

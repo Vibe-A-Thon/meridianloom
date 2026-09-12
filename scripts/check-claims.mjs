@@ -63,6 +63,9 @@ function parseRows(markdown) {
     if (!DISPOSITIONS.has(disposition)) continue;
     rows.push({
       claim: plain(cells[0]),
+      // The raw cell keeps its backticks, which is how a withdrawn row
+      // names the exact token that must no longer appear in the text.
+      rawClaim: cells[0],
       where: plain(cells[1]),
       test: literal(cells[2]),
       disposition,
@@ -114,6 +117,30 @@ export function runClaimsCheck({ claimsPath = CLAIMS } = {}) {
         `"${row.claim}" is ${row.disposition} but names a test (${row.test}). ` +
           `A disclosure needs to be true, not tested.`,
       );
+    }
+
+    // AC-63: a withdrawn claim must be gone from the text, not merely
+    // recorded as withdrawn here. Recording it and leaving it in place is
+    // the worse of the two failures — the table then says we fixed
+    // something we did not.
+    if (row.disposition === 'withdrawn') {
+      const tokens = [...row.rawClaim.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+      const files = [...row.where.matchAll(/([A-Za-z0-9._/-]+\.(?:md|json|ts|tsx))/g)].map(
+        (m) => m[1],
+      );
+      for (const file of files) {
+        const absolute = path.join(root, file);
+        if (!existsSync(absolute)) continue;
+        const contents = readFileSync(absolute, 'utf8');
+        for (const token of tokens) {
+          if (contents.includes(token)) {
+            problems.push(
+              `"${row.claim}" is marked withdrawn but ${file} still contains ${token}. ` +
+                `Withdraw it from the text, or change the disposition.`,
+            );
+          }
+        }
+      }
     }
   }
 
