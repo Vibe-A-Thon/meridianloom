@@ -408,11 +408,11 @@ The single most valuable property of this product is that its statements are tru
 
 | ID | Requirement | Status |
 |---|---|---|
-| **MVP-R3.1** | `FR-M42-11`/`12`, `SEC-32` — every control SHALL declare its enforcement point, and no surface SHALL render a client-side control as "enforced". | **`MVP-GAP`** |
+| **MVP-R3.1** | `FR-M42-11`/`12`, `SEC-32` — every control SHALL declare its enforcement point, and no surface SHALL render a client-side control as "enforced". | **`BUILT`** (`MV1-T01`…`T04`) — `governance/enforcementPoints`, the `EnforcementBadge` invariant, and `AC-45` asserted over surface source |
 | **MVP-R3.2** | `FR-M43-03` — the unwitnessed limitation SHALL be stated in documentation and interface. | **`BUILT`** |
 | **MVP-R3.3** | No diagnostic SHALL describe a shipped subsystem as unbuilt. | **`BUILT`** (fixed and test-guarded this month) |
 | **MVP-R3.4** | `FR-M42-04`/`05` — locally asserted identity SHALL be distinguished from verified identity, and a git identity SHALL never satisfy a policy requiring verification. | **`BUILT`** (`D38`, assurance levels) |
-| **MVP-R3.5** | `FR-M44-08`…`10` — a machine-readable compatibility matrix SHALL be published, every "supported" claim backed by a smoke test. | **`MVP-GAP`** |
+| **MVP-R3.5** | `FR-M44-08`…`10` — a machine-readable compatibility matrix SHALL be published, every "supported" claim backed by a smoke test. | **`BUILT`** (`MV1-T05`…`T07`) — `shared/schema/compatibility.json`, table generated into `docs/DEPLOYMENT.md`, `D41` closed |
 | **MVP-R3.6** | `NFR-39` — a bundle SHALL verify on a clean machine using only the published specification and reference verifier. | **`BUILT`** (`AC-49`) |
 | **MVP-R3.7** | Every banned pattern this document claims is test-enforced SHALL have a named test. | **`BUILT`** (`MV1-T13`) — 28 and 30 were the two that did not; see §9.3 |
 
@@ -435,7 +435,7 @@ The MVP's purpose is to reach `F2`/`N3`. These are engineering-complete and bloc
 
 | ID | Requirement | Status |
 |---|---|---|
-| **MVP-R5.1** | `FR-M46-17` — the numeric criteria for building the Orchestra tier SHALL be recorded **before** the study runs. | **`MVP-GAP`** — a writing task, not an engineering one, and it must precede the study |
+| **MVP-R5.1** | `FR-M46-17` — the numeric criteria for building the Orchestra tier SHALL be recorded **before** the study runs. | **`BUILT`** (`MV1-T08`) — `docs/evidence-gate.md`, written with no study data in existence |
 | **MVP-R5.2** | `FR-M46-14`/`15` — the study SHALL be preregistered, three-armed, and SHALL publish unfavourable results. | **`MVP-HUMAN`** |
 | **MVP-R5.3** | `FR-M46-04` — four of five users SHALL reach a first provenance answer within 15 minutes (`NFR-28`). | **`MVP-HUMAN`** |
 | **MVP-R5.4** | `AC-50`, `FR-M43-15` — two editors, two SCM providers, one evidence shape, verified on a clean machine. | **`MVP-HUMAN`** — needs a customer |
@@ -446,8 +446,8 @@ The MVP's purpose is to reach `F2`/`N3`. These are engineering-complete and bloc
 
 | ID | Subject | Resolution |
 |---|---|---|
-| **MVP-R6.1** `NFR-40`, `FR-M44-06`/`07` | An external contract rename degrades coverage visibly, never mis-maps silently | **`MVP-GAP`** — small, and it protects a claim the observers already make. Scheduled `MV1-T09` |
-| **MVP-R6.2** `SEC-34` | A forged trailer or forged telemetry SHALL never be elevated above `inferred` confidence | **`MVP-GAP`** in its narrow form — scheduled `MV1-T10`. The 100-fixture adversarial corpus (`FR-M46-09`/`10`) stays **`POST-MVP`** |
+| **MVP-R6.1** `NFR-40`, `FR-M44-06`/`07` | An external contract rename degrades coverage visibly, never mis-maps silently | **`BUILT`** (`MV1-T09`) — contracts pinned in `shared/schema/external-contracts.json`, drift fails in either direction. **Stated limit:** it cannot detect an upstream rename nobody has noticed; it makes drift a reviewed event |
+| **MVP-R6.2** `SEC-34` | A forged trailer or forged telemetry SHALL never be elevated above `inferred` confidence | **`BUILT`** (`MV1-T10`) for the guarantee the wording secures: forgery never *raises* confidence, and no trailer can reach `direct`. **`D55` is open** on the stronger reading — trailers currently sit at `telemetry` in all five observers, which the recommendation would cap at `inferred`. The 100-fixture corpus stays `POST-MVP` |
 | **MVP-R6.3** `AC-52`, `FR-M44-01`/`02` | A binary swap under an unchanged name changes the recorded identity and warns | **`MVP-GAP`** — distinct from adapter digest pinning and must ship with it. Scheduled `MV3-T01b` |
 | **MVP-R6.4** `NFR-43`, `FR-M46-08` | Seven-day soak under explicit resource limits before any release claim | **`MVP-GAP`** — elapsed time, not effort. Scheduled `MV4-T06` |
 | **MVP-R6.5** `FR-M46-05` | Keyboard and screen-reader journeys complete launch, review and export without a critical barrier | **`MVP-GAP`** in its narrow form — scheduled `MV4-T07`. Full WCAG 2.1 AA certification stays **`POST-MVP`** (`GF4+`) |
@@ -466,9 +466,9 @@ From the 12 September competitive review (§16). Four items, each small, each de
 | ID | Requirement | Status |
 |---|---|---|
 | **MVP-R7.1** | `FR-M52-01`…`03` — Meridian SHALL read another provenance tool's records (git notes under its own ref, `Co-Authored-By`, agent-session-log trailers), label that tool as the source, never promote them above `inferred`, and **notarise their digest into the signed ledger**. | **`MVP-GAP`** — the notarisation half is the differentiator no reviewed competitor offers, and it is a few days' work on machinery that already exists |
-| **MVP-R7.2** | `FR-M50-01`…`03` — the evidence bundle SHALL map to the `ISO/IEC 24970` logging information model, state what each mapping is **not**, and state the retention available against the Article 26 six-month deployer obligation. | **`MVP-GAP`** — a field mapping and three honest sentences |
+| **MVP-R7.2** | `FR-M50-01`…`03` — the evidence bundle SHALL map to the `ISO/IEC 24970` logging information model, state what each mapping is **not**, and state the retention available against the Article 26 six-month deployer obligation. | **`BUILT`** (`MV1-T11`) — margin computed rather than written down, and a shortfall reports negative rather than clamping to zero |
 | **MVP-R7.3** | `FR-M50-04` — a CycloneDX **AI-BOM** for everything the package ships SHALL be published beside the VSIX and its checksum. | **`MVP-GAP`** — 22 agents, 10 skills, 4 instruction documents and 4 runtime presets currently ship with no bill of materials |
-| **MVP-R7.4** | §16.2 — the differentiator SHALL be restated in its narrower, still-true form in every shipped document, and the broader wording withdrawn. | **`MVP-GAP`** — `MP5` applied to the one claim this review made partly false |
+| **MVP-R7.4** | §16.2 — the differentiator SHALL be restated in its narrower, still-true form in every shipped document, and the broader wording withdrawn. | **`BUILT`** (`MV1-T12`) — verified absent from shipped text, and `check-claims.mjs` now fails if a withdrawn claim returns |
 
 ### 5.8 MVP-R8 — The organisation can operate it and leave · `MVP-GAP`
 
