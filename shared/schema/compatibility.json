@@ -1,0 +1,72 @@
+{
+  "$id": "compatibility.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "FR-M44-08/09/10, MVP-R1.6, MVP-R3.5 (MV1-T05): the machine-readable support matrix. One row per combination this release CLAIMS to support, each naming the smoke test that backs the claim and the date that test last passed. scripts/check-compatibility.mjs fails the build on a row whose named test does not exist, and the table in docs/DEPLOYMENT.md is generated from this file rather than maintained beside it (MV1-T06).\n\nThe rule that makes this honest: a combination NOT in this file is not claimed. Adding a row requires a passing smoke test in the same change — a row marked degraded, best-effort or supported-with-caveats is not a weaker claim, it is an unfalsifiable one (MK5).",
+  "vocabularyVersion": "compat-1",
+  "rows": [
+    {
+      "id": "windows-11",
+      "dimension": "os",
+      "value": "Windows 11",
+      "claim": "The extension host, the sidecar and every git path work on Windows.",
+      "backedBy": "extension/test/remote.test.ts",
+      "evidence": "CI runs the full extension and core suites on windows-latest. Windows is the platform the product was written on and the only one with platform-specific sidecar code: the orphan guard's job objects and the run lock's Win32 liveness probe.",
+      "lastPassed": "2026-09-12"
+    },
+    {
+      "id": "linux-lts",
+      "dimension": "os",
+      "value": "Linux (current Ubuntu LTS)",
+      "claim": "The extension host and the sidecar work on a current Ubuntu LTS.",
+      "backedBy": "extension/test/stdio-e2e.test.ts",
+      "evidence": "CI runs the full extension, webview and core suites on ubuntu-latest on every push, and packages the VSIX there.",
+      "lastPassed": "2026-09-12"
+    },
+    {
+      "id": "macos",
+      "dimension": "os",
+      "value": "macOS (current and one prior major)",
+      "claim": "The extension host and the webview work on macOS.",
+      "backedBy": "extension/test/stdio-e2e.test.ts",
+      "evidence": "CI runs the extension and webview suites on macos-latest on main and on the weekly schedule. The core suite is not run there: the sidecar has no macOS-specific path and ubuntu covers POSIX.",
+      "lastPassed": "2026-09-12"
+    },
+    {
+      "id": "vscode-1.95",
+      "dimension": "editor",
+      "value": "VS Code 1.95 or later",
+      "claim": "The extension activates and its manifest is valid against this API level.",
+      "backedBy": "extension/test/manifest.test.ts > declares granular activation events and never \"*\" (FR-M1-01)",
+      "evidence": "engines.vscode is ^1.95.0 in extension/package.json and the manifest is asserted against the declared surface.",
+      "lastPassed": "2026-09-12"
+    },
+    {
+      "id": "python-3.11",
+      "dimension": "python",
+      "value": "Python 3.11",
+      "claim": "The sidecar starts, handshakes and serves RPCs under 3.11.",
+      "backedBy": "extension/test/stdio-e2e.test.ts",
+      "evidence": "core/pyproject.toml sets requires-python >= 3.11, and the real-sidecar end-to-end tests spawn the interpreter on the developer machine, where 3.11 is the version in use.",
+      "lastPassed": "2026-09-12"
+    },
+    {
+      "id": "python-3.12",
+      "dimension": "python",
+      "value": "Python 3.12",
+      "claim": "The sidecar starts, handshakes and serves RPCs under 3.12.",
+      "backedBy": "extension/test/stdio-e2e.test.ts",
+      "evidence": "CI pins python-version 3.12 for both the core suite and the real-sidecar end-to-end tests in the typescript job.",
+      "lastPassed": "2026-09-12"
+    },
+    {
+      "id": "remote-workspace-kind",
+      "dimension": "remote",
+      "value": "Remote development (SSH, WSL, Dev Containers, Codespaces) — declared, not yet rehearsed",
+      "claim": "The extension declares extensionKind \"workspace\", so the sidecar runs on the remote host rather than the client.",
+      "backedBy": "extension/test/remote.test.ts > declares extensionKind \"workspace\" so the sidecar runs on the remote host",
+      "evidence": "The declaration is tested and no local absolute path is hard-coded. That is a necessary condition, NOT a rehearsal: no remote configuration has been exercised end to end. MV4-T02 rehearses one, and only the one it rehearses becomes a supported row.",
+      "claimed": false,
+      "lastPassed": "2026-09-12"
+    }
+  ]
+}

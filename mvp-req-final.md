@@ -674,7 +674,7 @@ All models from `Requirements_Final.md` §7 are retained. Additions:
 | # | Decision | Needed by |
 |---|---|---|
 | `D37` | SCM enforcement mechanism — **refused-binding declaration in force**; requires a pilot customer's platform team | `MVP-R3.1` / `AC-45` |
-| `D41` | Compatibility-matrix publication: public, under agreement, or internal | `MVP-R3.5` |
+| ~~`D41`~~ | **Closed 13 Sept 2026 (MV1-T07): published with the release**, inside the VSIX via `docs/DEPLOYMENT.md`. It discloses only what has been tested, and withholding it would make an evaluator email us to learn whether their OS is supported — which §0.4 forbids | — |
 | `D21` | Whether the Orchestra tier is built at all | **`N3` decides** |
 | `D42` | Whether the deterministic-engine investment gate binds the build agent | Before further `M33` growth |
 

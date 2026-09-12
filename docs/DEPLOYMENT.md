@@ -16,6 +16,24 @@ approving it; this document assumes that decision is made.
 | Node.js 20+ | only if agents are launched via `npx` | `node --version` |
 | An agent account | Meridian governs an agent; it is not one | see §4 |
 
+### Tested platforms
+
+<!-- BEGIN GENERATED: compatibility (scripts/check-compatibility.mjs) -->
+
+| Dimension | Supported | Backed by | Last passed |
+| --- | --- | --- | --- |
+| Operating system | Windows 11 | `extension/test/remote.test.ts` | 2026-09-12 |
+| Operating system | Linux (current Ubuntu LTS) | `extension/test/stdio-e2e.test.ts` | 2026-09-12 |
+| Operating system | macOS (current and one prior major) | `extension/test/stdio-e2e.test.ts` | 2026-09-12 |
+| Editor | VS Code 1.95 or later | `extension/test/manifest.test.ts > declares granular activation events and never "*" (FR-M1-01)` | 2026-09-12 |
+| Python | Python 3.11 | `extension/test/stdio-e2e.test.ts` | 2026-09-12 |
+| Python | Python 3.12 | `extension/test/stdio-e2e.test.ts` | 2026-09-12 |
+| Remote | Remote development (SSH, WSL, Dev Containers, Codespaces) — declared, not yet rehearsed | `extension/test/remote.test.ts > declares extensionKind "workspace" so the sidecar runs on the remote host` | 2026-09-12 |
+
+**A combination not in this table is not claimed.** Adding a row requires a passing smoke test in the same change; a row that cannot be backed is removed rather than marked degraded.
+
+<!-- END GENERATED: compatibility -->
+
 Meridian does **not** bundle a Python runtime. It finds an interpreter through
 VS Code's Python extension, then `python3`/`python` on `PATH`, and you can pin
 one explicitly (§3).

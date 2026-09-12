@@ -60,6 +60,7 @@ const documentGates = [
   ['scripts/check-mvp-traceability.mjs', 'MV0-T04: mvp-req-final.md and mvp-impl-plan.md disagree.'],
   ['scripts/check-claims.mjs', 'MV0-T03: a claim in docs/claims.md names a test that does not exist.'],
   ['scripts/check-licences.mjs', 'MV0-T05: a runtime dependency contradicts docs/SECURITY-AND-DATA.md §7.'],
+  ['scripts/check-compatibility.mjs', 'MV1-T05/T06: the support matrix names a test that does not exist, or its published table has drifted.'],
 ];
 for (const [script, message] of documentGates) {
   const gate = spawnSync(process.execPath, [script], { cwd: root, stdio: 'inherit' });

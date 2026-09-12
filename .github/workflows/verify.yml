@@ -131,6 +131,8 @@ jobs:
         run: node scripts/check-claims.mjs
       - name: no copyleft runtime dependency (MV0-T05, ECO-03)
         run: node scripts/check-licences.mjs
+      - name: the support matrix is backed and its table is current (MV1-T05/T06)
+        run: node scripts/check-compatibility.mjs
 
       - name: typecheck
         run: |
