@@ -699,7 +699,8 @@ Inherits `R1`–`R25`, `R26`–`R30`, `R31`–`R36` and `R37`–`R40` in full. T
 
 | # | Decision | Must close by | State |
 |---|---|---|---|
-| `D41` | Compatibility-matrix publication — public, under agreement, or internal | **`MV1-T07`** | Open; default **under agreement** if undecided |
+| ~~`D41`~~ | Compatibility-matrix publication | **Closed 13 Sept 2026 (`MV1-T07`)** | **Published with the release**, inside the VSIX via `docs/DEPLOYMENT.md` |
+| **`D55`** | **Whether git-trailer evidence caps at `inferred` rather than `telemetry`** — raised by `MV1-T10` | **Before release.** Does not block `MV2`–`MV4` | **Open, owner.** Recommendation and full reasoning in `DECISIONS.md`; the tests assert today's behaviour either way |
 | `D37` | SCM enforcement mechanism | **Pilot-dependent.** The refused-binding declaration (`MV1-T03`) is in force until a platform team exists | Open, not MVP-blocking |
 | `D21` | Whether the Orchestra tier is built at all | **`MV5`** — this is what `MV5` decides | Open, by design |
 | `D42` | Whether the deterministic-engine investment gate binds the build agent or advises the owner | Before any `M33` growth beyond the structural set | Open |
