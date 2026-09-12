@@ -204,10 +204,16 @@ class TestGitHooksCheck:
 
 
 class TestObserversCheck:
-    def test_warn_when_framework_not_built(self):
+    def test_warn_when_no_observer_is_registered_in_this_process(self):
+        # The observer framework shipped (F0 Workstream D). This check's warn
+        # branch means "nothing is registered here" — a headless run, or a
+        # sidecar that has not finished its handshake — and the text has to
+        # say that. It used to read "not built yet", which told an evaluator
+        # running doctor that a shipped subsystem did not exist.
         check = by_id(doctor.run_doctor({}, make_context()), "observers")
         assert check["status"] == "warn"
-        assert "not built yet" in check["detail"]
+        assert "no observers registered" in check["detail"]
+        assert "not built yet" not in check["detail"]
         assert "FR-M35-08" in check["remediation"]
 
     def test_pass_when_all_observers_healthy(self):

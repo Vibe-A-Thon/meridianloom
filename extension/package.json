@@ -2,7 +2,8 @@
   "name": "meridian-loom",
   "displayName": "Meridian Loom",
   "description": "A governed organisation of AI agents inside VS Code.",
-  "version": "0.0.1",
+  "icon": "media/icon.png",
+  "version": "0.1.0",
   "publisher": "meridianloom",
   "private": true,
   "engines": {

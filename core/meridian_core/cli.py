@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import binascii
+import dataclasses
 import json
 import os
 import shutil
@@ -35,6 +36,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .childenv import child_environment
 from .ledger import EphemeralSigningKeyProvider, Ledger  # noqa: F401  (re-export shape)
 from .ledger import keys as ledger_keys
 from .ledger.bundle import build_bundle
@@ -62,15 +64,24 @@ def _ledger_dir(workspace: Path) -> Path:
     return workspace / ".meridian" / "ledger"
 
 
+def _signing_key_material(args: argparse.Namespace) -> bytes | None:
+    """The raw key bytes a command was given, or None if it was given none.
+
+    Separate from `_signing_provider` because `doctor` needs to *ask* whether
+    a key is available without the refusal: a diagnostic that aborts on the
+    condition it is reporting cannot report it.
+    """
+    if getattr(args, "signing_key_file", None):
+        return Path(args.signing_key_file).read_bytes().strip()
+    from_env = os.environ.get("MERIDIAN_LEDGER_SIGNING_KEY")
+    if from_env:
+        return from_env.strip().encode()
+    return None
+
+
 def _signing_provider(args: argparse.Namespace) -> Any:
     """The ledger signing key, or a refusal that explains itself."""
-    raw: bytes | None = None
-    if getattr(args, "signing_key_file", None):
-        raw = Path(args.signing_key_file).read_bytes().strip()
-    else:
-        from_env = os.environ.get("MERIDIAN_LEDGER_SIGNING_KEY")
-        if from_env:
-            raw = from_env.strip().encode()
+    raw = _signing_key_material(args)
 
     if raw is None:
         raise CliError(
@@ -185,13 +196,78 @@ def command_verify(args: argparse.Namespace) -> int:
     # rather than imported: it is the artefact the claim is about, and running
     # something else here would verify a different program than the one a
     # third party is told to use.
+    #
+    # env=child_environment() even though verify.py is Meridian's own script
+    # and needs no secret: SEC-27's rule is that nothing the sidecar spawns
+    # inherits MERIDIAN_* variables, without carving out an exception for
+    # code we happen to trust today. `--bundle` here can point anywhere on
+    # disk, and the day this command's argument handling grows a way to
+    # substitute a different verifier at that path is exactly the day this
+    # scrub earns its keep.
     completed = subprocess.run(
         [sys.executable, str(verifier), str(args.bundle)],
+        env=child_environment(),
         text=True,
         encoding="utf-8",
         errors="replace",
     )
     return completed.returncode
+
+
+def command_doctor(args: argparse.Namespace) -> int:
+    """Is this installation actually working? (FR-M30-01, headless.)
+
+    The same check registry the editor's Doctor command runs — imported, not
+    reimplemented, because two diagnostics that can disagree about whether an
+    installation is healthy are worse than one.
+
+    Exists so a rollout across many machines can be validated in CI, where
+    there is no editor to open and nobody watching a panel. Exit status is the
+    answer: 0 every check passed, 1 something failed, so it can be the last
+    line of a deployment job.
+    """
+    import time
+
+    from . import doctor as doctor_mod
+
+    workspace = Path(args.workspace).resolve()
+    params: dict[str, Any] = {"workspaceDir": str(workspace)}
+    if args.check:
+        params["checks"] = list(args.check)
+
+    # Only the probes a headless run can honestly answer. The signing key
+    # lives in the editor's OS keychain and the ledger is opened per command
+    # here, so those probes stay absent rather than reporting a confident
+    # wrong answer — the registry's not-installed path says so with
+    # remediation, which is the truthful result for this context.
+    context = doctor_mod.DoctorContext(started_at=time.time())
+    if _signing_key_material(args) is not None:
+        # Only claim to know when a key was actually handed to this command.
+        # Without one the honest answer is "this context cannot tell you" —
+        # the registry's absent-probe path — not "fail". Reporting a failure
+        # because an optional flag was omitted would turn every CI doctor run
+        # red for a reason that is not a fault.
+        context = dataclasses.replace(context, signing_key_present=lambda: True)
+
+    try:
+        report = doctor_mod.run_doctor(params, context)
+    except doctor_mod.UnknownCheckError as error:
+        raise CliError(
+            f"{error}. Valid checks: {', '.join(doctor_mod.check_ids())}"
+        ) from error
+
+    sys.stdout.write(json.dumps(report, indent=2, default=str) + "\n")
+    checks = report.get("checks", []) if isinstance(report, dict) else []
+    failed = [c for c in checks if isinstance(c, dict) and c.get("status") == "fail"]
+    if failed:
+        sys.stderr.write(
+            f"{len(failed)} of {len(checks)} checks failed: "
+            + ", ".join(str(c.get("id")) for c in failed)
+            + "\n"
+        )
+        return 1
+    sys.stderr.write(f"All {len(checks)} checks passed.\n")
+    return 0
 
 
 def command_erase(args: argparse.Namespace) -> int:
@@ -295,6 +371,17 @@ def build_parser() -> argparse.ArgumentParser:
     verify = sub.add_parser("verify", help="verify a bundle with the reference verifier")
     verify.add_argument("bundle", help="the bundle file to verify")
 
+    doctor = with_key(
+        with_workspace(
+            sub.add_parser("doctor", help="check this installation is working")
+        )
+    )
+    doctor.add_argument(
+        "--check",
+        action="append",
+        help="run only this check; repeatable (default: all)",
+    )
+
     erase = with_key(with_workspace(sub.add_parser("erase", help="crypto-shred a subject")))
     erase.add_argument("--subject", required=True, help="the subject id to erase")
     erase.add_argument("--reason", required=True, help="why, recorded in the chain")
@@ -313,6 +400,7 @@ _COMMANDS = {
     "paths": command_paths,
     "export": command_export,
     "verify": command_verify,
+    "doctor": command_doctor,
     "erase": command_erase,
     "uninstall": command_uninstall,
 }

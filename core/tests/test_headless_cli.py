@@ -232,3 +232,48 @@ class TestErasure:
         assert "unreadable" in result.stderr
         assert "chain still verifies" in result.stderr
         assert "backup" in result.stderr
+
+
+class TestDoctorHeadless:
+    """FR-M30-01 without an editor.
+
+    A rollout across many machines has to be checkable in CI, where there is
+    no panel to read and nobody watching one. Exit status is the answer so it
+    can be the last line of a deployment job.
+    """
+
+    def test_it_reports_every_check_and_exits_zero_when_none_fail(self, workspace):
+        result = run_cli("doctor", "--workspace", str(workspace))
+        report = json.loads(result.stdout)
+        ids = {check["id"] for check in report["checks"]}
+        # The same registry the editor's Doctor runs, not a second one: two
+        # diagnostics that can disagree about whether an install is healthy
+        # are worse than one.
+        from meridian_core import doctor as doctor_mod
+
+        assert ids == set(doctor_mod.check_ids())
+        assert result.returncode == 0, result.stderr
+        assert "checks passed" in result.stderr
+
+    def test_a_selected_subset_runs_alone(self, workspace):
+        result = run_cli(
+            "doctor", "--workspace", str(workspace), "--check", "interpreter"
+        )
+        report = json.loads(result.stdout)
+        assert [check["id"] for check in report["checks"]] == ["interpreter"]
+
+    def test_an_unknown_check_lists_the_valid_ones(self, workspace):
+        result = run_cli(
+            "doctor", "--workspace", str(workspace), "--check", "nonsense"
+        )
+        assert result.returncode == 2
+        assert "interpreter" in result.stderr
+
+    def test_it_never_claims_a_shipped_subsystem_is_unbuilt(self, workspace):
+        # An evaluator runs doctor early. Telling them observers or hooks are
+        # "not built yet" — text left over from when that was true — reads as
+        # a half-finished product.
+        report = json.loads(run_cli("doctor", "--workspace", str(workspace)).stdout)
+        blob = json.dumps(report).lower()
+        for stale in ("not built yet", "once it ships", "land with f0"):
+            assert stale not in blob, stale

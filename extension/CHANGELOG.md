@@ -2,10 +2,33 @@
 
 All notable changes to Meridian Loom.
 
-## [Unreleased]
+## [0.1.0] — 2026-09-12
 
-Pre-release. Not published to the Marketplace: the licence is an open decision
-(`DECISIONS.md`, D22) and the package stays `private` until it closes.
+**First distributable release.** Installed by sideloading the VSIX
+(`code --install-extension meridian-loom-0.1.0.vsix`), not from the
+Marketplace. That is a deliberate choice, not an unfinished step: `D19` in
+`DECISIONS.md` records the owner deferring the licence question in order to
+distribute privately to pilot organisations first. `private: true` and the
+absent `license` field are the correct state for that path, and the
+missing-LICENSE warning `vsce package` prints is expected.
+
+**Why this is 0.1.0 and not 1.0.0.** The project's own gate — `F2`, twenty
+real stories through a real team, measured over weeks — has not run. Every
+measure it needs is computable from shipped surfaces, but the evidence does
+not exist yet, and a 1.0 that asserted proven value ahead of it would
+contradict the rule this product exists to enforce. 1.0.0 is gated on that
+evidence.
+
+For evaluators: [`docs/SECURITY-AND-DATA.md`](../docs/SECURITY-AND-DATA.md)
+and [`docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md).
+
+### Added — release readiness
+
+- An extension icon, so the entry in the Extensions view is identifiable.
+- A headless `doctor` command, so a rollout can be validated in CI without
+  opening an editor.
+- Security, data-handling and deployment documentation written for an
+  organisation's review rather than for a user.
 
 ### Added — single-page workbench
 

@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,10 +12,26 @@ const vsceCli = path.join(root, 'node_modules', '@vscode', 'vsce', 'vsce');
 // Only generated directories immediately inside this extension may be cleaned.
 function cleanGeneratedDirectory(target) {
   const resolved = path.resolve(target);
-  if (path.dirname(resolved) !== extensionDir || !['sidecar', 'webview-dist', 'policy'].includes(path.basename(resolved))) {
+  if (path.dirname(resolved) !== extensionDir || !['sidecar', 'webview-dist', 'policy', 'docs'].includes(path.basename(resolved))) {
     throw new Error(`Refusing to clean a non-generated directory: ${resolved}`);
   }
   rmSync(resolved, { recursive: true, force: true });
+}
+
+// A library-generation script was once run from the wrong working directory
+// and wrote a second copy of the whole library to extension/extension/, which
+// then got committed and shipped inside every VSIX unnoticed — it caused no
+// runtime symptom, only silent bloat. vsce packages whatever it finds under
+// extensionDir, so the one place that reliably catches a stray top-level
+// directory before it ships is here, right before packaging runs.
+const unexpectedTopLevel = readdirSync(extensionDir).filter(
+  (name) => name === 'extension',
+);
+if (unexpectedTopLevel.length) {
+  throw new Error(
+    `extension/ contains a nested directory that should not exist: ${unexpectedTopLevel.join(', ')}. ` +
+      'This has happened before from a generation script run with the wrong cwd; delete it rather than packaging it.',
+  );
 }
 
 // Ship the sidecar Python sources inside the VSIX at extension/sidecar/
@@ -57,6 +74,25 @@ cpSync(
 cpSync(
   path.join(root, 'docs', 'spec', 'meridian-ledger-trailer.md'),
   path.join(sidecarDir, 'meridian-ledger-trailer.md'),
+);
+// The documents an organisation's security review and platform team actually
+// ask for. They ship inside the package because the package is what gets
+// handed around: a VSIX sideloaded into an enterprise arrives without the
+// repository, and "see the docs in our repo" is not an answer when the
+// repository is private.
+const evaluatorDocs = path.join(extensionDir, 'docs');
+cleanGeneratedDirectory(evaluatorDocs);
+mkdirSync(evaluatorDocs, { recursive: true });
+for (const name of ['SECURITY-AND-DATA.md', 'DEPLOYMENT.md']) {
+  cpSync(path.join(root, 'docs', name), path.join(evaluatorDocs, name));
+}
+cpSync(
+  path.join(root, 'docs', 'spec', 'evidence-portability.md'),
+  path.join(evaluatorDocs, 'evidence-portability.md'),
+);
+cpSync(
+  path.join(root, 'docs', 'spec', 'meridian-ledger-trailer.md'),
+  path.join(evaluatorDocs, 'meridian-ledger-trailer.md'),
 );
 // The generated bus types ship beside the sidecar sources; meridian_core's
 // sys.path shim finds them at <sidecar>/shared/py (FR-M32-09).
@@ -112,6 +148,7 @@ try {
 } finally {
   cleanGeneratedDirectory(sidecarDir);
   cleanGeneratedDirectory(policyDir);
+  cleanGeneratedDirectory(evaluatorDocs);
 }
 
 const vsix = readdirSync(extensionDir).filter((name) => name.endsWith('.vsix'));
@@ -125,4 +162,17 @@ if (!existsSync(outDir)) {
 }
 const target = path.join(outDir, vsix[0]);
 renameSync(path.join(extensionDir, vsix[0]), target);
+
+// A sideloaded VSIX is unsigned — VS Code does not sign them — so the only
+// integrity check available to whoever receives it is a digest they can
+// compare. docs/SECURITY-AND-DATA.md tells evaluators to do exactly that, so
+// the build has to actually produce one: a document that instructs a reader
+// to check something that was never published is worse than saying nothing.
+const digest = createHash('sha256').update(readFileSync(target)).digest('hex');
+const checksumFile = `${target}.sha256`;
+writeFileSync(checksumFile, `${digest}  ${path.basename(target)}
+`, 'utf8');
+
 console.log(`VSIX written to ${target}`);
+console.log(`SHA-256 ${digest}`);
+console.log(`checksum written to ${checksumFile}`);

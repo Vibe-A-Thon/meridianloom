@@ -15,6 +15,13 @@ Select **Meridian Loom** in the Activity Bar and the workbench opens as an
 editor tab. There is no command to run first. If you would rather it lived in
 the side bar, set `meridianLoom.surface` to `sidebar`.
 
+> **Evaluating this for an organisation?** Start with
+> [`docs/SECURITY-AND-DATA.md`](docs/SECURITY-AND-DATA.md) — what data is
+> stored, what leaves the machine (and what never does), how credentials are
+> held, and the limitations we would rather you heard from us. Then
+> [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for rollout, central settings and
+> a sensible pilot order. Both ship inside the package.
+
 ---
 
 ## What it does today

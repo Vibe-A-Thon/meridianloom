@@ -256,8 +256,10 @@ def _check_git_hooks(
             "git-hooks",
             "warn",
             "commit-msg hook not installed (provenance trailers are opt-in)",
-            "Install the trailer hook from the Flight Recorder screen once it "
-            "ships (F0 Workstream E, FR-M36-03); it is removable in one action.",
+            "Run the 'Meridian Loom: Install Hook' command, or install it "
+            "headlessly. The hook appends the Meridian-Ledger trailer to "
+            "commits it records (FR-M36-03) and is removable in one action; "
+            "trailers are opt-in, so this warning is not a fault.",
         )
     content = hook.read_text(encoding="utf-8", errors="replace")
     if HOOK_MARKER in content:
@@ -278,10 +280,11 @@ def _check_observers(
         return _check(
             "observers",
             "warn",
-            "no observers registered — external-agent observation is not built yet",
-            "Observers land with F0 Workstream D (FR-M35-08): Claude Code via "
-            "OTel or Co-Authored-By trailers, Copilot via the SCM/PR API, with "
-            "git-and-filesystem inference as the floor (G3). Nothing to fix.",
+            "no observers registered in this process",
+            "Observers are registered by the running sidecar, so a headless "
+            "or not-yet-started process reports none (FR-M35-08). Inside the "
+            "editor this means the sidecar has not completed its handshake: "
+            "check the interpreter and sidecar rows above.",
         )
     health = context.observer_health()
     degraded = [o for o in health if o.get("status") not in ("ok", "pass")]

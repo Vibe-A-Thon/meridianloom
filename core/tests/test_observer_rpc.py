@@ -8,7 +8,16 @@ observer check is wired to the real manager instead of the not-built stub.
 
 from __future__ import annotations
 
+import os
 import time
+
+#: The monitor's first tick needs a full process-table enumeration, which on a
+#: contended machine is slow enough to miss a five-second window — on Windows
+#: under parallel workers it has taken minutes. Whether the monitor *ticks* is
+#: correctness and is always asserted; how fast the OS answers is a property of
+#: the machine. CI sets this flag for the parallel tier and leaves it unset for
+#: the serial one, so the tight window still holds where it means something.
+_FIRST_TICK_SECONDS = 60 if os.environ.get("MERIDIAN_PERF_REPORT_ONLY") == "1" else 5
 
 from meridian_core import doctor
 from meridian_core.server import SidecarServer
@@ -80,14 +89,17 @@ class TestObserveSessionsRpc:
                 "workspaceDir": str(tmp_path),
             },
         )
-        deadline = time.monotonic() + 5
+        deadline = time.monotonic() + _FIRST_TICK_SECONDS
         running = False
         while time.monotonic() < deadline:
             if self.server._session_monitor and self.server._session_monitor.ticks > 0:
                 running = True
                 break
             time.sleep(0.05)
-        assert running, "session monitor did not tick after handshake"
+        assert running, (
+            "session monitor did not tick within "
+            f"{_FIRST_TICK_SECONDS}s of the handshake"
+        )
         response = call(self.server, "observe/sessions")
         assert "generatedAt" not in response["result"]  # wire shape stays minimal
         self.server._handle_shutdown({"reason": "test teardown"})

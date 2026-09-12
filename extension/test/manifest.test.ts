@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { COMMANDS } from '../src/commands';
@@ -155,6 +155,48 @@ describe('what the package promises to ship', () => {
         name.endsWith('.md'),
       ).length,
     ).toBeGreaterThan(0);
+  });
+
+  it('ships an icon, so the Extensions view entry is identifiable', () => {
+    // Without `icon` VS Code renders a blank placeholder — the first thing an
+    // evaluator sees is an extension that looks unfinished.
+    expect(manifest.icon).toBe('media/icon.png');
+    expect(existsSync(path.resolve(__dirname, '..', manifest.icon))).toBe(true);
+  });
+
+  it('stages the documents an organisation reviews before installing', () => {
+    // A VSIX sideloaded into an enterprise arrives without the repository, so
+    // "the docs are in our repo" is not an answer when the repo is private.
+    expect(packager).toContain('SECURITY-AND-DATA.md');
+    expect(packager).toContain('DEPLOYMENT.md');
+    for (const name of ['SECURITY-AND-DATA.md', 'DEPLOYMENT.md']) {
+      expect(
+        existsSync(path.resolve(__dirname, '..', '..', 'docs', name)),
+      ).toBe(true);
+    }
+  });
+
+  it('publishes a checksum, because the security document says it does', () => {
+    // SECURITY-AND-DATA.md instructs an evaluator to compare a .sha256 before
+    // installing. A document telling a reader to check something the build
+    // never produces is worse than saying nothing at all.
+    expect(packager).toContain('sha256');
+    expect(packager).toContain('.sha256');
+    const security = readFileSync(
+      path.resolve(__dirname, '..', '..', 'docs', 'SECURITY-AND-DATA.md'),
+      'utf8',
+    );
+    expect(security).toContain('.vsix.sha256');
+  });
+
+  it('has no nested extension/extension directory', () => {
+    // A real regression, not a hypothetical one: a library-generation script
+    // was once run from the wrong working directory and wrote a second copy
+    // of the whole library to extension/extension/library/. It was committed
+    // alongside the real one, so every VSIX shipped the library twice under
+    // a path nothing ever reads — silent bloat, not a runtime symptom, which
+    // is exactly why the earlier "count > 0" check above never caught it.
+    expect(existsSync(path.resolve(__dirname, '..', 'extension'))).toBe(false);
   });
 
   it('ships the sidecar sources the extension resolves at runtime', () => {

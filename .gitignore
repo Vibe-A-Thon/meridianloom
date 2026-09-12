@@ -17,3 +17,6 @@ extension/webview-dist/
 # by every run that touches that fixture, so tracking it produces a permanent
 # stream of binary diffs that mean nothing.
 core/tests/fixtures/**/.gradle/
+
+# Evaluator docs staged into the VSIX at package time (see scripts/package-extension.mjs).
+/extension/docs/
