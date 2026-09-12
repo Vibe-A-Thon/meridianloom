@@ -1,6 +1,6 @@
 {
   "$schema": "meridian-loom/surface-coverage@1",
-  "generatedAt": "2026-09-09T14:02:52.558Z",
+  "generatedAt": "2026-09-12T10:29:51.370Z",
   "registry": "shared/schema/tiers.json",
   "allowlist": "shared/schema/unsurfaced.json",
   "roots": [
@@ -98,6 +98,15 @@
       ]
     },
     {
+      "method": "evidence/gate",
+      "capability": "recorder.trust-metrics",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/workbench/governance/EvidenceGate.tsx"
+      ]
+    },
+    {
       "method": "gate.approve",
       "capability": "governor.gates",
       "tier": "governor",
@@ -149,12 +158,13 @@
       "method": "handshake",
       "capability": "recorder.lifecycle",
       "tier": "flight-recorder",
-      "callerCount": 9,
+      "callerCount": 10,
       "callers": [
         "extension/src/acp/client.ts",
         "extension/src/extension.ts",
         "extension/src/secrets.ts",
         "extension/src/stdio-client.ts",
+        "extension/src/supervisor.ts",
         "webview/src/hooks/useRpcQuery.ts",
         "webview/src/rpc/client.ts",
         "webview/src/screens/registry.ts",
@@ -279,7 +289,7 @@
       "method": "ledger.query",
       "capability": "recorder.ledger",
       "tier": "flight-recorder",
-      "callerCount": 12,
+      "callerCount": 13,
       "callers": [
         "extension/src/adapters/permission-gate.ts",
         "extension/src/mcp/server.ts",
@@ -289,6 +299,7 @@
         "webview/src/workbench/governance/Analytics.tsx",
         "webview/src/workbench/governance/DeliveryEvidence.tsx",
         "webview/src/workbench/governance/Gates.tsx",
+        "webview/src/workbench/governance/GovernanceStudio.tsx",
         "webview/src/workbench/modeling/ReplayStudio.tsx",
         "webview/src/workbench/operations/WorkspaceOperations.tsx",
         "webview/src/workbench/organization/OrganizationStudio.tsx",
@@ -393,19 +404,22 @@
       "method": "ping",
       "capability": "recorder.lifecycle",
       "tier": "flight-recorder",
-      "callerCount": 19,
+      "callerCount": 22,
       "callers": [
         "extension/src/adapters/manifest.ts",
         "extension/src/adapters/policy.ts",
         "extension/src/adapters/registry-source.ts",
+        "extension/src/governance/steer.ts",
         "extension/src/mcp/server.ts",
         "extension/src/supervisor.ts",
         "extension/src/views.ts",
+        "extension/src/workbench/library.ts",
         "extension/src/workbench/service.ts",
         "webview/src/App.tsx",
         "webview/src/components/ExportPanel.tsx",
         "webview/src/components/vendors.ts",
         "webview/src/hooks/useRpcQuery.ts",
+        "webview/src/workbench/catalogue/AgentsTab.tsx",
         "webview/src/workbench/catalogue/PhasesTab.tsx",
         "webview/src/workbench/catalogue/RunsTab.tsx",
         "webview/src/workbench/modeling/CodeMapStudio.tsx",
@@ -496,8 +510,10 @@
       "method": "spend/forecast",
       "capability": "recorder.spend",
       "tier": "flight-recorder",
-      "callerCount": 1,
+      "callerCount": 3,
       "callers": [
+        "webview/src/workbench/governance/Analytics.tsx",
+        "webview/src/workbench/governance/GovernanceStudio.tsx",
         "webview/src/workbench/governance/Observatory.tsx"
       ],
       "declared": {
@@ -510,8 +526,10 @@
       "method": "spend/pricing",
       "capability": "recorder.spend",
       "tier": "flight-recorder",
-      "callerCount": 1,
+      "callerCount": 3,
       "callers": [
+        "webview/src/workbench/governance/Analytics.tsx",
+        "webview/src/workbench/governance/GovernanceStudio.tsx",
         "webview/src/workbench/governance/Observatory.tsx"
       ],
       "declared": {
@@ -524,8 +542,10 @@
       "method": "spend/series",
       "capability": "recorder.spend",
       "tier": "flight-recorder",
-      "callerCount": 1,
+      "callerCount": 3,
       "callers": [
+        "webview/src/workbench/governance/Analytics.tsx",
+        "webview/src/workbench/governance/GovernanceStudio.tsx",
         "webview/src/workbench/governance/Observatory.tsx"
       ],
       "declared": {
@@ -807,8 +827,8 @@
     }
   ],
   "summary": {
-    "total": 70,
-    "surfaced": 62,
+    "total": 71,
+    "surfaced": 63,
     "declared": 18,
     "undeclaredOrphans": 0,
     "mustSurfacePending": 0,
