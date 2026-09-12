@@ -181,6 +181,30 @@ describe('surface-coverage orphan check (FR-M46-02, AC-43)', () => {
     expect(problems.undeclaredOrphans).toContain('fake/orphanUndeclared');
   });
 
+  it('naming a method in a comment or a sentence does not make it surfaced', () => {
+    // A real false negative, not a hypothetical one. The check matched a bare
+    // substring, so governance/enforcementPoints stopped being reported as an
+    // orphan the moment a JSDoc block and an error message mentioned it by
+    // name — the gate that keeps an unreachable instrument visible (J6) was
+    // silenced by a comment describing that very instrument.
+    //
+    // Both shapes below are prose. Neither calls anything.
+    const f = fixture();
+    writeFileSync(
+      path.join(work!, 'consumers', 'prose.ts'),
+      [
+        '/** Fetch the declaration from fake/orphanUndeclared before rendering. */',
+        '// see fake/orphanUndeclared for the shape',
+        'export const message =',
+        "  'no declaration. Fetch it from fake/orphanUndeclared, or do not render.';",
+      ].join('\n'),
+      'utf8',
+    );
+    const result = f.run(f.allowlistFile([]));
+    const problems = result.report?.problems as Record<string, unknown>;
+    expect(problems.undeclaredOrphans).toContain('fake/orphanUndeclared');
+  });
+
   it('enforces the allowlist schema: reason, reviewed date, known method, boolean mustSurface', () => {
     const f = fixture();
     const result = f.run(

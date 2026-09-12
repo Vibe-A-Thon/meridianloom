@@ -170,16 +170,38 @@ export function runSurfaceCoverage(options) {
     .map((r) => path.resolve(root, r))
     .flatMap((dir) => collectSources(dir));
 
+  /**
+   * Source with comments removed.
+   *
+   * A bare substring match counted prose as a caller. `governance/
+   * enforcementPoints` stopped being reported as an orphan the moment a
+   * JSDoc block and an error message mentioned it by name — so the gate
+   * that exists to keep an unreachable instrument visible (J6) was
+   * silenced by a comment describing the very problem.
+   */
+  const withoutComments = (content) =>
+    content
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1 ');
+
   const contents = new Map();
   const callersOf = (method) => {
+    // A caller passes the method as a complete quoted string — that is what
+    // `controller.execute('trust/score', …)` looks like. Requiring the whole
+    // token rejects a method named *inside* a longer sentence, which is how
+    // an error message that says "fetch it from governance/enforcementPoints"
+    // was read as fetching it.
+    const quoted = new RegExp(
+      `(['"\`])${method.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}\\1`,
+    );
     const hits = [];
     for (const abs of sources) {
       let content = contents.get(abs);
       if (content === undefined) {
-        content = readFileSync(abs, 'utf8');
+        content = withoutComments(readFileSync(abs, 'utf8'));
         contents.set(abs, content);
       }
-      if (content.includes(method)) hits.push(displayPath(root, abs));
+      if (quoted.test(content)) hits.push(displayPath(root, abs));
     }
     return hits.sort();
   };

@@ -4,6 +4,11 @@
   "description": "FR-M46-01/02 + AC-43 (status.md G-02): the reviewed declaration of registry RPC methods that have no interface consumer. scripts/check-surface-coverage.mjs fails on any orphan not declared here. Entry schema: { method, reason, reviewed: YYYY-MM-DD, mustSurface?: boolean }. `mustSurface: true` marks an instrument that MUST gain an interface consumer — the check keeps failing until one exists (blocking gate, AC-43). Entries without `mustSurface` declare the method unsurfaced-yet-acceptable; `reason` names the phase that will surface it or states that none is planned by design (FR-M46-01).",
   "entries": [
     {
+      "method": "governance/enforcementPoints",
+      "reason": "Landed by MV1-T01; its consumer lands in MV1-T03, which composes EnforcementBadge into every control surface. Declared rather than left undeclared because FR-M46-01 asks for the phase that will surface it, and that phase is named and in flight. Not mustSurface: the blocking form is for instruments whose consumer is nobody’s current task, and this one is the next task in the same phase.",
+      "reviewed": "2026-09-12"
+    },
+    {
       "method": "trust/score",
       "reason": "G-02 differentiating instrument. MUST be surfaced in the Calibration & Trust screen (10.37) by the parallel GUI session; phase N1 Workstream E GUI. Blocked on the check until consumed.",
       "reviewed": "2026-09-09",
