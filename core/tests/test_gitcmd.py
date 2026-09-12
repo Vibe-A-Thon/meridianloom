@@ -71,6 +71,79 @@ class TestGitCannotBeAskedAQuestion:
         assert result.stdout.strip() == "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
 
 
+class TestGitNeverHoldsAMeridianSecret:
+    """SEC-27, extended to git.
+
+    Git runs code the repository controls — hooks, ``core.fsmonitor``,
+    textconv and external diff drivers — so git's environment is readable by
+    whoever wrote the repository. It used to carry the ledger signing key.
+    """
+
+    def test_meridian_variables_are_stripped(self, monkeypatch):
+        monkeypatch.setenv("MERIDIAN_LEDGER_SIGNING_KEY", "s3cret")
+        monkeypatch.setenv("MERIDIAN_SOMETHING_NEW", "also-secret")
+        env = git_environment()
+        assert not [key for key in env if key.startswith("MERIDIAN_")]
+
+    def test_ordinary_variables_still_reach_git(self, monkeypatch):
+        # Scrubbing is not emptying: PATH, HOME and friends are how git finds
+        # its own config and helpers.
+        monkeypatch.setenv("MERIDIAN_LEDGER_SIGNING_KEY", "s3cret")
+        env = git_environment()
+        assert env.get("PATH") == os.environ.get("PATH")
+
+    def test_it_agrees_with_the_observer_scrubber(self, monkeypatch):
+        # One rule, two implementations — kept apart only so every git call
+        # site does not import the observer package. This keeps them honest.
+        from meridian_core.observers.isolation import scrub_env
+
+        monkeypatch.setenv("MERIDIAN_LEDGER_SIGNING_KEY", "s3cret")
+        clean, _ = scrub_env()
+        mine = git_environment()
+        for key in clean:
+            if key in mine:
+                continue
+            # Anything missing from git's environment must be one git's own
+            # policy overrides, never a variable scrub_env kept.
+            raise AssertionError(f"{key} kept by scrub_env but dropped for git")
+        assert not set(mine) - set(clean) - {
+            "GIT_TERMINAL_PROMPT",
+            "GIT_ASKPASS",
+            "SSH_ASKPASS",
+            "GIT_SSH_COMMAND",
+            "GIT_PAGER",
+            "LC_ALL",
+        }
+
+    def test_a_repository_hook_cannot_see_the_signing_key(
+        self, tmp_path, monkeypatch
+    ):
+        """The threat itself, end to end: a hook the repository ships."""
+        monkeypatch.setenv("MERIDIAN_LEDGER_SIGNING_KEY", "s3cret-signing-key")
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "probe@example.invalid"],
+            cwd=tmp_path,
+            check=True,
+        )
+        subprocess.run(["git", "config", "user.name", "probe"], cwd=tmp_path, check=True)
+        seen = tmp_path / "hook-saw.txt"
+        hook = tmp_path / ".git" / "hooks" / "pre-commit"
+        hook.write_text(
+            f'#!/bin/sh\nenv > "{seen.as_posix()}"\n', encoding="utf-8", newline="\n"
+        )
+        hook.chmod(0o755)
+        (tmp_path / "file.txt").write_text("x", encoding="utf-8")
+        run_git_command(tmp_path, "add", "file.txt")
+        result = run_git_command(tmp_path, "commit", "-q", "-m", "probe")
+        assert result.returncode == 0, result.stderr
+        # Without this, a hook that silently failed to run would pass the test.
+        assert seen.exists(), "the hook never ran, so this proves nothing"
+        captured = seen.read_text(encoding="utf-8", errors="replace")
+        assert "s3cret-signing-key" not in captured
+        assert "MERIDIAN_LEDGER_SIGNING_KEY" not in captured
+
+
 class TestItRefusesToWaitForever:
     def test_a_command_past_its_budget_raises_rather_than_hanging(
         self, tmp_path, monkeypatch

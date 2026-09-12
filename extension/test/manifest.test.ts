@@ -75,6 +75,33 @@ describe('extension manifest', () => {
     expect(COMMANDS.map((c) => c.id)).toEqual(contributed);
   });
 
+  it('never repeats the category inside a command title', () => {
+    // VS Code renders a palette entry as "Category: Title". A title that
+    // already starts with the category shows it twice — which is exactly how
+    // "Meridian Loom: Meridian Loom: Open Workbench" shipped. Ids were
+    // checked against COMMANDS; titles were not checked at all.
+    for (const entry of manifest.contributes.commands as Array<{
+      command: string;
+      title: string;
+      category?: string;
+    }>) {
+      if (entry.category)
+        expect(entry.title.startsWith(`${entry.category}:`)).toBe(false);
+    }
+  });
+
+  it('keeps command titles in step with COMMANDS', () => {
+    // commands.ts calls itself the single source of truth. That was only true
+    // of ids; the titles could drift freely between the two files.
+    const titles = new Map(
+      (manifest.contributes.commands as Array<{ command: string; title: string }>).map(
+        (entry) => [entry.command, entry.title],
+      ),
+    );
+    for (const command of COMMANDS)
+      expect(titles.get(command.id)).toBe(command.title);
+  });
+
   it('is bundled by esbuild into dist/extension.js (FR-M1-10)', () => {
     expect(manifest.main).toBe('./dist/extension.js');
     expect(manifest.scripts['vscode:prepublish']).toBe('npm run build');

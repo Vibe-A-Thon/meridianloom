@@ -139,7 +139,12 @@ export function activate(context: vscode.ExtensionContext): void {
       return client ? { request: (method, params) => client.request(method, params, new AbortController().signal) } : undefined;
     },
     humanApprover: createVscodePermissionApprover(),
-    policyPaths: context.extensionPath ? [path.join(context.extensionPath, 'policy', 'acp-permissions.yaml'), path.resolve(context.extensionPath, '..', 'policy', 'acp-permissions.yaml')] : [],
+    // The development checkout's policy before the staged copy, for the same
+    // reason as resolveCoreDir: the two never legitimately coexist, and when
+    // they do it is an interrupted package run whose staged copy would
+    // silently shadow every edit to policy/acp-permissions.yaml. (A
+    // workspace's own .meridian/policy override outranks both, in service.)
+    policyPaths: context.extensionPath ? [path.resolve(context.extensionPath, '..', 'policy', 'acp-permissions.yaml'), path.join(context.extensionPath, 'policy', 'acp-permissions.yaml')] : [],
     onError: message => void vscode.window.showErrorMessage(message),
     // Integration credentials go to the OS keychain and nowhere else; the
     // workspace state file never sees one.

@@ -99,6 +99,30 @@ it needs nothing installed at all. Hand it and your bundle to an auditor who
 has never heard of this tool and they can check the chain, the Merkle
 inclusion proofs, the tree-head signature and the bundle signature themselves.
 
+**From a commit to its evidence.** Every commit Meridian records carries a
+`Meridian-Ledger: 412-418` trailer pointing into the ledger. The trailer is a
+published, versioned specification with a reference parser that also ships
+here, so a third party can go from `git log` to verified evidence with nothing
+installed:
+
+```console
+git log -1 --format=%B <commit> | python <extension>/sidecar/meridian_trailer.py
+```
+
+See `docs/spec/meridian-ledger-trailer.md` (shipped alongside it).
+
+**Working without the extension.** A headless collector and verifier runs the
+same data with no editor and no sidecar — `paths`, `export`, `verify`, `erase`
+and `uninstall`:
+
+```console
+python -m meridian_core.cli paths --workspace .
+```
+
+See `docs/spec/evidence-portability.md`. A bundle you export before
+uninstalling still verifies afterwards, which is a tested property rather than
+a promise.
+
 The point is that your evidence does not depend on this tool continuing to
 exist, or on you continuing to pay for it.
 

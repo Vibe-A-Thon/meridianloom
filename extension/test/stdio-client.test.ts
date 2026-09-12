@@ -2,7 +2,12 @@ import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
 import { createFrameDecoder, encodeFrame } from '../src/framing';
 import type { ChildProcessLike, ProcessStream } from '../src/process';
-import { SidecarSpawnError, StdioSidecarClient, describeSpawnError } from '../src/stdio-client';
+import {
+  DEFAULT_HANDSHAKE_TIMEOUT_MS,
+  SidecarSpawnError,
+  StdioSidecarClient,
+  describeSpawnError,
+} from '../src/stdio-client';
 
 class FakeStream extends EventEmitter implements ProcessStream {
   written: string[] = [];
@@ -280,6 +285,54 @@ describe('StdioSidecarClient (FR-M3-01)', () => {
       },
     });
     await expect(client.start()).rejects.toMatchObject({ code: 'EARLY_EXIT' });
+  });
+});
+
+describe('the handshake budget', () => {
+  it('defaults to thirty seconds, not ten', () => {
+    // Ten seconds failed a cold start under load — the same shape as a first
+    // launch on Windows, where the whole sidecar is read past the antivirus.
+    // doctor-e2e.test.ts had already been overriding it to 30s in three
+    // places; that was the default telling us it was wrong.
+    expect(DEFAULT_HANDSHAKE_TIMEOUT_MS).toBe(30_000);
+  });
+
+  it('says something a user can act on when the sidecar is silent', async () => {
+    const client = new StdioSidecarClient({
+      command: 'python',
+      cwd: '/repo/core',
+      handshakeTimeoutMs: 20,
+      // Unwired: it starts and never answers, which is what a slow import
+      // looks like from outside.
+      spawner: () => new FakeSidecarProcess(),
+    });
+    const error = (await client.start().catch((caught) => caught)) as Error & {
+      code?: string;
+    };
+    expect(error.code).toBe('HANDSHAKE_TIMEOUT');
+    // The old message ended "Recent stderr: (empty)", which told nobody
+    // anything. The new one names the setting that fixes it.
+    expect(error.message).not.toContain('(empty)');
+    expect(error.message).toContain('meridian.sidecar.handshakeTimeoutMs');
+    expect(error.message).toContain('Doctor');
+  });
+
+  it('shows what the sidecar printed, when it printed something', async () => {
+    const client = new StdioSidecarClient({
+      command: 'python',
+      cwd: '/repo/core',
+      handshakeTimeoutMs: 20,
+      spawner: () => {
+        const fake = new FakeSidecarProcess();
+        queueMicrotask(() =>
+          fake.stderr.emit('data', "ModuleNotFoundError: No module named 'yaml'\n"),
+        );
+        return fake;
+      },
+    });
+    const error = (await client.start().catch((caught) => caught)) as Error;
+    // A printed cause beats any generic advice, so it is shown instead of it.
+    expect(error.message).toContain('ModuleNotFoundError');
   });
 });
 

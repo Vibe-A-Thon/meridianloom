@@ -36,6 +36,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from .childenv import child_environment
+
 #: How long any single git command may take before it is treated as hung.
 #:
 #: Generous on purpose: a ``blame`` over a large file or a ``log`` over deep
@@ -82,13 +84,27 @@ def git_timeout_seconds() -> int:
 
 
 def git_environment() -> dict[str, str]:
-    """The environment git runs under: never interactive.
+    """The environment git runs under: never interactive, never holding a secret.
 
-    Every one of these disables a different way git can decide to ask a human
-    a question. Meridian runs git on behalf of an extension host; there is no
-    human at this end of the pipe, and a question here is an unbounded wait.
+    Every setting below disables a different way git can decide to ask a
+    human a question. Meridian runs git on behalf of an extension host; there
+    is no human at this end of the pipe, and a question here is an unbounded
+    wait.
+
+    **And no ``MERIDIAN_*`` variable crosses into it.** This is the part that
+    matters most. Git runs code the *repository* controls — hooks,
+    ``core.fsmonitor``, textconv and external diff drivers — so anything in
+    git's environment is available to whoever wrote that repository. When the
+    sidecar runs with ``MERIDIAN_LEDGER_SIGNING_KEY`` in its environment (CI,
+    headless use; the extension itself provisions it over the handshake
+    instead), a hook holding it could forge entries that verify. See
+    ``meridian_core.childenv``, where the rule now lives. SEC-27 already stripped these from observer probes. Git never
+    had it: before this module, git inherited the full environment implicitly
+    at ten call sites, and the first version of this module then copied
+    ``os.environ`` into all ten explicitly. A test spying on process spawns
+    caught the key leaving, in a git child, under xdist.
     """
-    env = dict(os.environ)
+    env = child_environment()
     env.update(
         {
             # The main one: git refuses rather than prompting for credentials.

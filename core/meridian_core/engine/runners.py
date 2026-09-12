@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 from typing import Any, Mapping
 
+from ..childenv import child_environment
 from .capabilities import CapabilityOutcome
 
 __all__ = ["ToolRunnerCapability"]
@@ -101,6 +102,10 @@ class ToolRunnerCapability:
             completed = subprocess.run(
                 command,
                 cwd=str(sandbox),
+                # A sandboxed tool that inherits the ledger signing key is not
+                # sandboxed. It used to inherit the sidecar's whole
+                # environment (SEC-27; see meridian_core.childenv).
+                env=child_environment(),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

@@ -242,7 +242,7 @@ export class StdioSidecarClient extends EventEmitter implements SidecarClient {
                         'it is still starting up — a first launch on Windows ' +
                         'can be slow while the interpreter and its modules ' +
                         'are scanned. Raise meridian.sidecar.handshakeTimeoutMs ' +
-                        'if this persists, or run Meridian: Doctor to check ' +
+                        'if this persists, or run Meridian Loom: Doctor to check ' +
                         'the interpreter.'),
                   'HANDSHAKE_TIMEOUT',
                 ),

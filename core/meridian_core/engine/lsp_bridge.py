@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 from urllib.parse import quote
 
+from ..childenv import child_environment
 from .capabilities import CapabilityOutcome
 
 __all__ = ["SymbolResolutionCapability", "LspError"]
@@ -73,6 +74,9 @@ class _RpcPeer:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
+                # Language servers load project configuration and plugins; none
+                # of that gets the sidecar's MERIDIAN_* secrets (SEC-27).
+                env=child_environment(),
             )
         except OSError as error:
             raise LspError(f"cannot spawn language server {list(command)!r}: {error}") from error

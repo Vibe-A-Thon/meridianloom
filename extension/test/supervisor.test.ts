@@ -143,6 +143,42 @@ describe('resolveCoreDir', () => {
   it('throws an actionable error when the sidecar is missing', async () => {
     await expect(resolveCoreDir('/nonexistent/extension')).rejects.toThrow(/not found/);
   });
+
+  // Built in a scratch tree rather than against this repository, so the
+  // verdict does not depend on whether a stale staged copy happens to be
+  // lying around — which is precisely how this surfaced: the test above
+  // started failing because an interrupted package run had left one.
+  async function layout(shapes: { core?: boolean; staged?: boolean }) {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const os = await import('node:os');
+    const root = await mkdtemp(path.join(os.tmpdir(), 'meridian-layout-'));
+    const extensionPath = path.join(root, 'extension');
+    await mkdir(extensionPath, { recursive: true });
+    const plant = async (dir: string) => {
+      await mkdir(path.join(dir, 'meridian_core'), { recursive: true });
+      await writeFile(path.join(dir, 'meridian_core', '__main__.py'), '');
+    };
+    if (shapes.core) await plant(path.join(root, 'core'));
+    if (shapes.staged) await plant(path.join(extensionPath, 'sidecar'));
+    return { root, extensionPath };
+  }
+
+  it('prefers the live checkout over a staged copy left behind', async () => {
+    // Before, the staged copy won, and a development build silently ran a
+    // frozen snapshot of the Python sources: every sidecar edit after an
+    // interrupted package run simply did not take effect, with no error.
+    const { root, extensionPath } = await layout({ core: true, staged: true });
+    await expect(resolveCoreDir(extensionPath)).resolves.toBe(
+      path.join(root, 'core'),
+    );
+  });
+
+  it('uses the staged sidecar in an installed VSIX, where there is no checkout', async () => {
+    const { extensionPath } = await layout({ staged: true });
+    await expect(resolveCoreDir(extensionPath)).resolves.toBe(
+      path.join(extensionPath, 'sidecar'),
+    );
+  });
 });
 
 describe('SidecarSupervisor against the real sidecar (FR-M3-02)', () => {

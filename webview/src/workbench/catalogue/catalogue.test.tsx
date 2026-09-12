@@ -212,6 +212,93 @@ describe("the Agents tab", () => {
 
 // --- skills -------------------------------------------------------------
 
+describe("the shipped library in the Agents tab", () => {
+  const roster = () =>
+    harness({
+      agents: [
+        makeAgent({ id: "developer-agent", name: "Developer", source: "builtin" }),
+        makeAgent({
+          id: "java-spring-boot-agent",
+          name: "Java Spring Boot Engineer",
+          source: "builtin",
+          skillIds: ["java-spring-gradle"],
+        }),
+        makeAgent({ id: "mine", name: "My Own Agent", source: "authored" }),
+      ],
+      runtimes: [
+        {
+          id: "claude-acp",
+          name: "Claude Agent",
+          vendor: "Anthropic",
+          command: "npx",
+          args: ["-y", "@zed-industries/claude-agent-acp"],
+          requires: "Node.js, so that npx is on PATH",
+          auth: "Sign in with your Anthropic account.",
+          docs: "https://example.invalid",
+        },
+      ],
+    });
+  const names = () =>
+    Array.from(document.querySelectorAll("article h3")).map((h) => h.textContent);
+
+  it("separates specialists from roles by whether a pack is bound", () => {
+    // vision.md 2.4: a Stack Agent is a role with a pack bound. The filter
+    // uses that definition rather than a label, so binding a pack to a plain
+    // role moves it across — which is what binding it means.
+    const h = roster();
+    render(<AgentsTab controller={h.controller} client={h.client} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Specialists/ }));
+    expect(names()).toEqual(["Java Spring Boot Engineer"]);
+    fireEvent.click(screen.getByRole("button", { name: /^Roles/ }));
+    expect(names()).toEqual(["Developer", "My Own Agent"]);
+    fireEvent.click(screen.getByRole("button", { name: /^Added by you/ }));
+    expect(names()).toEqual(["My Own Agent"]);
+  });
+
+  it("counts the whole roster in the stats, whatever the filter shows", () => {
+    // A filter changes what is listed, not what exists. Stats that shrank
+    // with the filter would report a workspace smaller than it is.
+    const h = roster();
+    render(<AgentsTab controller={h.controller} client={h.client} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Specialists/ }));
+    expect(screen.getByRole("button", { name: "All · 3" })).toBeInTheDocument();
+    // Located by the stat's own hint: "Learning" is also every card's status
+    // tag, so the bare word is ambiguous.
+    const learningStat = screen
+      .getByText("not convened; collecting memory")
+      .closest("div")!;
+    expect(learningStat).toHaveTextContent("3");
+  });
+
+  it("marks shipped agents as Built-in", () => {
+    const h = roster();
+    render(<AgentsTab controller={h.controller} client={h.client} />);
+    const shipped = screen.getByText("Developer").closest("article")!;
+    const mine = screen.getByText("My Own Agent").closest("article")!;
+    expect(within(shipped).getByText("Built-in")).toBeInTheDocument();
+    expect(within(mine).queryByText("Built-in")).not.toBeInTheDocument();
+  });
+
+  it("binds a runtime in one click, and says what still has to be true", async () => {
+    // Before the presets, the only way to give a shipped agent a runtime was
+    // to know an executable's name and type it into a text box.
+    const h = roster();
+    h.snapshot.agents[0].command = "";
+    render(<AgentsTab controller={h.controller} client={h.client} />);
+    const card = screen.getByText("Developer").closest("article")!;
+    fireEvent.click(within(card).getByRole("button", { name: /Claude Agent/ }));
+    await waitFor(() =>
+      expect(h.execute).toHaveBeenCalledWith("agent/bindRuntime", {
+        id: "developer-agent",
+        runtimeId: "claude-acp",
+      }),
+    );
+    // Binding sets a command; it does not install anything or sign anyone
+    // in, and the confirmation must not imply that it did.
+    expect(await screen.findByText(/You need Node\.js/)).toBeInTheDocument();
+  });
+});
+
 describe("the Skills tab", () => {
   it("names the agents a skill is bound to, so disabling is an informed act", () => {
     const h = harness({

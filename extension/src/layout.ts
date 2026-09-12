@@ -12,11 +12,21 @@ import path from 'node:path';
  * Returns the directory that is used as the child process cwd and must
  * contain the `meridian_core` package directory. Async: existence checks
  * must not block the extension host thread (FR-M1-04).
+ *
+ * **The development checkout is checked first**, and the order matters. The
+ * two shapes never legitimately coexist: an installed VSIX has `sidecar/` and
+ * no `../core`, and a checkout has `../core`. Both being present means a
+ * checkout with a staged `sidecar/` left behind — the packager removes it in a
+ * `finally`, but an interrupted run on Windows can die before that executes.
+ * With the staged copy checked first, the extension then silently ran a
+ * frozen snapshot of the Python sources, and every sidecar change made
+ * afterwards simply did not take effect — no error, just old behaviour. The
+ * live source is the right answer whenever it exists, so it wins.
  */
 export async function resolveCoreDir(extensionPath: string): Promise<string> {
   const candidates = [
-    path.join(extensionPath, 'sidecar'),
     path.resolve(extensionPath, '..', 'core'),
+    path.join(extensionPath, 'sidecar'),
   ];
   for (const candidate of candidates) {
     try {

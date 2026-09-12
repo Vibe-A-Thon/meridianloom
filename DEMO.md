@@ -14,7 +14,7 @@ an evidence bundle that verifies with a script that does not import Meridian.
 ## What you need before you start
 
 | Thing | Why | How to check |
-|---|---|---|
+| --- | --- | --- |
 | VS Code 1.95+ | The host | `code --version` |
 | Python 3.11+ | The sidecar (governance, ledger, metrics) | `python --version` |
 | Node.js 20+ | Building the extension, and launching agents via `npx` | `node --version` |
@@ -26,7 +26,7 @@ layer: it convenes, briefs, permissions and records somebody else's agent.
 Four are shipped as one-click presets:
 
 | Preset | Launches | You provide |
-|---|---|---|
+| --- | --- | --- |
 | Claude Agent | `npx -y @zed-industries/claude-agent-acp` | An Anthropic account, or `ANTHROPIC_API_KEY` in your environment |
 | Gemini CLI | `npx -y @google/gemini-cli --experimental-acp` | `gemini auth`, or `GEMINI_API_KEY` |
 | Codex CLI | `npx -y @zed-industries/codex-acp` | Codex CLI authentication |
@@ -81,6 +81,12 @@ see, with no setup at all:
 All marked **Built-in**. They are ordinary records: edit, disable, export or
 delete any of them, and a deleted one stays deleted across reloads.
 
+Twenty-two is too many to scan at once, so the roster has a filter: **All**,
+**Roles**, **Specialists** and **Added by you**, each with a count. The split
+is the product's own definition, not a label — a specialist is any agent with
+a skill pack bound — so binding a pack to a plain role moves it from Roles to
+Specialists. That is a good moment to show the mechanic live.
+
 ## 3. Enable the Governor tier
 
 Settings → `meridian.tiers` → add `governor`.
@@ -127,7 +133,22 @@ agents `read` and `search` only. If your demo has the agent edit a file, it
 will refuse until you say otherwise.
 
 That refusal is worth demonstrating on purpose: ask for an edit first, let it
-refuse, then widen the policy in `policy/acp-permissions.yaml` and ask again.
+refuse, then widen the policy **for this workspace** and ask again. Create
+`.meridian/policy/acp-permissions.yaml` in the repository you are
+demonstrating against:
+
+```yaml
+version: 1
+adapters:
+  '*':
+    probation: [read, search, edit, execute]
+```
+
+It is read before the shipped default, so it takes effect on the next run
+with no reload. Do not edit the copy inside the installed extension — it is
+not yours, and the next update replaces it. The workspace file is: it is
+versioned and reviewed with the rest of the repository, which is the point.
+
 The refusal is the product working, and it makes the point better than the
 success does.
 
@@ -202,15 +223,15 @@ Demonstrate these rather than hoping nobody asks.
 ## If something does not work
 
 | Symptom | Cause | Fix |
-|---|---|---|
+| --- | --- | --- |
 | Run button blocked | Governor tier not enabled | `meridian.tiers` → add `governor` |
 | "No agent runtime bound" | Shipped agents ship without a command, deliberately | Click a preset on the agent card |
 | Agent starts then exits | Not authenticated with that agent | Authenticate that agent itself, outside Meridian |
 | `npx` not found | Node.js missing or not on PATH | Install Node 20+ |
-| Agent refuses to edit | Probation floor: `read`, `search` | Widen `policy/acp-permissions.yaml` |
+| Agent refuses to edit | Probation floor: `read`, `search` | Create `.meridian/policy/acp-permissions.yaml` in the workspace (step 6) |
 | Nothing in the catalogues | Library not packaged | `npm run package` rather than a hand-built VSIX |
 | Sidecar will not start | Python not found | Set `meridian.python.interpreterPath` |
 
-Run the built-in **Meridian: Doctor** command first — it checks the
+Run **Meridian Loom: Doctor** from the Command Palette first — it checks the
 interpreter, the sidecar, the workspace and the hooks, and names what is
 wrong rather than making you guess.

@@ -122,3 +122,50 @@ def test_no_call_site_joins_an_unvalidated_ref_onto_a_root():
         f"the ledger directory: {', '.join(sorted(set(offenders)))}. "
         "Use meridian_core.ledger.blobs.normalise_ref."
     )
+
+
+# -- cold storage is untrusted input, and so is its manifest -------------------
+
+
+class TestTheArchiveManifestIsUntrustedInput:
+    """Cold storage is customer-controlled by design (FR-M43 receipts).
+
+    Everything read back from it is input, including the manifest that says
+    what is in it.
+    """
+
+    def _store(self, tmp_path, manifest_text: str):
+        from meridian_core.ledger.archive import ArchiveStore, MANIFEST_NAME
+
+        batch = tmp_path / "cold" / "2026-01-01T00-00-00Z-1"
+        batch.mkdir(parents=True)
+        (batch / MANIFEST_NAME).write_text(manifest_text, encoding="utf-8")
+        return ArchiveStore(tmp_path / "cold")
+
+    def test_an_oversized_manifest_is_refused_unread(self, tmp_path, monkeypatch):
+        from meridian_core.ledger import archive as archive_mod
+
+        # Shrunk rather than writing 64 MiB of JSON: the assertion is that the
+        # size is checked *before* the read, which the limit value does not
+        # change.
+        monkeypatch.setattr(archive_mod, "MAX_MANIFEST_BYTES", 32)
+        store = self._store(tmp_path, '{"formatVersion": 1, "files": []}' + " " * 64)
+        with pytest.raises(archive_mod.ArchiveError, match="too large"):
+            store.manifests()
+
+    def test_a_corrupt_manifest_names_the_file(self, tmp_path):
+        from meridian_core.ledger.archive import ArchiveError
+
+        store = self._store(tmp_path, "{not json at all")
+        with pytest.raises(ArchiveError) as caught:
+            store.manifests()
+        # Without the path an operator has a hundred batches and no clue.
+        assert "manifest.json" in str(caught.value)
+
+    def test_a_manifest_missing_its_fields_is_an_archive_error(self, tmp_path):
+        from meridian_core.ledger.archive import ArchiveError
+
+        # Valid JSON, wrong shape: this used to escape as a bare KeyError.
+        store = self._store(tmp_path, '{"formatVersion": 1}')
+        with pytest.raises(ArchiveError, match="unreadable"):
+            store.manifests()

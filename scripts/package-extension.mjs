@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const extensionDir = path.join(root, 'extension');
 const outDir = path.join(root, 'dist');
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const vsceCli = path.join(root, 'node_modules', '@vscode', 'vsce', 'vsce');
 
 // Only generated directories immediately inside this extension may be cleaned.
 function cleanGeneratedDirectory(target) {
@@ -42,6 +42,21 @@ cpSync(path.join(root, 'core', 'pyproject.toml'), path.join(sidecarDir, 'pyproje
 cpSync(
   path.join(root, 'verifier', 'verify.py'),
   path.join(sidecarDir, 'verify.py'),
+);
+// FR-M43-11: the reference parser for the `Meridian-Ledger:` trailer, and the
+// specification it implements. The trailer is the pointer from a commit into
+// the ledger, and the published claim (NFR-39, AC-49) is that a third party
+// can go from `git log` to verified evidence with no Meridian installed. That
+// is only true if the tool and the document they are told to use are actually
+// in the package — the same way the verifier was true of the repository and
+// false of the VSIX until someone checked.
+cpSync(
+  path.join(root, 'verifier', 'meridian_trailer.py'),
+  path.join(sidecarDir, 'meridian_trailer.py'),
+);
+cpSync(
+  path.join(root, 'docs', 'spec', 'meridian-ledger-trailer.md'),
+  path.join(sidecarDir, 'meridian-ledger-trailer.md'),
 );
 // The generated bus types ship beside the sidecar sources; meridian_core's
 // sys.path shim finds them at <sidecar>/shared/py (FR-M32-09).
@@ -84,10 +99,9 @@ try {
   // --no-dependencies: every dependency is a devDependency (the bundle is
   // self-contained), and without it vsce's dependency walk leaks npm
   // workspace-root files into the VSIX and fails.
-  const result = spawnSync(npx, ['vsce', 'package', '--no-dependencies'], {
+  const result = spawnSync(process.execPath, [vsceCli, 'package', '--no-dependencies'], {
     cwd: extensionDir,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
   });
   if (result.error) {
     console.error(result.error);

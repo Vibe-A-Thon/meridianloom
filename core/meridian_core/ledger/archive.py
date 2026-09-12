@@ -57,6 +57,17 @@ from .blobs import BlobNotFound, BlobStore, normalise_ref
 MANIFEST_VERSION = 1
 MANIFEST_NAME = "manifest.json"
 
+#: How large one ``manifest.json`` may be before it is refused unread.
+#:
+#: Cold storage is customer-controlled by design — that is the point of
+#: FR-M43 receipt storage — so everything read from it is untrusted input.
+#: The manifest was read with ``path.read_bytes()``, which has no ceiling: a
+#: corrupt or hostile file simply became however many gigabytes it was, in a
+#: process that handles one request at a time. A manifest is a list of
+#: archived-file records at roughly two hundred bytes each, so this holds
+#: about a third of a million of them and still refuses the runaway case.
+MAX_MANIFEST_BYTES = 64 * 1024 * 1024
+
 #: NFR-38 restore budget: restoring an archived corpus and re-verifying
 #: the chain + one inclusion proof per archived batch must complete well
 #: under this. The measured figure is published by the test.
@@ -251,9 +262,37 @@ class ArchiveStore:
         )
 
     def manifests(self) -> list[tuple[Path, ArchiveManifest]]:
+        """Every batch manifest in cold storage, parsed.
+
+        Each file is checked for size before it is read and each parse failure
+        names the file. Both matter because this reads customer-controlled
+        storage: unbounded, one bad file took the sidecar out with a
+        MemoryError; unguarded, it surfaced as a bare ``KeyError`` with no
+        indication of which of a hundred batches was wrong.
+        """
         out = []
         for path in self._manifest_paths():
-            out.append((path, ArchiveManifest.from_dict(json.loads(path.read_bytes()))))
+            size = path.stat().st_size
+            if size > MAX_MANIFEST_BYTES:
+                raise ArchiveError(
+                    f"archive manifest is too large to read: {path} is "
+                    f"{size} bytes, over the {MAX_MANIFEST_BYTES} byte limit. "
+                    "Cold storage may be corrupt, or this batch was not "
+                    "written by Meridian."
+                )
+            try:
+                out.append(
+                    (path, ArchiveManifest.from_dict(json.loads(path.read_bytes())))
+                )
+            except (
+                ValueError,
+                TypeError,
+                KeyError,
+                UnicodeDecodeError,
+            ) as error:
+                raise ArchiveError(
+                    f"archive manifest is unreadable: {path} ({error})"
+                ) from error
         return out
 
     def restore(self, ledger: Any, workers: int = 8) -> int:

@@ -53,6 +53,48 @@ class TestFraming:
         with pytest.raises(FrameTooLargeError):
             FramedReader(io.BytesIO(b"x" * (17 * 1024 * 1024) + b"\n")).read_message()
 
+    def test_the_read_is_bounded_before_the_size_is_checked(self):
+        """The guard has to run *before* the bytes are in memory.
+
+        This test exists because the one above does not distinguish the two.
+        `readline()` with no argument reads to the next newline however far
+        away it is, so the size check ran after the whole line was already
+        allocated: a peer sending four gigabytes without a newline got four
+        gigabytes allocated, and MAX_FRAME_BYTES only said so afterwards.
+        """
+
+        class Endless:
+            """A peer that never sends a newline, and refuses to be asked for
+            an unbounded read — which is precisely the defect."""
+
+            def __init__(self) -> None:
+                self.served = 0
+
+            def readline(self, size: int = -1) -> bytes:
+                if size is None or size < 0:
+                    raise AssertionError(
+                        "unbounded readline: the frame guard cannot protect "
+                        "memory it has already allocated"
+                    )
+                self.served += size
+                return b"x" * size
+
+        stream = Endless()
+        with pytest.raises(FrameTooLargeError):
+            FramedReader(stream).read_message()
+        # Bounded in time as well: the skip-ahead gives up rather than
+        # spinning on a peer that never sends a newline.
+        assert stream.served <= 3 * (16 * 1024 * 1024)
+
+    def test_the_frame_after_an_oversized_one_still_parses(self):
+        # The tail of the giant line must not be read as the frames that
+        # follow it, or one bad frame becomes a cascade of parse errors.
+        stream = io.BytesIO(b"x" * (17 * 1024 * 1024) + b"\n" + b'{"a": 1}\n')
+        reader = FramedReader(stream)
+        with pytest.raises(FrameTooLargeError):
+            reader.read_message()
+        assert reader.read_message() == {"a": 1}
+
     def test_non_object_frame_rejected(self):
         with pytest.raises(ValueError, match="not a JSON object"):
             FramedReader(io.BytesIO(b"[1, 2]\n")).read_message()

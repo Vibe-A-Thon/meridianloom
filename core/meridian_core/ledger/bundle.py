@@ -26,11 +26,45 @@ import base64
 import hashlib
 from typing import Any
 
-from . import canonical, compliance, merkle, wire
+from . import canonical, compliance, merkle, schema, wire
 from .core import utc_now
 
 #: Export cap per call; ranges larger than this are exported in slices.
 EXPORT_LIMIT = 10_000
+
+
+def _redaction_section() -> dict[str, Any]:
+    """What content capture was in force, and what the labels mean.
+
+    FR-M43-13. Without this a reader cannot tell an absent field from a
+    withheld one, and the two have opposite meanings: one says nothing
+    happened, the other says something happened and was deliberately not
+    recorded. The marker is included verbatim so a reader can search for it
+    rather than having to know it.
+    """
+    from . import privacy, redaction
+
+    return {
+        "defaultProfile": privacy.DEFAULT_PROFILE,
+        "redactedMarker": redaction.REDACTED,
+        "profiles": {
+            name: {
+                "capturesInput": profile.capture_input,
+                "capturesOutput": profile.capture_output,
+                "redactsSecrets": profile.redact,
+                "requiresConsent": profile.requires_consent,
+                "captures": list(profile.captures),
+            }
+            for name, profile in sorted(privacy.COLLECTION_PROFILES.items())
+        },
+        "note": (
+            "A field absent from an entry was either never produced or not "
+            "captured under the profile in force; a field containing the "
+            "redacted marker was produced and deliberately withheld. These "
+            "are different facts and the distinction is not recoverable from "
+            "the entries alone."
+        ),
+    }
 
 
 def _enforcement_section() -> dict[str, Any]:
@@ -81,6 +115,16 @@ def build_bundle(ledger: Any, params: dict[str, Any]) -> dict[str, Any]:
 
     bundle: dict[str, Any] = {
         "formatVersion": 1,
+        # FR-M43-13: a customer who leaves keeps readable records, which needs
+        # more than the bundle's own format version. `schemaVersion` is the
+        # ledger schema the entries were written under — the shape of an entry
+        # changed across versions, so a reader without it has to guess which
+        # one it is holding. `redaction` says what content capture was in
+        # force, which is the difference between "this field is absent because
+        # nothing happened" and "this field is absent because policy said not
+        # to record it". Both were missing, and neither is recoverable later.
+        "schemaVersion": schema.SCHEMA_VERSION,
+        "redaction": _redaction_section(),
         "generatedAt": utc_now(),
         "signer": {
             "algorithm": "Ed25519",

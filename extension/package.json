@@ -53,7 +53,7 @@
     "commands": [
       {
         "command": "meridianLoom.open",
-        "title": "Meridian Loom: Open Workbench",
+        "title": "Open Workbench",
         "category": "Meridian Loom"
       },
       {

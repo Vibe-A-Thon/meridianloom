@@ -69,6 +69,30 @@ const PHASE_OPTIONS = SDLC_PHASES.map((phase) => ({
   label: SDLC_PHASE_LABELS[phase],
 }));
 
+type RosterKind = "all" | "roles" | "specialists" | "yours";
+
+const ROSTER_KINDS: Record<
+  RosterKind,
+  { label: string; hint: string; test: (agent: WorkbenchAgent) => boolean }
+> = {
+  all: { label: "All", hint: "Every agent in this workspace", test: () => true },
+  roles: {
+    label: "Roles",
+    hint: "Role agents with no skill pack bound — the delivery roles themselves",
+    test: (agent) => agent.skillIds.length === 0,
+  },
+  specialists: {
+    label: "Specialists",
+    hint: "Stack agents: a role with a skill pack bound, e.g. Java · Spring Boot",
+    test: (agent) => agent.skillIds.length > 0,
+  },
+  yours: {
+    label: "Added by you",
+    hint: "Agents you created or imported, as opposed to the shipped library",
+    test: (agent) => agent.source !== "builtin",
+  },
+};
+
 const BLANK: WorkbenchAgentInput = {
   id: "",
   name: "",
@@ -101,7 +125,15 @@ export function AgentsTab({ controller, client }: AgentsTabProps) {
   const [running, setRunning] = useState<WorkbenchAgent | undefined>();
   const action = useAction();
 
-  const agents = snapshot?.agents ?? [];
+  const [kind, setKind] = useState<RosterKind>("all");
+  const allAgents = snapshot?.agents ?? [];
+  // The roster ships with twenty-two agents before the user adds a single
+  // one, which is too many to scan as a flat grid. The split follows the
+  // product's own model rather than inventing one: vision.md 2.4 defines a
+  // Stack Agent as a Role Agent with a skill pack bound, so "specialist" is
+  // simply "has a pack" — bind one to a plain role and it moves across, which
+  // is exactly what binding it means.
+  const agents = allAgents.filter((agent) => ROSTER_KINDS[kind].test(agent));
   const filtered = useFilter(agents, query, (agent) => [
     agent.name,
     agent.id,
@@ -109,7 +141,7 @@ export function AgentsTab({ controller, client }: AgentsTabProps) {
     agent.vendor,
     agent.description,
   ]);
-  const active = agents.filter((agent) => agent.mode === "active");
+  const active = allAgents.filter((agent) => agent.mode === "active");
 
   const save = async (input: WorkbenchAgentInput) => {
     const ok = await action.run(
@@ -206,7 +238,7 @@ export function AgentsTab({ controller, client }: AgentsTabProps) {
         <Stat label="Active" value={active.length} hint="taking delivery work" />
         <Stat
           label="Learning"
-          value={agents.length - active.length}
+          value={allAgents.length - active.length}
           hint="not convened; collecting memory"
         />
         <Stat
@@ -226,8 +258,31 @@ export function AgentsTab({ controller, client }: AgentsTabProps) {
           value={query}
           onChange={setQuery}
           placeholder="Search agents by name, role, vendor or id"
+          right={
+            <div
+              role="group"
+              aria-label="Show agents"
+              style={{ display: "flex", gap: 4, flexWrap: "wrap" }}
+            >
+              {(Object.keys(ROSTER_KINDS) as RosterKind[]).map((value) => {
+                const count = allAgents.filter(ROSTER_KINDS[value].test).length;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    className={s.chip}
+                    aria-pressed={kind === value}
+                    title={ROSTER_KINDS[value].hint}
+                    onClick={() => setKind(value)}
+                  >
+                    {ROSTER_KINDS[value].label} · {count}
+                  </button>
+                );
+              })}
+            </div>
+          }
         />
-        {!agents.length ? (
+        {!allAgents.length ? (
           <Empty
             title="No agents yet."
             action={
@@ -245,7 +300,9 @@ export function AgentsTab({ controller, client }: AgentsTabProps) {
           </Empty>
         ) : !filtered.length ? (
           <Empty title="No agent matches that search.">
-            Clear the search to see all {agents.length} agents.
+            {kind === "all"
+              ? `Clear the search to see all ${allAgents.length} agents.`
+              : `Nothing in ${ROSTER_KINDS[kind].label} matches. Choose All to search every ${allAgents.length} agents.`}
           </Empty>
         ) : (
           <div className={s.grid}>
@@ -425,7 +482,7 @@ function AgentCard({
             {(snapshot?.runtimes ?? []).map((runtime) => (
               <Button
                 key={runtime.id}
-                icon="link"
+                icon="runtime"
                 disabled={busy}
                 onClick={() => onBindRuntime(runtime.id)}
                 title={`${runtime.command} ${runtime.args.join(" ")} — requires ${
