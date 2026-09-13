@@ -1,12 +1,12 @@
 {
-  "recordedAt": "2026-09-13T06:37:36.889Z",
+  "recordedAt": "2026-09-13T12:51:29.138Z",
   "platform": "windows",
   "package": "meridian-loom-0.1.0.vsix",
   "steps": [
     {
       "step": "checksum matches",
       "ok": true,
-      "detail": "sha256 bb7bd172b2c2d1ff…"
+      "detail": "sha256 7e14dd0442d51be8…"
     },
     {
       "step": "no nested extension/extension/",
@@ -21,7 +21,7 @@
     {
       "step": "sidecar and verifier shipped",
       "ok": true,
-      "detail": "122 files extracted and run from the package copy"
+      "detail": "125 files extracted and run from the package copy"
     },
     {
       "step": "packaged ledger writes",
@@ -42,6 +42,16 @@
       "step": "packaged verifier rejects a tampered export",
       "ok": true,
       "detail": "verify.py exit 1 on an altered entry"
+    },
+    {
+      "step": "packaged evidence gate scores a study",
+      "ok": true,
+      "detail": "outcome insufficient_evidence, preregistration intact, slice verifies"
+    },
+    {
+      "step": "packaged compare-evidence passes one shape and fails an altered bundle",
+      "ok": true,
+      "detail": "two exports of one ledger exit 0; altered bundle exit 1"
     },
     {
       "step": "packaged doctor exits non-zero on an induced failure",
