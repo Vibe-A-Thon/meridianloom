@@ -79,11 +79,6 @@
       "reviewed": "2026-09-09"
     },
     {
-      "method": "pr/conflicts",
-      "reason": "PR-gates conflict probe. The Delivery Evidence screen already consumes pr/ingest and pr/status; pr/conflicts lands with the N2 SCM-enforcement slice (FR-M42-03, AC-45).",
-      "reviewed": "2026-09-09"
-    },
-    {
       "method": "loop.start",
       "reason": "Orchestra-tier stub: the registry carries not-yet-built tiers with stub RPC names so the tiering mechanism is proven before the features land (tiers.json). Phase Orchestra (FR-M46-17 go/no-go).",
       "reviewed": "2026-09-09"

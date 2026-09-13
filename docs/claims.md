@@ -93,6 +93,11 @@ Why this exists: the freeze audit found a requirements document asserting a gree
 | Reading another tool's records writes nothing to the ledger | Ledger | `core/tests/test_interop_rpc.py::test_reading_records_nothing` | backed |
 | The chain still verifies with notarisation entries in it | `docs/SECURITY-AND-DATA.md` §5 | `core/tests/test_interop_rpc.py::test_the_chain_still_verifies_afterwards` | backed |
 | **Notarising a record proves what it said when Meridian read it, not that it was true** | `docs/SECURITY-AND-DATA.md` §5 · Ledger | — | limitation |
+| A gate verdict recorded against a revision that is no longer the branch head is shown as stale, not as a pass | Evidence · Pull request | `webview/src/screens/pull-request-card.test.tsx > an approved gate on a stale head is not a pass` | backed |
+| A risk that could not be measured is not rendered as low risk | Evidence · Pull request | `webview/src/screens/pull-request-card.test.tsx > unmeasured risk is not rendered as low risk` | backed |
+| A cost that was not recorded renders as unrecorded, never as $0.00 | Evidence · Pull request | `webview/src/screens/pull-request-card.test.tsx > an unrecorded cost inside a measured result is not zero either` | backed |
+| The pull-request card states the human action required in words | Evidence · Pull request | `webview/src/screens/pull-request-card.test.tsx > a blocked gate says what to fix and what approving over it means` | backed |
+| **The pull-request card reads the record; it offers no route to approve or halt** | Evidence · Pull request | `webview/src/screens/pull-request-card.test.tsx > offers no approve button` | backed |
 | **Without a witness, a re-signed fork of the whole ledger still verifies** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **The commit trailer is editable; it is a pointer, not a proof** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **Enforcement is in the editor, not the SCM** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |

@@ -390,7 +390,7 @@ An organisation must be able to evaluate, install and validate without contactin
 **A combination not in this table is not claimed.** Adding a row requires a passing smoke test in the same change (`MK5`).
 
 
-### 5.2 MVP-R2 — The demo path works unaided · partly `MVP-GAP` (`R2.5` only)
+### 5.2 MVP-R2 — The demo path works unaided · `BUILT`
 
 `futures.md` finding G-02 was that the product's differentiating instruments were computed and invisible. The MVP's equivalent risk is capability that exists and cannot be reached.
 
@@ -400,7 +400,7 @@ An organisation must be able to evaluate, install and validate without contactin
 | **MVP-R2.2** | A documented end-to-end demonstration SHALL exist, covering install → bind → dispatch → gate → export → independent verification. | **`BUILT`** (`DEMO.md`) |
 | **MVP-R2.3** | `FR-M34-03` — the ACP Registry SHALL be browsable from the Adapter Bay so a registered agent is one click from probation. | **`BUILT`** (`MV3-T02`) — `registry/browse` and `registry/install` workbench actions, `RegistryBay` in the Adapter Bay. The index is fetched on explicit action only; opening the workbench reaches no network, asserted on both sides of the bus. Five states, not one error: `idle`, `fresh`, `cached-stale`, `unreachable` and `malformed` — a registry that answers with an unreadable index is a registry fault, not a network one |
 | **MVP-R2.4** | `FR-M44-03`…`05` — an installed adapter SHALL be pinned by content digest, and silent drift SHALL be refused naming both digests. | **`BUILT`** (`MV3-T01`) — `adapters/pinning.ts`; the pin index lives beside the root, not inside the folder it protects, so removing a pin is an edit to a different file. Five verdicts, because `unpinned` (placed by hand) is neither a pass nor a failure. `learned/` is excluded and the docstring says why |
-| **MVP-R2.5** | `FR-M46-03` — a pull-request evidence card SHALL show change risk, tested revision, coverage gaps, failed checks, cost and the human action required. | **`MVP-GAP`** |
+| **MVP-R2.5** | `FR-M46-03` — a pull-request evidence card SHALL show change risk, tested revision, coverage gaps, failed checks, cost and the human action required. | **`BUILT`** (`MV3-T04`) — `webview/src/screens/PullRequestCard.tsx`, on the Evidence surface; consumes `pr/status`, `pr/conflicts` and `spend/series`, closing `pr/conflicts`' unsurfaced entry. **The tested revision is the field that bites:** a passed gate recorded against a head the branch has moved past is shown as stale rather than as a pass. The card reads the record and offers no approve control — approving is a governed action bound to an identity in the Gate Room, and a second route to it here would be a quieter one. **Qualified:** `H1` asks for evidence from a real gated PR; the card is tested against the real RPC contracts and has not yet been run against a live pull request |
 
 ### 5.3 MVP-R3 — Claims match reality · partly `MVP-GAP`
 

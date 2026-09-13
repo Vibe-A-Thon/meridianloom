@@ -117,10 +117,17 @@ export function LaunchScreen({ client, ready, workspaceDir }: ScreenProps) {
   if (phase.kind === 'ready' || phase.kind === 'starting' || phase.kind === 'preflighting') {
     return (
       <section className={styles.screen} aria-label="Launch">
+        {/*
+          `undefined` while the declaration is still being fetched, never
+          `null`: EnforcementBadge refuses to render without a declaration,
+          so passing the null of a query that has not answered yet would turn
+          a slow fetch into a crash. The dialog renders no badge until it can
+          render a true one.
+        */}
         <PreflightDialog
           preflight={phase.kind === 'preflighting' ? undefined : toDialog(phase.preflight)}
           busy={phase.kind === 'starting'}
-          declaration={enforcement.lookup(LAUNCH_CONTROL) ?? null}
+          declaration={enforcement.lookup(LAUNCH_CONTROL)}
           onConfirm={confirm}
           onCancel={cancel}
         />

@@ -2,10 +2,11 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { ExternalAgentsScreen } from '../screens/ExternalAgentsScreen';
 import { FlightRecorderScreen } from '../screens/FlightRecorderScreen';
 import { LedgerScreen } from '../screens/LedgerScreen';
+import { PullRequestCard } from '../screens/PullRequestCard';
 import type { ScreenProps } from '../screens/registry';
 import styles from './studios.module.css';
 
-export type EvidenceTab = 'recorder' | 'sessions' | 'ledger';
+export type EvidenceTab = 'recorder' | 'sessions' | 'pull-request' | 'ledger';
 
 export interface EvidenceStudioProps extends ScreenProps {
   initialTab?: EvidenceTab;
@@ -18,6 +19,11 @@ const TABS: Array<{ id: EvidenceTab; label: string; note: string }> = [
     id: 'sessions',
     label: 'External sessions',
     note: 'Inspect source coverage and attributed changes',
+  },
+  {
+    id: 'pull-request',
+    label: 'Pull request',
+    note: 'What a reviewer needs before merging an agent’s work',
   },
   { id: 'ledger', label: 'Audit ledger', note: 'Read records, inspect proofs, export a bundle' },
 ];
@@ -126,6 +132,9 @@ export function EvidenceStudio({
         <p className={styles.panelCaption}>{selected.note}</p>
         {tab === 'recorder' && <FlightRecorderScreen {...screenProps} />}
         {tab === 'sessions' && <ExternalAgentsScreen {...screenProps} />}
+        {tab === 'pull-request' && (
+          <PullRequestCard client={screenProps.client} ready={screenProps.ready} />
+        )}
         {tab === 'ledger' && <LedgerScreen {...screenProps} />}
       </section>
     </div>
