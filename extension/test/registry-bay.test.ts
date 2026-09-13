@@ -307,6 +307,95 @@ describe('installing lands in probation, pinned', () => {
 });
 
 describe('a drifted adapter does not launch (FR-M44-04, SEC-33)', () => {
+  /** Install an adapter from the registry, then edit it behind Meridian's back. */
+  async function driftedInstall() {
+    const { root, service } = await setup();
+    await service.request({ action: 'registry/browse' });
+    await service.request({
+      action: 'registry/install',
+      params: { id: 'acme-java-developer' },
+    });
+    const manifest = path.join(
+      root,
+      '.meridian',
+      'adapters',
+      'acme-java-developer',
+      'manifest.yaml',
+    );
+    await writeFile(manifest, `${await readFile(manifest, 'utf8')}# edited\n`, 'utf8');
+    return root;
+  }
+
+  function verifyingService(
+    root: string,
+    request: (method: string, params: unknown) => Promise<unknown>,
+  ) {
+    const verifying = new WorkbenchService({
+      workspaceDir: () => root,
+      trusted: () => true,
+      enabledTiers: () => ['flight-recorder', 'governor'],
+      sidecar: () => ({ request }),
+      humanApprover: async () => ({ outcome: 'cancelled' }),
+    });
+    services.push(verifying);
+    return (
+      verifying as unknown as {
+        refuseDriftedAdapter(id: string, dir: string): Promise<void>;
+      }
+    ).refuseDriftedAdapter.bind(verifying);
+  }
+
+  it('records the refusal in the ledger, naming both digests', async () => {
+    // MV3-T01's third clause. Without it the one event this check exists to
+    // catch — an installed agent changed after install — leaves no record once
+    // the error is dismissed.
+    const root = await driftedInstall();
+    const appended: Array<Record<string, unknown>> = [];
+    const refuse = verifyingService(root, async (method, params) => {
+      if (method === 'ledger.append') appended.push(params as Record<string, unknown>);
+      return { sequence: 1 };
+    });
+
+    await expect(refuse('acme-java-developer', root)).rejects.toThrow(
+      /has changed since it was installed/,
+    );
+    expect(appended).toHaveLength(1);
+    expect(appended[0].actionType).toBe('adapter_drift_refused');
+    expect(appended[0].decision).toBe('rejected');
+    expect(appended[0].vendor).toBe('meridian');
+    expect(appended[0].observationConfidence).toBe('direct');
+    const recorded = JSON.parse(String(appended[0].input));
+    expect(recorded.expected).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(recorded.actual).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(recorded.expected).not.toBe(recorded.actual);
+    // Digests, never the adapter's contents.
+    expect(String(appended[0].input)).not.toContain('# edited');
+  });
+
+  it('still refuses when the refusal cannot be recorded', async () => {
+    // The integrity check must not depend on the audit trail being up. A
+    // failed ledger write that turned a refusal into a launch would be the
+    // wrong way round.
+    const root = await driftedInstall();
+    const refuse = verifyingService(root, async () => {
+      throw new Error('sidecar went away');
+    });
+    await expect(refuse('acme-java-developer', root)).rejects.toThrow(
+      /could not be recorded in the ledger/,
+    );
+  });
+
+  it('records nothing for an agent Meridian never installed', async () => {
+    const { root } = await setup();
+    const appended: unknown[] = [];
+    const refuse = verifyingService(root, async (method, params) => {
+      if (method === 'ledger.append') appended.push(params);
+      return { sequence: 1 };
+    });
+    await expect(refuse('hand-bound-agent', root)).resolves.toBeUndefined();
+    expect(appended).toEqual([]);
+  });
+
   it('refuses the launch and names both digests', async () => {
     /**
      * The verify half of pinning, on the path the shipped product actually

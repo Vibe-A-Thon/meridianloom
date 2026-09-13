@@ -1905,9 +1905,58 @@ export class WorkbenchService {
       agentId,
       path.join(root, agentId),
     ).catch(() => undefined);
-    if (verdict?.state === "drifted") {
-      throw new Error(verdict.detail);
+    if (verdict?.state !== "drifted") return;
+
+    // MV3-T01, SEC-33: a drift mismatch refuses the load, names both digests,
+    // AND writes a ledger entry. The first two were built and the third was
+    // not, which meant the one event this check exists to catch — somebody
+    // changed an installed agent — left no record once the error dialog was
+    // dismissed. The refusal is Meridian's own act on bytes it digested
+    // itself, so the entry is `direct` and attributed to Meridian, and it
+    // carries the digests, never the adapter's contents.
+    //
+    // The refusal stands whether or not the entry lands. A refusal that a
+    // failed ledger write could turn into a launch would make the integrity
+    // check depend on the audit trail being available, which is backwards.
+    let recorded = false;
+    const sidecar = this.options.sidecar();
+    if (sidecar) {
+      try {
+        await sidecar.request("ledger.append", {
+          storyId: agentId,
+          phase: "build",
+          loopId: "adapter-integrity",
+          loopIteration: 1,
+          actorId: "meridian-pin-check",
+          actorVersion: "adapter-pin/v1",
+          actorKind: "meta",
+          policyVersion: "adapter-pin/v1",
+          actionType: "adapter_drift_refused",
+          decision: "rejected",
+          vendor: "meridian",
+          observationConfidence: "direct",
+          reworkReason: verdict.detail.slice(0, 4000),
+          input: JSON.stringify({
+            adapterId: agentId,
+            expected: verdict.expected,
+            actual: verdict.actual,
+            expectedFiles: verdict.expectedFiles,
+            actualFiles: verdict.actualFiles,
+          }),
+        });
+        recorded = true;
+      } catch (error) {
+        this.options.onError?.(
+          `The refusal to launch '${agentId}' was not recorded in the ledger: ` +
+            `${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
+    throw new Error(
+      recorded
+        ? verdict.detail
+        : `${verdict.detail} This refusal could not be recorded in the ledger.`,
+    );
   }
 
   /**

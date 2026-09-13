@@ -45,7 +45,7 @@ rather than greyed out.
 - **Adapter digest pinning.** Whatever Meridian installs is digested at
   install and checked before its agent launches. A folder that changed does
   not load, and the refusal names the digest recorded at install and the
-  digest on disk.
+  digest on disk. The refusal is recorded in the ledger too.
 - **Verifiable agent identity.** The binary behind an agent is resolved from
   `PATH` and digested before the process starts; a swap under an unchanged
   name warns. Where the launch command is a run-time package fetcher (`npx`,

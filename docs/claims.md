@@ -117,6 +117,8 @@ Why this exists: the freeze audit found a requirements document asserting a gree
 | The installed package is validated by running its own extracted sidecar, CLI and verifier, not the checkout | `docs/DEPLOYMENT.md` | `scripts/validate-package.mjs` | backed |
 | Headless `doctor`, given the signing key, verifies the ledger chain and exits non-zero when an entry has been altered | `docs/DEPLOYMENT.md` | `core/tests/test_headless_cli.py::test_with_a_key_a_broken_chain_fails_the_run` | backed |
 | **Headless `doctor` without the signing key reports that it cannot check the chain, rather than passing it** | `docs/DEPLOYMENT.md` | — | limitation |
+| An agent whose installed folder changed is refused before launch, and the refusal is recorded in the ledger with both digests | `docs/SECURITY-AND-DATA.md` §7 | `extension/test/registry-bay.test.ts > records the refusal in the ledger, naming both digests` | backed |
+| Notarising another tool's record is unreachable from the commit hook, so it adds nothing to a commit | `docs/SECURITY-AND-DATA.md` §5 | `core/tests/test_notarisation_off_commit_path.py::test_the_commit_hook_never_reaches_notarisation` | backed |
 | **Without a witness, a re-signed fork of the whole ledger still verifies** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **The commit trailer is editable; it is a pointer, not a proof** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **Enforcement is in the editor, not the SCM** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |

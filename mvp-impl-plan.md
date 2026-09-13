@@ -221,12 +221,26 @@ Extend the guard so a path that must never ship is asserted absent from **both**
 
 ### Exit criteria
 
-- [ ] One commit, one sequential suite run, three counts recorded
-- [ ] `mvp-req-final.md` and this plan committed and recorded in `DECISIONS.md`
-- [ ] `docs/claims.md` complete, with **zero** unbacked claims remaining in any shipped text
-- [ ] `check-claims.mjs` and `check-mvp-traceability.mjs` both green and both demonstrated red
-- [ ] Licence sweep clean
-- [ ] Every must-never-ship path asserted absent from the working tree **and** from git; the guard demonstrated failing on a tracked-but-locally-deleted path (`MV0-T06`)
+- [x] One commit, one sequential suite run, three counts recorded — `docs/baselines/6b0b36a.txt`: extension 536, core 1,629, webview 242; recorded in `56bf95b`
+- [x] `mvp-req-final.md` and this plan committed and recorded in `DECISIONS.md` — decision G-2 (the freeze) and `D54` (MVP scope)
+- [x] `docs/claims.md` complete, with **zero** unbacked claims remaining in any shipped text — held since by `check-claims.mjs` on every `npm test`
+- [x] `check-claims.mjs` and `check-mvp-traceability.mjs` both green and both demonstrated red — recorded in `6b0b36a`
+- [x] Licence sweep clean — 12 runtime dependencies, none copyleft; a gate in `npm test`
+- [x] Every must-never-ship path asserted absent from the working tree **and** from git; the guard demonstrated failing on a tracked-but-locally-deleted path (`MV0-T06`) — `extension/test/manifest.test.ts` and `scripts/package-extension.mjs` both read `git ls-files`; demonstrated in `6b0b36a`
+
+
+### Delivery record
+
+Written by the MV0–MV4 audit, which found every task delivered and none of them marked. Commits and evidence were checked, not recalled.
+
+| Task | Evidence |
+|---|---|
+| `MV0-T01` Quiesce the tree | `6b0b36a`; baseline `docs/baselines/6b0b36a.txt`, recorded in `56bf95b` |
+| `MV0-T02` Land the requirement set | `DECISIONS.md` G-2, the freeze; `D54` |
+| `MV0-T03` The claims inventory | `docs/claims.md`, `scripts/check-claims.mjs` (`6b0b36a`) |
+| `MV0-T04` Bind the plan to the requirements | `scripts/check-mvp-traceability.mjs` (`6b0b36a`) |
+| `MV0-T05` Dependency and licence sweep | `scripts/check-licences.mjs` (`6b0b36a`) |
+| `MV0-T06` Guards check what ships | `extension/test/manifest.test.ts`, `scripts/package-extension.mjs`, both reading `git ls-files` (`6b0b36a`) |
 
 ---
 
@@ -310,17 +324,34 @@ Add the two missing tests: an `AgentToken`, weft row, ledger row or hunk constru
 
 ### Exit criteria
 
-- [ ] No control surface renders without a declared enforcement point — enforced by the primitive, not by review
-- [ ] No surface describes a client-side control as enforced (`AC-45`)
-- [ ] `compatibility.json` green, the published table generated, `D41` recorded
-- [ ] `docs/evidence-gate.md` written, dated, and predating all study data
-- [ ] A renamed external contract degrades coverage visibly within one session (`NFR-40`)
-- [ ] A forged trailer and forged telemetry each stay at `inferred` (`SEC-34`)
-- [ ] The bundle carries the `ISO/IEC 24970` mapping, the Article 26 retention margin, and the not-a-conformity sentence (`AC-61`)
-- [ ] The withdrawn broader claim appears in no shipped document (`AC-63`)
-- [ ] Banned patterns 28 and 30 each have a named test, each demonstrated failing (`MVP-R3.7`)
-- [ ] `docs/claims.md` updated: every claim this phase touched re-bound to its test
-- [ ] Three suites green, sequential, one commit
+- [x] No control surface renders without a declared enforcement point — enforced by the primitive, not by review: `EnforcementBadge` refuses to render without one (`3dfa188`). `MV3-T04` later found two surfaces handing it a still-loading `null`, which would have crashed rather than hidden the control, and fixed both
+- [x] No surface describes a client-side control as enforced — `411a1e7`. This is the surface half. `AC-45` as numbered in the requirement set — a merge blocked **outside** the editor — stays open under `D37` until a platform team configures an SCM binding
+- [x] `compatibility.json` green, the published table generated, `D41` recorded — `de79279`
+- [x] `docs/evidence-gate.md` written, dated, and predating all study data — committed 12 September 2026 in `56bf95b`; no study data exists yet
+- [x] A renamed external contract degrades coverage visibly within one session (`NFR-40`) — `dbe6950`, `core/tests/test_contract_drift.py`
+- [x] A forged trailer and forged telemetry each stay at `inferred` (`SEC-34`) — `63548b7`; `D55` then capped all trailer evidence at `inferred` (`4efc1ac`)
+- [x] The bundle carries the `ISO/IEC 24970` mapping, the Article 26 retention margin, and the not-a-conformity sentence (`AC-61`) — `d7bf053`
+- [x] The withdrawn broader claim appears in no shipped document (`AC-63`) — `d7bf053`; `check-claims.mjs` fails if the withdrawn wording returns
+- [x] Banned patterns 28 and 30 each have a named test, each demonstrated failing (`MVP-R3.7`) — `6260101`
+- [x] `docs/claims.md` updated: every claim this phase touched re-bound to its test
+- [x] Three suites green, sequential — **one commit per task rather than one for the phase** (`3dfa188` … `70b432b`), each verified before it landed
+
+
+### Delivery record
+
+Written by the MV0–MV4 audit, which found every task delivered and none of them marked.
+
+| Task | Evidence |
+|---|---|
+| `MV1-T01`/`T02` Expose the declaration; the primitive | `3dfa188` |
+| `MV1-T03` Never render client-side as enforced | `411a1e7` |
+| `MV1-T04` Carry the declaration into the export | `core/tests/test_enforcement_points.py::test_bundle_carries_the_enforcement_section` |
+| `MV1-T05`/`T06`/`T07` The matrix, the table, `D41` | `de79279` |
+| `MV1-T08` The thresholds before the study | `docs/evidence-gate.md`, committed in `56bf95b` before any study data |
+| `MV1-T09` Contract drift | `dbe6950` |
+| `MV1-T10` Forged signals | `63548b7`, then `D55` in `4efc1ac` |
+| `MV1-T11`/`T12` The buyer's standard; the narrowed claim | `d7bf053` |
+| `MV1-T13` Banned patterns 28 and 30 | `6260101` |
 
 ---
 
@@ -364,9 +395,11 @@ The `run/*` methods are not registered below the Governor tier, and the initiati
 
 **`MV2-T06` — The initiation surface.**
 Screen 10.51 at its minimum: the preflight dialog, its four states (`B2`), three access paths on the destructive confirm (`B9`), and the enforcement badge from `MV1-T02` on every control it carries. The full screen stays specified and `POST-MVP`.
+*Built.* `webview/src/screens/LaunchScreen.tsx` around `PreflightDialog`, and the palette door `meridian.startRun`; the enforcement badge rides on the dialog. **The Launch screen did not reach the package until `MV3-T05`**: it was registered in a screen registry that nothing renders, so it existed in the tests and nowhere a person could reach. It is now mounted on the workbench's `launch` view.
 
 **`MV2-T07` — Demo path extended.**
 `DEMO.md` gains the initiation step, re-verified end to end from an installed VSIX (`MP7`), not from the checkout.
+*Written here; verified from the package in `MV3-T05`.* `DEMO.md` §6b. Every step is checked against the built VSIX by `scripts/check-demo-package.mjs` in CI. Walking it on a clean machine is `MV4-T04`.
 
 ### Exit criteria
 
@@ -375,7 +408,7 @@ Screen 10.51 at its minimum: the preflight dialog, its four states (`B2`), three
 - [x] Authority role-checked, identity and assurance recorded — with the `readOnly` qualification recorded on `MVP-R4.3`
 - [x] Cancellation leaves no worktree, no branch, one entry — filesystem, `git branch --list` and ledger all asserted
 - [x] `run/*` **absent** below Governor, proven by absence, with Flight Recorder proven whole alongside
-- [ ] `DEMO.md` re-verified from the package — **not yet done.** The initiation step is written (`DEMO.md` §6b) and every claim in it is backed by a test, but it has not been walked from an installed VSIX. Carried into `MV3-T05`, which re-runs the whole path from the package
+- [~] `DEMO.md` re-verified from the package — every step is now backed by the built VSIX and checked in CI by `scripts/check-demo-package.mjs` (`MV3-T05`), which also found the Launch screen had never reached the package and led to its fix. **Walking the demo on a clean machine is not done**; that is `MV4-T04`
 - [x] Three suites green, sequential, one commit
 
 ---
@@ -415,6 +448,7 @@ Wire `AcpRegistrySource` to the Adapter Bay: browse, inspect an entry, install t
 **`MV3-T03` — Say what the registry proves.**
 Document, in `docs/SECURITY-AND-DATA.md` and on the surface, what a registry listing does and does not establish — in the same register as the `.sha256` paragraph, which says what it proves and then says what it does not. No claim that a listed agent is safe or endorsed.
 *Principle:* `MP5`, `G4`.
+*Built.* `docs/SECURITY-AND-DATA.md` §7 and the disclaimer on the Adapter Bay itself: a listing is a publication — not a review, not a security assessment, not an endorsement — and a pin proves the bytes did not change, not that they were ever trustworthy. Both are declared limitations in `docs/claims.md`.
 
 **`MV3-T04` — The PR evidence card (`MVP-R2.5`, `FR-M46-03`).**
 One card, on the Delivery Evidence surface, for a pull request under gate: **change risk · the revision actually tested · coverage gaps · failed checks · cost · and the human action required.** It consumes `pr/ingest` and `pr/status`, and closes the `pr/conflicts` declared-unsurfaced entry in `shared/schema/unsurfaced.json`. Every figure carries its coverage envelope (`J2`); the card carries its enforcement point (`MV1-T02`); the finding is stated in words (`H7`).
@@ -444,17 +478,18 @@ Three decisions the work forced, each because a test caught the alternative:
 
 **`MV3-T05` — Demo path completed.**
 `DEMO.md` covers install → bind (preset **or** registry) → initiate → gate → PR card → export → independent verification, re-run from the installed package on a machine that has not built it.
+*Built.* `DEMO.md` §4b, §8b and §8c, and `scripts/check-demo-package.mjs`, which checks every step against the built VSIX in CI. It found two things every unit suite called green and that were **absent from the package**: the Launch screen, registered in a registry nothing renders, and pin verification, tree-shaken out because its only caller was never wired. Both fixed. *Outstanding:* the demo has not been walked on a clean machine. (This note was written in the `MV3-T05` commit and did not survive it; restored by the MV0–MV4 audit.)
 
 ### Exit criteria
 
-- [ ] Adapter drift refused, both digests named, entry recorded, negative control proven (`SEC-33`)
-- [ ] A binary swap under an unchanged name changes the recorded identity and warns (`AC-52`)
-- [ ] The registry reachable by a person, installing to probation, with no activation-time network call
-- [ ] `pr/conflicts` consumed; the declared-unsurfaced entry removed
-- [ ] The PR card built against a real gated PR, carrying coverage and enforcement point
-- [ ] A third-party provenance record is read, labelled by source, notarised, and its alteration detected (`AC-59`)
-- [ ] `DEMO.md` end-to-end from the package
-- [ ] Three suites green, sequential, one commit
+- [x] Adapter drift refused, both digests named, entry recorded, negative control proven (`SEC-33`) — the refusal runs before launch. **The ledger entry was missing until the MV0–MV4 audit found it**; it is now written, carries the digests and never the contents, and the refusal stands if it cannot be written
+- [x] A binary swap under an unchanged name changes the recorded identity and warns (`AC-52`)
+- [x] The registry reachable by a person, installing to probation, with no activation-time network call — asserted on both sides of the bus
+- [x] `pr/conflicts` consumed; the declared-unsurfaced entry removed
+- [~] The PR card built against a real gated PR, carrying coverage and enforcement point — built and tested against the real RPC contracts; **not yet run against a live gated pull request** (`H1`), which needs a repository and a pilot
+- [x] A third-party provenance record is read, labelled by source, notarised, and its alteration detected (`AC-59`)
+- [~] `DEMO.md` end-to-end from the package — every step backed by the built VSIX and checked in CI; **not walked on a clean machine**
+- [x] Three suites green, sequential — one commit per task group (`c693a6c`, `73c31b1`, `0e8ed94`, `3b5fb5f`), each verified before it landed
 
 ---
 

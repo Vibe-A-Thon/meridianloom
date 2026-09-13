@@ -209,11 +209,11 @@ Every module from every source, with its MVP disposition. **Requirement counts a
 | Module | Name | MVP disposition |
 |---|---|---|
 | **M41** | Evidence Completeness and Coverage | **`BUILT`** (`FR-M41-01`…`15`) · `16`, `17` backfill `POST-MVP` |
-| **M42** | Enforcement Assurance | **Partly `BUILT`** — `07`, `08` approval class built; `01`–`06` SCM/identity `MVP-GAP`; `09`–`15` `POST-MVP` |
+| **M42** | Enforcement Assurance | **Mostly `BUILT`** — `04`/`05` asserted versus verified identity (`D38`), `06` revocation, `07`/`08` approval class, and `11`/`12` enforcement-point declarations (`MV1-T01`…`T04`) are built; `01`–`03` SCM-native enforcement is `MVP-GAP` under `D37`; `09`, `10`, `13`–`15` `POST-MVP` |
 | **M43** | Evidence Durability and Portability | **Mostly `BUILT`** — receipts, verdicts, archive, privacy, trailer spec, headless collector. `09`, `10` in-toto `POST-MVP` (§5.6); `15` `MVP-HUMAN` |
-| **M44** | Vendor Surface and Supply-Chain Integrity | **Partly `BUILT`** — `11`–`13` retention windows built; `01`–`10` `MVP-GAP`/`POST-MVP` |
+| **M44** | Vendor Surface and Supply-Chain Integrity | **Mostly `BUILT`** — `01`/`02` verifiable agent identity (`MV3-T01b`), `03`–`05` digest pinning (`MV3-T01`), `06`/`07` contract drift (`MV1-T09`), `08`–`10` the compatibility matrix (`MV1-T05`…`T07`) and `11`–`13` retention windows are built. Signature verification on external install (`AMD-M31`) is not: the ACP Registry publishes no signatures to verify |
 | **M45** | Change Economics | **Partly `BUILT`** — provenance separation built (`D32`); merge binding `POST-MVP` |
-| **M46** | Product Assurance | **Partly `BUILT`** — `01`, `02` orphan check built; `03`–`10` assurance `MVP-GAP`; `11`–`17` `POST-MVP`/`MVP-HUMAN` |
+| **M46** | Product Assurance | **Partly `BUILT`** — `01`/`02` the orphan check and `03` the pull-request evidence card (`MV3-T04`) are built; `05`–`07` are `MVP-GAP`, narrowed — the assistive, compatibility and resilience harnesses are built and the remaining runs need people or other platforms (`MV4`); `08` the soak harness is built and the seven-day run is not; `04` is `MVP-HUMAN`; `09`/`10`, the adversarial corpus, has its forged-signal slice built (`SEC-34`, narrow form) and the 100-fixture corpus `POST-MVP`; `11`–`17` `POST-MVP`/`MVP-HUMAN` |
 
 ### 3.5 Harness intelligence (`jit-requirements.md`, renumbered)
 
@@ -262,9 +262,9 @@ Every module from every source, with its MVP disposition. **Requirement counts a
 | `AMD-M17` | Coverage and sample disclosure on every KPI; DORA keys declared as proxies | **`BUILT`** |
 | `AMD-M20` | Verified identity supersedes git identity; approval-hygiene expansion signal | **Partly `BUILT`** — assurance levels built; expansion signal `POST-MVP` |
 | `AMD-M25` | Retire the duplicate steer path | **`BUILT`** — one implementation (`G-03` closed) |
-| `AMD-M31` | Adapter digest pinning; signature verification on external install | **`MVP-GAP`** (`MVP-R2.4`) |
+| `AMD-M31` | Adapter digest pinning; signature verification on external install | **`MVP-GAP`**, narrowed (`MV3-T01`) — digest pinning is built, and a registry archive's published sha256 is verified on install. **Signature verification on external install is not built**, because the ACP Registry publishes no signatures to verify |
 | `AMD-M33` | Per-class reporting as the investment gate before further slices | **`BUILT` as a gate** — `FR-M46-16` in force; `D42` open |
-| `AMD-M35` | Retention windows and expiry markers in the observer preference chain; matrix feed | **Partly `BUILT`** — windows and expiry built; the matrix is `MVP-GAP` (`MVP-R3.5`) |
+| `AMD-M35` | Retention windows and expiry markers in the observer preference chain; matrix feed | **`BUILT`** — windows and expiry built; the matrix feed built with `MVP-R3.5` (`MV1-T05`…`T07`) |
 | `AMD-M37` | Coverage on every trust metric; greenfield/brownfield split on all of them | **`BUILT`** |
 | `AMD-M38` | Brownfield contract and mutation tests, versioned context manifest | `POST-MVP` — `M38` is absent from the code |
 | `AMD-M39` | Cost provenance class on every figure; spend bound to the merge decision | **Partly `BUILT`** — provenance separation built (`D32`); merge binding `POST-MVP` |
@@ -454,8 +454,8 @@ The MVP's purpose is to reach `F2`/`N3`. These are engineering-complete and bloc
 | `NFR-36`, `SEC-31`, `AC-46` | Identity revocation propagates within five minutes and binds at gate execution | **Re-dispositioned `POST-MVP`.** `D38` keeps git identity as the supported production mode; with no identity provider there is nothing to revoke *at*. The MVP ships `asserted` assurance and never describes it as verified (`NK3`). Building a revocation path against a provider that does not exist would be the kind of unbacked control `P27` forbids |
 | `FR-M43-09`, `FR-M43-10` | in-toto attestation envelope | **Re-dispositioned `POST-MVP`.** `futures-implementation.md` §16 cuts it **first** in its own slip plan; the bundle already maps to SSDF, ISO 42001 and AI Act Article 12 without it |
 | `AC-38`, `AC-40` | One contract across every origin; no initiation surface below Governor | **`BUILT`** — `MV2-T01` and `MV2-T05` respectively |
-| `SEC-33` | Adapter refused on digest mismatch, naming both digests | **`MVP-GAP`, already scheduled** — `MV3-T01` |
-| `NFR-42` | Zero acknowledged entries lost; recovery within 15 minutes | **`MVP-GAP`, already scheduled** — `MV4-T02` |
+| `SEC-33` | Adapter refused on digest mismatch, naming both digests | **`BUILT`** (`MV3-T01`, completed by the MV0–MV4 audit) — drift refuses the launch, names both digests, and writes a `direct` ledger entry carrying the digests and never the contents; the refusal stands if the entry cannot be written |
+| `NFR-42` | Zero acknowledged entries lost; recovery within 15 minutes | **`MVP-GAP`**, narrowed (`MV4-T02`) — five of the twenty rehearsals recorded (Windows), zero acknowledged entries lost; macOS and Linux run in CI, the remote configuration needs a person |
 
 ---
 
@@ -503,12 +503,12 @@ From the 12 September competitive review (§16). Four items, each small, each de
 | `NFR-37` Volatile capture margin | `futures_requirements.md` | **`BUILT`** |
 | `NFR-38` Archive restore | `futures_requirements.md` | **`BUILT`** |
 | `NFR-39` Verification without Meridian | `futures_requirements.md` | **`BUILT`** |
-| `NFR-40` Contract-drift visibility | `futures_requirements.md` | **`MVP-GAP`** (`MVP-R6.1`) |
+| `NFR-40` Contract-drift visibility | `futures_requirements.md` | **`BUILT`** (`MV1-T09`) — `core/tests/test_contract_drift.py`: an external contract Meridian cannot parse degrades visibly within one session, never to silence |
 | `NFR-41` Reconciliation tolerance | `futures_requirements.md` | `POST-MVP` |
-| `NFR-42` Recovery objective | `futures_requirements.md` | **`MVP-GAP`** (with `MVP-R1.7`) |
+| `NFR-42` Recovery objective | `futures_requirements.md` | **`MVP-GAP`**, narrowed (`MV4-T02`) — five of the twenty rehearsals recorded (Windows), zero acknowledged entries lost; macOS and Linux run in CI, the remote configuration needs a person |
 | `NFR-43` Soak stability, 7 days | `futures_requirements.md` | **`MVP-GAP`** (`MVP-R6.4`) — harness built, 168-hour run not performed |
 | `NFR-44`…`46` Harness retrieval, synthesis bound, archive growth *(was `NFR-33`…`35`)* | `jit-requirements.md` | `POST-MVP` |
-| `NFR-47` **Notarisation overhead** — digesting a third-party provenance record adds no measurable delay to a commit | §16 (`M52`) | **`MVP-GAP`** (`MVP-R7.1`) |
+| `NFR-47` **Notarisation overhead** — digesting a third-party provenance record adds no measurable delay to a commit | §16 (`M52`) | **`BUILT`** (MV0–MV4 audit) — notarisation is unreachable from the commit-msg hook, proven by an import-closure guard with a negative control (`core/tests/test_notarisation_off_commit_path.py`). It adds nothing to a commit by construction, which a timing assertion measured on one machine could not establish |
 | `NFR-48` **AI-BOM freshness** — the published bill of materials is generated by the build, never hand-maintained, and drift fails the build | §16 (`M50`) | **`BUILT`** (`MV4-T08`) — generated from the artefact; drift between the BOM and the package fails the CI package job |
 | `NFR-49` **Gateway latency** — tool-call governance adds no more than 50 ms at p95 to a governed call | §16 (`M48`) | `POST-MVP` |
 | `NFR-50` **Attestation freshness** — an agent credential is short-lived and re-attested per session, never cached across runs | §16 (`M49`) | `POST-MVP` |
@@ -528,11 +528,11 @@ From the 12 September competitive review (§16). Four items, each small, each de
 | `SEC-27` One-way observation isolation | `gaps-requirements.md` | **`BUILT`** — extended this month to every child process, AST-guarded |
 | `SEC-28` ACP permission non-escalation | `gaps-requirements.md` | **`BUILT`** |
 | `SEC-29` Bundle signature verifiable without trusting Meridian | `gaps-requirements.md` | **`BUILT`** |
-| `SEC-30` Initiation is authenticated, authorised, recorded | `gaps_initiation.md` | **`MVP-GAP`** (with `MVP-R4`) |
+| `SEC-30` Initiation is authenticated, authorised, recorded | `gaps_initiation.md` | **`BUILT`** (`MV2`) — launch is role-checked before anything is created; the authorising identity and its assurance are recorded, and so is a refusal |
 | `SEC-31` Identity re-checked at gate execution | `futures_requirements.md` | `POST-MVP` — see §5.6 |
-| `SEC-32` Never present a control as enforced where it is not | `futures_requirements.md` | **`MVP-GAP`** (with `MVP-R3.1`) |
-| `SEC-33` Adapter digest refusal | `futures_requirements.md` | **`MVP-GAP`** (with `MVP-R2.4`) |
-| `SEC-34` Adversarial corpus covers forged telemetry and trailers | `futures_requirements.md` | **`MVP-GAP`** in its narrow form (`MVP-R6.2`); the 100-fixture corpus is `POST-MVP` |
+| `SEC-32` Never present a control as enforced where it is not | `futures_requirements.md` | **`BUILT`** (`MV1-T01`…`T04`) — every control declares where it binds, and `v1` claims no SCM enforcement |
+| `SEC-33` Adapter digest refusal | `futures_requirements.md` | **`BUILT`** (`MV3-T01`, completed by the MV0–MV4 audit) — drift refuses the launch, names both digests, and writes a `direct` ledger entry carrying the digests and never the contents; the refusal stands if the entry cannot be written |
+| `SEC-34` Adversarial corpus covers forged telemetry and trailers | `futures_requirements.md` | **`BUILT`** in its narrow form (`MV1-T10`, `D55`) — forged trailers and forged telemetry never rise above `inferred`; the 100-fixture corpus stays `POST-MVP` |
 | `SEC-35` Policy bundle signature fail-closed | `futures_requirements.md` | **`BUILT`** |
 | `SEC-36` Witness receipts verifiable independently | `futures_requirements.md` | **`BUILT`** |
 | `SEC-37` Erasure survives restore | `futures_requirements.md` | **`BUILT`** |
@@ -579,9 +579,9 @@ From the 12 September competitive review (§16). Four items, each small, each de
 | `AC-54`…`AC-58` Harness criteria *(was `AC-41`…`45`)* | `jit-requirements.md` | `POST-MVP` |
 | `AC-59` **A rival's record is read, labelled and notarised.** A repository carrying another tool's provenance notes is opened; the notes appear in the Weave attributed to that tool at `inferred`, their digest appears in the signed ledger, and the bundle verifies | §16 (`M52`) | **`BUILT`** (`MV3-T06`) — surfaced in the Ledger screen (10.7) rather than the Weave; 10.54 remains `POST-MVP` |
 | `AC-60` **Two tools disagree, and Meridian says so.** Two provenance records claim the same span with different authorship; the disagreement is reported, and neither is silently preferred | §16 (`M52`) | `POST-MVP` |
-| `AC-61` **The bundle speaks the buyer's standard.** An auditor reads the `ISO/IEC 24970` mapping, the Article 26 retention margin, and the sentence stating the mapping is not a presumption of conformity | §16 (`M50`) | **`MVP-GAP`** (`MVP-R7.2`) |
+| `AC-61` **The bundle speaks the buyer's standard.** An auditor reads the `ISO/IEC 24970` mapping, the Article 26 retention margin, and the sentence stating the mapping is not a presumption of conformity | §16 (`M50`) | **`BUILT`** (`MV1-T11`) — `core/tests/test_compliance_mapping.py` |
 | `AC-62` **The AI-BOM matches the package.** Every agent, skill, instruction document and runtime preset in the VSIX appears in the published CycloneDX AI-BOM with a matching digest; a deliberate mismatch fails the build | §16 (`M50`) | **`BUILT`** (`MV4-T08`) — every shipped component appears with a matching digest; a deliberate mismatch fails |
-| `AC-63` **The narrow claim is the only claim.** No shipped document contains the withdrawn broader wording; every surviving claim is bound to a passing test in `docs/claims.md` | §16 | **`MVP-GAP`** (`MVP-R7.4`) |
+| `AC-63` **The narrow claim is the only claim.** No shipped document contains the withdrawn broader wording; every surviving claim is bound to a passing test in `docs/claims.md` | §16 | **`BUILT`** (`MV1-T12`) — `check-claims.mjs` fails if the withdrawn wording returns to shipped text |
 | `AC-64` **A tool call is governed and traced.** A call refused by the gateway fails closed, is recorded before the caller is told, and traces to the human who authorised the run | §16 (`M48`) | `POST-MVP` |
 | `AC-65` **An existing gateway is kept, not replaced.** An organisation with its own agent gateway has its decision log observed by Meridian with no change to that gateway | §16 (`M48`) | `POST-MVP` |
 | `AC-66` **Attested beats asserted.** An agent whose binary is attested records a different, higher assurance level than one that only declares a name, and both are distinguishable on every surface | §16 (`M49`) | `POST-MVP` |
@@ -656,7 +656,7 @@ All models from `Requirements_Final.md` §7 are retained. Additions:
 | Model | Source | Disposition |
 |---|---|---|
 | `§7.2` Ledger entry, extended with `vendor`, `observation_confidence`, `external_session_id`, `run_id`, `origin` | `Requirements_Final.md` + `gaps_implementation.md` + `gaps_initiation.md` | **`BUILT`** at schema v4 (`run_id`/`origin` pending `MVP-R4`) |
-| `§7.11` RunRequest | `gaps_initiation.md` | **`MVP-GAP`** |
+| `§7.11` RunRequest | `gaps_initiation.md` | **`BUILT`** (`MV2-T01`) |
 | `§7.12` Harness Record *(with `harness_id`/`version`/`digest` on the ledger)* | `jit-requirements.md` | `POST-MVP` |
 | Coverage envelope | `futures_requirements.md` | **`BUILT`** |
 | Bundle, extended with `schemaVersion` and `redaction` | This release | **`BUILT`** (`FR-M43-13`) |

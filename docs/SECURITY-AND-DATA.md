@@ -142,7 +142,7 @@ What it does not buy:
 - **The content is not copied.** Only the digest is recorded. Meridian is not
   the custodian of another tool's data, and taking a copy — even a tidy
   structured one — would make it one, with the retention and erasure
-  obligations that follow.
+  obligations that follow. Notarisation runs only when you ask for it: it is not part of the commit hook and adds nothing to a commit.
 
 The record itself is untrusted input: parsed under an allow-list, never
 executed, and capped in size with oversize reported rather than silently
@@ -204,7 +204,7 @@ sounds like it does.
   digested at install and checked on every load. A folder that has changed
   since does **not** load, and the refusal names the digest recorded at
   install and the digest on disk, so you can tell your own edit from somebody
-  else's. The adapter's own `learned/` directory is excluded, because it is
+  else's. The refusal is recorded in the ledger as well, with both digests and never the adapter's contents. The adapter's own `learned/` directory is excluded, because it is
   where the adapter records what it learned and pinning it would make every
   adapter drift the moment it learned anything.
 
