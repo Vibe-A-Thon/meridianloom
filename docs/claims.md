@@ -119,6 +119,12 @@ Why this exists: the freeze audit found a requirements document asserting a gree
 | **Headless `doctor` without the signing key reports that it cannot check the chain, rather than passing it** | `docs/DEPLOYMENT.md` | — | limitation |
 | An agent whose installed folder changed is refused before launch, and the refusal is recorded in the ledger with both digests | `docs/SECURITY-AND-DATA.md` §7 | `extension/test/registry-bay.test.ts > records the refusal in the ledger, naming both digests` | backed |
 | Notarising another tool's record is unreachable from the commit hook, so it adds nothing to a commit | `docs/SECURITY-AND-DATA.md` §5 | `core/tests/test_notarisation_off_commit_path.py::test_the_commit_hook_never_reaches_notarisation` | backed |
+| An evidence-gate threshold nobody measured is never counted as met, and an outcome that depends on one is not reached | Evidence gate screen · `extension/CHANGELOG.md` | `core/tests/test_evidence_gate.py::test_unmeasured_query_usage_blocks_go_instead_of_being_waved_through` | backed |
+| The evidence gate applies the thresholds `docs/evidence-gate.md` fixed, and a threshold changed after a study registered is declared in the result | `extension/CHANGELOG.md` | `core/tests/test_evidence_gate.py::test_a_threshold_changed_after_registration_is_declared` | backed |
+| A study can be scored without the editor, writing the signed ledger slice and a draft that is not a decision | `extension/CHANGELOG.md` | `core/tests/test_headless_cli.py::test_a_study_is_scored_with_its_signed_slice_and_a_draft_not_a_decision` | backed |
+| `compare-evidence` passes two bundles only when both verify and their evidence shapes agree | `docs/spec/evidence-portability.md` | `core/tests/test_headless_cli.py::test_an_altered_bundle_with_the_same_shape_still_fails` | backed |
+| **No evidence-gate study has been run; no threshold is a measurement** | `extension/CHANGELOG.md` · `docs/evidence-gate.md` | — | limitation |
+| **Two editors and two SCM providers have not produced one evidence shape, and a second editor is not yet supported** | `docs/spec/evidence-portability.md` | — | limitation |
 | **Without a witness, a re-signed fork of the whole ledger still verifies** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **The commit trailer is editable; it is a pointer, not a proof** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **Enforcement is in the editor, not the SCM** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |

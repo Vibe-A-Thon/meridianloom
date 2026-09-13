@@ -136,6 +136,28 @@ of Meridian from the workspace, and verifies the bundle.
 
 ---
 
+## Compare two bundles
+
+Two bundles of the same change, from two editors or two SCM providers, differ
+in almost every value. What must not differ is what a reader needs in order to
+interpret either one. `compare-evidence` checks both halves:
+
+```console
+python -m meridian_core.cli compare-evidence first.json second.json
+```
+
+It runs `verify.py` on each bundle, then compares their evidence shape: the
+format and schema versions, the sections present, the fields an entry carries
+and the type of each, and the redaction, enforcement and compliance structure.
+Values such as timestamps, keys, vendors and approvers are not compared. A
+field that is empty in one bundle and filled in the other is not a difference;
+a field that is text in one and a number in the other is. **Exit 0 means both
+bundles verify and their shapes agree.**
+
+This is the check `AC-50` needs: two editors, two SCM providers, one evidence
+shape. That test itself has not been performed. It needs a customer, and a
+second editor that the compatibility matrix supports.
+
 ## What is not built yet
 
 **FR-M43-14 — opt-in export to OTLP and evaluation systems.** Not

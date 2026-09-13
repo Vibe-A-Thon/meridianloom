@@ -435,10 +435,10 @@ The MVP's purpose is to reach `F2`/`N3`. These are engineering-complete and bloc
 
 | ID | Requirement | Status |
 |---|---|---|
-| **MVP-R5.1** | `FR-M46-17` — the numeric criteria for building the Orchestra tier SHALL be recorded **before** the study runs. | **`BUILT`** (`MV1-T08`) — `docs/evidence-gate.md`, written with no study data in existence |
-| **MVP-R5.2** | `FR-M46-14`/`15` — the study SHALL be preregistered, three-armed, and SHALL publish unfavourable results. | **`MVP-HUMAN`** |
-| **MVP-R5.3** | `FR-M46-04` — four of five users SHALL reach a first provenance answer within 15 minutes (`NFR-28`). | **`MVP-HUMAN`** |
-| **MVP-R5.4** | `AC-50`, `FR-M43-15` — two editors, two SCM providers, one evidence shape, verified on a clean machine. | **`MVP-HUMAN`** — needs a customer |
+| **MVP-R5.1** | `FR-M46-17` — the numeric criteria for building the Orchestra tier SHALL be recorded **before** the study runs. | **`BUILT`** (`MV1-T08`) — `docs/evidence-gate.md`, written with no study data in existence. The instrument that scores the study applies it as written, including the §6 readings and a registered digest; until `MV5` was prepared it applied an older, lower bar |
+| **MVP-R5.2** | `FR-M46-14`/`15` — the study SHALL be preregistered, three-armed, and SHALL publish unfavourable results. | **`MVP-HUMAN`** — prepared, not run: `docs/baselines/evidence-gate/PROTOCOL.md`, the study record, and `cli evidence-gate`, which scores it and drafts the decision |
+| **MVP-R5.3** | `FR-M46-04` — four of five users SHALL reach a first provenance answer within 15 minutes (`NFR-28`). | **`MVP-HUMAN`** — prepared, not run: `docs/baselines/first-value/PROTOCOL.md`, scored beside the rule |
+| **MVP-R5.4** | `AC-50`, `FR-M43-15` — two editors, two SCM providers, one evidence shape, verified on a clean machine. | **`MVP-HUMAN`** — needs a customer, **and first a second editor claimed in the compatibility matrix**, which claims one today. Prepared: `docs/baselines/two-editors/PROTOCOL.md` and `cli compare-evidence` |
 
 ### 5.6 MVP-R6 — The stragglers, reconciled
 
@@ -491,7 +491,7 @@ From the 12 September competitive review (§16). Four items, each small, each de
 | Range | Source | MVP disposition |
 |---|---|---|
 | `NFR-01`…`NFR-27` | `Requirements_Final.md` | **In force.** Performance budgets, recovery, cross-platform, accessibility. `NFR-25` (LLM ratio) applies to Orchestra only |
-| `NFR-28` First value < 15 min | `gaps-requirements.md` | **`MVP-HUMAN`** |
+| `NFR-28` First value < 15 min | `gaps-requirements.md` | **`MVP-HUMAN`** — protocol ready (`docs/baselines/first-value/PROTOCOL.md`) |
 | `NFR-29` Observation overhead ≤ 5% | `gaps-requirements.md` | **`BUILT`** — measured ~0.0 ms |
 | `NFR-30` Standards conformance (ACP, MCP) | `gaps-requirements.md` | **`BUILT`** — in CI |
 | `NFR-31` Portable verification | `gaps-requirements.md` | **`BUILT`** |
@@ -572,7 +572,7 @@ From the 12 September competitive review (§16). Four items, each small, each de
 | `AC-47` Expiry is marked, not silent | `futures_requirements.md` | **`BUILT`** |
 | `AC-48` A bypass is detected and self-reported | `futures_requirements.md` | **`BUILT`** |
 | `AC-49` Evidence outlives the vendor and the tool | `futures_requirements.md` | **`BUILT`** — proven end to end this month |
-| `AC-50` Two editors, two SCMs | `futures_requirements.md` | **`MVP-HUMAN`** |
+| `AC-50` Two editors, two SCMs | `futures_requirements.md` | **`MVP-HUMAN`** — also blocked on a second supported editor; the protocol and `cli compare-evidence` are ready |
 | `AC-51` Cost binds to the decision | `futures_requirements.md` | `POST-MVP` |
 | `AC-52` A binary swap is visible | `futures_requirements.md` | **`BUILT`** (`MV3-T01b`) |
 | `AC-53` A fresh workspace has one policy behaviour | `futures_requirements.md` | **`BUILT`** (`D43`) |

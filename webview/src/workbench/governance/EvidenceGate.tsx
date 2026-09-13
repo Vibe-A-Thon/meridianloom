@@ -15,28 +15,29 @@ import {
 import s from "./governance.module.css";
 
 /**
- * F2 — the evidence gate.
+ * The evidence gate (MV5), scored against `docs/evidence-gate.md`.
  *
- * `gaps_implementation.md` §F2 is a decision phase, not a build phase: twenty
- * real stories from the team's own backlog, through F0 + F1, with the team's
- * own agents, and then a written decision — GO to F3, STOP and ship the
- * recorder, PIVOT to analytics, or KILL — with the raw ledger slice attached.
+ * The thresholds were written before any study data existed, and the
+ * instrument behind this screen applies them: ten measures, each met, not met
+ * or unmeasured, with §4's outcomes tried in order. This screen's job is to
+ * keep the shape of that answer intact on its way to a person.
  *
- * Every measure it names was already computable, and computable in seven
- * different places. A team finishing twenty stories had to assemble the
- * verdict by hand from seven panels, which is exactly the manual step this
- * project has repeatedly got wrong: each part true, the whole unverified.
+ * Three things it is careful about.
  *
- * What this screen is careful about is the shape of the answer. Two of the
- * seven measures cannot be recorded at all — nothing counts provenance reads,
- * and the product deliberately does not phone home to learn who is still using
- * it at week eight. Those read *unavailable with the reason*, never zero, and
- * a GO verdict says out loud that query usage is unevidenced even when
- * everything else lines up. §F2 requires it for GO; the honest move is to
- * flag the gap rather than let a green verdict imply it was met.
+ * - **Unmeasured never looks like a pass.** It is spelled out in the status
+ *   column, and a status the screen does not recognise reads as unmeasured.
+ *   The first version of this screen showed "unavailable" beside a verdict
+ *   that could still be GO.
+ * - **An unknown verdict is not decidable, never GO.**
+ * - **A broken preregistration is announced.** If the thresholds applied are
+ *   not the ones the study registered, §5 says the result is published as
+ *   invalidated, and the screen raises that as an alert rather than a footnote.
  *
- * STOP is drawn as a success, because it is one (R29). "Ship the Flight
- * Recorder" is a real outcome of this gate, not a failure of it.
+ * From the editor, only this workspace's ledger is read. The measures that need
+ * people (adjudications, the baseline arm's figures, retention) come from a
+ * study record scored with `python -m meridian_core.cli evidence-gate`.
+ *
+ * STOP is drawn as a success, because it is one (R29).
  */
 
 const VERDICT: Readonly<
@@ -46,42 +47,65 @@ const VERDICT: Readonly<
     label: "GO",
     signal: "ok",
     meaning:
-      "Gating measurably helped and stability held. §F2 says build the Orchestra.",
+      "Every preregistered threshold holds, and a task class exists where a Meridian agent would plausibly do better (O1). §4 says build the Orchestra.",
   },
   stop: {
     label: "STOP — and ship",
     signal: "warn",
     meaning:
-      "The recorder and gates are used and valued, but the evidence does not justify building Meridian's own agents. Ship Flight Recorder + Governor as the product. This is a success, not a failure (R29).",
+      "The governance layer holds, but O1 is not satisfied. Ship the Flight Recorder and Governor as the product. This is a success, not a failure (R29).",
   },
   pivot: {
     label: "PIVOT",
     signal: "warn",
     meaning:
-      "Provenance queries are not run and gates are ceremony, but the trust analytics are used. Narrow to the analytics product and drop the gating.",
+      "Nobody queries provenance (P4 fails), but the trust instruments change decisions (P5 holds). Drop the gating and keep the measurement.",
   },
   kill: {
     label: "KILL",
     signal: "fail",
-    meaning: "None of it is used. §15 applies.",
+    meaning:
+      "Retention failed, stability failed, or review cost rose while the gates caught nothing. The layer costs more than it returns.",
+  },
+  unclassified: {
+    label: "No outcome applies",
+    signal: "warn",
+    meaning:
+      "§4 names no outcome for this combination of results. It is reported as it is, not rounded to the nearest outcome.",
   },
   insufficient_evidence: {
     label: "Not yet decidable",
     signal: "idle",
     meaning:
-      "The evidence does not reach the gate's own thresholds. This is a real outcome, and a far cheaper one than a GO that starts the Orchestra build on a thin sample.",
+      "The evidence does not reach the preregistered thresholds: too few stories, no study record, or an outcome that depends on a threshold nobody measured. This is a real outcome, and a far cheaper one than a GO on a thin sample.",
   },
 };
 
-const MEASURE_LABELS: Record<string, string> = {
-  rejectionRate: "Rejection rate, gated vs ungated",
-  gateCatches: "Defects the gates caught",
-  changeFailureRate: "Change failure rate vs baseline",
-  approvalHygiene: "Approval hygiene (FR-M20-06)",
-  timeCostPerGatedChange: "Time the layer costs",
-  provenanceQueriesRun: "Provenance queries actually run",
-  firstValueRetention: "First-value retention at week 8",
+const UNMEASURED = "Unmeasured — never counted as met";
+
+const STATUS: Readonly<Record<string, string>> = {
+  met: "Met",
+  not_met: "Not met",
+  unmeasured: UNMEASURED,
 };
+
+const REGISTRATION: Readonly<Record<string, string>> = {
+  not_registered:
+    "No study record is scored on this screen, so nothing is registered here. A study registers its thresholds digest before its first story.",
+  intact: "The thresholds applied are the ones this study registered.",
+  digest_mismatch:
+    "The thresholds applied are not the ones this study registered. Publish this result as invalidated (§5).",
+  registered_after_data:
+    "This study registered its thresholds after its first story was measured. Publish this result as invalidated (§5).",
+};
+
+function shownValue(status: unknown, value: unknown) {
+  if (status !== "met" && status !== "not_met") return undefined;
+  if (typeof value === "number")
+    return Number.isInteger(value) ? String(value) : value.toFixed(3);
+  if (typeof value === "string" && value) return value;
+  return undefined;
+}
 
 export function EvidenceGate(props: GovernanceProps) {
   const [baseline, setBaseline] = useState("");
@@ -95,29 +119,35 @@ export function EvidenceGate(props: GovernanceProps) {
   const stories = object(data?.stories);
   const total = number(stories.total) ?? 0;
   const required = number(stories.required) ?? 20;
+  const arms = object(stories.byArm);
   const recommendation = object(data?.recommendation);
   const verdictKey = String(recommendation.verdict ?? "insufficient_evidence");
   const verdict = VERDICT[verdictKey] ?? VERDICT.insufficient_evidence;
   const reasons = Array.isArray(recommendation.reasons)
-    ? (recommendation.reasons as string[])
+    ? recommendation.reasons.map(String)
     : [];
-  const measures = object(data?.measures);
-  const unavailable = Object.entries(measures).filter(
-    ([, value]) => object(value).status !== "ok",
-  );
+  const registration = object(data?.preregistration);
+  const registrationState = String(registration.state ?? "not_registered");
+  const invalidated =
+    registration.invalidated === true || recommendation.invalidated === true;
+  const measures = Object.entries(object(data?.measures));
+  const unmeasured = measures.filter(([, raw]) => {
+    const status = object(raw).status;
+    return status !== "met" && status !== "not_met";
+  });
 
   return (
     <Page
       title="Twenty stories, then a decision."
-      eyebrow="EVIDENCE / F2 GATE"
-      description="The gate computed from this workspace's own ledger rather than argued from impressions. Every measure that cannot be evidenced says so; a verdict over too few stories says that too."
+      eyebrow="EVIDENCE GATE / MV5"
+      description="Scored against docs/evidence-gate.md, the thresholds written before any study data existed. A threshold nobody measured is never counted as met, and an outcome that depends on one is not reached."
       actions={
         <button
           disabled={!data}
           onClick={() =>
             getVsCodeApi().postMessage({
               type: "download",
-              fileName: "meridian-f2-evidence.json",
+              fileName: "meridian-evidence-gate.json",
               mimeType: "application/json",
               content: JSON.stringify(data ?? {}, null, 2),
             })
@@ -129,7 +159,7 @@ export function EvidenceGate(props: GovernanceProps) {
     >
       <Panel
         title="Your baseline"
-        description="The team's own change failure rate before Meridian. The ledger cannot know it — without it, that comparison reads unavailable rather than inventing a number to beat."
+        description="The team's own change failure rate before Meridian, for P3. The ledger cannot know it; without it, P3 reads unmeasured rather than inventing a number to beat."
       >
         <form
           className={s.form}
@@ -167,6 +197,13 @@ export function EvidenceGate(props: GovernanceProps) {
       {data ? (
         <>
           <Panel title={verdict.label}>
+            {invalidated ? (
+              <p className={s.finding} role="alert">
+                <strong>The preregistration is not intact.</strong>{" "}
+                {REGISTRATION[registrationState] ??
+                  "Publish this result as invalidated (§5)."}
+              </p>
+            ) : null}
             <div className={s.three}>
               <Stat
                 label="Stories in scope"
@@ -185,27 +222,27 @@ export function EvidenceGate(props: GovernanceProps) {
                   <Ring
                     value={Math.min(total, required)}
                     total={required}
-                    label="Stories toward the F2 gate"
+                    label="Stories toward the evidence gate"
                     caption={`${total}`}
                   />
                 }
               />
               <Stat
-                label="Gated"
-                value={number(stories.gated) ?? 0}
+                label="Arm C, Governor"
+                value={number(arms.C) ?? 0}
                 accent="var(--ml-phase-review)"
-                hint="stories that passed through the governance layer"
+                hint="the arm the ledger measures are read from"
               />
               <Stat
-                label="Ungated"
-                value={number(stories.ungated) ?? 0}
+                label="Arms A and B"
+                value={`${number(arms.A) ?? 0} · ${number(arms.B) ?? 0}`}
                 accent="var(--ml-phase-build)"
-                hint="the comparison group — without it there is nothing to compare"
+                hint="baseline tools, and tools with the recorder"
               />
             </div>
 
             <p className={s.finding} role="note">
-              <strong>What this verdict means.</strong> {verdict.meaning}
+              <strong>What this outcome means.</strong> {verdict.meaning}
             </p>
 
             {reasons.length ? (
@@ -227,34 +264,42 @@ export function EvidenceGate(props: GovernanceProps) {
           </Panel>
 
           <Panel
-            title="The seven measures"
-            description="§F2 names these. Two of them the product cannot record, and they say so here rather than reading as zero."
+            title="The ten preregistered measures"
+            description="docs/evidence-gate.md §3, written before any data existed."
           >
-            <div className={s.tableWrap} tabIndex={0} aria-label="Scrollable data table">
+            <div
+              className={s.tableWrap}
+              tabIndex={0}
+              aria-label="Scrollable data table"
+            >
               <table className={s.table}>
                 <thead>
                   <tr>
                     <th scope="col">Measure</th>
                     <th scope="col">Status</th>
                     <th scope="col">Value</th>
+                    <th scope="col">Source</th>
                     <th scope="col">What it says</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(measures).map(([key, raw]) => {
+                  {measures.map(([key, raw]) => {
                     const measure = object(raw);
-                    const value = number(measure.value);
+                    const threshold = object(measure.threshold);
+                    const value = shownValue(measure.status, measure.value);
                     return (
                       <tr key={key}>
-                        <th scope="row">{MEASURE_LABELS[key] ?? key}</th>
-                        <td>{String(measure.status)}</td>
+                        <th scope="row">
+                          {key}
+                          {threshold.measure ? ` · ${String(threshold.measure)}` : ""}
+                        </th>
+                        <td>{STATUS[String(measure.status)] ?? UNMEASURED}</td>
                         <td>
-                          {measure.status === "ok" && value !== undefined ? (
-                            value.toFixed(3)
-                          ) : (
+                          {value ?? (
                             <span className={s.absent}>Not evidenced</span>
                           )}
                         </td>
+                        <td>{String(measure.source ?? "")}</td>
                         <td>{String(measure.note ?? "")}</td>
                       </tr>
                     );
@@ -262,26 +307,39 @@ export function EvidenceGate(props: GovernanceProps) {
                 </tbody>
               </table>
             </div>
-            {unavailable.length ? (
+            {unmeasured.length ? (
               <Notice>
-                {unavailable.length} of {Object.keys(measures).length} measures
-                are not evidenced. Two of those — provenance queries run, and
-                week-8 retention — cannot be recorded by a tool that does not
-                watch you or phone home. Answer those by asking your testers,
-                and record the answers beside this report.
+                {unmeasured.length} of {measures.length} measures are
+                unmeasured. This screen reads this workspace&apos;s ledger only.
+                The measures that need people come from a study record, scored
+                with python -m meridian_core.cli evidence-gate --study.
               </Notice>
             ) : null}
           </Panel>
 
           <Panel
-            title="The exit criterion"
-            description="§F2 closes on a written decision recording the measurements and the path chosen, with the raw ledger slice attached."
+            title="The preregistration"
+            description="§5: once the first story is measured, a changed threshold invalidates the result."
           >
             <p className={s.muted}>
-              Export above gives you the computed half: every measure, its
-              status, and the coverage envelope over the rows it read. The
-              written half is yours — the decision, the two measures only your
-              testers can answer, and why you chose the path you chose.
+              {REGISTRATION[registrationState] ?? REGISTRATION.not_registered}
+            </p>
+            {registration.thresholdsDigest ? (
+              <p className={s.muted}>
+                Applied: <code>{String(registration.thresholdsDigest)}</code>
+              </p>
+            ) : null}
+          </Panel>
+
+          <Panel
+            title="The exit criterion"
+            description="A written go / stop / pivot / kill decision, with the raw ledger slice attached."
+          >
+            <p className={s.muted}>
+              The command-line scorer writes the computed report, the ledger
+              slice as a signed bundle, and a draft of the decision carrying
+              both files&apos; digests. The decision itself is written by a
+              person, and if it departs from the computed outcome it says why.
             </p>
           </Panel>
         </>

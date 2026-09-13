@@ -590,11 +590,50 @@ This is `F2` from `gaps_implementation.md`, `GF2` from `gaps_guix_implementation
 |---|---|---|
 | Preregistered three-armed study, unfavourable results published | `FR-M46-14`/`15`, `MVP-R5.2` | Twenty real stories, a real team, and the thresholds from `MV1-T08` already written |
 | Four of five users reach a first provenance answer within fifteen minutes | `FR-M46-04`, `NFR-28`, `MVP-R5.3` | Five users who have not seen the product |
-| Two editors, two SCM providers, one evidence shape | `AC-50`, `FR-M43-15`, `MVP-R5.4` | A pilot customer |
+| Two editors, two SCM providers, one evidence shape | `AC-50`, `FR-M43-15`, `MVP-R5.4` | A pilot customer, and first a second editor claimed in the compatibility matrix |
 
 **Exit:** a written **go / stop / pivot / kill** decision, with the raw ledger slice attached, measured against `docs/evidence-gate.md` — which was written before the data existed. That decision closes `D21` and decides whether `F3`/`GF3`/`C2`–`C6` — the Orchestra — is ever built.
 
 `R29` stands: *the Orchestra never earning its place is a designed, acceptable outcome.* The product is complete as a flight recorder and a governor, and this plan delivers it as one.
+
+### Prepared, so the people can run it without an engineer
+
+`MP8` still governs. None of this is progress through the gate, and none of it moves `MVP-R5.2`…`R5.4` off `MVP-HUMAN`. It is what the people need in hand when they exist.
+
+**The instrument now applies the rule written in advance.** Preparing the gate found that `core/meridian_core/metrics/evidence_gate.py`, the instrument the study would be scored with, did not apply `docs/evidence-gate.md`. It predated the thresholds and applied the older F2 sketch:
+
+- It returned GO on a single unconfirmed gate block, where `P1` needs three independently confirmed defects.
+- It returned GO with change failure rate and provenance-query usage unmeasured, where §5 says an unmeasured threshold is never satisfied.
+- It had no KILL path, and no `P5`, `P6`, `C1`, `C2` or `O1`.
+- Against the rows the Governor actually writes, it counted nothing. It looked for gate decisions of `block`, where the ledger records `rejected`, and for an approval's subject on the row, where it lives in the encrypted detail. Its tests passed because their fixtures used the shapes it expected.
+
+It is rebuilt:
+
+- Ten measures, each `met`, `not_met` or `unmeasured`.
+- §4 walked in order over three-valued logic, so an outcome that depends on an unmeasured threshold is never reached.
+- Every reading that the words allow more than one way is written into `docs/evidence-gate.md` §6, each chosen to make GO harder.
+- A digest of the thresholds and readings that a study registers before its first story, so a change after data is declared.
+
+The tests drive a real sidecar. Twenty-four behaviours were shown red: twelve in the gate, five on its screen, and seven across the CLI, the bundle-shape comparison and the server.
+
+**Two gaps in §4, surfaced for the owner.** No outcome applies when `P1` and `P2` both fail and everything else holds; the instrument reports `unclassified` rather than choosing. And PIVOT is tried before KILL, so a study that fails retention while nobody queries provenance returns PIVOT. Both are amendable until the first story (§5), and both are written in `docs/evidence-gate.md` §6.
+
+**What only people can supply now has a shape.** `core/meridian_core/metrics/evidence_study.py` defines the study record: allocation, adjudications, arm A's figures, retention, `O1` and every `FR-M46-14` field. It refuses an email address wherever a person is named. `python -m meridian_core.cli evidence-gate` scores the record and writes three files: the report, the raw ledger slice as a signed bundle, and `DECISION-DRAFT.md`. The draft holds the computed half of the written decision with both files' digests, and leaves the half a person writes empty. Both new commands are checked from the extracted package, not the checkout: `scripts/validate-package.mjs` scores a study and compares two bundles with the shipped sidecar.
+
+**The protocols:**
+
+- `docs/baselines/evidence-gate/PROTOCOL.md` — register, allocate three arms, record, score, and publish, unfavourable results included.
+- `docs/baselines/first-value/PROTOCOL.md` — `FR-M46-04`: five onboarding sessions, and ten review tasks with an answer key committed before the first session.
+- `docs/baselines/two-editors/PROTOCOL.md` — `AC-50`, with `python -m meridian_core.cli compare-evidence` checking that two bundles verify and carry one evidence shape.
+
+**`AC-50` cannot be attempted yet, and not only for want of a customer.** It needs two *supported* editors, and the compatibility matrix claims one. A second editor has to be claimed with a passing smoke test first (`MK5`). Until then the protocol can be rehearsed but not passed, and no external material may claim vendor independence across editors (`FR-M43-15`).
+
+### Exit criteria
+
+- [ ] The preregistered three-armed study run on twenty stories and scored (`MVP-R5.2`) — **not run**. It needs a team, twenty stories, independent reviewers and eight weeks.
+- [ ] A written go / stop / pivot / kill decision, with the raw ledger slice attached, published with its unfavourable results and missing data — **not written**. The scorer drafts its computed half, and a person writes the decision.
+- [ ] Four of five users reach a first provenance answer within fifteen minutes, and eight of ten review tasks find the real blocking risk (`MVP-R5.3`) — **not run**. It needs five people who have not seen the product.
+- [ ] Two editors, two SCM providers, one evidence shape, verified on a clean machine (`MVP-R5.4`) — **blocked twice**: a second editor is not claimed, and it needs a pilot customer.
 
 ---
 
@@ -693,7 +732,7 @@ Inherits `Requirements-implementation.md` §14, `viguix-implementation.md` §6, 
 | `N1` | `futures-implementation.md` | True and visible — coverage envelopes, three-state attribution, instruments surfaced | **Delivered** (surface coverage green, 63/71 consumed) |
 | `N2` | `futures-implementation.md` | Unassailable — trailer spec, headless collector, witness seam, identity assurance | **Delivered except** enforcement-point surfacing (`MV1-A`) and the compatibility matrix (`MV1-B`) |
 | **`MV0`–`MV4`** | **this plan** | **The adoptable package** | **The current route** |
-| `F2` / `GF2` / `N3` / **`MV5`** | all | The evidence gate | **Pending human evidence.** `D35`, `D21` |
+| `F2` / `GF2` / `N3` / **`MV5`** | all | The evidence gate | **Pending human evidence.** `D35`, `D21`. The scorer, the study record and the protocols are prepared (`MV5`, *Prepared*); the study has not run |
 | `F3` / `GF3` / `C1`–`C2` | gaps + C plans | Orchestra — loop runtime, roster, adapters, deterministic engine | **Begun** (`M33` slices 1 and 2a per `futures-implementation.md` §13); gated on `MV5` |
 | `C3`–`C6` | `Requirements-implementation.md` | Quality gates · learning and portability · orchestration and compliance · differentiation | `POST-MVP`, retained |
 | `F4+` / `GF4+` / `N4` | gaps + futures plans | Learning, scale, compliance, widening | `POST-MVP`, retained |
@@ -943,6 +982,11 @@ Several tasks reference files that **do not exist yet**. That is correct — the
 | `SECURITY.md` | `MV4-T09` | Vulnerability disclosure: scope, contact, expected response |
 | `THIRD-PARTY-NOTICES.md` | `MV4-T09` | Generated from the lockfiles; backs the no-copyleft claim |
 | `docs/SUPPORT.md` | `MV4-T09` | Supported versions, breaking-change notice, migration guarantee, exit path |
+| `core/meridian_core/metrics/evidence_study.py` | `MV5`, prepared | The study record's schema: what only people can supply to the evidence gate |
+| `core/meridian_core/metrics/evidence_decision.py` | `MV5`, prepared | Drafts the computed half of the written decision, with the attachments' digests |
+| `core/meridian_core/ledger/shape.py` | `MV5`, prepared | Compares two bundles' evidence shape, for `AC-50` |
+| `docs/baselines/evidence-gate/PROTOCOL.md` · `study-record.template.json` | `MV5`, prepared | How the study is registered, run, scored and published; a template that cannot be scored as a study |
+| `docs/baselines/first-value/PROTOCOL.md` · `docs/baselines/two-editors/PROTOCOL.md` | `MV5`, prepared | `FR-M46-04`'s five sessions and ten review tasks; `AC-50`'s two editors and two SCM providers |
 
 **Already present and depended on:** `docs/SECURITY-AND-DATA.md` · `docs/DEPLOYMENT.md` · `DEMO.md` · `DECISIONS.md` · `verifier/verify.py` · `docs/spec/meridian-ledger-trailer.md` · `docs/spec/evidence-portability.md` · `shared/schema/methods.json` · `shared/schema/tiers.json` · `shared/schema/unsurfaced.json` · `scripts/check-surface-coverage.mjs` · `scripts/run-tests.mjs` · `extension/test/run-lock.ts`.
 
@@ -992,7 +1036,7 @@ Per-phase exits are in each phase. **This is the single list that says the MVP i
 
 ### Human-gated — tracked, never counted as engineering completion (`MP8`)
 
-- [ ] `MV5` preregistered study · first-provenance-answer timing · two editors and two SCM providers — each blocked on people, with the people named
+- [ ] `MV5` preregistered study · first-provenance-answer timing · two editors and two SCM providers — each blocked on people: a pilot team with twenty stories and reviewers who did not run the gates; five people who have not seen the product; a pilot customer with two SCM providers, **and first a second editor claimed in the compatibility matrix**. The protocols and the scorer are ready (`MV5`, *Prepared*)
 
 **When every engineering box above is ticked, the MVP is delivered.** The `MV5` boxes decide what comes after it, and `R29` stands: stopping there is a designed, acceptable outcome.
 

@@ -3283,7 +3283,9 @@ class SidecarServer:
             pack = self._role_pack(params)
         except Exception:  # noqa: BLE001 — an unreadable pack is not a crash
             pack = None
-        if pack is not None:
+        # A fail-closed pack assesses nothing and returns no warnings, so passing
+        # it on would report "assessed, no signals": a clean bill from no check.
+        if pack is not None and not pack.fail_closed:
 
             def hygiene(subject: str) -> list[str]:  # type: ignore[misc]
                 return governance_roles.assess_hygiene(ledger, pack, subject=subject)

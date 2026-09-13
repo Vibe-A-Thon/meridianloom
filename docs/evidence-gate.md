@@ -2,6 +2,8 @@
 
 **Status: thresholds fixed 12 September 2026. No study data exists at the time of writing, and that is the point.**
 
+*Amended 13 September 2026, still before any story was measured: §6 added. It states the readings the instrument applies where §3 and §4 admit more than one, names two gaps in §4 for the owner to settle, and introduces the digest a study registers. No threshold changed.*
+
 This document satisfies `FR-M46-17` (`MVP-R5.1`). It records the numeric criteria under which Meridian's own agent workforce — the Orchestra tier — is built, not built, or built in part, **together with an explicit commitment not to build it if the criteria are not met**.
 
 It is written now because `P29` says investment beyond the current tier is gated on a published measurement *with the thresholds written before the measurement runs*. Deciding the bar after seeing the data is not a gate; it is a negotiation with oneself. `futures.md` `FUT-035` puts it plainly: write it down "while nobody has a stake in the answer".
@@ -90,6 +92,34 @@ Applied in order. **No threshold is renegotiated after the data exists** — tha
 **Once the first story is measured:** frozen. A threshold changed after data exists is not a threshold, and any such change invalidates the preregistration and must be declared as such in the published result.
 
 **If a threshold proves unmeasurable** — the instrument does not exist, or the pilot cannot supply the data — that is recorded as **unmeasured**, never as satisfied. `P25` and `P26` apply to this document as much as to the product: unknown is a state, not a residual.
+
+## 6. Readings, and the digest a study registers
+
+*Added 13 September 2026, before any story was measured, as §5 allows. No threshold changed.*
+
+Written numbers still need an instrument, and an instrument has to choose wherever the words allow more than one reading. The instrument is `core/meridian_core/metrics/evidence_gate.py`. Its first version applied the older F2 sketch rather than this document: it could return GO on a single unconfirmed gate block, and it read an unmeasured change failure rate as "not worse". It now applies this document. Where this document is silent, it applies the readings below, **each chosen because it makes GO harder** — §1 puts the burden of evidence on the tier.
+
+| # | Reading applied |
+|---|---|
+| — | Where a threshold admits more than one reading, the reading that makes GO harder is applied. |
+| `P1` | A stop without an independent adjudication, or with independent adjudications that disagree, could still prove to be a defect, so P1 is not met only when the confirmed defects plus those stops cannot reach three. |
+| `P2` | Every split present in arm C's allocation or in arm A's figures must be measured in both arms, and arm C must be lower in each. |
+| `P3` | A reverted approval that cannot be attributed to an arm leaves P3 unmeasured, because it may be a gated merge that failed. |
+| `P4` | Sustained means every engineer listed in every recorded week ran at least one provenance query. |
+| `P6` | At least two testers retained, and at least two in five of the original testers. |
+| `C1` | Gate stops that are unadjudicated or disputed are counted as false blocks for the upper bound; with no gate stops at all the share is undefined and C1 is unmeasured. |
+| `C2` | Both arms are timed by the same human method; ledger timings are context and never the measure. |
+| `C3` | A reviewer's recorded determination decides C3, with the ledger's hygiene signals attached as its evidence. |
+| `O1` | Unmeasured is not satisfied, so STOP can rest on an O1 nobody argued. |
+| §4 | Outcomes are tried in the written order GO, STOP, PIVOT, KILL, and an undecided outcome stops the walk. |
+| §4 | A combination of results that no outcome names is reported as unclassified. |
+
+**Two things these readings expose, for the owner to settle before the first story.** Both are amendable now and frozen once data exists.
+
+- **§4 has a gap.** If `P1` and `P2` both fail and everything else holds — the gates caught nothing and rejection did not fall, yet stability, usage, retention and cost are all fine — no outcome applies. KILL's cost clause also needs `C2` to fail, and PIVOT needs `P4` to fail. The instrument reports `unclassified` rather than choosing for you.
+- **PIVOT is tried before KILL.** A study where nobody queries provenance (`P4` fails), the trust instruments are used (`P5` holds) and retention fails (`P6`) returns PIVOT, because §4 is applied in order. If KILL should win there, amend §4 now.
+
+**The digest.** Before the first story, a study records the output of `python -m meridian_core.cli evidence-gate --print-preregistration` in its study record. That output is a digest of the thresholds and these readings together. The instrument compares it on every run; a mismatch is reported and the result is marked invalidated, because §5 applies. How to run the study is in `docs/baselines/evidence-gate/PROTOCOL.md`.
 
 ---
 

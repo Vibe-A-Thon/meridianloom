@@ -719,7 +719,7 @@
       }
     },
     "evidence/gate": {
-      "description": "F2 (gaps_implementation.md §F2): the evidence gate computed rather than argued. Twenty real stories through F0+F1 produce a GO / STOP / PIVOT / KILL with the measures behind it, from the ledger's own record. Every measure that cannot be evidenced reads unavailable with the reason, never zero; a verdict over fewer than twenty stories is insufficient_evidence. The exit criterion is a written decision with the raw ledger slice attached, and this is the computed half of it. Zero model calls (FR-M36-07).",
+      "description": "The evidence gate (MV5), scored against docs/evidence-gate.md: the thresholds and decision rule written before any study data existed. Every measure reads met, not_met or unmeasured; an unmeasured threshold is never satisfied, and an outcome that depends on one is not reached. From the editor this reads the workspace ledger only, so the measures that need people read unmeasured and the verdict is insufficient_evidence. A study team scores its study record with python -m meridian_core.cli evidence-gate, which also writes the raw ledger slice and a draft of the written decision. Zero model calls (FR-M36-07).",
       "params": {
         "$ref": "#/$defs/EvidenceGateParams"
       },
@@ -7415,21 +7415,37 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
+        "preregistration": {
+          "type": "object",
+          "description": "The thresholds digest applied, the digest the study registered, and whether the preregistration is intact (docs/evidence-gate.md section 5). invalidated is true when it is not."
+        },
+        "study": {
+          "type": "object",
+          "description": "Whether a study record was supplied and valid, its problems, the FR-M46-14 fields it does not record, and its exclusions."
+        },
+        "context": {
+          "type": "object",
+          "description": "Ledger facts shown beside the measures and never deciding them: gate evaluations and stops, the FR-M20-06 hygiene signals, and gate-to-approval latency."
+        },
+        "firstValue": {
+          "type": "object",
+          "description": "FR-M46-04, scored beside the rule: five onboarding sessions and ten review tasks, each met, not_met or unmeasured."
+        },
         "scope": {
           "type": "object",
           "description": "The echoed scope and the supplied baseline."
         },
         "stories": {
           "type": "object",
-          "description": "total / required / gated / ungated counts and the story ids in scope."
+          "description": "total / required / byArm counts, the arm C stories allocated but absent from the ledger, and the story ids in scope."
         },
         "measures": {
           "type": "object",
-          "description": "The seven F2 measures, each {status, value, note, ...}. status is ok or unavailable — never a zero standing in for absent evidence. Two (provenanceQueriesRun, firstValueRetention) are structurally unrecordable and always read unavailable with the reason."
+          "description": "The ten preregistered measures P1–P6, C1–C3 and O1, each {id, status, value, threshold, source, note, ...}. status is met, not_met or unmeasured — never a zero standing in for absent evidence, and unmeasured is never satisfied."
         },
         "recommendation": {
           "type": "object",
-          "description": "{verdict, reasons}. verdict is go | stop | pivot | kill | insufficient_evidence, applying the thresholds written in gaps_implementation.md §F2. insufficient_evidence is a real outcome of the gate."
+          "description": "{verdict, reasons, invalidated, undecidedOutcome?, unmeasured?}. verdict is go | stop | pivot | kill | insufficient_evidence | unclassified, applying docs/evidence-gate.md §4 in order over three-valued logic. invalidated is true when the preregistration is not intact (§5)."
         },
         "coverage": {
           "$ref": "#/$defs/CoverageEnvelope"

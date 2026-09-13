@@ -333,3 +333,188 @@ class TestHeadlessDoctorVerifiesTheChain:
         result = run_cli("doctor", "--workspace", str(workspace))
         assert _ledger_check(result)["status"] == "warn", result.stdout
         assert result.returncode == 0, result.stderr
+
+
+# -- MV5: the evidence gate and the two-editor comparison, headless ------------
+
+REPO_ROOT = CORE_ROOT.parent
+
+
+def _write_ledger(root: Path, *, vendor: str, human: str | None) -> Path:
+    """Two entries for the same change, written the way the sidecar writes them."""
+    from meridian_core.ledger import Ledger
+    from meridian_core.ledger import keys as ledger_keys
+
+    (root / ".meridian").mkdir(parents=True)
+    ledger = Ledger(
+        root / ".meridian" / "ledger",
+        ledger_keys.ProvisionedSigningKeyProvider(bytes.fromhex(SEED_HEX)),
+    )
+    for index in (1, 2):
+        entry = {
+            "story_id": "SHARED-CHANGE-1",
+            "phase": "review",
+            "loop_id": "governance",
+            "loop_iteration": 1,
+            "actor_id": f"{vendor}-agent",
+            "actor_version": "2.0.0",
+            "actor_kind": "external",
+            "policy_version": "governance/v2",
+            "action_type": "diff" if index == 1 else "approval",
+            "decision": "proposed" if index == 1 else "approved",
+            "vendor": vendor,
+            "ts_utc": f"2026-09-02T00:00:{index:02d}Z",
+        }
+        if human and index == 2:
+            entry["human_actor"] = human
+            entry["human_role"] = "approver"
+        ledger.append(entry)
+    ledger.close()
+    return root
+
+
+def _export(workspace: Path, key_file: Path, out: Path) -> Path:
+    result = run_cli(
+        "export", "--workspace", str(workspace), "--out", str(out),
+        "--signing-key-file", str(key_file),
+    )
+    assert result.returncode == 0, result.stderr
+    return out
+
+
+class TestTheEvidenceGateHeadless:
+    def test_the_printed_preregistration_is_the_digest_the_instrument_applies(self):
+        from meridian_core.metrics import evidence_gate
+
+        result = run_cli("evidence-gate", "--print-preregistration")
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout)["thresholdsDigest"] == evidence_gate.thresholds_digest()
+
+    def test_the_blank_template_is_refused_and_nothing_is_written(
+        self, workspace, key_file, tmp_path
+    ):
+        template = REPO_ROOT / "docs" / "baselines" / "evidence-gate" / "study-record.template.json"
+        out = tmp_path / "gate"
+        result = run_cli(
+            "evidence-gate", "--workspace", str(workspace), "--study", str(template),
+            "--out", str(out), "--signing-key-file", str(key_file),
+        )
+        assert result.returncode == 2
+        assert "cannot be scored" in result.stderr
+        assert not out.exists()
+
+    def test_a_study_is_scored_with_its_signed_slice_and_a_draft_not_a_decision(
+        self, workspace, key_file, tmp_path
+    ):
+        import hashlib
+
+        from meridian_core.metrics import evidence_gate
+
+        record = {
+            "studyId": "headless-pilot",
+            "preregistration": {
+                "registeredAt": "2026-09-14T09:00:00Z",
+                "thresholdsDigest": evidence_gate.thresholds_digest(),
+            },
+            "allocation": [{"storyId": "HEADLESS-1", "arm": "C", "kind": "brownfield"}],
+        }
+        study = tmp_path / "study.json"
+        study.write_text(json.dumps(record), encoding="utf-8")
+        out = tmp_path / "gate"
+        result = run_cli(
+            "evidence-gate", "--workspace", str(workspace), "--study", str(study),
+            "--out", str(out), "--signing-key-file", str(key_file),
+        )
+        assert result.returncode == 0, result.stderr
+
+        report = json.loads((out / "evidence-gate-report.json").read_text(encoding="utf-8"))
+        assert report["recommendation"]["verdict"] == "insufficient_evidence"
+        assert report["preregistration"]["state"] == "intact"
+
+        draft = (out / "DECISION-DRAFT.md").read_text(encoding="utf-8")
+        assert "A draft, not a decision" in draft
+        for name in ("evidence-gate-report.json", "ledger-slice.json"):
+            assert hashlib.sha256((out / name).read_bytes()).hexdigest() in draft
+        assert not (out / "DECISION.md").exists()
+
+        verified = run_cli("verify", str(out / "ledger-slice.json"))
+        assert verified.returncode == 0, verified.stdout + verified.stderr
+
+    @pytest.mark.parametrize("malformed", [False, True])
+    def test_a_fail_closed_role_pack_is_not_reported_as_an_assessed_hygiene_check(
+        self, workspace, key_file, tmp_path, malformed
+    ):
+        from meridian_core.metrics import evidence_gate
+
+        if malformed:
+            policy = workspace / ".meridian" / "policy"
+            policy.mkdir(parents=True)
+            (policy / "roles.yaml").write_text("roles: [not a role pack\n", encoding="utf-8")
+        record = {
+            "studyId": "headless-hygiene",
+            "preregistration": {
+                "registeredAt": "2026-09-14T09:00:00Z",
+                "thresholdsDigest": evidence_gate.thresholds_digest(),
+            },
+            "allocation": [],
+        }
+        study = tmp_path / "study.json"
+        study.write_text(json.dumps(record), encoding="utf-8")
+        out = tmp_path / "gate"
+        result = run_cli(
+            "evidence-gate", "--workspace", str(workspace), "--study", str(study),
+            "--out", str(out), "--signing-key-file", str(key_file),
+        )
+        assert result.returncode == 0, result.stderr
+        report = json.loads((out / "evidence-gate-report.json").read_text(encoding="utf-8"))
+        # A pack that fails closed checks nothing; "assessed" would be a clean
+        # bill from no check.
+        assert report["context"]["hygieneSignals"]["assessed"] is (not malformed)
+
+
+class TestCompareEvidence:
+    """AC-50's shape half: two bundles, verified by the shipped verifier and
+    compared by `ledger/shape.py`, with the exit status as the answer."""
+
+    def test_two_genuine_bundles_from_different_tools_share_one_shape(self, key_file, tmp_path):
+        first = _export(
+            _write_ledger(tmp_path / "editor-one", vendor="claude-code", human=None),
+            key_file, tmp_path / "one.json",
+        )
+        second = _export(
+            _write_ledger(tmp_path / "editor-two", vendor="copilot", human="Reviewer <r@example.test>"),
+            key_file, tmp_path / "two.json",
+        )
+        result = run_cli("compare-evidence", str(first), str(second))
+        assert result.returncode == 0, result.stdout + result.stderr
+        report = json.loads(result.stdout)
+        assert report["sameShape"] is True
+        assert all(bundle["verified"] for bundle in report["bundles"])
+
+    def test_a_different_schema_version_is_a_different_shape(self, key_file, tmp_path):
+        first = _export(
+            _write_ledger(tmp_path / "editor-one", vendor="claude-code", human=None),
+            key_file, tmp_path / "one.json",
+        )
+        bundle = json.loads(first.read_text(encoding="utf-8"))
+        bundle["schemaVersion"] = int(bundle["schemaVersion"]) + 1
+        second = tmp_path / "newer.json"
+        second.write_text(json.dumps(bundle), encoding="utf-8")
+        result = run_cli("compare-evidence", str(first), str(second))
+        assert result.returncode == 1
+        assert any("schemaVersion" in d for d in json.loads(result.stdout)["differences"])
+
+    def test_an_altered_bundle_with_the_same_shape_still_fails(self, key_file, tmp_path):
+        first = _export(
+            _write_ledger(tmp_path / "editor-one", vendor="claude-code", human=None),
+            key_file, tmp_path / "one.json",
+        )
+        bundle = json.loads(first.read_text(encoding="utf-8"))
+        bundle["entries"][0]["actorId"] = "someone-else"
+        altered = tmp_path / "altered.json"
+        altered.write_text(json.dumps(bundle), encoding="utf-8")
+        result = run_cli("compare-evidence", str(first), str(altered))
+        report = json.loads(result.stdout)
+        assert report["sameShape"] is True
+        assert [b["verified"] for b in report["bundles"]] == [True, False]
+        assert result.returncode == 1

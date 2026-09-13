@@ -5,6 +5,8 @@
     python -m meridian_core.cli verify    bundle.json
     python -m meridian_core.cli erase     --workspace . --subject <id> --reason request
     python -m meridian_core.cli uninstall --workspace .
+    python -m meridian_core.cli evidence-gate --workspace . --study study.json --out gate/
+    python -m meridian_core.cli compare-evidence first.json second.json
 
 Everything here works with no extension, no editor and no running sidecar. It
 reads and writes the same ``.meridian/`` directory the extension uses, so a
@@ -357,6 +359,175 @@ def command_uninstall(args: argparse.Namespace) -> int:
     return 0
 
 
+def _read_json(path: str, what: str) -> Any:
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except OSError as error:
+        raise CliError(f"cannot read {what}: {error}") from error
+    except ValueError as error:
+        raise CliError(f"{what} is not valid JSON: {error}") from error
+
+
+def command_evidence_gate(args: argparse.Namespace) -> int:
+    """Score a study against the thresholds written before it ran (MV5).
+
+    `docs/evidence-gate.md` is the preregistration and `metrics/evidence_gate.py`
+    applies it. This command is how a study team uses them with no editor: it
+    reads the workspace ledger and the team's study record, then writes the
+    three things the gate's exit needs side by side. Those are the computed
+    report, the raw ledger slice as a signed bundle, and a draft of the written
+    decision carrying both files' digests.
+
+    It writes a *draft*. The decision belongs to a person, so `DECISION.md` is
+    never written or overwritten here.
+    """
+    import hashlib
+    from datetime import datetime, timezone
+
+    from .governance import roles as governance_roles
+    from .metrics import evidence_decision, evidence_gate, evidence_study
+
+    if args.print_schema:
+        sys.stdout.write(json.dumps(evidence_study.STUDY_SCHEMA, indent=2) + "\n")
+        return 0
+    if args.print_preregistration:
+        sys.stdout.write(json.dumps(evidence_gate.preregistration(), indent=2) + "\n")
+        return 0
+    if not args.study or not args.out:
+        raise CliError(
+            "--study and --out are required to score a study. Before the first "
+            "story, --print-preregistration prints the digest to register."
+        )
+
+    record = _read_json(args.study, "the study record")
+    problems = evidence_study.validate_study(record)
+    if problems:
+        shown = "\n  ".join(problems[:20])
+        more = f"\n  ... and {len(problems) - 20} more" if len(problems) > 20 else ""
+        raise CliError(f"the study record cannot be scored:\n  {shown}{more}")
+
+    workspace = Path(args.workspace).resolve()
+    ledger = _open_ledger(workspace, _signing_provider(args))
+    try:
+        pack = governance_roles.load_role_pack(
+            [
+                workspace / ".meridian" / "policy" / "roles.yaml",
+                workspace / "policy" / "roles.yaml",
+            ]
+        )
+
+        def assess(subject: str) -> list[str]:
+            return governance_roles.assess_hygiene(ledger, pack, subject=subject)
+
+        # A fail-closed pack assesses nothing and returns no warnings. Passing
+        # it on would report "assessed, no signals", a clean bill from no check.
+        report = evidence_gate.compute_evidence_gate(
+            ledger,
+            from_sequence=args.from_sequence,
+            to_sequence=args.to_sequence,
+            study=record,
+            hygiene=None if pack.fail_closed else assess,
+        )
+        params: dict[str, Any] = {}
+        if args.from_sequence is not None:
+            params["fromSequence"] = args.from_sequence
+        if args.to_sequence is not None:
+            params["toSequence"] = args.to_sequence
+        bundle = build_bundle(ledger, params)
+    finally:
+        ledger.close()
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    digests: dict[str, str] = {}
+    for name, payload in (
+        ("evidence-gate-report.json", report),
+        ("ledger-slice.json", bundle),
+    ):
+        data = (json.dumps(payload, indent=2, default=str) + "\n").encode("utf-8")
+        (out / name).write_bytes(data)
+        digests[name] = hashlib.sha256(data).hexdigest()
+    generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    (out / "DECISION-DRAFT.md").write_text(
+        evidence_decision.decision_draft(report, digests, generated), encoding="utf-8"
+    )
+
+    recommendation = report["recommendation"]
+    unmeasured = [m for m, v in report["measures"].items() if v["status"] == "unmeasured"]
+    sys.stderr.write(
+        f"Outcome under {evidence_gate.PREREGISTRATION_DOCUMENT} section 4: "
+        f"{recommendation['verdict']}.\n"
+        + (
+            "The preregistration is not intact; publish this result as invalidated.\n"
+            if recommendation.get("invalidated")
+            else ""
+        )
+        + f"Unmeasured: {', '.join(unmeasured) if unmeasured else 'none'}.\n"
+        f"Wrote evidence-gate-report.json, ledger-slice.json and DECISION-DRAFT.md to {out}.\n"
+        "The draft is not a decision until a person writes one in it.\n"
+    )
+    return 0
+
+
+def command_compare_evidence(args: argparse.Namespace) -> int:
+    """Do two bundles verify, and do they carry the same evidence shape? (AC-50)
+
+    AC-50 works the same change in two editors, merges it through two SCM
+    providers, and needs both bundles to verify on a clean machine and carry
+    the same evidence schema. Both halves are checked here, the first by the
+    shipped verifier and the second by `ledger/shape.py`. The exit status is
+    the answer: 0 only when both bundles verify and their shapes agree.
+    """
+    from .ledger.shape import evidence_shape, shape_differences
+
+    verifier = _reference_verifier()
+    results: list[dict[str, Any]] = []
+    shapes: list[dict[str, Any]] = []
+    for path in (args.first, args.second):
+        bundle = _read_json(path, f"the bundle {path}")
+        if not isinstance(bundle, dict):
+            raise CliError(f"{path} is not a bundle: expected a JSON object")
+        # The shipped verifier as a subprocess, scrubbed environment, exactly
+        # as `verify` runs it (SEC-27).
+        completed = subprocess.run(
+            [sys.executable, str(verifier), str(path)],
+            env=child_environment(),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        results.append(
+            {
+                "path": str(path),
+                "verified": completed.returncode == 0,
+                "verifierExit": completed.returncode,
+                "verifierSaid": (completed.stdout + completed.stderr).strip().splitlines()[-5:],
+            }
+        )
+        shapes.append(evidence_shape(bundle))
+
+    differences = shape_differences(shapes[0], shapes[1])
+    report = {
+        "bundles": results,
+        "sameShape": not differences,
+        "differences": differences,
+        "shapes": shapes,
+    }
+    sys.stdout.write(json.dumps(report, indent=2) + "\n")
+    unverified = [r["path"] for r in results if not r["verified"]]
+    if unverified:
+        sys.stderr.write(f"Did not verify: {', '.join(unverified)}.\n")
+    if differences:
+        sys.stderr.write(
+            f"The bundles differ in shape in {len(differences)} way(s); see differences.\n"
+        )
+    if unverified or differences:
+        return 1
+    sys.stderr.write("Both bundles verify and carry the same evidence shape.\n")
+    return 0
+
+
 # -- argument parsing ----------------------------------------------------------
 
 
@@ -419,6 +590,36 @@ def build_parser() -> argparse.ArgumentParser:
     uninstall.add_argument(
         "--yes", action="store_true", help="actually delete; otherwise only lists"
     )
+
+    gate = with_key(
+        with_workspace(
+            sub.add_parser(
+                "evidence-gate",
+                help="score a study against the thresholds written before it ran",
+            )
+        )
+    )
+    gate.add_argument("--study", help="the study record (JSON)")
+    gate.add_argument(
+        "--out", help="folder for the report, the ledger slice and the decision draft"
+    )
+    gate.add_argument("--from-sequence", type=int, help="first ledger entry of the study")
+    gate.add_argument("--to-sequence", type=int, help="last ledger entry of the study")
+    gate.add_argument(
+        "--print-preregistration",
+        action="store_true",
+        help="print the thresholds digest a study registers before its first story",
+    )
+    gate.add_argument(
+        "--print-schema", action="store_true", help="print the study record's JSON Schema"
+    )
+
+    compare = sub.add_parser(
+        "compare-evidence",
+        help="verify two bundles and compare their evidence shape (AC-50)",
+    )
+    compare.add_argument("first", help="the first bundle")
+    compare.add_argument("second", help="the second bundle")
     return parser
 
 
@@ -429,6 +630,8 @@ _COMMANDS = {
     "doctor": command_doctor,
     "erase": command_erase,
     "uninstall": command_uninstall,
+    "evidence-gate": command_evidence_gate,
+    "compare-evidence": command_compare_evidence,
 }
 
 

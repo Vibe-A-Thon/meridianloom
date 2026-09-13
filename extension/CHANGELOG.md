@@ -23,6 +23,25 @@ not a reinstall:
 Disabling a tier leaves the tiers below whole, and a disabled tier is absent
 rather than greyed out.
 
+### Changed — the evidence gate applies the thresholds written before the study
+
+- **The evidence gate scores against `docs/evidence-gate.md` as written.** Ten
+  measures, each met, not met or unmeasured. A threshold nobody measured is
+  never counted as met, and an outcome that depends on one is not reached.
+  Before this, the gate could return GO on a single unconfirmed block, and it
+  read an unmeasured change failure rate as "not worse". On a real ledger it
+  counted no gate stop at all, because it looked for a decision the Governor
+  never records.
+- **A study can be scored without the editor.**
+  `python -m meridian_core.cli evidence-gate` reads a study record and writes
+  the report, the raw ledger slice as a signed bundle, and a draft of the
+  written decision. It writes a draft, never the decision.
+- **Two bundles can be compared.** `python -m meridian_core.cli compare-evidence`
+  verifies both and reports whether they carry the same evidence shape.
+
+No study has been run. Nothing here is a measurement, and no threshold may be
+quoted as one.
+
 ### Added — starting work is possible and governed (`M40`)
 
 - **One initiation contract.** Every door into the runtime — the command

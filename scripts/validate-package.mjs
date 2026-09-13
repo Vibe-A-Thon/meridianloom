@@ -18,6 +18,11 @@
  *    non-zero on an induced failure** — an altered ledger entry;
  *  - a bundle exported by the packaged CLI verifies with the packaged
  *    `verify.py`, and a tampered copy of it does not;
+ *  - the packaged `cli evidence-gate` prints the digest a study registers,
+ *    scores a study with that registration reported intact, and writes a
+ *    ledger slice the packaged verifier accepts (MV5);
+ *  - the packaged `cli compare-evidence` passes two bundles of one shape and
+ *    fails an altered one (AC-50);
  *  - the shipped agent library is byte-identical to its source and not empty.
  *
  * What it does not do: open VS Code. Seeding the library into a workspace on
@@ -240,6 +245,83 @@ export function validatePackage({ vsixPath } = {}) {
       'packaged verifier rejects a tampered export',
       rejected.status !== 0,
       `verify.py exit ${rejected.status} on an altered entry`,
+    );
+  }
+
+  // -- MV5: the evidence-gate scorer and the two-bundle comparison ---------
+  // Packaging-sensitive in exactly the way MP7 means: three new modules and a
+  // jsonschema import exist in the checkout whether or not they reached the
+  // package. So both commands run from the extracted copy, before the ledger
+  // is corrupted below.
+  const cli = (...args) => runPython(sidecarDir, ['-m', 'meridian_core.cli', ...args]);
+  let thresholdsDigest;
+  try {
+    thresholdsDigest = JSON.parse(cli('evidence-gate', '--print-preregistration').stdout).thresholdsDigest;
+  } catch {
+    thresholdsDigest = undefined;
+  }
+  const study = path.join(scratch, 'study.json');
+  writeFileSync(
+    study,
+    JSON.stringify({
+      studyId: 'package-validation',
+      preregistration: {
+        registeredAt: '2026-09-14T09:00:00Z',
+        thresholdsDigest: thresholdsDigest ?? 'not printed',
+      },
+      allocation: [{ storyId: 'VALIDATE-1', arm: 'C', kind: 'greenfield' }],
+    }),
+    'utf8',
+  );
+  const gateOut = path.join(scratch, 'gate');
+  const scored = cli(
+    'evidence-gate',
+    '--workspace',
+    workspace,
+    '--study',
+    study,
+    '--out',
+    gateOut,
+    '--signing-key-file',
+    keyFile,
+  );
+  let gateReport;
+  try {
+    gateReport = JSON.parse(readFileSync(path.join(gateOut, 'evidence-gate-report.json'), 'utf8'));
+  } catch {
+    gateReport = undefined;
+  }
+  const slice = path.join(gateOut, 'ledger-slice.json');
+  const sliceVerifies = existsSync(slice) && verify(slice).status === 0;
+  record(
+    'packaged evidence gate scores a study',
+    scored.status === 0 &&
+      gateReport?.preregistration?.state === 'intact' &&
+      gateReport?.recommendation?.verdict === 'insufficient_evidence' &&
+      existsSync(path.join(gateOut, 'DECISION-DRAFT.md')) &&
+      sliceVerifies,
+    scored.status === 0
+      ? `outcome ${gateReport?.recommendation?.verdict ?? 'unreported'}, preregistration ${gateReport?.preregistration?.state ?? 'unreported'}, slice ${sliceVerifies ? 'verifies' : 'does not verify'}`
+      : `exit ${scored.status}: ${(scored.stderr || scored.stdout).trim().split('\n').at(-1)}`,
+  );
+
+  if (existsSync(bundle) && existsSync(slice)) {
+    const same = cli('compare-evidence', bundle, slice);
+    const altered = JSON.parse(readFileSync(bundle, 'utf8'));
+    altered.entries[0].actorId = 'somebody-else';
+    const alteredPath = path.join(scratch, 'altered-for-comparison.json');
+    writeFileSync(alteredPath, JSON.stringify(altered), 'utf8');
+    const different = cli('compare-evidence', bundle, alteredPath);
+    record(
+      'packaged compare-evidence passes one shape and fails an altered bundle',
+      same.status === 0 && different.status === 1,
+      `two exports of one ledger exit ${same.status}; altered bundle exit ${different.status}`,
+    );
+  } else {
+    record(
+      'packaged compare-evidence passes one shape and fails an altered bundle',
+      false,
+      'no packaged export and ledger slice to compare',
     );
   }
 
