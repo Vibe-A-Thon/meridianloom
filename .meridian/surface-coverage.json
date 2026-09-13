@@ -1,6 +1,6 @@
 {
   "$schema": "meridian-loom/surface-coverage@1",
-  "generatedAt": "2026-09-13T11:47:03.990Z",
+  "generatedAt": "2026-09-13T16:02:28.980Z",
   "registry": "shared/schema/tiers.json",
   "allowlist": "shared/schema/unsurfaced.json",
   "roots": [
@@ -222,6 +222,24 @@
       "callerCount": 1,
       "callers": [
         "webview/src/workbench/governance/Gates.tsx"
+      ]
+    },
+    {
+      "method": "interop/conflicts",
+      "capability": "recorder.interop",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/screens/InteropPanel.tsx"
+      ]
+    },
+    {
+      "method": "interop/export",
+      "capability": "recorder.interop",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/screens/ProvenanceReconciliation.tsx"
       ]
     },
     {
@@ -832,8 +850,8 @@
     }
   ],
   "summary": {
-    "total": 78,
-    "surfaced": 72,
+    "total": 80,
+    "surfaced": 74,
     "declared": 16,
     "undeclaredOrphans": 0,
     "mustSurfacePending": 0,

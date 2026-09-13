@@ -234,8 +234,8 @@ describe('Delivery and Learning studios', () => {
       }),
     );
   });
-  it('connects all 51 catalogued surfaces to a dedicated interface', () => {
-    expect(SURFACE_COVERAGE.map(([id]) => id)).toEqual(Array.from({ length: 51 }, (_, i) => i + 1));
+  it('connects all 52 catalogued surfaces to a dedicated interface', () => {
+    expect(SURFACE_COVERAGE.map(([id]) => id)).toEqual(Array.from({ length: 52 }, (_, i) => i + 1));
     render(<GuideStudio onNavigate={() => {}} />);
     fireEvent.change(screen.getByLabelText('Search capability coverage'), {
       target: { value: 'UML Studio' },

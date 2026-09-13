@@ -125,6 +125,17 @@ Why this exists: the freeze audit found a requirements document asserting a gree
 | `compare-evidence` passes two bundles only when both verify and their evidence shapes agree | `docs/spec/evidence-portability.md` | `core/tests/test_headless_cli.py::test_an_altered_bundle_with_the_same_shape_still_fails` | backed |
 | **No evidence-gate study has been run; no threshold is a measurement** | `extension/CHANGELOG.md` · `docs/evidence-gate.md` | — | limitation |
 | **Two editors and two SCM providers have not produced one evidence shape, and a second editor is not yet supported** | `docs/spec/evidence-portability.md` | — | limitation |
+| When two provenance records name different agents for a commit, every claim is reported and none is preferred, including Meridian's own ledger | `docs/SECURITY-AND-DATA.md` §5 · `extension/CHANGELOG.md` | `core/tests/test_interop_disagreements.py::test_meridians_own_ledger_is_not_preferred_either` | backed |
+| Recording a disagreement is a separate action and stores digests, never what the records say | `docs/SECURITY-AND-DATA.md` §5 · `extension/CHANGELOG.md` | `core/tests/test_interop_rpc.py::test_recording_appends_each_disagreement_once_as_digests` | backed |
+| A disagreement report that stopped before the end of history says so | `docs/SECURITY-AND-DATA.md` §5 | `core/tests/test_interop_disagreements.py::test_a_walk_that_stops_early_says_so` | backed |
+| Notes under `refs/notes/exceeds-ink` are attributed to Exceeds Ink, not to an unrecognised tool | `extension/CHANGELOG.md` | `core/tests/test_interop.py::test_the_competitor_the_review_named_first_is_recognised` | backed |
+| **Disagreement is compared per commit; a disagreement about some lines of a commit is reported about the whole commit** | `docs/SECURITY-AND-DATA.md` §5 | — | limitation |
+| The attribution export carries no line content | `docs/spec/evidence-portability.md` · `extension/CHANGELOG.md` | `core/tests/test_interop_export.py::test_it_never_carries_the_code` | backed |
+| In the attribution export, a line Meridian cannot attribute is counted as unattributed, never as human | `docs/spec/evidence-portability.md` · `extension/CHANGELOG.md` | `core/tests/test_interop_export.py::test_lines_it_cannot_attribute_are_not_folded_into_human` | backed |
+| Git notes are written only when asked, and a note already saying the same thing is left alone | `docs/spec/evidence-portability.md` · `extension/CHANGELOG.md` | `core/tests/test_interop_export.py::test_a_note_already_saying_the_same_thing_is_left_alone` | backed |
+| Without a signing key the export says its attribution is from git evidence alone | `docs/spec/evidence-portability.md` | `core/tests/test_headless_cli.py::test_the_line_level_export_is_written_and_says_its_evidence_is_git_alone` | backed |
+| Provenance reconciliation is a tab of the Evidence studio that renders the screen | `extension/CHANGELOG.md` | `webview/src/screens/provenance-reconciliation.test.tsx > is a tab of the Evidence studio, and the tab renders the screen` | backed |
+| **Neither export format claims to match another tool's schema** | `docs/spec/evidence-portability.md` · `extension/CHANGELOG.md` | — | limitation |
 | **Without a witness, a re-signed fork of the whole ledger still verifies** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **The commit trailer is editable; it is a pointer, not a proof** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **Enforcement is in the editor, not the SCM** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |

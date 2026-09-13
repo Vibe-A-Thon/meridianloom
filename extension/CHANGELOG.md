@@ -90,6 +90,22 @@ quoted as one.
   attributed to the tool that wrote it, at `inferred` — Meridian did not
   observe the work, it read a file claiming the work happened — and the
   signature covers the digest, not the claim.
+- **Disagreements between provenance records are reported, never resolved.**
+  When two records name different agents for the same commit — another tool's
+  note, a co-author line, a session trailer, or Meridian's own ledger — both
+  are shown side by side, and neither is preferred, Meridian's own included.
+  Recording a disagreement is a separate action and stores digests, never
+  content. The comparison is per commit. Notes under `refs/notes/exceeds-ink`
+  are now attributed to Exceeds Ink rather than to an unrecognised tool.
+- **Meridian's attributions export to formats other tools read.** You get a
+  line-level attribution export, and one JSON git note per commit under
+  `refs/notes/meridian-attribution`, written only when you ask. Every line is
+  agent, human or unattributed, and unattributed is never counted as human.
+  No line content is included. A disagreement another record raises travels
+  with its commit, unresolved. Neither format claims to match another tool's
+  schema.
+- **Provenance reconciliation** has its own tab in Evidence: other tools'
+  records, their notarisation, disagreements and export, in one place.
 - **A pull-request evidence card**: change risk, coverage gaps, failed checks,
   cost, the human action required, and **the revision actually tested**. A
   gate verdict recorded against a head the branch has moved past is shown as

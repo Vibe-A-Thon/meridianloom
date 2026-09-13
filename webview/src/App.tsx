@@ -156,7 +156,13 @@ const ORGANIZATION = [
   "exchange",
   "reports",
 ];
-const EVIDENCE = ["evidence", "flight-recorder", "external-agents", "ledger"];
+const EVIDENCE = [
+  "evidence",
+  "flight-recorder",
+  "external-agents",
+  "ledger",
+  "reconciliation",
+];
 
 function useUiTheme() {
   const api = getVsCodeApi();
@@ -359,7 +365,9 @@ export function App({
       initialTab={
         view === "ledger"
           ? "ledger"
-          : view === "external-agents"
+          : view === "reconciliation"
+            ? "reconciliation"
+            : view === "external-agents"
             ? "sessions"
             : "recorder"
       }

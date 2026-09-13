@@ -158,6 +158,40 @@ This is the check `AC-50` needs: two editors, two SCM providers, one evidence
 shape. That test itself has not been performed. It needs a customer, and a
 second editor that the compatibility matrix supports.
 
+## Export for other tools
+
+Meridian's attribution can be read without Meridian, in two formats:
+
+```console
+python -m meridian_core.cli export-attribution --workspace . \
+    --format attribution-json --out attribution.json
+python -m meridian_core.cli export-attribution --workspace . --format git-notes --write
+```
+
+- **`attribution-json`** (`meridian-loom/attribution-export@1`) lists every
+  line of the files asked for, grouped into spans by the commit that
+  introduced them. Each commit is attributed as agent, human or unattributed,
+  with its evidence and confidence, and each file carries counts. A line
+  Meridian cannot attribute is counted as unattributed, never as human. No
+  line content is included.
+- **`git-notes`** writes one JSON note per commit
+  (`meridian-loom/commit-attribution@1`) under
+  `refs/notes/meridian-attribution`, so any tool that reads git notes can read
+  them. Without `--write` it only reports what it would write. A note that
+  already says the same thing is left alone, and the notes are authored as
+  Meridian Loom rather than as whoever ran the command.
+
+In both formats, a commit whose records disagree about who produced it carries
+the disagreement's digest, unresolved: see
+`python -m meridian_core.cli` and the Evidence screen's Provenance
+reconciliation tab. Given the signing key, Meridian's own ledger evidence is
+included; without it the export is made from git evidence alone and says so.
+
+**Neither format claims to match another tool's schema.** Other tools'
+formats are described in this project's competitive review, but none is
+specified here, and a compatibility nobody has checked is not a claim this
+document makes.
+
 ## What is not built yet
 
 **FR-M43-14 — opt-in export to OTLP and evaluation systems.** Not

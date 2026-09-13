@@ -252,3 +252,114 @@ class TestTheOrdinaryCase:
         assert call(instance, "interop/records")["records"] == []
         assert call(instance, "interop/notarise")["notarised"] == 0
         assert call(instance, "interop/verify")["verdicts"] == []
+
+
+class TestDisagreementsOverTheBus:
+    """CP1-T02: `AC-60` through the real sidecar and a real signed ledger."""
+
+    @staticmethod
+    def disagree(rival_repo: Path) -> str:
+        """The aider note on HEAD, and a cursor note on the same commit."""
+        head = git(rival_repo, "rev-parse", "HEAD").strip()
+        write_note(rival_repo, "refs/notes/cursor", head, json.dumps({"tool": "cursor"}))
+        return head
+
+    @staticmethod
+    def recorded(server: SidecarServer) -> tuple[list[dict], list[dict]]:
+        rows = server.ledger.query(action_type="provenance_disagreement", limit=100)
+        details = [
+            json.loads(
+                server.ledger.read_blob(
+                    row["input_ref"], str(row.get("blob_key_id") or "default")
+                ).decode("utf-8")
+            )
+            for row in rows
+        ]
+        return details, rows
+
+    def test_reading_reports_the_disagreement_and_writes_nothing(self, server, rival_repo):
+        head = self.disagree(rival_repo)
+        result = call(server, "interop/conflicts")
+        assert [item["commit"] for item in result["disagreements"]] == [head]
+        assert result["disagreements"][0]["kind"] == "conflicting"
+        assert result["recorded"] == 0
+        assert server.ledger.query(action_type="provenance_disagreement", limit=10) == []
+
+    def test_recording_appends_each_disagreement_once_as_digests(self, server, rival_repo):
+        self.disagree(rival_repo)
+        first = call(server, "interop/conflicts", {"record": True})
+        second = call(server, "interop/conflicts", {"record": True})
+        assert (first["recorded"], second["recorded"]) == (1, 0)
+        details, rows = self.recorded(server)
+        assert len(rows) == 1
+        # Meridian directly observed the disagreement, and nothing about which
+        # record is right.
+        assert rows[0]["vendor"] == "meridian"
+        assert rows[0]["observation_confidence"] == "direct"
+        assert details[0]["digest"] == first["disagreements"][0]["digest"]
+        # The aider note names its model; the entry carries a digest of the
+        # note, never what the note says.
+        assert "gpt-4o" not in json.dumps(details[0])
+
+    def test_an_out_of_range_walk_is_refused(self, server):
+        response = server.handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "interop/conflicts",
+                "params": {"maxCommits": 0},
+            }
+        )
+        assert response["error"]["code"] == protocol.INVALID_PARAMS
+
+    def test_the_chain_still_verifies_after_recording(self, server, rival_repo):
+        self.disagree(rival_repo)
+        call(server, "interop/conflicts", {"record": True})
+        assert server.ledger.verify().ok
+
+
+class TestExportOverTheBus:
+    """CP1-T03: `FR-M52-04` through the real sidecar."""
+
+    NOTES_REF = "refs/notes/meridian-attribution"
+
+    @staticmethod
+    def refused(server: SidecarServer, params: dict) -> dict:
+        response = server.handle_message(
+            {"jsonrpc": "2.0", "id": 4, "method": "interop/export", "params": params}
+        )
+        assert "error" in response, response
+        return response["error"]
+
+    def notes(self, repo: Path) -> str:
+        return subprocess.run(
+            ["git", "notes", "--ref", self.NOTES_REF, "list"],
+            cwd=repo, capture_output=True, text=True,
+        ).stdout.strip()
+
+    def test_the_line_level_export_is_returned_and_writes_nothing(self, server, rival_repo):
+        result = call(server, "interop/export", {"format": "attribution-json"})
+        assert result["format"] == "attribution-json"
+        assert result["document"]["schema"] == "meridian-loom/attribution-export@1"
+        assert self.notes(rival_repo) == ""
+
+    def test_notes_are_written_only_when_write_is_exactly_true(self, server, rival_repo):
+        planned = call(server, "interop/export", {"format": "git-notes"})["notes"]
+        assert planned["toWrite"] == 1 and planned["written"] == 0
+        assert self.notes(rival_repo) == ""
+
+        # A string is not a yes. Writing into somebody's refs needs a boolean.
+        stringly = self.refused(server, {"format": "git-notes", "write": "true"})
+        assert stringly["code"] == protocol.INVALID_PARAMS
+        assert self.notes(rival_repo) == ""
+
+        written = call(server, "interop/export", {"format": "git-notes", "write": True})["notes"]
+        assert written["written"] == 1
+        assert self.notes(rival_repo) != ""
+
+    def test_an_unknown_format_is_refused(self, server):
+        assert self.refused(server, {"format": "exceeds-ink"})["code"] == protocol.INVALID_PARAMS
+
+    def test_a_bad_bound_or_path_list_is_refused(self, server):
+        assert self.refused(server, {"format": "git-notes", "maxCommits": 0})["code"] == protocol.INVALID_PARAMS
+        assert self.refused(server, {"format": "attribution-json", "paths": "src"})["code"] == protocol.INVALID_PARAMS

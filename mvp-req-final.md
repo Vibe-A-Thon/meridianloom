@@ -156,11 +156,11 @@ Every module from every source, with its MVP disposition. **Requirement counts a
 | **M1** | Extension Host | **`BUILT`** | Activation, commands, tier context keys, editor surfaces |
 | **M2** | Webview Dashboard | **`BUILT`** | 12-tab workbench, 7 studios, 6 screens, editor-area surface |
 | **M3** | Sidecar and IPC | **`BUILT`** | Framed JSON-RPC, dual teardown, remote, 30 s handshake budget |
-| **M4** | Loop Runtime | `POST-MVP` (Orchestra) | `core/meridian_core/runtime/` exists as substrate |
+| **M4** | Loop Runtime | `POST-MVP` (Orchestra) | **Absent** — `core/meridian_core/runtime/` is an empty, untracked directory (corrected under `D56`); the loop runtime starts from nothing |
 | **M5** | Agent Registry and Manifests | **`BUILT`** | Workbench catalogue + adapter registry |
 | **M6** | Skill Loader | **`BUILT`** (10-pack catalogue shipped) | `FR-M6-08` full catalogue satisfied by the shipped library |
 | **M7** | Memory Fabric | **Partly `BUILT`** | Reviewable memory notes and instruction library; tiers `POST-MVP` |
-| **M8** | Model Router | `POST-MVP` (Orchestra) | `core/meridian_core/router/` exists |
+| **M8** | Model Router | `POST-MVP` (Orchestra) | **Absent** — `core/meridian_core/router/` is an empty, untracked directory (corrected under `D56`) |
 | **M9** | Tool Layer | **Partly `BUILT`** | Permission gate and sandbox posture built; MCP client built |
 | **M10** | Ledger Service | **`BUILT`** | Hash chain, Merkle, signed heads, encrypted blobs, schema v4 |
 | **M11** | Chain Viewer | **`BUILT`** | Integrity verdict, entry stream, proofs, bundle export |
@@ -184,7 +184,7 @@ Every module from every source, with its MVP disposition. **Requirement counts a
 | **M29** | Documentation Agent | `POST-MVP` | |
 | **M30** | Runtime Operations | **`BUILT`** | Doctor (now headless too), migration, clean uninstall |
 | **M31** | Agent Adapter Framework | **`BUILT`** (re-based on ACP per `FR-M34-02`) | Discovery, validation, probation, portability |
-| **M32** | Simulation Core | **Partly `BUILT`** | `core/meridian_core/simulation/`; harness role `POST-MVP` |
+| **M32** | Simulation Core | **`POST-MVP`** — corrected under `D56` from *Partly `BUILT`*: `core/meridian_core/simulation/` is an empty, untracked directory. What exists is the policy simulator (`governance/policy_simulator.py`), a different thing; the regression-harness role is `F3` |
 | **M33** | Deterministic Engine | **Partly `BUILT`** | Structural set built; growth gated by `FR-M46-16` |
 
 ### 3.2 The repositioning six (`gaps-requirements.md`)
@@ -279,7 +279,7 @@ Four identifier families live inside source documents rather than in a requireme
 |---|---|---|---|
 | **`BT-1`…`BT-6`** — the brutal truths | 6 | `HONEST_ASSESSMENT.md`, via `gaps-requirements.md` | **All six are premises, not requirements, and all six still hold.** `BT-1` ACP won → `P21`. `BT-2`/`BT-3` parity unwinnable → `P20`, §1.3. `BT-4` cost of discovering the thesis is wrong → the `MV5` gate. `BT-5` trust is the unsolved problem → `M37`, the reason the product exists. `BT-6` employment and IP → **closed** by owner determination (`D22`) |
 | **`DS-1`…`DS-5`** — interface design stances | 5 | `gaps_guix.md` §1 | `DS-1` vendor tag fundamental **`BUILT`** (`X-27`) · `DS-2` Weave agent-agnostic **`BUILT`** · `DS-3` tier-driven disclosure **`BUILT`** (`X-28`) · `DS-4` trust is a screen, not a KPI panel **`BUILT`** (10.47) · `DS-5` match then exceed **`MVP-HUMAN`** (`X-31` needs the timing study) |
-| **`L1`…`L6`** — the six canonical loops | 6 | `vision.md` §4.1 | `POST-MVP` (Orchestra). The runtime substrate exists in `core/meridian_core/runtime/`; the loops themselves are `F3`. **The bound-declaration rule (`E5`, `FR-M4-02`) is in force now** for anything that loops |
+| **`L1`…`L6`** — the six canonical loops | 6 | `vision.md` §4.1 | `POST-MVP` (Orchestra). **No runtime substrate exists** — `core/meridian_core/runtime/` is empty (corrected under `D56`); the runtime and the loops are both `F3`. **The bound-declaration rule (`E5`, `FR-M4-02`) is in force now** for anything that loops |
 | **`E-xx-nn`** — per-screen event contracts | 115 | `VIGUIX_Final.md` §10 | **Follows its screen.** An event belongs to exactly one screen, so §9.1's disposition governs it. The events of the 15 `BUILT` screens are `BUILT`; the rest follow their screen's disposition. `E-GR-03` (the rework-reason taxonomy) is called out separately because `FR-M37-02` depends on it: **`BUILT`** |
 
 ---

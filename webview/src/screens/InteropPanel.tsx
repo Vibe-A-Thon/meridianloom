@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type {
   ForeignRecord,
+  InteropConflictsResult,
   InteropVerifyResult,
 } from '../../../shared/ts/bus-types';
 import { VendorTag } from '../components/VendorTag';
@@ -30,6 +31,15 @@ import styles from './interop-panel.module.css';
 const NOT_ENDORSED_HEADLINE =
   'Meridian signs the digest, not the claim.';
 
+/**
+ * FR-M52-05 (CP1-T02). Two labels, and neither says which record is right:
+ * the panel describes the shape of a disagreement, never its answer.
+ */
+const KIND_LABEL: Record<string, string> = {
+  conflicting: 'Records name different agents',
+  incomplete: 'Records overlap but differ',
+};
+
 export interface InteropPanelProps {
   client: WebviewRpcClient;
   ready: boolean;
@@ -50,6 +60,35 @@ function describe(error: unknown): string {
 export function InteropPanel({ client, ready }: InteropPanelProps) {
   const [state, setState] = useState<State>({ kind: 'idle' });
   const [notarised, setNotarised] = useState<string | undefined>();
+  const [conflicts, setConflicts] = useState<InteropConflictsResult | undefined>();
+  const [conflictsBusy, setConflictsBusy] = useState(false);
+  const [conflictsError, setConflictsError] = useState<string | undefined>();
+  const [recordedNote, setRecordedNote] = useState<string | undefined>();
+
+  /**
+   * Finding disagreements reads. Recording them is a separate, explicit
+   * action, for the same reason reading records is separate from notarising.
+   */
+  async function findConflicts(record: boolean) {
+    setConflictsBusy(true);
+    setConflictsError(undefined);
+    if (!record) setRecordedNote(undefined);
+    try {
+      const result = await client.request('interop/conflicts', record ? { record: true } : {});
+      setConflicts(result);
+      if (record) {
+        setRecordedNote(
+          result.recorded === 0
+            ? 'Nothing new to record — every disagreement shown was already in the signed ledger.'
+            : `Recorded ${result.recorded} disagreement(s) in the signed ledger, as digests.`,
+        );
+      }
+    } catch (error) {
+      setConflictsError(describe(error));
+    } finally {
+      setConflictsBusy(false);
+    }
+  }
 
   async function read() {
     setState({ kind: 'busy' });
@@ -126,6 +165,13 @@ export function InteropPanel({ client, ready }: InteropPanelProps) {
         </button>
         <button disabled={!ready || state.kind === 'busy'} onClick={() => void verify()} data-testid="interop-verify">
           Check for alteration
+        </button>
+        <button
+          disabled={!ready || conflictsBusy}
+          onClick={() => void findConflicts(false)}
+          data-testid="interop-conflicts"
+        >
+          Find disagreements
         </button>
       </div>
 
@@ -211,6 +257,74 @@ export function InteropPanel({ client, ready }: InteropPanelProps) {
             );
           })}
         </ul>
+      )}
+
+      {conflictsError && (
+        <p className={styles.error} role="alert" data-testid="interop-conflicts-error">
+          {conflictsError}
+        </p>
+      )}
+
+      {conflicts && (
+        <div data-testid="interop-conflicts-result">
+          <p className={styles.muted} data-testid="interop-conflicts-summary">
+            {`Compared the provenance records on ${conflicts.examined} commit(s).`}
+            {conflicts.disagreements.length === 0
+              ? ' No two records disagree about who produced a commit.'
+              : ` ${conflicts.disagreements.length} commit(s) have records that disagree.`}
+            {conflicts.truncated
+              ? ' The walk stopped at its limit and older history was not compared, so this is not a clean report for it.'
+              : ''}
+          </p>
+          {conflicts.disagreements.length > 0 && (
+            <>
+              <ul className={styles.list} data-testid="interop-disagreements">
+                {conflicts.disagreements.map((item) => (
+                  <li className={styles.row} key={item.digest}>
+                    <div className={styles.rowHead}>
+                      <strong>{KIND_LABEL[item.kind] ?? 'Records differ'}</strong>
+                      <span className={styles.muted}>
+                        commit {toSafeText(item.commit.slice(0, 12))}
+                      </span>
+                    </div>
+                    {/*
+                      FR-M52-05: every claim, in the order it was read, and none
+                      marked as the answer. Meridian's own ledger claim is one of
+                      them, not the tie-breaker.
+                    */}
+                    <ul className={styles.list}>
+                      {item.claims.map((claim) => (
+                        <li key={`${claim.claimant}:${claim.evidence}`}>
+                          <VendorTag vendor={claim.tool} confidence={claim.confidence} />{' '}
+                          <span className={styles.muted}>{toSafeText(claim.claimant)}</span> says{' '}
+                          {toSafeText(claim.agents.join(', '))}
+                          <p className={styles.digest}>{toSafeText(claim.evidence)}</p>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className={styles.boundary} data-testid="interop-not-resolved">
+                      {toSafeText(item.notResolved)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <div className={styles.actions}>
+                <button
+                  disabled={!ready || conflictsBusy}
+                  onClick={() => void findConflicts(true)}
+                  data-testid="interop-conflicts-record"
+                >
+                  Record these disagreements
+                </button>
+              </div>
+            </>
+          )}
+          {recordedNote && (
+            <p className={styles.muted} data-testid="interop-conflicts-recorded">
+              {recordedNote}
+            </p>
+          )}
+        </div>
       )}
     </section>
   );

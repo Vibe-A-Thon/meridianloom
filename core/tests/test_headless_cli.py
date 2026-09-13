@@ -518,3 +518,69 @@ class TestCompareEvidence:
         assert report["sameShape"] is True
         assert [b["verified"] for b in report["bundles"]] == [True, False]
         assert result.returncode == 1
+
+
+# -- CP1-T03: Meridian's attributions, for other tools, headless ----------------
+
+
+def _git_repo(root: Path) -> Path:
+    root.mkdir(parents=True)
+    env = dict(
+        os.environ,
+        GIT_AUTHOR_NAME="Alice A",
+        GIT_AUTHOR_EMAIL="alice@example.com",
+        GIT_COMMITTER_NAME="Alice A",
+        GIT_COMMITTER_EMAIL="alice@example.com",
+    )
+    (root / "app.txt").write_text("one\ntwo\n", encoding="utf-8")
+    for args in (["init"], ["add", "."], ["commit", "-m", "initial"]):
+        subprocess.run(
+            ["git", "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main", *args],
+            cwd=root, env=env, check=True, capture_output=True,
+        )
+    return root
+
+
+def _notes(repo: Path) -> str:
+    return subprocess.run(
+        ["git", "notes", "--ref", "refs/notes/meridian-attribution", "list"],
+        cwd=repo, capture_output=True, text=True,
+    ).stdout.strip()
+
+
+class TestExportAttributionHeadless:
+    def test_the_line_level_export_is_written_and_says_its_evidence_is_git_alone(self, tmp_path):
+        repo = _git_repo(tmp_path / "repo")
+        out = tmp_path / "attribution.json"
+        result = run_cli(
+            "export-attribution", "--workspace", str(repo),
+            "--format", "attribution-json", "--out", str(out),
+        )
+        assert result.returncode == 0, result.stderr
+        document = json.loads(out.read_text(encoding="utf-8"))
+        assert document["schema"] == "meridian-loom/attribution-export@1"
+        assert document["totals"]["human"] == 2
+        assert "git evidence alone" in result.stderr
+
+    def test_notes_are_written_only_with_write(self, tmp_path):
+        repo = _git_repo(tmp_path / "repo")
+        planned = run_cli("export-attribution", "--workspace", str(repo), "--format", "git-notes")
+        assert planned.returncode == 0, planned.stderr
+        assert json.loads(planned.stdout)["written"] == 0
+        assert "Nothing written" in planned.stderr
+        assert _notes(repo) == ""
+
+        written = run_cli(
+            "export-attribution", "--workspace", str(repo), "--format", "git-notes", "--write"
+        )
+        assert written.returncode == 0, written.stderr
+        assert json.loads(written.stdout)["written"] == 1
+        assert _notes(repo) != ""
+
+    def test_attribution_json_needs_somewhere_to_write(self, tmp_path):
+        repo = _git_repo(tmp_path / "repo")
+        result = run_cli(
+            "export-attribution", "--workspace", str(repo), "--format", "attribution-json"
+        )
+        assert result.returncode == 2
+        assert "--out is required" in result.stderr

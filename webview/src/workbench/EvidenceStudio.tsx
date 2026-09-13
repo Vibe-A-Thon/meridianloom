@@ -2,11 +2,12 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { ExternalAgentsScreen } from '../screens/ExternalAgentsScreen';
 import { FlightRecorderScreen } from '../screens/FlightRecorderScreen';
 import { LedgerScreen } from '../screens/LedgerScreen';
+import { ProvenanceReconciliation } from '../screens/ProvenanceReconciliation';
 import { PullRequestCard } from '../screens/PullRequestCard';
 import type { ScreenProps } from '../screens/registry';
 import styles from './studios.module.css';
 
-export type EvidenceTab = 'recorder' | 'sessions' | 'pull-request' | 'ledger';
+export type EvidenceTab = 'recorder' | 'sessions' | 'pull-request' | 'ledger' | 'reconciliation';
 
 export interface EvidenceStudioProps extends ScreenProps {
   initialTab?: EvidenceTab;
@@ -26,6 +27,11 @@ const TABS: Array<{ id: EvidenceTab; label: string; note: string }> = [
     note: 'What a reviewer needs before merging an agent’s work',
   },
   { id: 'ledger', label: 'Audit ledger', note: 'Read records, inspect proofs, export a bundle' },
+  {
+    id: 'reconciliation',
+    label: 'Provenance reconciliation',
+    note: 'Other tools’ records, where records disagree, and export for other tools',
+  },
 ];
 
 /** A single evidence workspace over the existing, real sidecar-backed screens. */
@@ -136,6 +142,9 @@ export function EvidenceStudio({
           <PullRequestCard client={screenProps.client} ready={screenProps.ready} />
         )}
         {tab === 'ledger' && <LedgerScreen {...screenProps} />}
+        {tab === 'reconciliation' && (
+          <ProvenanceReconciliation client={screenProps.client} ready={screenProps.ready} />
+        )}
       </section>
     </div>
   );

@@ -137,6 +137,17 @@ class TestReadingSomebodyElsesRecord:
         assert record.tool == "unknown-tool"
         assert record.source == "refs/notes/some-new-tool"
 
+    def test_the_competitor_the_review_named_first_is_recognised(self, repo):
+        # CP1-T01. mvp-req-final.md §16.1 CMP-01 names this ref as where the
+        # closest shipped competitor writes its attestation. It was missing,
+        # so its records rendered as "Unrecognised tool" — the one tool the
+        # review said to expect.
+        head = head_of(repo)
+        write_note(repo, "refs/notes/exceeds-ink", head, '{"unknown_lines": 0}')
+        record = interop.read_foreign_notes(repo)[0]
+        assert record.tool == "exceeds-ink"
+        assert record.confidence == "inferred"
+
 
 class TestTrailersAreRecordsToo:
     def test_a_session_trailer_is_read_as_that_tools_record(self, repo):

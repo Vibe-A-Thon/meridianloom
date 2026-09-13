@@ -168,6 +168,7 @@ export const WORKBENCH_TABS: readonly WorkbenchTab[] = [
       "flight-recorder",
       "external-agents",
       "ledger",
+      "reconciliation",
       "decisions",
       "kpi",
     ],

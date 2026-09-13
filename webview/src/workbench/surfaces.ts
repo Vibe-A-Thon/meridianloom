@@ -306,4 +306,10 @@ export const SURFACE_COVERAGE: Array<[number, string, string, string]> = [
     "launch",
     "Brief and active-team selection, conflict preflight, explicit dispatch and follow-through.",
   ],
+  [
+    52,
+    "Provenance Reconciliation",
+    "reconciliation",
+    "Other tools' provenance records, notarisation status, where records disagree, and export for other tools.",
+  ],
 ];

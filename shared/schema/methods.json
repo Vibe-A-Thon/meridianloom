@@ -461,6 +461,24 @@
       "params": { "$ref": "#/$defs/InteropVerifyParams" },
       "result": { "$ref": "#/$defs/InteropVerifyResult" }
     },
+    "interop/conflicts": {
+      "description": "FR-M52-05, AC-60, NFR-53 (CP1-T02): where provenance records disagree about which agent produced a commit. Every claim is compared commit by commit: Meridian's own ledger entries reached through the Meridian-Ledger trailer, a bot author identity, and each other tool's note or trailer. A disagreement lists every claim with no winner, including when one is Meridian's own. One agent spelled two ways, two co-author lines in one message, and a recorder note naming no agent are not disagreements. Reading writes nothing; with record, each new disagreement is appended to the signed ledger as digests, never content. The walk is bounded and reports truncated when it stops early.",
+      "params": {
+        "$ref": "#/$defs/InteropConflictsParams"
+      },
+      "result": {
+        "$ref": "#/$defs/InteropConflictsResult"
+      }
+    },
+    "interop/export": {
+      "description": "FR-M52-04 (CP1-T03): Meridian's attributions in formats other tools consume, so adopting Meridian does not strand a team's existing tooling. attribution-json returns the line-level export (meridian-loom/attribution-export@1): every line in one of the three states, counted per file, unattributed never folded into human, no line content, and any disagreement another record raises carried by digest. git-notes reports what would be written as one JSON note per commit under refs/notes/meridian-attribution, and writes only when write is true. Neither format claims to match another tool's schema.",
+      "params": {
+        "$ref": "#/$defs/InteropExportParams"
+      },
+      "result": {
+        "$ref": "#/$defs/InteropExportResult"
+      }
+    },
     "trust.summary": {
       "description": "Governor tier stub (FR-M37-*; F0 subset/F1 full): trust and rejection analytics summary. Same tier-enforcement role as gate.evaluate.",
       "params": {
@@ -3594,6 +3612,240 @@
         "altered": { "type": "integer" },
         "missing": { "type": "integer" },
         "unreadable": { "type": "integer", "description": "Notarisation entries whose recorded detail could not be read back because the per-subject blob key was destroyed. Reported rather than skipped: an entry that cannot be checked is not an entry that passed." }
+      }
+    },
+    "InteropConflictsParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repoPath": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Where the walk starts. Default HEAD."
+        },
+        "maxCommits": {
+          "type": "integer",
+          "description": "How many commits to walk, 1 to 5000. Default 200."
+        },
+        "record": {
+          "type": "boolean",
+          "description": "Append each disagreement not already recorded to the signed ledger, as digests."
+        }
+      }
+    },
+    "InteropClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claimant",
+        "tool",
+        "agents",
+        "confidence",
+        "evidence"
+      ],
+      "properties": {
+        "claimant": {
+          "type": "string",
+          "description": "Who makes the statement: a notes ref, a trailer key, meridian-ledger, or commit-author."
+        },
+        "tool": {
+          "type": "string",
+          "description": "The vendor id of the claimant, for the vendor tag."
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The agents the claimant attributes the commit to, canonically named."
+        },
+        "confidence": {
+          "$ref": "#/$defs/ObservationConfidence"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "Digests of the records, or the ledger range. Never the content of a record."
+        }
+      }
+    },
+    "InteropDisagreement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "kind",
+        "claims",
+        "digest",
+        "notResolved"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "conflicting",
+            "incomplete"
+          ],
+          "description": "conflicting when two claims share no agent; incomplete when every pair overlaps but the claims still differ."
+        },
+        "claims": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InteropClaim"
+          }
+        },
+        "digest": {
+          "type": "string",
+          "description": "Stable across reads, so the same disagreement is recorded once."
+        },
+        "notResolved": {
+          "type": "string",
+          "description": "The sentence saying no claim is preferred."
+        }
+      }
+    },
+    "InteropConflictsResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "examined",
+        "truncated",
+        "claimed",
+        "agreeing",
+        "disagreements",
+        "recorded"
+      ],
+      "properties": {
+        "examined": {
+          "type": "integer"
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "The walk stopped at maxCommits. A clean report over part of history is not a clean report."
+        },
+        "claimed": {
+          "type": "integer",
+          "description": "Commits with at least one claim."
+        },
+        "agreeing": {
+          "type": "integer",
+          "description": "Commits with two or more claims that agree."
+        },
+        "disagreements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InteropDisagreement"
+          }
+        },
+        "recorded": {
+          "type": "integer",
+          "description": "Disagreements newly appended to the ledger. Zero unless record was set."
+        }
+      }
+    },
+    "InteropExportParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format"
+      ],
+      "properties": {
+        "repoPath": {
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "attribution-json",
+            "git-notes"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "description": "Default HEAD."
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "attribution-json only: the files to export. Default every tracked file, bounded."
+        },
+        "maxCommits": {
+          "type": "integer",
+          "description": "git-notes only: how many commits from ref, 1 to 5000. Default 200."
+        },
+        "write": {
+          "type": "boolean",
+          "description": "git-notes only: write the notes. Without it nothing is written."
+        },
+        "installedAt": {
+          "type": [
+            "string",
+            "number"
+          ],
+          "description": "Meridian's installation time. Older commits are attributed at inferred, never observed (FR-M41-16)."
+        }
+      }
+    },
+    "InteropNotesExport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "commits",
+        "truncated",
+        "toWrite",
+        "unchanged",
+        "written"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "commits": {
+          "type": "integer"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "toWrite": {
+          "type": "integer",
+          "description": "Notes that are absent or would change."
+        },
+        "unchanged": {
+          "type": "integer",
+          "description": "Notes already saying the same thing, left alone."
+        },
+        "written": {
+          "type": "integer",
+          "description": "Zero unless write was true."
+        }
+      }
+    },
+    "InteropExportResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format"
+      ],
+      "properties": {
+        "format": {
+          "enum": [
+            "attribution-json",
+            "git-notes"
+          ]
+        },
+        "document": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "attribution-json: the meridian-loom/attribution-export@1 document."
+        },
+        "notes": {
+          "$ref": "#/$defs/InteropNotesExport"
+        }
       }
     },
     "GateProfilesParams": {

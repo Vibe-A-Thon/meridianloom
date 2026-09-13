@@ -267,6 +267,8 @@ class SidecarServer:
             "interop/records": SidecarServer._handle_interop_records,
             "interop/notarise": SidecarServer._handle_interop_notarise,
             "interop/verify": SidecarServer._handle_interop_verify,
+            "interop/conflicts": SidecarServer._handle_interop_conflicts,
+            "interop/export": SidecarServer._handle_interop_export,
             "governance/enforcementPoints": SidecarServer._handle_enforcement_points,
             # M40 (MV2): one contract, many doors. The door is
             # `origin`; nothing else about a run differs by door
@@ -1073,6 +1075,165 @@ class SidecarServer:
             "alreadyNotarised": len(records) - notarised,
             "records": [self._interop_wire(record) for record in records],
         }
+
+    def _handle_interop_conflicts(
+        self, params: bus_types.InteropConflictsParams
+    ) -> bus_types.InteropConflictsResult:
+        """FR-M52-05, AC-60, NFR-53 (CP1-T02): where provenance records disagree.
+
+        Compares, commit by commit, every claim about which agent produced the
+        work: Meridian's own ledger entries, reached through the commit's
+        Meridian-Ledger trailer; a bot author identity; and each other tool's
+        note or trailer. A disagreement is reported with every claim beside it
+        and no winner, including when one of the claims is Meridian's own.
+
+        Reading writes nothing. With `record`, each disagreement not already in
+        the ledger is appended as digests, so the disagreement itself becomes
+        evidence a third party can check.
+        """
+        params = params or {}
+        repo = self._interop_repo(params)
+        ledger = self._ensure_ledger()
+        max_commits = params.get("maxCommits", 200)
+        if (
+            not isinstance(max_commits, int)
+            or isinstance(max_commits, bool)
+            or not 1 <= max_commits <= 5000
+        ):
+            raise _RpcError(
+                protocol.INVALID_PARAMS, "maxCommits must be an integer from 1 to 5000"
+            )
+
+        def rows(first: int, last: int) -> list[dict[str, Any]]:
+            return ledger.query(
+                from_sequence=first, to_sequence=last, limit=min(1000, last - first + 1)
+            )
+
+        try:
+            result = interop.reconcile(
+                repo,
+                ref=str(params.get("ref") or "HEAD"),
+                max_commits=max_commits,
+                ledger_rows=rows,
+            )
+        except interop.InteropError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+
+        recorded = 0
+        if params.get("record"):
+            known: set[str] = set()
+            after: int | None = None
+            while True:
+                page = ledger.query(
+                    action_type="provenance_disagreement", after_sequence=after, limit=1000
+                )
+                for row in page:
+                    try:
+                        detail = json.loads(
+                            ledger.read_blob(
+                                str(row.get("input_ref")), str(row.get("blob_key_id") or "default")
+                            ).decode("utf-8")
+                        )
+                    except Exception:  # noqa: BLE001 - an unreadable entry matches nothing
+                        continue
+                    if isinstance(detail, dict) and isinstance(detail.get("digest"), str):
+                        known.add(detail["digest"])
+                if len(page) < 1000:
+                    break
+                after = page[-1]["seq"]
+
+            pack = self._role_pack(params)
+            for disagreement in result.disagreements:
+                if disagreement.digest in known:
+                    continue
+                self._append_gate_entry(
+                    story_id="interop/disagreement",
+                    pack=pack,
+                    decision="proposed",
+                    action_type="provenance_disagreement",
+                    control=None,
+                    phase="operate",
+                    actor_kind="meta",
+                    vendor="meridian",
+                    # Meridian directly observed that these records disagree.
+                    # It observed nothing about which of them is right.
+                    observation_confidence="direct",
+                    detail=disagreement.as_wire(),
+                )
+                known.add(disagreement.digest)
+                recorded += 1
+
+        return {**result.as_wire(), "recorded": recorded}  # type: ignore[return-value]
+
+    def _handle_interop_export(
+        self, params: bus_types.InteropExportParams
+    ) -> bus_types.InteropExportResult:
+        """FR-M52-04 (CP1-T03): Meridian's attributions in formats other tools consume.
+
+        `attribution-json` returns the line-level export and writes nothing.
+        `git-notes` reports what would be written under
+        `refs/notes/meridian-attribution`, and writes it only when `write` is
+        exactly true, because notes change the repository's refs. Both carry,
+        by digest, any disagreement another record raises about a commit.
+
+        `installedAt` is Meridian's installation time, from the caller:
+        commits older than it are attributed at `inferred`, never `observed`
+        (FR-M41-16). Without it no such downgrade is applied.
+        """
+        from . import interop_export
+
+        params = params or {}
+        repo = self._interop_repo(params)
+        ledger = self._ensure_ledger()
+
+        def rows(first: int, last: int) -> list[dict[str, Any]]:
+            return ledger.query(
+                from_sequence=first, to_sequence=last, limit=min(1000, last - first + 1)
+            )
+
+        ref = str(params.get("ref") or "HEAD")
+        installed_at = params.get("installedAt")
+        export_format = params.get("format")
+        try:
+            if export_format == "attribution-json":
+                paths = params.get("paths")
+                if paths is not None and (
+                    not isinstance(paths, list) or not all(isinstance(p, str) for p in paths)
+                ):
+                    raise _RpcError(protocol.INVALID_PARAMS, "paths must be a list of strings")
+                document = interop_export.attribution_export(
+                    repo, ref=ref, paths=paths, ledger_rows=rows, installed_at=installed_at
+                )
+                return {"format": export_format, "document": document}  # type: ignore[return-value]
+            if export_format == "git-notes":
+                max_commits = params.get("maxCommits", 200)
+                if (
+                    not isinstance(max_commits, int)
+                    or isinstance(max_commits, bool)
+                    or not 1 <= max_commits <= 5000
+                ):
+                    raise _RpcError(
+                        protocol.INVALID_PARAMS, "maxCommits must be an integer from 1 to 5000"
+                    )
+                write = params.get("write", False)
+                if not isinstance(write, bool):
+                    # Writing into somebody's refs needs a yes, not a string
+                    # that happens to spell one.
+                    raise _RpcError(protocol.INVALID_PARAMS, "write must be true or false")
+                notes = interop_export.export_notes(
+                    repo,
+                    ref=ref,
+                    max_commits=max_commits,
+                    write=write,
+                    ledger_rows=rows,
+                    installed_at=installed_at,
+                )
+                return {"format": export_format, "notes": notes}  # type: ignore[return-value]
+        except interop_export.ExportError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        raise _RpcError(
+            protocol.INVALID_PARAMS, "format must be attribution-json or git-notes"
+        )
 
     def _handle_interop_verify(
         self, params: bus_types.InteropVerifyParams

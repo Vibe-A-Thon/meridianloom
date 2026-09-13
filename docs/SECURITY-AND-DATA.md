@@ -150,6 +150,19 @@ dropped. A record that has been **removed** since it was notarised is
 reported as gone, not as altered; a tool cleaning up its own notes is
 ordinary and accusing it of tampering would make the check worthless.
 
+**When two records disagree, you are told, and nothing is decided for you.**
+One tool's note may name one agent for a commit while another record — a
+co-author line, a session trailer, another tool's note, or Meridian's own
+ledger — names a different one. Meridian then reports a disagreement with every
+claim beside it, and does not choose. That includes its own ledger: a signed
+entry proves what Meridian recorded, not that the other record is wrong.
+Recording a disagreement is a separate action, and what goes into the ledger is
+the digests of the records, never their content. Two limits:
+
+- the comparison is per commit, so a disagreement about some lines of a commit
+  is reported about the whole commit;
+- a report covers only the history it walked, and says so when it stopped early.
+
 ## 6. Limitations we are telling you about
 
 - **Without a witness, a re-signed fork of the whole ledger still verifies.**

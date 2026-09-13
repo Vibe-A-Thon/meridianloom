@@ -92,7 +92,9 @@
         "rpcMethods": [
           "interop/records",
           "interop/notarise",
-          "interop/verify"
+          "interop/verify",
+          "interop/conflicts",
+          "interop/export"
         ]
       },
       {

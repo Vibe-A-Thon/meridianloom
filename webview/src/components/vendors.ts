@@ -25,6 +25,7 @@ export const VENDOR_IDS = [
   // the party an observation is attributed to — and leaving them out made
   // every foreign record render as "Unknown vendor", which loses the
   // attribution FR-M52-02 exists to preserve.
+  'exceeds-ink',
   'aider',
   'continue',
   'gitbutler',
@@ -49,6 +50,7 @@ export const VENDOR_LABELS: Record<VendorId, string> = {
   codex: 'Codex',
   devin: 'Devin',
   gemini: 'Gemini',
+  'exceeds-ink': 'Exceeds Ink',
   aider: 'Aider',
   continue: 'Continue',
   gitbutler: 'GitButler',
@@ -81,6 +83,8 @@ const GLYPHS: Record<VendorId, string> = {
   devin: 'M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0-16 0M17 7m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0',
   /* twin parallel bars */
   gemini: 'M8 4v16M16 4v16',
+  /* a single drop: ink, recorded line by line */
+  'exceeds-ink': 'M12 3c3 5 6 8 6 12a6 6 0 0 1-12 0c0-4 3-7 6-12z',
   /* a nested arrow pair — editing in place */
   aider: 'M5 12h14M12 5l7 7-7 7M8 5L1 12l7 7',
   /* an unbroken onward line with a step */

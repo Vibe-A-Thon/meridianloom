@@ -7,6 +7,7 @@
     python -m meridian_core.cli uninstall --workspace .
     python -m meridian_core.cli evidence-gate --workspace . --study study.json --out gate/
     python -m meridian_core.cli compare-evidence first.json second.json
+    python -m meridian_core.cli export-attribution --workspace . --format git-notes
 
 Everything here works with no extension, no editor and no running sidecar. It
 reads and writes the same ``.meridian/`` directory the extension uses, so a
@@ -528,6 +529,99 @@ def command_compare_evidence(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_export_attribution(args: argparse.Namespace) -> int:
+    """Meridian's attributions, in formats other tools consume (FR-M52-04).
+
+    `--format attribution-json --out FILE` writes the line-level export.
+    `--format git-notes` reports what would be written under
+    `refs/notes/meridian-attribution`, and writes it only with `--write`,
+    because notes change the repository's refs.
+
+    Given the signing key, Meridian's own ledger evidence is included. Without
+    one, the export is made from git evidence alone and says so, rather than
+    refusing a read that needs no signature.
+    """
+    from . import interop_export
+
+    if not 1 <= args.max_commits <= 5000:
+        raise CliError("--max-commits must be from 1 to 5000")
+    if args.format == "attribution-json" and not args.out:
+        raise CliError("--out is required for attribution-json: the file to write")
+
+    workspace = Path(args.workspace).resolve()
+    ledger = None
+    if (
+        _signing_key_material(args) is not None
+        and (_ledger_dir(workspace) / "ledger.db").is_file()
+    ):
+        ledger = _open_ledger(workspace, _signing_provider(args))
+
+    def rows(first: int, last: int) -> list[dict[str, Any]]:
+        assert ledger is not None
+        return ledger.query(
+            from_sequence=first, to_sequence=last, limit=min(1000, last - first + 1)
+        )
+
+    ledger_rows = rows if ledger is not None else None
+    try:
+        if args.format == "attribution-json":
+            document = interop_export.attribution_export(
+                workspace,
+                ref=args.ref,
+                paths=args.path or None,
+                ledger_rows=ledger_rows,
+                installed_at=args.installed_at,
+            )
+            Path(args.out).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+            totals = document["totals"]
+            sys.stderr.write(
+                f"Wrote {len(document['files'])} file(s) to {args.out}: "
+                f"{totals['agent']} agent, {totals['human']} human and "
+                f"{totals['unattributed']} unattributed line(s).\n"
+            )
+            if document["truncated"]:
+                sys.stderr.write(
+                    "The export stopped at its file limit; pass --path to export the rest.\n"
+                )
+            if document["disagreements"]:
+                sys.stderr.write(
+                    f"{len(document['disagreements'])} disagreement(s) between provenance "
+                    "records are carried in the export, unresolved.\n"
+                )
+        else:
+            result = interop_export.export_notes(
+                workspace,
+                ref=args.ref,
+                max_commits=args.max_commits,
+                write=args.write,
+                ledger_rows=ledger_rows,
+                installed_at=args.installed_at,
+            )
+            sys.stdout.write(json.dumps(result, indent=2) + "\n")
+            if args.write:
+                sys.stderr.write(
+                    f"Wrote {result['written']} note(s) under {result['ref']}; "
+                    f"{result['unchanged']} already said the same thing.\n"
+                )
+            else:
+                sys.stderr.write(
+                    f"Nothing written. {result['toWrite']} note(s) would be written under "
+                    f"{result['ref']}; re-run with --write to write them.\n"
+                )
+    except interop_export.ExportError as error:
+        raise CliError(str(error)) from error
+    finally:
+        if ledger is not None:
+            ledger.close()
+
+    if ledger is None:
+        sys.stderr.write(
+            "No signing key was given, so Meridian's own ledger evidence is not "
+            "included: this attribution is from git evidence alone.\n"
+        )
+    return 0
+
+
 # -- argument parsing ----------------------------------------------------------
 
 
@@ -620,6 +714,33 @@ def build_parser() -> argparse.ArgumentParser:
     )
     compare.add_argument("first", help="the first bundle")
     compare.add_argument("second", help="the second bundle")
+
+    attribution = with_key(
+        with_workspace(
+            sub.add_parser(
+                "export-attribution",
+                help="export Meridian's attributions in formats other tools read",
+            )
+        )
+    )
+    attribution.add_argument(
+        "--format", required=True, choices=["attribution-json", "git-notes"]
+    )
+    attribution.add_argument("--out", help="attribution-json: the file to write")
+    attribution.add_argument("--ref", default="HEAD", help="default HEAD")
+    attribution.add_argument(
+        "--path", action="append", help="attribution-json: only this file; repeatable"
+    )
+    attribution.add_argument(
+        "--max-commits", type=int, default=200, help="git-notes: commits from --ref"
+    )
+    attribution.add_argument(
+        "--write", action="store_true", help="git-notes: actually write the notes"
+    )
+    attribution.add_argument(
+        "--installed-at",
+        help="Meridian's installation time; older commits are attributed at inferred",
+    )
     return parser
 
 
@@ -632,6 +753,7 @@ _COMMANDS = {
     "uninstall": command_uninstall,
     "evidence-gate": command_evidence_gate,
     "compare-evidence": command_compare_evidence,
+    "export-attribution": command_export_attribution,
 }
 
 

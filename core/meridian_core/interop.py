@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,6 +53,11 @@ from .gitcmd import GitTimeout, run_git_command
 #: under an unrecognised ref is recorded as `unknown-tool` rather than
 #: silently attributed to whichever name looked closest.
 KNOWN_NOTE_REFS: dict[str, str] = {
+    # CMP-01 (mvp-req-final.md §16.1): the closest shipped competitor writes
+    # its line-level attestation here at commit finalisation. It was the one
+    # tool the competitive review named, and it was missing from this list,
+    # so its records were read as `unknown-tool` (CP1-T01).
+    "refs/notes/exceeds-ink": "exceeds-ink",
     "refs/notes/aider": "aider",
     "refs/notes/continue": "continue",
     "refs/notes/cursor": "cursor",
@@ -248,7 +254,15 @@ def read_foreign_trailers(
     result = run_git_command(repo, "log", "-1", "--format=%B", commit)
     if result.returncode != 0:
         return []
-    message = result.stdout
+    return trailer_records(result.stdout, commit, stamp)
+
+
+def trailer_records(message: str, commit: str, stamp: str) -> list[ForeignRecord]:
+    """The trailer records in one commit message, already read.
+
+    Split out of `read_foreign_trailers` so a walk over history reads every
+    message in one `git log` rather than one process per commit.
+    """
     records: list[ForeignRecord] = []
 
     for key, value in trailer_mod.parse_trailers(message):
@@ -398,3 +412,369 @@ def verify_notarisation(
             f"of its digest."
         ),
     )
+
+
+# -- CP1: when provenance records disagree (FR-M52-05, AC-60, NFR-53) ---------
+#
+# Two tools in one repository will sometimes say different things about who
+# wrote the same commit. FR-M52-05's rule is short: report it, as a distinct
+# disagreement, and never silently prefer one. "Never" includes Meridian's own
+# ledger. A signed entry proves what Meridian recorded; it does not prove the
+# other record wrong, and quietly ranking our own evidence first is exactly
+# the silent preference the requirement forbids.
+#
+# The span is the commit. Other tools' records are commit-level unless their
+# format carries line ranges, and none in the vocabulary is specified in this
+# repository, so a disagreement about some lines of a commit is reported as a
+# disagreement about the commit (post-mvp-plan.md, CP1).
+
+#: Tools that are themselves coding agents. A record one of them writes about
+#: a commit is that tool saying it did the work. The other tools in the
+#: vocabulary record work other agents did, so a note from one of them
+#: claims an agent only when it names one.
+AGENT_TOOLS = frozenset(
+    {"aider", "claude-code", "codeium", "codex", "continue", "copilot", "cursor", "devin", "gemini"}
+)
+
+#: One agent, several spellings in this code base. The trailer reader says
+#: `claude` and `github-copilot`; the observers and the interface say
+#: `claude-code` and `copilot`. Compared unaliased, a commit Claude Code wrote
+#: would disagree with itself. Only spellings this repository already produces
+#: are listed, so an unfamiliar name is not recognised as an agent at all
+#: rather than guessed into one.
+AGENT_ALIASES: dict[str, str] = {
+    **{tool: tool for tool in AGENT_TOOLS},
+    "claude": "claude-code",
+    "github-copilot": "copilot",
+}
+
+#: Scalar fields of a structured note that name the agent behind the work,
+#: consulted in this order. Nested structures are never read (`SEC-42`).
+AGENT_FIELDS = ("agent", "tool", "vendor")
+
+#: The one grammar `docs/spec/meridian-ledger-trailer.md` defines: a sequence,
+#: or two joined by a hyphen. Anything else is not read as a range at all.
+_LEDGER_RANGE_RE = re.compile(r"^\s*(\d+)\s*(?:-\s*(\d+)\s*)?$")
+_BOT_SUFFIX_RE = re.compile(r"\[bot\]\s*$", re.IGNORECASE)
+
+#: Weakest first. Meridian's own claim reports the best confidence any of
+#: its entries for the commit carries.
+_CONFIDENCE_ORDER = ("inferred", "telemetry", "direct")
+
+CONFLICTING = "conflicting"
+INCOMPLETE = "incomplete"
+
+#: Carried in every disagreement, so a reader holding only the report or the
+#: ledger entry reads it beside the claims.
+NOT_RESOLVED = (
+    "These records disagree about which agent produced this commit. Meridian "
+    "reports the disagreement and does not decide it: no claim is preferred, "
+    "including Meridian's own, because a signed ledger entry proves what "
+    "Meridian recorded, not that another record is wrong."
+)
+
+
+def canonical_agent(name: Any) -> str | None:
+    """The agent a name refers to, or None when it names no known agent."""
+    if not isinstance(name, str):
+        return None
+    return AGENT_ALIASES.get(name.strip().lower())
+
+
+@dataclass(frozen=True)
+class Claim:
+    """One party's statement of which agents produced a commit.
+
+    `evidence` is a digest or a ledger range, never the content of a record,
+    for the same reason notarisation copies nothing (`SEC-43`).
+    """
+
+    claimant: str
+    tool: str
+    agents: tuple[str, ...]
+    confidence: str
+    evidence: str
+
+    def as_wire(self) -> dict[str, Any]:
+        return {
+            "claimant": self.claimant,
+            "tool": self.tool,
+            "agents": list(self.agents),
+            "confidence": self.confidence,
+            "evidence": self.evidence,
+        }
+
+
+def ledger_ranges(message: str) -> list[tuple[int, int]]:
+    """Every well-formed `Meridian-Ledger` range in a commit message."""
+    ranges: list[tuple[int, int]] = []
+    for key, value in trailer_mod.parse_trailers(message):
+        if key != trailer_mod.MERIDIAN_LEDGER_KEY:
+            continue
+        match = _LEDGER_RANGE_RE.match(value)
+        if not match:
+            continue
+        first = int(match.group(1))
+        last = int(match.group(2) or match.group(1))
+        if first <= last:
+            ranges.append((first, last))
+    return ranges
+
+
+def ledger_claim(rows: list[dict[str, Any]], ranges: list[tuple[int, int]]) -> Claim | None:
+    """Meridian's own record of which agents it saw produce the commit.
+
+    Only entries attributed to an agent count. Meridian's own governance
+    entries in the same range say what Meridian did, not who wrote the code.
+    """
+    attributed = [row for row in rows if canonical_agent(row.get("vendor"))]
+    if not attributed:
+        return None
+    agents = sorted({canonical_agent(row.get("vendor")) or "" for row in attributed})
+    confidences = [str(row.get("observation_confidence") or "inferred") for row in attributed]
+    best = max(
+        confidences,
+        key=lambda level: _CONFIDENCE_ORDER.index(level) if level in _CONFIDENCE_ORDER else 0,
+    )
+    spans = ", ".join(str(a) if a == b else f"{a}-{b}" for a, b in ranges)
+    return Claim(
+        claimant="meridian-ledger",
+        tool="meridian",
+        agents=tuple(agents),
+        confidence=best,
+        evidence=f"ledger {spans}",
+    )
+
+
+def author_claim(author_name: str, author_email: str) -> Claim | None:
+    """A bot author identity that names an agent.
+
+    Only an agent's known commit address, or a `[bot]` name, counts. A human
+    called Devin is a human.
+    """
+    agent = canonical_agent(trailer_mod.VENDOR_EMAILS.get((author_email or "").strip().lower()))
+    if agent is None and _BOT_SUFFIX_RE.search(author_name or ""):
+        agent = canonical_agent(_BOT_SUFFIX_RE.sub("", author_name))
+    if agent is None:
+        return None
+    return Claim(
+        claimant="commit-author",
+        tool=agent,
+        agents=(agent,),
+        confidence=FOREIGN_CONFIDENCE,
+        evidence=digest_of(f"{author_name} <{author_email}>"),
+    )
+
+
+def record_claims(records: list[ForeignRecord]) -> list[Claim]:
+    """What other tools' records on one commit say about who wrote it.
+
+    Records from the same source are one claimant: two co-author lines in one
+    message are one statement naming two agents, not two tools disagreeing.
+    """
+    grouped: dict[str, tuple[str, set[str], list[str]]] = {}
+    for record in records:
+        if record.kind == "git-note":
+            fields = parsed_payload(record).get("fields") or {}
+            agent = next(
+                (named for named in (canonical_agent(fields.get(key)) for key in AGENT_FIELDS) if named),
+                None,
+            )
+            if agent is None and record.tool in AGENT_TOOLS:
+                agent = record.tool
+        else:
+            agent = canonical_agent(record.tool)
+        if agent is None:
+            continue
+        _, agents, digests = grouped.setdefault(record.source, (record.tool, set(), []))
+        agents.add(agent)
+        digests.append(record.digest)
+    return [
+        Claim(
+            claimant=source,
+            tool=tool,
+            agents=tuple(sorted(agents)),
+            confidence=FOREIGN_CONFIDENCE,
+            evidence=", ".join(sorted(digests)),
+        )
+        for source, (tool, agents, digests) in sorted(grouped.items())
+    ]
+
+
+@dataclass(frozen=True)
+class Disagreement:
+    """Claims about one commit that do not name the same agents."""
+
+    commit: str
+    #: `conflicting` when two claims share no agent at all; `incomplete` when
+    #: every pair overlaps but the claims still differ.
+    kind: str
+    claims: tuple[Claim, ...]
+
+    @property
+    def digest(self) -> str:
+        """Stable across reads, so the same disagreement is recorded once."""
+        canonical = json.dumps(
+            {
+                "commit": self.commit,
+                "claims": sorted(
+                    [claim.claimant, list(claim.agents), claim.evidence] for claim in self.claims
+                ),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return digest_of(canonical)
+
+    def as_wire(self) -> dict[str, Any]:
+        return {
+            "commit": self.commit,
+            "kind": self.kind,
+            "claims": [claim.as_wire() for claim in self.claims],
+            "digest": self.digest,
+            "notResolved": NOT_RESOLVED,
+        }
+
+
+def disagreement_for(commit: str, claims: list[Claim]) -> Disagreement | None:
+    """The disagreement among these claims, or None when they agree."""
+    if len(claims) < 2:
+        return None
+    sets = [frozenset(claim.agents) for claim in claims]
+    if len(set(sets)) == 1:
+        return None
+    disjoint = any(not (a & b) for index, a in enumerate(sets) for b in sets[index + 1 :])
+    return Disagreement(commit, CONFLICTING if disjoint else INCOMPLETE, tuple(claims))
+
+
+@dataclass(frozen=True)
+class Reconciliation:
+    """Every commit examined, and where the records about it disagree."""
+
+    examined: int
+    truncated: bool
+    claimed: int
+    agreeing: int
+    disagreements: tuple[Disagreement, ...]
+
+    def as_wire(self) -> dict[str, Any]:
+        return {
+            "examined": self.examined,
+            "truncated": self.truncated,
+            "claimed": self.claimed,
+            "agreeing": self.agreeing,
+            "disagreements": [item.as_wire() for item in self.disagreements],
+        }
+
+
+def reconcile(
+    repo: Path | str,
+    *,
+    ref: str = "HEAD",
+    max_commits: int = 200,
+    ledger_rows: Any = None,
+    now: Any = None,
+) -> Reconciliation:
+    """Walk history and compare every claim about each commit.
+
+    `ledger_rows(first, last)` returns Meridian's ledger rows for a sequence
+    range; without it, Meridian's own claim is simply not made. The walk is
+    bounded and says so when it stops early (`P26`): a clean report over part
+    of history is not a clean report.
+    """
+    stamp = (now or _now)()
+    log = run_git_command(
+        repo,
+        "log",
+        f"--max-count={max_commits + 1}",
+        "--format=%H%x1f%an%x1f%ae%x1f%B%x1e",
+        ref,
+    )
+    if log.returncode != 0:
+        if "does not have any commits" in (log.stderr or ""):
+            return Reconciliation(0, False, 0, 0, ())
+        raise InteropError(f"cannot read history at {ref!r}: {(log.stderr or '').strip()}")
+
+    entries = [chunk.strip("\n") for chunk in log.stdout.split("\x1e") if chunk.strip()]
+    truncated = len(entries) > max_commits
+    entries = entries[:max_commits]
+
+    notes: dict[str, list[ForeignRecord]] = {}
+    for record in read_foreign_notes(repo, now=lambda: stamp):
+        notes.setdefault(record.commit, []).append(record)
+
+    examined = claimed = agreeing = 0
+    found: list[Disagreement] = []
+
+    def consider(commit: str, name: str, email: str, message: str) -> None:
+        nonlocal examined, claimed, agreeing
+        examined += 1
+        claims = commit_claims(
+            commit,
+            name,
+            email,
+            message,
+            notes=notes.get(commit, []),
+            ledger_rows=ledger_rows,
+            stamp=stamp,
+        )
+        if claims:
+            claimed += 1
+        disagreement = disagreement_for(commit, claims)
+        if disagreement is not None:
+            found.append(disagreement)
+        elif len(claims) >= 2:
+            agreeing += 1
+
+    seen: set[str] = set()
+    for entry in entries:
+        fields = entry.split("\x1f", 3)
+        if len(fields) < 4:
+            continue
+        commit, name, email, message = fields
+        seen.add(commit)
+        consider(commit, name, email, message)
+
+    # A note on a commit older than the walk is still a record about that
+    # commit, so the commit is read and compared too, within the same bound.
+    older = sorted(set(notes) - seen)
+    if len(older) > max_commits:
+        older, truncated = older[:max_commits], True
+    for commit in older:
+        detail = run_git_command(repo, "log", "-1", "--format=%an%x1f%ae%x1f%B", commit)
+        if detail.returncode != 0:
+            continue
+        name, email, message = (detail.stdout.split("\x1f", 2) + ["", "", ""])[:3]
+        consider(commit, name, email, message)
+
+    return Reconciliation(examined, truncated, claimed, agreeing, tuple(found))
+
+
+def commit_claims(
+    commit: str,
+    author_name: str,
+    author_email: str,
+    message: str,
+    *,
+    notes: list[ForeignRecord],
+    ledger_rows: Any,
+    stamp: str,
+) -> list[Claim]:
+    """Every claim about who produced one commit, in the order they are read.
+
+    The one place claims are assembled, so the disagreement walk and the
+    attribution export (`interop_export`) cannot come to different answers
+    about the same commit.
+    """
+    claims: list[Claim] = []
+    ranges = ledger_ranges(message)
+    if ranges and ledger_rows is not None:
+        rows = [row for first, last in ranges for row in ledger_rows(first, last)]
+        own = ledger_claim(rows, ranges)
+        if own is not None:
+            claims.append(own)
+    author = author_claim(author_name, author_email)
+    if author is not None:
+        claims.append(author)
+    claims.extend(record_claims(trailer_records(message, commit, stamp) + list(notes)))
+    return claims

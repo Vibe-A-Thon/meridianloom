@@ -178,6 +178,95 @@ describe('AC-59 on the surface', () => {
   });
 });
 
+const CLAIM_MERIDIAN = {
+  claimant: 'meridian-ledger',
+  tool: 'meridian',
+  agents: ['copilot'],
+  confidence: 'direct' as const,
+  evidence: 'ledger 3-4',
+};
+const CLAIM_AIDER = {
+  claimant: 'refs/notes/aider',
+  tool: 'aider',
+  agents: ['aider'],
+  confidence: 'inferred' as const,
+  evidence: `sha256:${'c'.repeat(64)}`,
+};
+const NOT_RESOLVED =
+  'These records disagree about which agent produced this commit. Meridian reports the disagreement and does not decide it: no claim is preferred, including Meridian’s own.';
+
+function conflicts(overrides: Record<string, unknown> = {}) {
+  return {
+    examined: 12,
+    truncated: false,
+    claimed: 3,
+    agreeing: 1,
+    disagreements: [
+      {
+        commit: 'abcdef0123456789',
+        kind: 'conflicting',
+        claims: [CLAIM_MERIDIAN, CLAIM_AIDER],
+        digest: `sha256:${'d'.repeat(64)}`,
+        notResolved: NOT_RESOLVED,
+      },
+    ],
+    recorded: 0,
+    ...overrides,
+  };
+}
+
+describe('AC-60 on the surface: when records disagree', () => {
+  it('finding disagreements reads and records nothing', async () => {
+    const { host, client } = mount({ 'interop/conflicts': conflicts() });
+    fireEvent.click(screen.getByTestId('interop-conflicts'));
+    await host.settle();
+    expect(host.requests.map((r) => [r.method, r.params])).toEqual([['interop/conflicts', {}]]);
+    client.dispose();
+  });
+
+  it('shows every claim beside the others and prefers none, including its own', async () => {
+    const { host, client } = mount({ 'interop/conflicts': conflicts() });
+    fireEvent.click(screen.getByTestId('interop-conflicts'));
+    await host.settle();
+    await waitFor(() => expect(screen.getByTestId('interop-disagreements')).toBeInTheDocument());
+    const tags = screen.getAllByTestId('vendor-tag');
+    expect(tags).toHaveLength(2);
+    expect(tags[0]).toHaveAccessibleName(/direct/);
+    expect(tags[1]).toHaveAccessibleName(/inferred/);
+    expect(screen.getByTestId('interop-not-resolved')).toHaveTextContent('no claim is preferred');
+    expect(screen.getByText('Records name different agents')).toBeInTheDocument();
+    client.dispose();
+  });
+
+  it('does not present a walk that stopped early as a clean report', async () => {
+    const { host, client } = mount({
+      'interop/conflicts': conflicts({ truncated: true, disagreements: [] }),
+    });
+    fireEvent.click(screen.getByTestId('interop-conflicts'));
+    await host.settle();
+    await waitFor(() =>
+      expect(screen.getByTestId('interop-conflicts-summary')).toHaveTextContent('not a clean report'),
+    );
+    client.dispose();
+  });
+
+  it('records disagreements only when asked, and says what it recorded', async () => {
+    const { host, client } = mount({ 'interop/conflicts': conflicts({ recorded: 1 }) });
+    fireEvent.click(screen.getByTestId('interop-conflicts'));
+    await host.settle();
+    await waitFor(() => expect(screen.getByTestId('interop-conflicts-record')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('interop-conflicts-record'));
+    await host.settle();
+    expect(host.requests.map((r) => r.params)).toEqual([{}, { record: true }]);
+    await waitFor(() =>
+      expect(screen.getByTestId('interop-conflicts-recorded')).toHaveTextContent(
+        'Recorded 1 disagreement',
+      ),
+    );
+    client.dispose();
+  });
+});
+
 describe('the ordinary repository', () => {
   it('says an absence of other tools is not a fault', async () => {
     // Most repositories. Reporting this as a problem would teach people to
