@@ -102,6 +102,21 @@ Why this exists: the freeze audit found a requirements document asserting a gree
 | Every step of `DEMO.md` is backed by something inside the built package | `DEMO.md` | `scripts/check-demo-package.mjs` | backed |
 | Run initiation is absent below the Governor tier on the route the shipped app renders | `DEMO.md` step 6b | `webview/src/screens/launch-screen.test.tsx > the workbench route a user actually reaches gates it too` | backed |
 | **`DEMO.md` has not been walked end to end from the package on a clean machine** | `DEMO.md` | — | limitation |
+| The AI-BOM lists every shipped agent, skill, instruction document, runtime preset and runtime dependency with a digest matching the package, and drift fails the build | `extension/CHANGELOG.md` · release artefacts | `scripts/generate-bom.mjs` | backed |
+| Third-party notices enumerate every runtime dependency with its licence and fail the build when out of date | `THIRD-PARTY-NOTICES.md` · `docs/SECURITY-AND-DATA.md` §7 | `scripts/generate-notices.mjs` | backed |
+| The release notes state every documented limitation in its own words, name the tier set, and say what the MVP does not claim | `extension/CHANGELOG.md` | `scripts/check-release-notes.mjs` | backed |
+| An interrupted upgrade loses no acknowledged ledger entry | `docs/SUPPORT.md` | `core/tests/test_resilience.py::test_acknowledged_entries_survive_a_half_applied_migration` | backed |
+| A full disk refuses an append without losing any acknowledged entry | `docs/SUPPORT.md` | `core/tests/test_resilience.py::test_a_full_disk_refuses_the_append_rather_than_half_writing_it` | backed |
+| An exported bundle verifies with nothing installed after its workspace has been deleted | `docs/SUPPORT.md` · Leaving | `core/tests/test_resilience.py::test_the_restored_bundle_verifies_with_nothing_installed` | backed |
+| The standalone verifier rejects a bundle with an altered entry | `docs/SECURITY-AND-DATA.md` §5 | `core/tests/test_resilience.py::test_an_altered_entry_is_rejected` | backed |
+| Every control on the launch, review and export journeys is a real control with an accessible name | interface | `webview/src/screens/assistive-journeys.test.tsx` | backed |
+| **The resilience rehearsal is recorded on one of the four required configurations** | `docs/baselines/resilience/` | — | limitation |
+| **The keyboard and screen-reader journeys have not been performed and recorded by a person** | interface | — | limitation |
+| **The seven-day soak has not been run** | `docs/baselines/soak/` | — | limitation |
+| **No one outside the project has taken the package to a verified bundle unaided** | `DEMO.md` | — | limitation |
+| The installed package is validated by running its own extracted sidecar, CLI and verifier, not the checkout | `docs/DEPLOYMENT.md` | `scripts/validate-package.mjs` | backed |
+| Headless `doctor`, given the signing key, verifies the ledger chain and exits non-zero when an entry has been altered | `docs/DEPLOYMENT.md` | `core/tests/test_headless_cli.py::test_with_a_key_a_broken_chain_fails_the_run` | backed |
+| **Headless `doctor` without the signing key reports that it cannot check the chain, rather than passing it** | `docs/DEPLOYMENT.md` | — | limitation |
 | **Without a witness, a re-signed fork of the whole ledger still verifies** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **The commit trailer is editable; it is a pointer, not a proof** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **Enforcement is in the editor, not the SCM** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |

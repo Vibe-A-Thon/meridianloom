@@ -1,0 +1,46 @@
+{
+  "recordedAt": "2026-09-13T06:08:19.573Z",
+  "host": {
+    "platform": "windows",
+    "release": "10.0.26200",
+    "python": "3.11",
+    "node": "v22.20.0"
+  },
+  "results": [
+    {
+      "id": "windows-11",
+      "state": "passed",
+      "detail": "extension/test/remote.test.ts — 4 passed (4)"
+    },
+    {
+      "id": "linux-lts",
+      "state": "not-verified-here",
+      "detail": "this row claims linux; these tests ran on windows"
+    },
+    {
+      "id": "macos",
+      "state": "not-verified-here",
+      "detail": "this row claims macos; these tests ran on windows"
+    },
+    {
+      "id": "vscode-1.95",
+      "state": "passed",
+      "detail": "extension/test/manifest.test.ts > declares granular activation events and never \"*\" (FR-M1-01) — 1 passed | 52 skipped (53)"
+    },
+    {
+      "id": "python-3.11",
+      "state": "passed",
+      "detail": "extension/test/stdio-e2e.test.ts — 2 passed (2)"
+    },
+    {
+      "id": "python-3.12",
+      "state": "not-verified-here",
+      "detail": "this row claims Python 3.12; the interpreter here is 3.11"
+    },
+    {
+      "id": "remote-workspace-kind",
+      "state": "not-claimed",
+      "detail": "the matrix makes no claim for this row"
+    }
+  ]
+}

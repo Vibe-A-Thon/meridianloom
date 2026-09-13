@@ -277,3 +277,59 @@ class TestDoctorHeadless:
         blob = json.dumps(report).lower()
         for stale in ("not built yet", "once it ships", "land with f0"):
             assert stale not in blob, stale
+
+
+def _break_the_chain(workspace: Path) -> None:
+    """Alter one recorded entry behind the ledger's back, the way an attacker
+    with file access would: drop the no-update trigger and rewrite a row."""
+    import sqlite3
+
+    connection = sqlite3.connect(workspace / ".meridian" / "ledger" / "ledger.db")
+    connection.execute("DROP TRIGGER IF EXISTS ledger_entry_no_update")
+    connection.execute(
+        "UPDATE ledger_entry SET actor_id = 'somebody-else' WHERE seq = 2"
+    )
+    connection.commit()
+    connection.close()
+
+
+def _ledger_check(result: subprocess.CompletedProcess) -> dict:
+    report = json.loads(result.stdout)
+    return next(check for check in report["checks"] if check["id"] == "ledger")
+
+
+class TestHeadlessDoctorVerifiesTheChain:
+    """MV4-T03: doctor exits non-zero on an induced failure.
+
+    Before this, the ledger probe was never wired in a headless run, so a
+    rollout check against a workspace whose chain had been altered exited 0.
+    Doctor's own docstring says the exit status is the answer, so it can be the
+    last line of a deployment job; for the one fault that matters most, it was
+    not.
+    """
+
+    def test_with_a_key_an_intact_chain_passes(self, workspace, key_file):
+        result = run_cli(
+            "doctor", "--workspace", str(workspace), "--signing-key-file", str(key_file)
+        )
+        assert _ledger_check(result)["status"] == "pass", result.stdout
+        assert result.returncode == 0, result.stderr
+
+    def test_with_a_key_a_broken_chain_fails_the_run(self, workspace, key_file):
+        _break_the_chain(workspace)
+        result = run_cli(
+            "doctor", "--workspace", str(workspace), "--signing-key-file", str(key_file)
+        )
+        assert _ledger_check(result)["status"] == "fail", result.stdout
+        assert result.returncode == 1, result.stderr
+        assert "ledger" in result.stderr
+
+    def test_without_a_key_it_says_it_cannot_tell(self, workspace):
+        # The honest boundary, pinned. Without a key this context does not open
+        # the ledger, so it reports that it cannot tell rather than failing a
+        # run because an optional flag was omitted, or passing one it never
+        # checked.
+        _break_the_chain(workspace)
+        result = run_cli("doctor", "--workspace", str(workspace))
+        assert _ledger_check(result)["status"] == "warn", result.stdout
+        assert result.returncode == 0, result.stderr

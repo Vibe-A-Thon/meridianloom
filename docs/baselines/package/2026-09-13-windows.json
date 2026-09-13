@@ -1,0 +1,57 @@
+{
+  "recordedAt": "2026-09-13T06:37:36.889Z",
+  "platform": "windows",
+  "package": "meridian-loom-0.1.0.vsix",
+  "steps": [
+    {
+      "step": "checksum matches",
+      "ok": true,
+      "detail": "sha256 bb7bd172b2c2d1ff…"
+    },
+    {
+      "step": "no nested extension/extension/",
+      "ok": true,
+      "detail": "absent from the package and untracked in git"
+    },
+    {
+      "step": "evaluator documents staged",
+      "ok": true,
+      "detail": "7 documents present"
+    },
+    {
+      "step": "sidecar and verifier shipped",
+      "ok": true,
+      "detail": "122 files extracted and run from the package copy"
+    },
+    {
+      "step": "packaged ledger writes",
+      "ok": true,
+      "detail": "5 entries appended by the shipped meridian_core"
+    },
+    {
+      "step": "packaged doctor passes an intact workspace",
+      "ok": true,
+      "detail": "exit 0, ledger pass"
+    },
+    {
+      "step": "packaged verifier verifies a packaged export",
+      "ok": true,
+      "detail": "verify.py exit 0"
+    },
+    {
+      "step": "packaged verifier rejects a tampered export",
+      "ok": true,
+      "detail": "verify.py exit 1 on an altered entry"
+    },
+    {
+      "step": "packaged doctor exits non-zero on an induced failure",
+      "ok": true,
+      "detail": "altered entry 3; doctor exit 1, ledger fail"
+    },
+    {
+      "step": "shipped library matches its source",
+      "ok": true,
+      "detail": "22 agents, 10 skills, 4 instructions, byte-identical to extension/library/"
+    }
+  ]
+}

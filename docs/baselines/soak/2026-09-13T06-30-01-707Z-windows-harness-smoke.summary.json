@@ -1,0 +1,31 @@
+{
+  "label": "windows-harness-smoke",
+  "sidecar": "package:meridian-loom-0.1.0.vsix",
+  "host": {
+    "platform": "windows",
+    "release": "10.0.26200",
+    "arch": "x64",
+    "node": "v22.20.0"
+  },
+  "startedAt": "2026-09-13T06:30:03.844Z",
+  "finishedAt": "2026-09-13T06:33:03.856Z",
+  "ranHours": 0.05,
+  "requiredHours": 168,
+  "limits": {
+    "rssMb": 512,
+    "handles": 2000
+  },
+  "appended": 340,
+  "failures": 0,
+  "samples": 17,
+  "trendsProjected": false,
+  "trendsNote": "Trends are recorded but not projected: fewer than 24 hours have elapsed, so the second half of the run is still warm-up.",
+  "trends": {
+    "rssMbPerHour": -9.008205679950944,
+    "handlesPerHour": -96.83389607003605,
+    "diskBytesPerEntryPerHour": -430063.4579704251
+  },
+  "breaches": [],
+  "verdict": "incomplete",
+  "scope": "NOT the soak. This ran 0.05 of the 168 hours NFR-43 requires, which is too short to reveal a slow leak. It proves the harness records, not that the product does not leak."
+}

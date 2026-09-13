@@ -1,0 +1,50 @@
+{
+  "recordedAt": "2026-09-13T06:13:06.964Z",
+  "configuration": "windows",
+  "host": {
+    "platform": "windows",
+    "release": "10.0.26200",
+    "arch": "x64",
+    "node": "v22.20.0"
+  },
+  "passCondition": "NFR-42: zero loss of acknowledged ledger entries, and recovery within 15 minutes for the reference dataset. An acknowledged entry is one for which Ledger.append returned.",
+  "cases": [
+    {
+      "failure": "upgrade-interrupted-mid-write",
+      "selector": "tests/test_resilience.py::TestFailure1UpgradeInterruptedMidWrite",
+      "ok": true,
+      "seconds": 2.552,
+      "summary": "2 passed in 0.39s"
+    },
+    {
+      "failure": "disk-exhaustion-during-append",
+      "selector": "tests/test_resilience.py::TestFailure2DiskExhaustionDuringAppend",
+      "ok": true,
+      "seconds": 2.607,
+      "summary": "2 passed in 0.28s"
+    },
+    {
+      "failure": "sidecar-killed-mid-transaction",
+      "selector": "tests/test_ledger_durability.py::test_acked_append_survives_kill_minus_9",
+      "ok": true,
+      "seconds": 3.705,
+      "summary": "1 passed in 1.43s"
+    },
+    {
+      "failure": "corrupted-bundle-at-the-verifier",
+      "selector": "tests/test_resilience.py::TestFailure4CorruptedBundleAtTheVerifier",
+      "ok": true,
+      "seconds": 7.231,
+      "summary": "4 passed in 4.61s"
+    },
+    {
+      "failure": "restore-after-workspace-deletion",
+      "selector": "tests/test_resilience.py::TestFailure5RestoreAfterWorkspaceDeletion",
+      "ok": true,
+      "seconds": 4.676,
+      "summary": "2 passed in 1.73s"
+    }
+  ],
+  "verdict": "passed",
+  "scope": "One configuration of the four MV4-T02 requires (windows). Windows, macOS, Linux and one remote configuration are each a separate rehearsal; this file closes one of them."
+}

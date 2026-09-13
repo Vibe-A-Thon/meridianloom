@@ -9,12 +9,16 @@
     "test": "node scripts/run-tests.mjs",
     "build": "node scripts/generate-bus-types.mjs && npm run build --workspace=webview && npm run build --workspace=extension && node scripts/check-webview-build.mjs",
     "check:contracts": "node scripts/generate-bus-types.mjs --check",
-    "package": "node scripts/package-extension.mjs",
+    "package": "node scripts/generate-notices.mjs && node scripts/package-extension.mjs && node scripts/generate-bom.mjs",
     "check:surface": "node scripts/check-surface-coverage.mjs",
     "check:webview-build": "node scripts/check-webview-build.mjs",
     "test:core": "python -m pytest core/tests -q -m \"not perf\" -n auto",
     "test:core:serial": "python -m pytest core/tests -q -m \"not perf\"",
     "test:budgets": "python -m pytest core/tests -q -s -m perf && python -m pytest core/tests/test_full_history_metrics.py -q -s",
-    "check:demo": "node scripts/check-demo-package.mjs"
+    "check:demo": "node scripts/check-demo-package.mjs",
+    "bom": "node scripts/generate-bom.mjs",
+    "check:bom": "node scripts/generate-bom.mjs --check",
+    "notices": "node scripts/generate-notices.mjs",
+    "check:notices": "node scripts/generate-notices.mjs --check"
   }
 }

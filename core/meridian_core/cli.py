@@ -237,7 +237,7 @@ def command_doctor(args: argparse.Namespace) -> int:
 
     # Only the probes a headless run can honestly answer. The signing key
     # lives in the editor's OS keychain and the ledger is opened per command
-    # here, so those probes stay absent rather than reporting a confident
+    # here, so without a key those probes stay absent rather than reporting a confident
     # wrong answer — the registry's not-installed path says so with
     # remediation, which is the truthful result for this context.
     context = doctor_mod.DoctorContext(started_at=time.time())
@@ -248,6 +248,32 @@ def command_doctor(args: argparse.Namespace) -> int:
         # because an optional flag was omitted would turn every CI doctor run
         # red for a reason that is not a fault.
         context = dataclasses.replace(context, signing_key_present=lambda: True)
+        # MV4-T03: with a key in hand the ledger CAN be opened here, so the
+        # chain is verified rather than reported as not initialised. Before
+        # this, the probe was absent in every headless run, so a rollout check
+        # against a workspace whose chain was broken exited 0. The docstring
+        # above promises the exit status is the answer; for the one fault that
+        # matters most, it was not.
+        ledger_dir = _ledger_dir(workspace)
+        if (ledger_dir / "ledger.db").is_file():
+
+            def verify_ledger() -> tuple[bool, str]:
+                try:
+                    ledger = Ledger(
+                        ledger_dir, _signing_provider(args), verify_on_open=False
+                    )
+                except Exception as error:  # noqa: BLE001
+                    # A ledger that will not open is a failed ledger check, not
+                    # a crashed doctor: the diagnostic must survive the fault
+                    # it is diagnosing.
+                    return False, f"the ledger could not be opened: {error}"
+                try:
+                    verdict = ledger.verify()
+                finally:
+                    ledger.close()
+                return verdict.ok, verdict.detail
+
+            context = dataclasses.replace(context, ledger_verifier=verify_ledger)
 
     try:
         report = doctor_mod.run_doctor(params, context)

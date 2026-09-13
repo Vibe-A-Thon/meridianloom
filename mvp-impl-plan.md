@@ -468,6 +468,7 @@ Everything here is verified **against the installed VSIX** (`MP7`). A rehearsal 
 
 **`MV4-T01` — The tested support matrix (`MVP-R1.6`, `FR-M46-06`).**
 Run the smoke tests named in `compatibility.json` on every claimed row. A row that fails is **removed from the matrix**, not marked degraded (`MK5`). Publish with the release.
+*Built.* `scripts/run-compatibility-smoke.mjs` runs each claimed row's named smoke test and counts a row verified **only on the platform and interpreter it claims** — running the macOS row's test on Windows proves nothing about macOS, and is reported `not-verified-here` rather than ticked. It runs and records a baseline in every CI matrix leg. Locally on Windows: `windows-11`, `vscode-1.95` and `python-3.11` verified; `linux-lts`, `macos` and `python-3.12` await their CI legs. No row failed, so `MK5` removed nothing.
 
 **`MV4-T02` — The resilience rehearsal (`MVP-R1.7`, `FR-M46-07`).**
 Five failures × four configurations — Windows, macOS, Linux, and one remote (SSH or WSL):
@@ -479,22 +480,29 @@ Five failures × four configurations — Windows, macOS, Linux, and one remote (
 
 **The pass condition is `NFR-42`: zero loss of acknowledged ledger entries, and recovery within 15 minutes for the reference dataset.** An entry the product acknowledged and then lost is not a bug to triage; it is the product's central promise failing, and it blocks the release (`MK4`).
 *Evidence:* one recorded run per failure per configuration, committed under `docs/baselines/resilience/`.
+*Built and demonstrated red.* `core/tests/test_resilience.py` rehearses failures 1, 2, 4 and 5 against the real ledger and the shipped `verify.py`; failure 3 is the existing real-sidecar kill test, referenced rather than duplicated, guarded by a test that fails if it is renamed away. Disk exhaustion is a genuine SQLite disk-full through `PRAGMA max_page_count`, not a mock — the first version tried to monkeypatch `Connection.execute`, which is read-only. The controls proved the suite detects real loss (rows deleted between acknowledgement and check) and a verifier that always passes. `scripts/record-resilience.mjs` records one run per failure per configuration: **Windows 5/5, zero acknowledged entries lost**, in `docs/baselines/resilience/`. macOS and Linux run in their CI legs; the remote configuration has no runner and needs a person.
 
 **`MV4-T03` — Package and validate.**
 Build the VSIX. Verify from the **installed** extension: `cli doctor` exits non-zero on an induced failure · the staged verifier verifies a bundle · the staged documents are present · the checksum matches · there is no nested `extension/extension/` directory **and nothing is tracked under it** · the library seeds a fresh workspace on first open.
+*Built.* `scripts/validate-package.mjs` extracts the VSIX's sidecar and runs **that copy**: ten checks, all passing on Windows, recorded in `docs/baselines/package/` and wired into the CI package job.
+It found a real gap on the way. **The headless `cli doctor` could not report a broken ledger at all**: its ledger probe was never wired outside the editor, so a provisioning check against an altered chain exited `0` — while `docs/DEPLOYMENT.md` listed ledger integrity among the things it checked. Given the signing key, doctor now verifies the chain and fails the run (`core/tests/test_headless_cli.py`, demonstrated red); without a key it still says it could not look, and the deployment guide now says when it checks. Seeding the library into a workspace is an editor action: the package check proves the shipped library is byte-identical to its source, and `MV4-T04` is where a person watches it seed.
 
 **`MV4-T04` — The cold-start rehearsal.**
 One person who has not read the source and has not seen this plan goes from the VSIX file to a verified evidence bundle, using only `DEMO.md`, `docs/DEPLOYMENT.md` and `docs/SECURITY-AND-DATA.md`. **Timed.** Every question they have to ask is a defect in the documents, recorded and fixed before release.
 *Feeds:* `MK1`, and `NFR-28`'s fifteen-minute first-provenance-answer target.
+*Prepared, not run.* `docs/baselines/cold-start/PROTOCOL.md` fixes who qualifies, the only four documents they get, what the observer may say, the milestones to time against `NFR-28`, and the defect table every question becomes. It needs a person from outside the project, and nobody on the project can stand in for one.
 
 **`MV4-T06` — The soak (`MVP-R6.4`, `NFR-43`, `FR-M46-08`).**
 Seven days of continuous operation under explicit resource limits, with no unbounded growth in memory, disk or handle count. **This is elapsed time, not effort** — start it on the first day of `MV4` so it finishes with the phase, and record the resource curves as the evidence.
 *Principle:* `MP7` — run it against the installed package, not the checkout.
+*Harness built; the soak has not been run.* `scripts/soak.mjs` extracts the sidecar from the built VSIX, drives appends, queries and chain verification over stdio, samples memory, handles and disk-per-entry from outside the process, and writes the curve as it goes, so a run killed on day four leaves four days of evidence. A short smoke run on Windows is recorded as `incomplete` and says it is not the soak.
+That smoke run found a harness defect first: it projected a warm-up memory slope across 168 hours and "failed" a three-minute run. A check that fires on every short run is one people learn to ignore, so projections now wait for 24 hours of data while hard limits apply from the first sample. **A hosted CI runner cannot hold a seven-day job**; this needs a dedicated machine started on the first day it is available.
 
 **`MV4-T07` — The assistive journeys (`MVP-R6.5`, `FR-M46-05`).**
 Keyboard-only and screen-reader journeys complete **launch, review and export** without a critical barrier. Three journeys, both input modes, recorded. Full WCAG 2.1 AA certification remains `POST-MVP` (`GF4+`); these three journeys are the ones an evaluator actually performs, and a product that cannot be operated without a mouse is not adoptable.
 *Evidence:* a recorded pass per journey per mode, plus the measured false-alert rate and dismissal reasons.
 *Principle:* `B3` — accessibility is built in, never retrofitted.
+*Structural half built; the recorded journeys are not.* `webview/src/screens/assistive-journeys.test.tsx` covers launch, review and export — real controls, accessible names, the preflight as a dialog, cancel before confirm, refusals and alterations announced — demonstrated red against an unnamed button and a focusable `div`. jsdom has no accessibility tree, so these are preconditions and not results. `docs/baselines/assistive/PROTOCOL.md` defines the six recorded runs, what counts as a critical barrier, and the false-alert and dismissal measurements the evidence line asks for. The runs need a person with a screen reader.
 
 **`MV4-T08` — The bill of materials (`MVP-R7.3`, `FR-M50-04`, `NFR-48`, `SEC-44`).**
 The package ships 22 agents, a 10-pack skill catalogue, 4 instruction documents and 4 ACP runtime presets, and publishes **no bill of materials for any of it**. Generate a **CycloneDX AI-BOM** from the build — never hand-maintained — listing every shipped component with its version and digest, and publish it beside the VSIX and its checksum.
@@ -503,6 +511,7 @@ The package ships 22 agents, a 10-pack skill catalogue, 4 instruction documents 
 
 *Evidence:* `AC-62` — every shipped component appears with a matching digest; a deliberate mismatch fails.
 *Why it is in the MVP:* an enterprise that cannot enumerate what an extension installed cannot approve it, and the fix is a build step.
+*Built.* `scripts/generate-bom.mjs` generates CycloneDX 1.6 **from the built VSIX, never the checkout**, and publishes `meridian-loom-<version>.cdx.json` beside it: 52 components, each with its digest. `--check` fails on drift, demonstrated against a tampered digest, ten removed skills and an invented agent; it runs in the CI package job, and the release artefact uploads the VSIX, checksum and BOM together. Agents are typed `data`, not `machine-learning-model`, because no model ships and the BOM should not send a reviewer looking for a model card. The zip reader is shared with the demo check in `scripts/lib/vsix.mjs`, so there is one of it.
 
 
 **`MV4-T09` — What an organisation needs to operate it and leave (`MVP-R8.1`…`8.3`).**
@@ -513,22 +522,24 @@ Three artefacts the MVP definition implies and the repository does not have:
 
 *Why in `MV4`:* these are release artefacts, and two of the three are generated by the release build.
 *Principle:* `MP5` — each of the three is a claim, so each binds to a test or a generator, never to good intentions.
+*Built.* `SECURITY.md` promises what one part-time maintainer can meet — acknowledgement within 10 working days, assessment within 20, updates at least every 30 — and no bounty. `THIRD-PARTY-NOTICES.md` is generated from the licence sweep before the VSIX is staged, and held by a drift gate in `npm test` that reports **skipped** rather than passing where a licence cannot be resolved. `docs/SUPPORT.md` states one supported line, breaking-change notice, one-way migrations and the exit path, and says plainly that no paid support exists. All three ship inside the package and are checked there.
 
 **`MV4-T05` — Release notes and decision record.**
 Release notes that agree with `DECISIONS.md`, name the tier set, state the limitations from `docs/SECURITY-AND-DATA.md` §6 without softening them, and say plainly what the MVP does **not** claim (`mvp-req-final.md` §13).
+*Built.* `extension/CHANGELOG.md` `[Unreleased]` covers `MV2`–`MV4`, names the tier set and states each `§6` limitation. `scripts/check-release-notes.mjs` holds it there as a gate in `npm test`: every limitation headline must appear in its own words — paraphrase is how softening happens without anyone deciding to soften — all four outcomes `§13` disclaims must be named, and every `D<n>` cited must exist in `DECISIONS.md`. Its first run found eleven disagreements in the notes as they stood.
 
 ### Exit criteria
 
-- [ ] Every published compatibility row backed by a passing smoke test
-- [ ] Twenty rehearsals run; **zero** acknowledged entries lost, recovery inside 15 minutes (`NFR-42`)
-- [ ] Seven-day soak complete with no unbounded resource growth (`NFR-43`)
-- [ ] Launch, review and export complete keyboard-only and under a screen reader (`FR-M46-05`)
-- [ ] The installed package validated, not the checkout
-- [ ] A stranger reached a verified bundle unaided; the time is recorded
-- [ ] The CycloneDX AI-BOM matches the package exactly; a deliberate mismatch fails the build (`AC-62`)
-- [ ] `SECURITY.md`, third-party notices and the support/upgrade policy ship with the package (`AC-69`…`AC-71`)
-- [ ] Release notes agree with the decision record
-- [ ] `docs/claims.md` green: every shipped claim bound to a passing test
+- [~] Every published compatibility row backed by a passing smoke test — the runner verifies a row only where it claims to run; **3 of 6 claimed rows verified (Windows)**, the other three close in their CI legs. None failed
+- [~] Twenty rehearsals run; **zero** acknowledged entries lost, recovery inside 15 minutes (`NFR-42`) — **5 of 20 (Windows), zero lost**. macOS and Linux in CI; the remote configuration needs a person
+- [ ] Seven-day soak complete with no unbounded resource growth (`NFR-43`) — harness built against the package; **not run**, and it cannot run on a hosted CI runner
+- [~] Launch, review and export complete keyboard-only and under a screen reader (`FR-M46-05`) — structural preconditions tested and proven red; **the six recorded human runs are not done** (protocol ready)
+- [x] The installed package validated, not the checkout — ten checks run from the extracted package, including an induced doctor failure
+- [ ] A stranger reached a verified bundle unaided; the time is recorded — **not run**; protocol ready, needs a person from outside the project
+- [x] The CycloneDX AI-BOM matches the package exactly; a deliberate mismatch fails the build (`AC-62`)
+- [x] `SECURITY.md`, third-party notices and the support/upgrade policy ship with the package (`AC-69`…`AC-71`)
+- [x] Release notes agree with the decision record — held by a gate, not by a reading
+- [x] `docs/claims.md` green: every shipped claim bound to a passing test, and every human step not yet done declared as a limitation
 
 ---
 
@@ -879,6 +890,14 @@ Several tasks reference files that **do not exist yet**. That is correct — the
 | `scripts/check-claims.mjs` | `MV0-T03` | Fails the build on a claim whose named test does not exist |
 | `scripts/check-mvp-traceability.mjs` | `MV0-T04` | Fails on drift between `mvp-req-final.md` §5 and this plan |
 | `scripts/check-demo-package.mjs` | `MV3-T05` | Fails when a `DEMO.md` step is not backed by something inside the built VSIX |
+| `scripts/generate-bom.mjs` | `MV4-T08` | Generates the CycloneDX AI-BOM from the built VSIX; `--check` fails on drift |
+| `scripts/generate-notices.mjs` | `MV4-T09` | Generates `THIRD-PARTY-NOTICES.md` from the licence sweep; `--check` fails when it is stale |
+| `scripts/check-release-notes.mjs` | `MV4-T05` | Fails when the release notes soften a limitation, omit a disclaimed claim, or cite an unrecorded decision |
+| `scripts/run-compatibility-smoke.mjs` | `MV4-T01` | Runs each matrix row's smoke test, counting a row verified only on the platform it claims |
+| `scripts/record-resilience.mjs` | `MV4-T02` | Records one resilience rehearsal per failure for the configuration it runs on |
+| `scripts/validate-package.mjs` | `MV4-T03` | Validates the installed package by executing its extracted sidecar, CLI and verifier |
+| `scripts/soak.mjs` | `MV4-T06` | The seven-day soak harness, run against the packaged sidecar |
+| `docs/baselines/cold-start/PROTOCOL.md` · `docs/baselines/assistive/PROTOCOL.md` | `MV4-T04` · `MV4-T07` | What a person must do, time and record for the two rehearsals no script can perform |
 | `docs/baselines/` | `MV0-T01` | Suite counts, commit, platform and wall-clock per phase exit |
 | `docs/evidence-gate.md` | `MV1-T08` | The Orchestra go/no-go thresholds, written before the study |
 | `shared/schema/compatibility.json` | `MV1-T05` | The machine-readable support matrix; the published table and `doctor` output are generated from it |

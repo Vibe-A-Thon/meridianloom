@@ -106,8 +106,23 @@ cpSync(
 const evaluatorDocs = path.join(extensionDir, 'docs');
 cleanGeneratedDirectory(evaluatorDocs);
 mkdirSync(evaluatorDocs, { recursive: true });
-for (const name of ['SECURITY-AND-DATA.md', 'DEPLOYMENT.md']) {
+for (const name of ['SECURITY-AND-DATA.md', 'DEPLOYMENT.md', 'SUPPORT.md']) {
   cpSync(path.join(root, 'docs', name), path.join(evaluatorDocs, name));
+}
+// MV4-T09: the two an organisation needs that live at the repository root.
+// A reviewer who cannot find a disclosure process assumes there is none, and
+// a legal reviewer who cannot find the notices has to build the list
+// themselves — both from inside a VSIX that arrived without the repository.
+for (const name of ['SECURITY.md', 'THIRD-PARTY-NOTICES.md']) {
+  const source = path.join(root, name);
+  if (!existsSync(source)) {
+    console.error(
+      `${name} is missing. It ships in the package (MVP-R8.1/R8.2); ` +
+        'run `npm run notices` if it is the generated one.',
+    );
+    process.exit(1);
+  }
+  cpSync(source, path.join(evaluatorDocs, name));
 }
 cpSync(
   path.join(root, 'docs', 'spec', 'evidence-portability.md'),

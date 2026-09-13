@@ -182,6 +182,25 @@ jobs:
       - name: webview
         working-directory: webview
         run: npx vitest run --reporter=dot
+      # MV4-T01: the support matrix names a smoke test per row; this runs
+      # them. A row is only *verified* on the platform and interpreter it
+      # claims, so each matrix leg closes the rows it can and reports the
+      # rest as not-verified-here rather than ticking them.
+      - name: the support matrix, on this platform
+        run: node scripts/run-compatibility-smoke.mjs --record
+      # MV4-T02: five failures, one configuration per matrix leg. NFR-42 —
+      # zero loss of acknowledged ledger entries — is a release blocker
+      # rather than a defect, so a failure here fails the job.
+      - name: the resilience rehearsal, on this platform
+        run: node scripts/record-resilience.mjs
+      - name: the recorded baselines
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: baselines-${{ matrix.os }}
+          path: docs/baselines/
+          if-no-files-found: warn
+          retention-days: 14
 
   # ---------------------------------------------------------------------
   # The Python core. This is the critical path — most of the suite spawns
@@ -291,11 +310,37 @@ jobs:
       # integrity check tree-shaken out because its only caller was unwired.
       - name: DEMO.md is backed by the package
         run: node scripts/check-demo-package.mjs
-      - name: the packaged extension
+      # MV4-T03 (MP7): the sidecar, CLI and verifier are extracted from the
+      # VSIX and executed from there. Includes the induced failure: an altered
+      # ledger entry must make the packaged `cli doctor` exit non-zero.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: core/pyproject.toml
+      - name: the packaged sidecar's dependencies
+        run: pip install ./core
+      - name: the installed package, not the checkout
+        run: node scripts/validate-package.mjs --record
+      # NFR-48: drift between the AI-BOM and the package fails the build. The
+      # BOM is generated from the artefact, so a discrepancy means either the
+      # document was edited by hand or the package was rebuilt without
+      # regenerating it. Both are the same defect from a reviewer's side: a
+      # bill of materials that does not describe what shipped.
+      - name: the AI-BOM matches the package
+        run: node scripts/generate-bom.mjs --check
+      - name: third-party notices are current
+        run: node scripts/generate-notices.mjs --check
+      - name: the release artefacts
         uses: actions/upload-artifact@v4
         with:
-          name: meridian-loom-vsix
-          path: dist/*.vsix
+          name: meridian-loom-release
+          # The BOM and the checksum travel with the VSIX. A bill of materials
+          # published somewhere else is one a reviewer has to go and find.
+          path: |
+            dist/*.vsix
+            dist/*.sha256
+            dist/*.cdx.json
           if-no-files-found: error
           # The artefact is a build output, not an archive. Ninety days of
           # every dev-branch VSIX is storage nobody reads.

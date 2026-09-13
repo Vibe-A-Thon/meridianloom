@@ -61,9 +61,17 @@ const documentGates = [
   ['scripts/check-claims.mjs', 'MV0-T03: a claim in docs/claims.md names a test that does not exist.'],
   ['scripts/check-licences.mjs', 'MV0-T05: a runtime dependency contradicts docs/SECURITY-AND-DATA.md §7.'],
   ['scripts/check-compatibility.mjs', 'MV1-T05/T06: the support matrix names a test that does not exist, or its published table has drifted.'],
+  // MV4-T09/AC-70. The BOM's drift check needs a built VSIX and so lives in
+  // the package job; this one only needs the licence sweep, so it runs every
+  // time and catches a dependency added without regenerating the notices.
+  ['scripts/generate-notices.mjs', 'MV4-T09: THIRD-PARTY-NOTICES.md no longer matches the runtime dependencies.', '--check'],
+  // MV4-T05. Release notes are written last and read first, which is exactly
+  // why they drift into marketing. This holds them against the limitations,
+  // the disclaimed claims, the tier set and the decision record.
+  ['scripts/check-release-notes.mjs', 'MV4-T05: the release notes disagree with the limitations, the decision record, or what the MVP does not claim.'],
 ];
-for (const [script, message] of documentGates) {
-  const gate = spawnSync(process.execPath, [script], { cwd: root, stdio: 'inherit' });
+for (const [script, message, ...extra] of documentGates) {
+  const gate = spawnSync(process.execPath, [script, ...extra], { cwd: root, stdio: 'inherit' });
   if (gate.status !== 0) {
     console.error(message);
     process.exit(gate.status ?? 1);

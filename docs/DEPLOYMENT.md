@@ -55,14 +55,20 @@ no account to provision.
 
 ```console
 cd <extension>/sidecar
-python -m meridian_core.cli doctor --workspace /path/to/a/repo
+python -m meridian_core.cli doctor --workspace /path/to/a/repo --signing-key-file /path/to/signing.key
 ```
 
-Exit status `0` means every check passed, `1` means one failed, so this can be
-the last line of a provisioning job. It prints JSON: interpreter, sidecar,
-signing key, ledger integrity, git hooks and observer health. It is the same
-check registry the editor's **Meridian Loom: Doctor** command runs, so the two
-cannot disagree.
+Exit status `0` means no check failed and `1` means one did, so this can be the
+last line of a provisioning job. It prints JSON: interpreter, sidecar, signing
+key, ledger integrity, git hooks and observer health — the same check registry
+the editor's **Meridian Loom: Doctor** command runs, so the two cannot disagree.
+
+**Ledger integrity is only checked when you pass the signing key.** With
+`--signing-key-file` (or `MERIDIAN_LEDGER_SIGNING_KEY`) doctor opens the ledger,
+verifies the whole chain, and exits `1` if any entry has been altered. Without a
+key it reports the ledger check as a warning saying it could not look — it does
+not pass a chain it never checked. Observer health is only known inside a
+running editor, so a headless run always reports it that way.
 
 ## 3. Settings worth setting centrally
 

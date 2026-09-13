@@ -3,6 +3,13 @@
 node_modules/
 extension/dist/
 /dist/*.vsix
+# Release artefacts generated beside the VSIX by `npm run package` (MV4-T08).
+# They describe a local build, and the VSIX they describe is not committed, so
+# a tracked checksum or bill of materials would be a claim about an artefact
+# nobody else holds. They are published with the package, by the CI release
+# upload, which is the only place a reviewer can check them against it.
+/dist/*.vsix.sha256
+/dist/*.cdx.json
 __pycache__/
 *.pyc
 /extension/sidecar/

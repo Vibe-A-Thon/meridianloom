@@ -20,13 +20,11 @@
  * Usage:  node scripts/check-demo-package.mjs [path/to.vsix]
  * Exit:   0 every expectation met · 1 something the demo relies on is absent
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { inflateRawSync } from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { findVsix, openZip } from './lib/vsix.mjs';
 
 /**
  * One demo claim and the evidence for it inside the package.
@@ -121,80 +119,72 @@ const EXPECTATIONS = [
     needle: 'def ',
     why: 'the standalone verifier handed to an auditor',
   },
+  // MV4-T03/T09: what a security review and a platform team ask for, inside
+  // the package. A VSIX sideloaded into an enterprise arrives without the
+  // repository, and "see the docs in our repo" is not an answer when the
+  // repository is private.
+  {
+    step: 'MV4-T09 — a reporter knows where to go (AC-69)',
+    where: 'extension/docs/SECURITY.md',
+    needle: 'Acknowledgement',
+    why: 'the vulnerability disclosure process, with a response a maintainer can meet',
+  },
+  {
+    step: 'MV4-T09 — the dependency claim is checkable (AC-70)',
+    where: 'extension/docs/THIRD-PARTY-NOTICES.md',
+    needle: '| Component | Licence | Note |',
+    why: 'the enumeration behind the no-copyleft statement',
+  },
+  {
+    step: 'MV4-T09 — an organisation can plan around us (AC-71)',
+    where: 'extension/docs/SUPPORT.md',
+    needle: 'Leaving',
+    why: 'supported versions, breaking-change notice, migration and the exit path',
+  },
+  {
+    step: 'MV4-T03 — the staged evaluator documents',
+    where: 'extension/docs/SECURITY-AND-DATA.md',
+    needle: 'Limitations we are telling you about',
+    why: 'the limitations a reviewer reads before adopting',
+  },
 ];
 
-function findVsix(explicit) {
-  if (explicit) return path.resolve(explicit);
-  const dist = path.join(root, 'dist');
-  if (!existsSync(dist)) return undefined;
-  const candidates = readdirSync(dist)
-    .filter((name) => name.endsWith('.vsix'))
-    .sort();
-  return candidates.length ? path.join(dist, candidates[candidates.length - 1]) : undefined;
-}
-
 /**
- * The VSIX is a zip, read here without a dependency and without shelling out.
+ * MV4-T03: structural facts about the package itself, rather than about a
+ * step of the demo.
  *
- * The first version used `tar`, which reads zips on every platform in the
- * matrix — and GNU tar in Git Bash parses a `F:\path` argument as a remote
- * host and tries to *connect* to `F`. A check that fails on the maintainer's
- * own machine because of a drive letter is a check that gets skipped.
- *
- * Stored and deflated members only, which is what `vsce` writes and what the
- * workbench's own archive reader accepts: a bounded reader is easier to
- * reason about than a general one.
+ * The nested-directory check is here because it has bitten before: a build
+ * produced `extension/extension/` with 37 tracked CRLF copies of the real
+ * tree, and the guard that was supposed to catch it checked the filesystem
+ * rather than what git tracked.
  */
-function openZip(file) {
-  const buffer = readFileSync(file);
-  // End of central directory: scan back for the signature, tolerating the
-  // trailing comment field.
-  let eocd = -1;
-  for (let at = buffer.length - 22; at >= 0 && at > buffer.length - 22 - 0xffff; at -= 1) {
-    if (buffer.readUInt32LE(at) === 0x06054b50) {
-      eocd = at;
-      break;
-    }
-  }
-  if (eocd < 0) throw new Error(`${path.basename(file)} is not a zip archive`);
-
-  const count = buffer.readUInt16LE(eocd + 10);
-  let at = buffer.readUInt32LE(eocd + 16);
-  const entries = new Map();
-  for (let index = 0; index < count; index += 1) {
-    if (buffer.readUInt32LE(at) !== 0x02014b50) break;
-    const method = buffer.readUInt16LE(at + 10);
-    const compressedSize = buffer.readUInt32LE(at + 20);
-    const nameLength = buffer.readUInt16LE(at + 28);
-    const extraLength = buffer.readUInt16LE(at + 30);
-    const commentLength = buffer.readUInt16LE(at + 32);
-    const localOffset = buffer.readUInt32LE(at + 42);
-    const name = buffer.toString('utf8', at + 46, at + 46 + nameLength);
-    if (!name.endsWith('/')) {
-      entries.set(name, { method, compressedSize, localOffset });
-    }
-    at += 46 + nameLength + extraLength + commentLength;
-  }
-
-  function read(name) {
-    const entry = entries.get(name);
-    if (!entry) throw new Error(`no such member: ${name}`);
-    const header = entry.localOffset;
-    if (buffer.readUInt32LE(header) !== 0x04034b50) {
-      throw new Error(`corrupt local header for ${name}`);
-    }
-    const nameLength = buffer.readUInt16LE(header + 26);
-    const extraLength = buffer.readUInt16LE(header + 28);
-    const start = header + 30 + nameLength + extraLength;
-    const raw = buffer.subarray(start, start + entry.compressedSize);
-    if (entry.method === 0) return raw.toString('utf8');
-    if (entry.method === 8) return inflateRawSync(raw).toString('utf8');
-    throw new Error(
-      `${name} uses compression method ${entry.method}, which this reader does not accept`,
+function structuralProblems(members) {
+  const problems = [];
+  const nested = members.filter((name) => name.startsWith('extension/extension/'));
+  if (nested.length) {
+    problems.push(
+      `the package contains a nested extension/extension/ directory (${nested.length} files). ` +
+        'That has shipped before; it is duplicate content and it doubles the artefact.',
     );
   }
-
-  return { names: [...entries.keys()], read };
+  const required = [
+    ['extension/sidecar/meridian_core/__init__.py', 'the sidecar'],
+    ['extension/sidecar/verify.py', 'the standalone verifier'],
+    ['extension/library/runtimes.json', 'the runtime presets a first open seeds'],
+    ['extension/webview-dist/index.html', 'the interface'],
+  ];
+  for (const [member, why] of required) {
+    if (!members.includes(member)) problems.push(`${member} is not in the package (${why}).`);
+  }
+  const agents = members.filter((name) =>
+    name.startsWith('extension/library/agents/'),
+  ).length;
+  if (agents === 0) {
+    problems.push(
+      'no agents are packaged, so a fresh workspace would seed an empty catalogue.',
+    );
+  }
+  return problems;
 }
 
 export function runDemoPackageCheck({ vsixPath } = {}) {
@@ -231,6 +221,7 @@ export function runDemoPackageCheck({ vsixPath } = {}) {
 
   const archive = openZip(vsix);
   const members = new Set(archive.names);
+  problems.push(...structuralProblems(archive.names));
   const cache = new Map();
 
   /** Directory expectations concatenate every member beneath the prefix. */

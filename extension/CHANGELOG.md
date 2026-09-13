@@ -2,6 +2,141 @@
 
 All notable changes to Meridian Loom.
 
+## [Unreleased]
+
+**Governed initiation, a reachable supply chain, and the release artefacts an
+organisation needs to adopt and to leave.**
+
+### What it ships as
+
+Three tiers, and which are enabled is a workspace setting (`meridian.tiers`),
+not a reinstall:
+
+- **Flight Recorder** — the base tier, always on. Observes agents you start
+  yourself, records provenance, verifies the chain, exports evidence, and now
+  reads and notarises other provenance tools' records. It makes no model calls
+  at all.
+- **Governor** — permission policy, gates, approvals, run initiation, the
+  pull-request evidence card, worktrees.
+- **Orchestra** — multi-agent loops. Not in this release.
+
+Disabling a tier leaves the tiers below whole, and a disabled tier is absent
+rather than greyed out.
+
+### Added — starting work is possible and governed (`M40`)
+
+- **One initiation contract.** Every door into the runtime — the command
+  palette and the Launch screen today, six more in the vocabulary — builds one
+  `RunRequest` and calls one entry point. Runs started from different doors
+  produce ledger records differing only in `origin`.
+- **Preflight is mandatory.** Before anything is created you see the intent,
+  the agents, the repository and branch, the cost estimate and ceiling, the
+  gates, and dry-run or live. There is no skip and no "do not show again". An
+  unknown cost reads *not estimated*, never `$0.00`.
+- **Cancelling creates nothing.** No worktree, no branch, and one cancellation
+  record. That is structural, not a cleanup path: nothing is created before
+  you confirm, so nothing needs tidying if you do not.
+- **Launch authority is role-checked** and the authorising identity is
+  recorded with its assurance level. A read-only role may start a dry run,
+  which writes nothing, and may not start a live one.
+
+### Added — supply chain
+
+- **Adapter digest pinning.** Whatever Meridian installs is digested at
+  install and checked before its agent launches. A folder that changed does
+  not load, and the refusal names the digest recorded at install and the
+  digest on disk.
+- **Verifiable agent identity.** The binary behind an agent is resolved from
+  `PATH` and digested before the process starts; a swap under an unchanged
+  name warns. Where the launch command is a run-time package fetcher (`npx`,
+  `uvx`, `pipx run`) the agent is downloaded afterwards, so identity is
+  recorded as **unverified** naming the fetcher rather than passing the
+  fetcher's digest off as the agent's.
+- **The ACP Registry is browsable** from the Adapter Bay. The index is fetched
+  only when you ask — opening a workspace makes no network call — and an entry
+  installs into Learning with `read`, `search` and `think` and nothing else.
+  A registry listing is not a review, not a security assessment and not an
+  endorsement.
+- **A CycloneDX AI-BOM** is generated from the built package and published
+  beside the VSIX and its checksum, listing every shipped agent, skill,
+  instruction document, runtime preset and runtime dependency with its digest.
+  Drift between the BOM and the package fails the build.
+
+### Added — evidence
+
+- **Other tools' records are read and notarised.** If another provenance tool
+  writes git notes in your repository, Meridian records the *digest* of each
+  in the signed ledger, so a third party can prove the record has not been
+  altered since Meridian read it. The content is not copied. Each record is
+  attributed to the tool that wrote it, at `inferred` — Meridian did not
+  observe the work, it read a file claiming the work happened — and the
+  signature covers the digest, not the claim.
+- **A pull-request evidence card**: change risk, coverage gaps, failed checks,
+  cost, the human action required, and **the revision actually tested**. A
+  gate verdict recorded against a head the branch has moved past is shown as
+  stale rather than as a pass.
+- **Run and origin** now appear on a ledger entry's full record.
+
+### Added — what an organisation needs to operate it and leave
+
+- **`SECURITY.md`** — where to report a vulnerability, what is in scope, and a
+  response commitment one part-time maintainer can actually meet. There is no
+  bounty, and saying otherwise would be an unbacked promise.
+- **`THIRD-PARTY-NOTICES.md`** — generated from the same licence sweep that
+  backs the no-copyleft statement, so that statement is checkable rather than
+  asserted. It fails the build when it falls out of date.
+- **`docs/SUPPORT.md`** — supported versions, the notice a breaking change
+  carries, what survives an upgrade, and the export path on the way out. It
+  also says plainly that no paid support offering exists.
+
+All three ship inside the package, because a VSIX sideloaded into an
+enterprise arrives without the repository.
+
+### Fixed
+
+- The Launch screen was registered in a screen registry that nothing renders,
+  so it never reached the built package. It is now mounted on the route the
+  application actually uses.
+- Adapter pin *verification* lived only in a code path the extension never
+  called, so it was removed from the bundle by tree-shaking and the digest
+  recorded at install was never read back. It now runs before an agent
+  launches.
+- A malformed ACP Registry index was reported as the registry being
+  unreachable, sending an operator to check their network over somebody
+  else's bad publish.
+
+Both of the first two were found by a new check that reads the built VSIX
+rather than the checkout, and neither was visible to any unit test.
+
+### Limitations — unchanged, and stated in full
+
+These are deliberate and documented. See
+[`docs/SECURITY-AND-DATA.md`](../docs/SECURITY-AND-DATA.md) §6.
+
+- **Without a witness, a re-signed fork of the whole ledger still verifies.**
+  Signature verification detects a changed entry and a broken chain link. It
+  does not, on its own, detect wholesale ledger replacement by a machine
+  administrator.
+- **The commit trailer is editable.** It is a pointer to the record, not a
+  proof of it.
+- **Enforcement is in the editor, not the SCM.** Every control declares where
+  it actually binds, and in this release nothing claims SCM enforcement.
+- **Identity is asserted, not verified, by default.** A git name and email is
+  a claim, labelled `asserted` wherever it appears.
+- **Effectiveness is unmeasured.** The project's own gate — twenty real
+  stories through a real team, measured — has not run.
+
+### What this release does not claim
+
+It makes **no claim** that it improves **delivery outcomes**, reduces
+**defects**, saves **cost** or raises **productivity**. Those require evidence
+this project has not collected, and when it is collected the rule is that
+unfavourable results are published too.
+
+Not yet done, and recorded as such in `docs/claims.md`: the demonstration has
+not been walked end to end on a clean machine by someone who did not build it,
+and the pull-request card has not been run against a live gated pull request.
+
 ## [0.1.0] — 2026-09-12
 
 **First distributable release.** Installed by sideloading the VSIX
