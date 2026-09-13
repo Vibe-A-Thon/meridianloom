@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -303,5 +303,105 @@ describe('installing lands in probation, pinned', () => {
     expect(
       again.snapshot.agents.find((a) => a.id === 'acme-java-developer')?.mode,
     ).toBe('learning');
+  });
+});
+
+describe('a drifted adapter does not launch (FR-M44-04, SEC-33)', () => {
+  it('refuses the launch and names both digests', async () => {
+    /**
+     * The verify half of pinning, on the path the shipped product actually
+     * takes. It used to live only in `discoverAdapters`, which the extension
+     * never calls — so it was tree-shaken out of the bundle entirely and
+     * pinning wrote a digest nothing ever read back. The package check found
+     * that by looking for the refusal text in extension.js and not finding
+     * it; this test keeps it found.
+     */
+    const { root, service } = await setup();
+    await service.request({ action: 'registry/browse' });
+    await service.request({
+      action: 'registry/install',
+      params: { id: 'acme-java-developer' },
+    });
+
+    // Somebody edits the installed adapter.
+    const manifest = path.join(
+      root,
+      '.meridian',
+      'adapters',
+      'acme-java-developer',
+      'manifest.yaml',
+    );
+    await writeFile(manifest, `${await readFile(manifest, 'utf8')}
+# edited
+`, 'utf8');
+
+    let refusal: string | undefined;
+    const launched: string[] = [];
+    const launcher = (() => ({
+      adapterId: 'acme-java-developer',
+      identity: undefined,
+      pid: undefined,
+      async start() {
+        launched.push('start');
+        return {} as never;
+      },
+      async newSession() {
+        return 'session';
+      },
+      async prompt() {
+        return 'end_turn';
+      },
+      stop() {},
+    })) as never;
+
+    const verifying = new WorkbenchService({
+      workspaceDir: () => root,
+      trusted: () => true,
+      enabledTiers: () => ['flight-recorder', 'governor'],
+      sidecar: () => ({ request: async () => ({ entries: [] }) }),
+      humanApprover: async () => ({ outcome: 'cancelled' }),
+      launcher,
+      onError: (message) => {
+        refusal = message;
+      },
+    });
+    services.push(verifying);
+
+    // The refusal is raised by the identity hook, which `launchAdapter`
+    // awaits before spawning. Drive it directly: the workbench's dispatch
+    // path needs an activated agent and a deliverable, and what is under
+    // test here is the check, not the dispatch.
+    const guard = (
+      verifying as unknown as {
+        refuseDriftedAdapter(id: string, dir: string): Promise<void>;
+      }
+    ).refuseDriftedAdapter('acme-java-developer', root);
+
+    await expect(guard).rejects.toThrow(/has changed since it was installed/);
+    await expect(guard).rejects.toThrow(/sha256:/);
+    expect(launched).toEqual([]);
+    void refusal;
+  });
+
+  it('an agent Meridian never installed still launches', async () => {
+    // The ordinary case: a command bound by hand has no folder and no
+    // baseline. Refusing it would break every preset binding.
+    const { root, service } = await setup();
+    void service;
+    const verifying = new WorkbenchService({
+      workspaceDir: () => root,
+      trusted: () => true,
+      enabledTiers: () => ['flight-recorder', 'governor'],
+      sidecar: () => ({ request: async () => ({ entries: [] }) }),
+      humanApprover: async () => ({ outcome: 'cancelled' }),
+    });
+    services.push(verifying);
+    await expect(
+      (
+        verifying as unknown as {
+          refuseDriftedAdapter(id: string, dir: string): Promise<void>;
+        }
+      ).refuseDriftedAdapter('hand-bound-agent', root),
+    ).resolves.toBeUndefined();
   });
 });

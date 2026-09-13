@@ -17,10 +17,12 @@ import {
   useViewState,
   type OperationsProps,
 } from "./shared";
+import { LaunchScreen } from "../../screens/LaunchScreen";
 import s from "./operations.module.css";
 
 export function WorkspaceOperations(props: OperationsProps) {
-  const { view, controller, client, ready, workspaceDir, onNavigate } = props;
+  const { view, controller, client, ready, workspaceDir, enabledTiers, onNavigate } =
+    props;
   const snapshot = controller.snapshot;
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
@@ -115,6 +117,21 @@ export function WorkspaceOperations(props: OperationsProps) {
   );
   const launch = (
     <>
+      {/*
+        M40 initiation (FR-M40-11, MV2-T06/MV3-T05): rendered only with the
+        Governor tier enabled, and ABSENT rather than disabled below it —
+        there is no Meridian agent to start in Flight Recorder, and a locked
+        panel would be the scar G5 forbids.
+
+        Mounted here rather than only in the screen registry, because that
+        registry has no production consumer: registering it there put the
+        screen in the tests and nowhere a user could reach. The package check
+        caught it — `preflight-confirm` was absent from the built webview
+        bundle while every test passed.
+      */}
+      {enabledTiers.includes("governor") && (
+        <LaunchScreen client={client} ready={ready} workspaceDir={workspaceDir} />
+      )}
       <div className={s.progress}>
         {[
           "Choose a brief",

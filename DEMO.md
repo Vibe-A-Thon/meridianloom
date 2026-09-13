@@ -118,6 +118,39 @@ with that agent's own error — which is the honest outcome.
 > and it is the highest-leverage idea in the product: the identity is data,
 > not code.
 
+### 4b. Or install one from the registry
+
+The preset route binds an agent you already have. The other route brings one
+you do not.
+
+In **Agents → Adapter bay**, press **Browse the registry…**. Note what
+happened when you opened the workspace a minute ago: *nothing*. Meridian did
+not fetch this in the background, does not phone home, and the index arrives
+only because you just asked for it.
+
+Read the panel above the list before installing anything. A listing
+establishes that somebody published an entry under that name — it is not a
+review, not a security assessment, and not an endorsement, by the registry or
+by Meridian.
+
+Each entry says how it launches, and whether that means its identity can be
+checked:
+
+- an entry shipping a **platform binary** can be identified by digest;
+- an entry that launches through **npx** or **uvx** fetches its package when
+  it runs, so what Meridian can digest is the fetcher and not the agent. The
+  listing says so *before* you install, not after.
+
+**Install into Learning.** It lands with `read`, `search` and `think` and
+nothing else — the same floor an imported agent gets, because a registry
+listing buys no privilege — and it is pinned by content digest. Nothing runs
+until you bind and activate it.
+
+> **Talking point.** Edit one byte of the installed adapter's `manifest.yaml`
+> and reload. It will not load, and the refusal names the digest recorded at
+> install and the digest on disk. That is the difference between an integrity
+> check and a log line: an operator can tell their own edit from an attack.
+
 ## 5. Activate it, and tag its phases
 
 **Activate** moves it out of Learning so it can receive deliverables. Confirm
@@ -217,6 +250,54 @@ It is worth dwelling on. The briefing is composed once, recorded, and sent
 unchanged — so the record is the thing that happened, not a reconstruction of
 it.
 
+## 8b. Read the pull request before you merge it
+
+**Evidence → Pull request**, and name a PR under gate
+(`pr:<repo>#<number>`).
+
+The card answers six things, and one of them is not on anybody else's
+dashboard: **the revision actually tested**. A checks-passed badge means the
+checks passed on *some* revision. If the branch has moved since, that badge
+describes code that is not what you would merge — and the card says so
+instead of showing a tick.
+
+The rest: change risk, driven by whether two agents edited the same region;
+where attribution runs out; which gates blocked; what it cost; and, in a
+sentence at the top, what a human has to do next.
+
+Two things it will not do. It will not show `$0.00` for a cost nobody
+recorded, and it will not show an unmeasured risk in the same visual language
+as a measured low. And there is no approve button on it — approving is a
+governed action bound to your identity, and it happens in the Gate Room.
+
+## 8c. If another provenance tool is already here
+
+Open **Evidence → Audit ledger** and scroll to **Other tools' records**.
+
+If the repository carries git notes from another tool — aider, Continue,
+GitButler — Meridian reads them. It does not claim them: each is attributed
+to the tool that wrote it and recorded at `inferred`, because Meridian read a
+file claiming work happened rather than watching it happen.
+
+Press **Notarise their digests**. Meridian writes the *digest* of each record
+into the signed ledger — not the content, because copying it would make
+Meridian the custodian of another tool's data.
+
+Now do the demonstration that makes the point. Rewrite one of those notes:
+
+```console
+git notes --ref refs/notes/aider add -f -m '{"tool":"aider","model":"something-else"}' HEAD
+```
+
+Press **Check for alteration**. Meridian names the record, the digest it had
+when it read it, and the digest now.
+
+> **Talking point.** Every tool in this space captures something. None of them
+> makes its own capture provable afterwards — a note is a mutable blob, and
+> whoever can write the repository can rewrite what it says about last March.
+> Meridian is not competing with that record. It is signing it. And it signs
+> the digest, not the claim: it did not see the work, and it says so.
+
 ## 9. Take the evidence away
 
 **Evidence** → export a bundle. Then verify it with no Meridian involved:
@@ -275,6 +356,10 @@ Demonstrate these rather than hoping nobody asks.
 | `npx` not found | Node.js missing or not on PATH | Install Node 20+ |
 | Agent refuses to edit | Probation floor: `read`, `search` | Create `.meridian/policy/acp-permissions.yaml` in the workspace (step 6) |
 | Nothing in the catalogues | Library not packaged | `npm run package` rather than a hand-built VSIX |
+| Registry says "could not be reached" | No network, or a proxy | The cached index is used when there is one; otherwise connect and retry |
+| Registry says its index "could not be read" | The registry published something malformed | Not your network. Retry later; nothing was installed |
+| An adapter stops loading after you edited it | Digest pinning refused it | Reinstall it to re-pin, or restore the file. The refusal names both digests |
+| "Other tools' records" is empty | No other provenance tool has written here | The usual case, and not a fault |
 | Sidecar will not start | Python not found | Set `meridian.python.interpreterPath` |
 
 Run **Meridian Loom: Doctor** from the Command Palette first — it checks the

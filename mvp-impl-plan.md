@@ -878,6 +878,7 @@ Several tasks reference files that **do not exist yet**. That is correct — the
 | `docs/claims.md` | `MV0-T03` | One row per externally visible claim, each naming the test that backs it |
 | `scripts/check-claims.mjs` | `MV0-T03` | Fails the build on a claim whose named test does not exist |
 | `scripts/check-mvp-traceability.mjs` | `MV0-T04` | Fails on drift between `mvp-req-final.md` §5 and this plan |
+| `scripts/check-demo-package.mjs` | `MV3-T05` | Fails when a `DEMO.md` step is not backed by something inside the built VSIX |
 | `docs/baselines/` | `MV0-T01` | Suite counts, commit, platform and wall-clock per phase exit |
 | `docs/evidence-gate.md` | `MV1-T08` | The Orchestra go/no-go thresholds, written before the study |
 | `shared/schema/compatibility.json` | `MV1-T05` | The machine-readable support matrix; the published table and `doctor` output are generated from it |

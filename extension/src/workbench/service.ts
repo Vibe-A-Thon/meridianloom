@@ -55,6 +55,7 @@ import {
   noteAgentIdentity,
   type AgentIdentity,
 } from "../adapters/identity";
+import { verifyAdapterPin } from "../adapters/pinning";
 import {
   AcpRegistrySource,
   type RegistryEntry,
@@ -1882,6 +1883,34 @@ export class WorkbenchService {
    * to your workspace, and recording one would make the revision counter lie.
    */
   /**
+   * Refuse to launch an agent whose installed folder has changed
+   * (`FR-M44-04`, `SEC-33`).
+   *
+   * Only agents Meridian installed have a pin, so only they can drift.
+   * An agent with no folder — the ordinary case, a command bound by hand —
+   * reads as `unpinned` and launches: it was never installed here, there is
+   * no baseline, and refusing it would break every preset binding.
+   *
+   * Throwing refuses the launch. `launchAdapter` awaits this hook precisely
+   * so a refusal can arrive before the process starts rather than after it
+   * has already acted.
+   */
+  private async refuseDriftedAdapter(
+    agentId: string,
+    workspaceDir: string,
+  ): Promise<void> {
+    const root = path.join(workspaceDir, ".meridian", "adapters");
+    const verdict = await verifyAdapterPin(
+      root,
+      agentId,
+      path.join(root, agentId),
+    ).catch(() => undefined);
+    if (verdict?.state === "drifted") {
+      throw new Error(verdict.detail);
+    }
+  }
+
+  /**
    * Record which binary this agent actually is (FR-M44-01/02, AC-52).
    *
    * Two things happen and neither may stop the run: the identity is
@@ -2401,8 +2430,24 @@ export class WorkbenchService {
           // FR-M44-01/02, AC-52 (MV3-T01b): which binary is about to run,
           // recorded before it runs. Awaited by `launchAdapter`, so a swap
           // is known before the agent has done anything.
-          onIdentity: (identity) =>
-            this.recordAgentIdentity(agent.id, agent.vendor, workspaceDir, identity),
+          onIdentity: async (identity) => {
+            // FR-M44-04 (MV3-T01): verify the pin at LOAD, where load means
+            // the moment this agent is about to run.
+            //
+            // The check used to live only in `discoverAdapters`, which the
+            // shipped extension never calls — so the whole verify half was
+            // tree-shaken out of the bundle and pinning wrote a digest
+            // nothing ever read back. The package check found it: the
+            // refusal text was absent from extension.js. A control that
+            // does not run is not a control.
+            await this.refuseDriftedAdapter(agent.id, workspaceDir);
+            await this.recordAgentIdentity(
+              agent.id,
+              agent.vendor,
+              workspaceDir,
+              identity,
+            );
+          },
           approvePermission: async (request, context) => {
             if (
               this.disposed ||

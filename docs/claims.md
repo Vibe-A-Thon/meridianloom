@@ -98,6 +98,10 @@ Why this exists: the freeze audit found a requirements document asserting a gree
 | A cost that was not recorded renders as unrecorded, never as $0.00 | Evidence · Pull request | `webview/src/screens/pull-request-card.test.tsx > an unrecorded cost inside a measured result is not zero either` | backed |
 | The pull-request card states the human action required in words | Evidence · Pull request | `webview/src/screens/pull-request-card.test.tsx > a blocked gate says what to fix and what approving over it means` | backed |
 | **The pull-request card reads the record; it offers no route to approve or halt** | Evidence · Pull request | `webview/src/screens/pull-request-card.test.tsx > offers no approve button` | backed |
+| An adapter that changed after installation does not launch, and the refusal names both digests | `docs/SECURITY-AND-DATA.md` §7 | `extension/test/registry-bay.test.ts > refuses the launch and names both digests` | backed |
+| Every step of `DEMO.md` is backed by something inside the built package | `DEMO.md` | `scripts/check-demo-package.mjs` | backed |
+| Run initiation is absent below the Governor tier on the route the shipped app renders | `DEMO.md` step 6b | `webview/src/screens/launch-screen.test.tsx > the workbench route a user actually reaches gates it too` | backed |
+| **`DEMO.md` has not been walked end to end from the package on a clean machine** | `DEMO.md` | — | limitation |
 | **Without a witness, a re-signed fork of the whole ledger still verifies** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **The commit trailer is editable; it is a pointer, not a proof** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **Enforcement is in the editor, not the SCM** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |

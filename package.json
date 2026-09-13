@@ -14,6 +14,7 @@
     "check:webview-build": "node scripts/check-webview-build.mjs",
     "test:core": "python -m pytest core/tests -q -m \"not perf\" -n auto",
     "test:core:serial": "python -m pytest core/tests -q -m \"not perf\"",
-    "test:budgets": "python -m pytest core/tests -q -s -m perf && python -m pytest core/tests/test_full_history_metrics.py -q -s"
+    "test:budgets": "python -m pytest core/tests -q -s -m perf && python -m pytest core/tests/test_full_history_metrics.py -q -s",
+    "check:demo": "node scripts/check-demo-package.mjs"
   }
 }

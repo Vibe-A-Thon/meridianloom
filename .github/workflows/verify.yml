@@ -284,6 +284,13 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run package
+      # MP7: the checkout is not the artefact. This asserts that every step
+      # DEMO.md tells a presenter to take is backed by something inside the
+      # VSIX they would install. It found two real gaps the unit suites could
+      # not: a screen registered in a registry nothing renders, and an
+      # integrity check tree-shaken out because its only caller was unwired.
+      - name: DEMO.md is backed by the package
+        run: node scripts/check-demo-package.mjs
       - name: the packaged extension
         uses: actions/upload-artifact@v4
         with:

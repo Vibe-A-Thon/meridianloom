@@ -4,6 +4,7 @@ import { WebviewRpcClient } from '../rpc/client';
 import { makeHost } from '../test/host-harness';
 import { LaunchScreen } from './LaunchScreen';
 import { SCREEN_REGISTRY, visibleScreens } from './registry';
+import { WorkspaceOperations } from '../workbench/operations/WorkspaceOperations';
 
 /**
  * 10.51 Launch against a scripted host — FR-M40-01/02/03/09, AC-38/39/40,
@@ -51,6 +52,25 @@ const ENFORCEMENT = {
   },
 };
 
+/** The least a `WorkspaceOperations` render needs; the launch view reads none of it. */
+const WORKBENCH_SNAPSHOT = {
+  revision: 1,
+  agents: [],
+  skills: [],
+  instructions: [],
+  integrations: [],
+  deliverables: [],
+  learning: [],
+  runs: [],
+  documents: [],
+  capabilities: {
+    workspaceOpen: true,
+    trusted: true,
+    governorEnabled: true,
+    executionReady: true,
+  },
+} as never;
+
 function mount(over: Partial<typeof PREFLIGHT> = {}, extra: Record<string, unknown> = {}) {
   const host = makeHost({
     'governance/enforcementPoints': ENFORCEMENT,
@@ -73,9 +93,7 @@ function mount(over: Partial<typeof PREFLIGHT> = {}, extra: Record<string, unkno
     <LaunchScreen
       client={client}
       ready
-      sessions={{ data: undefined, error: undefined, loading: false, refetch: () => {} } as never}
       workspaceDir="/repo/ws"
-      enabledTiers={['flight-recorder', 'governor']}
     />,
   );
   return { host, client };
@@ -182,5 +200,47 @@ describe('Launch is absent below Governor (FR-M40-11, AC-40)', () => {
     expect(definition?.tier).toBe('governor');
     expect(visibleScreens(['flight-recorder']).map((s) => s.id)).not.toContain('launch');
     expect(visibleScreens(['flight-recorder', 'governor']).map((s) => s.id)).toContain('launch');
+  });
+
+  it.each([
+    [['flight-recorder'] as const, false],
+    [['flight-recorder', 'governor'] as const, true],
+  ])('the workbench route a user actually reaches gates it too (%s)', async (tiers, expected) => {
+    /**
+     * The registry assertion above is necessary and was not sufficient.
+     * `SCREEN_REGISTRY` has no production consumer, so registering the
+     * screen there put it in the tests and nowhere a person could reach —
+     * which the package check found by looking for `preflight-confirm` in
+     * the built webview bundle and not finding it.
+     *
+     * This asserts the mount on the route the shipped app renders: the
+     * workbench's `launch` view.
+     */
+    const host = makeHost({
+      'governance/enforcementPoints': ENFORCEMENT,
+      'run/preflight': { preflight: PREFLIGHT },
+      'ledger.query': { entries: [] },
+      'worktree/conflicts': { blocked: false, conflicts: [] },
+    });
+    const client = new WebviewRpcClient(host.transport);
+    render(
+      <WorkspaceOperations
+        view="launch"
+        controller={{
+          snapshot: WORKBENCH_SNAPSHOT,
+          execute: (async () => WORKBENCH_SNAPSHOT) as never,
+          busy: false,
+          error: null,
+          refresh: async () => {},
+        }}
+        client={client}
+        ready
+        workspaceDir="/repo/ws"
+        enabledTiers={[...tiers]}
+        onNavigate={() => {}}
+      />,
+    );
+    expect(Boolean(screen.queryByTestId('launch-preflight'))).toBe(expected);
+    client.dispose();
   });
 });

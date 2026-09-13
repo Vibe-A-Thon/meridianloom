@@ -2,8 +2,7 @@ import { useState } from 'react';
 import type { RunPreflight } from '../../../shared/ts/bus-types';
 import { PreflightDialog, type Preflight } from '../components/PreflightDialog';
 import { useEnforcementPoints } from '../hooks/useEnforcementPoints';
-import { RpcError } from '../rpc/client';
-import type { ScreenProps } from './registry';
+import { RpcError, type WebviewRpcClient } from '../rpc/client';
 import styles from './launch-screen.module.css';
 
 /**
@@ -43,7 +42,21 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function LaunchScreen({ client, ready, workspaceDir }: ScreenProps) {
+/**
+ * Exactly what this screen uses, rather than the whole `ScreenProps`.
+ *
+ * It is mounted from two places — the workbench's `launch` view, which is
+ * the route the shipped app actually reaches, and the screen registry — and
+ * the wider prop type would have forced the workbench mount to invent a
+ * `sessions` query this screen never reads.
+ */
+export interface LaunchScreenProps {
+  client: WebviewRpcClient;
+  ready: boolean;
+  workspaceDir?: string;
+}
+
+export function LaunchScreen({ client, ready, workspaceDir }: LaunchScreenProps) {
   const [intent, setIntent] = useState('');
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const enforcement = useEnforcementPoints(ready ? client : undefined);

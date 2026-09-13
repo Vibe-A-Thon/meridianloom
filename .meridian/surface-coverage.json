@@ -1,6 +1,6 @@
 {
   "$schema": "meridian-loom/surface-coverage@1",
-  "generatedAt": "2026-09-12T21:52:17.455Z",
+  "generatedAt": "2026-09-13T03:35:04.716Z",
   "registry": "shared/schema/tiers.json",
   "allowlist": "shared/schema/unsurfaced.json",
   "roots": [
@@ -414,13 +414,10 @@
       "method": "pr/conflicts",
       "capability": "governor.pr-gates",
       "tier": "governor",
-      "callerCount": 0,
-      "callers": [],
-      "declared": {
-        "reason": "PR-gates conflict probe. The Delivery Evidence screen already consumes pr/ingest and pr/status; pr/conflicts lands with the N2 SCM-enforcement slice (FR-M42-03, AC-45).",
-        "reviewed": "2026-09-09",
-        "mustSurface": false
-      }
+      "callerCount": 1,
+      "callers": [
+        "webview/src/screens/PullRequestCard.tsx"
+      ]
     },
     {
       "method": "pr/ingest",
@@ -435,8 +432,9 @@
       "method": "pr/status",
       "capability": "governor.pr-gates",
       "tier": "governor",
-      "callerCount": 1,
+      "callerCount": 2,
       "callers": [
+        "webview/src/screens/PullRequestCard.tsx",
         "webview/src/workbench/governance/DeliveryEvidence.tsx"
       ]
     },
@@ -554,8 +552,9 @@
       "method": "spend/series",
       "capability": "recorder.spend",
       "tier": "flight-recorder",
-      "callerCount": 1,
+      "callerCount": 2,
       "callers": [
+        "webview/src/screens/PullRequestCard.tsx",
         "webview/src/workbench/governance/Observatory.tsx"
       ],
       "declared": {
@@ -834,8 +833,8 @@
   ],
   "summary": {
     "total": 78,
-    "surfaced": 71,
-    "declared": 17,
+    "surfaced": 72,
+    "declared": 16,
     "undeclaredOrphans": 0,
     "mustSurfacePending": 0,
     "mustSurfaceResolved": 10
