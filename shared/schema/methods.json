@@ -446,6 +446,21 @@
         "NOT_HOSTED"
       ]
     },
+    "interop/records": {
+      "description": "FR-M52-01 (MV3-T06): every provenance record another tool has written into this repository — git notes under that tool's own ref, session-log trailers, vendor Co-Authored-By lines. Read-only and side-effect free: it does not notarise, so a surface can show what is there before anybody commits to recording it. Each record carries the tool that wrote it and confidence `inferred`, never higher: Meridian did not observe the act, it read a file claiming the act happened. The record content is untrusted input — parsed under an allow-list, never executed (SEC-42) — and capped, with oversize reported rather than silently dropped.",
+      "params": { "$ref": "#/$defs/InteropRecordsParams" },
+      "result": { "$ref": "#/$defs/InteropRecordsResult" }
+    },
+    "interop/notarise": {
+      "description": "FR-M52-03, SEC-43, AC-59 (MV3-T06): make a foreign provenance record tamper-evident by writing the digest of it into the signed ledger. The DIGEST, not the content: Meridian is not the custodian of another tool's data, and copying it would make it one, with the retention and erasure obligations that follow. The entry states in words that the signature covers the digest and not the claim — a signature beside somebody else's assertion reads as a signature ON it unless something stops it. Notarising the same unchanged record twice is idempotent and records nothing new; there is nothing to prove a second time.",
+      "params": { "$ref": "#/$defs/InteropNotariseParams" },
+      "result": { "$ref": "#/$defs/InteropNotariseResult" }
+    },
+    "interop/verify": {
+      "description": "AC-59's second half (MV3-T06): re-read each notarised record and compare it with the digest in the ledger. A record that has been altered since Meridian saw it is reported with both digests. A record that has been REMOVED is reported as gone rather than as altered — a tool cleaning up its own notes is ordinary, and accusing it of tampering would make this check the boy who cried wolf.",
+      "params": { "$ref": "#/$defs/InteropVerifyParams" },
+      "result": { "$ref": "#/$defs/InteropVerifyResult" }
+    },
     "trust.summary": {
       "description": "Governor tier stub (FR-M37-*; F0 subset/F1 full): trust and rejection analytics summary. Same tier-enforcement role as gate.evaluate.",
       "params": {
@@ -3485,6 +3500,100 @@
         "cancelled": { "type": "boolean" },
         "sequence": { "type": ["integer", "null"] },
         "note": { "type": "string" }
+      }
+    },
+    "ForeignRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "kind", "source", "commit", "digest", "observedAt", "confidence", "truncated", "notEndorsed"],
+      "properties": {
+        "tool": { "type": "string", "description": "Which tool wrote it. `unknown-tool` for a notes ref Meridian does not recognise — named as unknown rather than guessed." },
+        "kind": { "type": "string", "enum": ["git-note", "trailer"] },
+        "source": { "type": "string", "description": "The notes ref, or the trailer key." },
+        "commit": { "type": "string" },
+        "digest": { "type": "string", "description": "sha256 over the exact bytes read, before any parsing and with no normalisation." },
+        "observedAt": { "type": "string" },
+        "confidence": { "type": "string", "enum": ["inferred"], "description": "FR-M52-02: a foreign record is never above `inferred`. The enum is closed to one value so no future change can widen it without changing this contract." },
+        "truncated": { "type": "boolean" },
+        "notEndorsed": { "type": "string", "description": "SEC-43, carried on every record so it cannot be lost between the ledger and a surface." },
+        "payload": { "$ref": "#/$defs/ForeignPayload" }
+      }
+    },
+    "ForeignPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "parsed"],
+      "properties": {
+        "format": { "type": "string", "enum": ["json", "text"] },
+        "parsed": { "type": "boolean" },
+        "fields": { "type": "object", "additionalProperties": true, "description": "Scalar leaves only. A nested structure from an untrusted file is where a surface renders something nobody designed for." }
+      }
+    },
+    "InteropRecordsParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repoPath": { "type": "string" },
+        "commit": { "type": "string", "description": "Also read session-log and vendor co-author trailers from this commit." }
+      }
+    },
+    "InteropRecordsResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["records"],
+      "properties": {
+        "records": { "type": "array", "items": { "$ref": "#/$defs/ForeignRecord" } }
+      }
+    },
+    "InteropNotariseParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repoPath": { "type": "string" },
+        "commit": { "type": "string" }
+      }
+    },
+    "InteropNotariseResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["notarised", "alreadyNotarised", "records"],
+      "properties": {
+        "notarised": { "type": "integer", "description": "How many records were newly recorded." },
+        "alreadyNotarised": { "type": "integer", "description": "Unchanged records already in the ledger. Re-recording them would prove nothing twice." },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/ForeignRecord" } }
+      }
+    },
+    "InteropVerifyParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repoPath": { "type": "string" },
+        "commit": { "type": "string" }
+      }
+    },
+    "InteropVerdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "tool", "source", "commit", "digestAtNotarisation", "detail"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "tool": { "type": "string" },
+        "source": { "type": "string" },
+        "commit": { "type": "string" },
+        "digestAtNotarisation": { "type": "string" },
+        "digestNow": { "type": ["string", "null"], "description": "null when the record is no longer in the repository — gone, which is not the same as altered." },
+        "detail": { "type": "string" }
+      }
+    },
+    "InteropVerifyResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdicts", "altered", "missing", "unreadable"],
+      "properties": {
+        "verdicts": { "type": "array", "items": { "$ref": "#/$defs/InteropVerdict" } },
+        "altered": { "type": "integer" },
+        "missing": { "type": "integer" },
+        "unreadable": { "type": "integer", "description": "Notarisation entries whose recorded detail could not be read back because the per-subject blob key was destroyed. Reported rather than skipped: an entry that cannot be checked is not an entry that passed." }
       }
     },
     "GateProfilesParams": {

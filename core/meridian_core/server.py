@@ -48,6 +48,7 @@ from .governance import policy as governance_policy
 from .governance import revocations as governance_revocations
 from .governance import roles as governance_roles
 from . import initiation
+from . import interop
 from . import hooks as provenance_hooks
 from . import metrics as metrics_mod
 from .metrics import evidence_gate
@@ -258,6 +259,14 @@ class SidecarServer:
             # bundle; nothing exposed it to an interface, so a surface had no
             # way to render a control's real boundary and two screens carried
             # hand-written prose notices instead. Prose does not compose.
+            # M52 (MV3-T06): another tool's provenance record, read
+            # and made tamper-evident. Flight Recorder, because this
+            # is observation and observation is the honesty floor.
+            # P31: notarise, do not duplicate — the digest goes in
+            # the ledger, the content stays where its owner put it.
+            "interop/records": SidecarServer._handle_interop_records,
+            "interop/notarise": SidecarServer._handle_interop_notarise,
+            "interop/verify": SidecarServer._handle_interop_verify,
             "governance/enforcementPoints": SidecarServer._handle_enforcement_points,
             # M40 (MV2): one contract, many doors. The door is
             # `origin`; nothing else about a run differs by door
@@ -941,6 +950,190 @@ class SidecarServer:
                 for c in verdict.criteria
             ],
             "reasons": list(verdict.reasons),
+        }
+
+    # -- other tools' provenance records (M52, SEC-42/43; MV3-T06) -----------
+
+    def _interop_repo(self, params: dict[str, Any]) -> str:
+        repo = (params or {}).get("repoPath") or self._workspace_dir
+        if not repo:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                "interop methods need repoPath (or a workspaceDir handshake)",
+            )
+        return str(repo)
+
+    def _interop_read(self, params: dict[str, Any]) -> list[interop.ForeignRecord]:
+        """Every foreign record in the repository, notes and trailers.
+
+        Never raises for a repository that simply has none: a customer with
+        no other provenance tool installed is the common case, and making
+        that look like a fault would teach people to ignore the surface.
+        """
+        repo = self._interop_repo(params)
+        records = list(interop.read_foreign_notes(repo))
+        commit = (params or {}).get("commit")
+        if isinstance(commit, str) and commit.strip():
+            records.extend(interop.read_foreign_trailers(repo, commit.strip()))
+        return records
+
+    @staticmethod
+    def _interop_wire(record: interop.ForeignRecord) -> dict[str, Any]:
+        return {**record.as_wire(), "payload": interop.parsed_payload(record)}
+
+    def _handle_interop_records(
+        self, params: bus_types.InteropRecordsParams
+    ) -> bus_types.InteropRecordsResult:
+        """FR-M52-01: what other tools have written here. Reads nothing into
+        the ledger — a surface can show what is present before anybody
+        commits to recording it."""
+        return {
+            "records": [
+                self._interop_wire(record) for record in self._interop_read(params or {})
+            ]
+        }
+
+    def _notarisation_details(self) -> list[dict[str, Any] | None]:
+        """What each notarisation entry recorded, read back out of its blob.
+
+        `None` for an entry whose blob cannot be read — the per-subject key
+        was crypto-shredded. That is reported rather than skipped: an entry
+        that exists and cannot be checked is a different fact from an entry
+        that checks out, and silently dropping it would make `interop/verify`
+        report all-clear over records it never looked at.
+        """
+        ledger = self._ensure_ledger()
+        details: list[dict[str, Any] | None] = []
+        for row in ledger.query(action_type="foreign_record_notarised", limit=1000):
+            ref = row.get("input_ref")
+            if not isinstance(ref, str) or not ref:
+                details.append(None)
+                continue
+            try:
+                raw = ledger.read_blob(ref, str(row.get("blob_key_id") or "default"))
+                detail = json.loads(raw.decode("utf-8"))
+            except Exception:
+                details.append(None)
+                continue
+            details.append(detail if isinstance(detail, dict) else None)
+        return details
+
+    def _notarised_digests(self) -> set[str]:
+        """Digests already notarised, so the same unchanged record is not
+        recorded twice. Proving the same thing a second time adds a row and
+        no evidence."""
+        return {
+            detail["digest"]
+            for detail in self._notarisation_details()
+            if detail and isinstance(detail.get("digest"), str)
+        }
+
+    def _handle_interop_notarise(
+        self, params: bus_types.InteropNotariseParams
+    ) -> bus_types.InteropNotariseResult:
+        """FR-M52-03, SEC-43, AC-59: the digest into the signed ledger.
+
+        The digest and not the content. Meridian is not the custodian of
+        another tool's data, and copying it would make it one — with the
+        retention, erasure and disclosure obligations that follow. What the
+        entry buys is that a third party can prove the record has not been
+        altered since Meridian saw it; it buys nothing about whether the
+        record was true, and the entry says so.
+        """
+        params = params or {}
+        records = self._interop_read(params)
+        already = self._notarised_digests()
+        pack = self._role_pack(params)
+
+        notarised = 0
+        for record in records:
+            if record.digest in already:
+                continue
+            entry = interop.notarisation_entry(record)
+            self._append_gate_entry(
+                story_id=entry["storyId"],
+                pack=pack,
+                decision="proposed",
+                action_type=entry["actionType"],
+                # No control enforced anything here. Meridian observed a file
+                # and recorded a digest; naming a control would imply a gate
+                # that did not run.
+                control=None,
+                phase=entry["phase"],
+                actor_kind="external",
+                vendor=entry["vendor"],
+                observation_confidence=entry["observationConfidence"],
+                detail=entry["detail"],
+            )
+            already.add(record.digest)
+            notarised += 1
+
+        return {
+            "notarised": notarised,
+            "alreadyNotarised": len(records) - notarised,
+            "records": [self._interop_wire(record) for record in records],
+        }
+
+    def _handle_interop_verify(
+        self, params: bus_types.InteropVerifyParams
+    ) -> bus_types.InteropVerifyResult:
+        """AC-59's second half: does each notarised record still say what it
+        said? Both digests are reported on a mismatch, because the operator's
+        question is "did this change, and to what?"."""
+        params = params or {}
+        present = {
+            (record.source, record.commit): record
+            for record in self._interop_read(params)
+        }
+        verdicts: list[dict[str, Any]] = []
+        altered = 0
+        missing = 0
+        unreadable = 0
+        for detail in self._notarisation_details():
+            if detail is None:
+                unreadable += 1
+                verdicts.append(
+                    {
+                        "ok": False,
+                        "tool": "unknown-tool",
+                        "source": "",
+                        "commit": "",
+                        "digestAtNotarisation": "",
+                        "digestNow": None,
+                        "detail": (
+                            "A notarisation entry exists whose detail could not be "
+                            "read, so what it recorded cannot be compared. Its "
+                            "per-subject blob key was destroyed."
+                        ),
+                    }
+                )
+                continue
+            key = (detail.get("source"), detail.get("commit"))
+            recorded = detail.get("digest")
+            if not isinstance(recorded, str):
+                continue
+            verdict = interop.verify_notarisation(recorded, present.get(key))
+            if not verdict.ok:
+                if verdict.digest_now is None:
+                    missing += 1
+                else:
+                    altered += 1
+            verdicts.append(
+                {
+                    "ok": verdict.ok,
+                    "tool": detail.get("tool", "unknown-tool"),
+                    "source": detail.get("source", ""),
+                    "commit": detail.get("commit", ""),
+                    "digestAtNotarisation": verdict.digest_at_notarisation,
+                    "digestNow": verdict.digest_now,
+                    "detail": verdict.detail,
+                }
+            )
+        return {
+            "verdicts": verdicts,
+            "altered": altered,
+            "missing": missing,
+            "unreadable": unreadable,
         }
 
     # -- enforcement points (FR-M42-11/12, SEC-32; MV1-T01) ------------------

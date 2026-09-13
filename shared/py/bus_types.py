@@ -732,6 +732,58 @@ class RunCancelResult(TypedDict):
     sequence: NotRequired[int | None]
     note: NotRequired[str]
 
+class ForeignRecord(TypedDict):
+    tool: str  # Which tool wrote it. `unknown-tool` for a notes ref Meridian does not recognise — named as unknown rather than guessed.
+    kind: Literal["git-note", "trailer"]
+    source: str  # The notes ref, or the trailer key.
+    commit: str
+    digest: str  # sha256 over the exact bytes read, before any parsing and with no normalisation.
+    observedAt: str
+    confidence: Literal["inferred"]  # FR-M52-02: a foreign record is never above `inferred`. The enum is closed to one value so no future change can widen it without changing this contract.
+    truncated: bool
+    notEndorsed: str  # SEC-43, carried on every record so it cannot be lost between the ledger and a surface.
+    payload: NotRequired[ForeignPayload]
+
+class ForeignPayload(TypedDict):
+    format: Literal["json", "text"]
+    parsed: bool
+    fields: NotRequired[dict[str, Any]]  # Scalar leaves only. A nested structure from an untrusted file is where a surface renders something nobody designed for.
+
+class InteropRecordsParams(TypedDict):
+    repoPath: NotRequired[str]
+    commit: NotRequired[str]  # Also read session-log and vendor co-author trailers from this commit.
+
+class InteropRecordsResult(TypedDict):
+    records: list[ForeignRecord]
+
+class InteropNotariseParams(TypedDict):
+    repoPath: NotRequired[str]
+    commit: NotRequired[str]
+
+class InteropNotariseResult(TypedDict):
+    notarised: int  # How many records were newly recorded.
+    alreadyNotarised: int  # Unchanged records already in the ledger. Re-recording them would prove nothing twice.
+    records: list[ForeignRecord]
+
+class InteropVerifyParams(TypedDict):
+    repoPath: NotRequired[str]
+    commit: NotRequired[str]
+
+class InteropVerdict(TypedDict):
+    ok: bool
+    tool: str
+    source: str
+    commit: str
+    digestAtNotarisation: str
+    digestNow: NotRequired[str | None]  # null when the record is no longer in the repository — gone, which is not the same as altered.
+    detail: str
+
+class InteropVerifyResult(TypedDict):
+    verdicts: list[InteropVerdict]
+    altered: int
+    missing: int
+    unreadable: int  # Notarisation entries whose recorded detail could not be read back because the per-subject blob key was destroyed. Reported rather than skipped: an entry that cannot be checked is not an entry that passed.
+
 class GateProfilesParams(TypedDict):
     policyPath: NotRequired[str]
 
@@ -1607,7 +1659,7 @@ class EvidenceGateResult(TypedDict):
     coverage: NotRequired[CoverageEnvelope]
 
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "interop/records", "interop/notarise", "interop/verify", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate"]
 
 # Every notification method on the bus.
 NotificationName = Literal["gate/halt", "spend/ceiling", "tiers/set", "$/cancel"]
@@ -1666,6 +1718,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.observers", "tier": "flight-recorder", "description": "External-agent observers (FR-M35-02/03/08, X-29, NFR-32; F0 Workstream D tasks 17-22): session observation via the documented fallback chain with confidence downgrade, X-29 session detection behind the Crown, and observer health. Zero model calls (FR-M36-07); one-way isolation (SEC-27). N1 adds volatile-evidence capture against the vendors' documented retention windows (FR-M44-11/12, NFR-37 — observe/captureEvidence records latency, achieved margin and what was unavailable) and the session-lifetime evidence_expired markers a closed window emits (FR-M44-13, AC-47).", "rpcMethods": ["observe/sessions", "observe/health", "observe/captureEvidence"]},
     {"id": "recorder.provenance-hooks", "tier": "flight-recorder", "description": "Git provenance trailers (FR-M36-03, D23; F0 Workstream E tasks 23-24): the opt-in commit-msg hook appending `Meridian-Ledger: <seq range>`, pending-commit linkage records keyed by staged content hash, hook lifecycle (install/status/remove), and cross-vendor agent-identity trailer parsing into attribution records. Zero model calls (FR-M36-07).", "rpcMethods": ["hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse"]},
     {"id": "recorder.enforcement-points", "tier": "flight-recorder", "description": "FR-M42-11/12, SEC-32 (MV1-T01): the honest enforcement-point declaration for every control Meridian displays — the closed vocabulary (editor | extension_host | sidecar | scm | ci | advisory_only), whether each control is enforced or advisory, and the boundary note saying what could bypass it and who could do so. Returns the EFFECTIVE declaration: an scm-point control with no SCM binding configured is downgraded to sidecar with the downgrade stated (D37), so v1 never claims SCM enforcement it does not have. Flight-recorder tier because the base tier displays controls too, and a tier that cannot state its own boundaries cannot be honest about them.", "rpcMethods": ["governance/enforcementPoints"]},
+    {"id": "recorder.interop", "tier": "flight-recorder", "description": "M52 interoperability with other provenance tools (FR-M52-01/02/03, SEC-42/43, AC-59, NFR-47; MV3-T06). Reads provenance records another tool wrote into the repository — git notes under its own ref, session-log trailers, vendor Co-Authored-By lines — and NOTARISES them: the digest of the record goes into the signed ledger, so a third party can later prove the record has not been altered since Meridian saw it. FLIGHT RECORDER TIER, because this is observation and the honesty floor is where observation lives; a customer running Meridian purely as a recorder gets it. P31: notarise, do not duplicate. The content is not copied into the ledger — only its digest — because copying would make Meridian the custodian of another tool's data. SEC-43: the signature covers the digest and not the claim, and every record is labelled with that tool as the source at `inferred`, never as Meridian's own observation (FR-M52-02).", "rpcMethods": ["interop/records", "interop/notarise", "interop/verify"]},
     {"id": "recorder.trust-metrics", "tier": "flight-recorder", "description": "Rejection measurement and trust analytics (FR-M37-01/02/03/04/05/06/07/08, FR-M17-01/05; F0 Workstream F tasks 28-30, F1 Workstream E tasks 19-25): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), the ledger-derived, in-process-cached rejection rate per agent/repository/action-class/phase/story split by that distinction (trust/rejectionRate), the E-GR-03 rejection-reason distribution per agent (trust/reasonDistribution), the trust score with its full per-component decomposition (trust/score, trust/scoreDecomposition), same-story agent-vs-agent comparison with unknown-labelled components (trust/compareAgents), the adoption J-curve (trust/jcurve), the tokenmaxxing detector over spend series (trust/tokenmaxxing), and the DORA four-keys export in OTLP-friendly JSON (trust/doraExport). Read-only observability. Zero model calls (FR-M36-07). Also carries the F2 evidence gate (evidence/gate, gaps_implementation.md §F2): the GO / STOP / PIVOT / KILL decision computed from the same ledger, with every measure that cannot be evidenced reported as unavailable with its reason rather than as a zero, and a verdict of insufficient_evidence when fewer than twenty stories are in scope. Flight Recorder because it reads only what the recorder already records — the gate must be answerable by a team that never enabled Governor.", "rpcMethods": ["trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "evidence/gate"]},
     {"id": "recorder.spend", "tier": "flight-recorder", "description": "Cross-vendor spend and predictable pricing (FR-M39-01/02/03/04, FR-M26-03; F1 Workstream F tasks 26-29): the M39 spend feed adapts recorded ledger token/cost rows onto the SpendSeries protocol (spend/series) — the cross-vendor bill by vendor, model, agent, story, team and cost centre (dimensions without recorded evidence are 'unknown', never fabricated); spend ceilings from the governance pack's budgetCeilings (spend/ceilingCheck) that pause hosted agents at a checkpoint — ledger-recorded and dispatched to the extension host, which owns the wire — and warn honestly on observed agents, which cannot be paused (the same NOT_HOSTED honesty as steer, FR-M35-06); the monthly spend forecast per team with the budget alert (spend/forecast, a documented deterministic least-squares projection over the trailing months, alerting on budgetCeilings.usdPerMonth); and the per-vendor/model pricing table from the pricing pack, USD default (D12), so recorded tokens x configured rate = cost (spend/pricing). Ceiling checks and warnings are ledger-recorded before the RPC returns (FR-M10-08), like gate.halt. Zero model calls (FR-M36-07).", "rpcMethods": ["spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing"]},
     {"id": "governor.initiation", "tier": "governor", "description": "M40 run initiation (FR-M40-01/02/03/05/09/11, SEC-30, AC-38/39/40; MV2): one RunRequest, one entry point, many doors. run/preflight assembles the six answers FR-M40-03 requires a human to see before anything is created; run/start refuses unless preflight was confirmed AND the launch was role-checked, and records the run's first ledger entry — carrying run_id and origin — BEFORE creating the worktree; run/cancel leaves a single cancellation record and nothing else. GOVERNOR TIER AND ABSENT BELOW IT (FR-M40-11, X-28, banned pattern 30): in Flight Recorder there is no Meridian agent to start, so these methods are not registered at all. Not registered-and-refused — a method that exists and says no is the scar G5 forbids.", "rpcMethods": ["run/preflight", "run/start", "run/cancel"]},
@@ -1680,7 +1733,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "interop/records", "interop/notarise", "interop/verify", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate")
 NOTIFICATION_METHODS: tuple[str, ...] = ("gate/halt", "spend/ceiling", "tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -1732,6 +1785,9 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "steer/acceptanceStatus": {"params": SteerAcceptanceStatusParams, "result": SteerAcceptanceStatusResult},
     "steer/status": {"params": SteerStatusParams, "result": SteerStatusResult},
     "steer/plan": {"params": SteerPlanParams, "result": SteerPlanResult},
+    "interop/records": {"params": InteropRecordsParams, "result": InteropRecordsResult},
+    "interop/notarise": {"params": InteropNotariseParams, "result": InteropNotariseResult},
+    "interop/verify": {"params": InteropVerifyParams, "result": InteropVerifyResult},
     "trust.summary": {"params": TrustSummaryParams, "result": TrustSummaryResult},
     "trust/detectRejections": {"params": TrustDetectRejectionsParams, "result": TrustDetectRejectionsResult},
     "trust/classify": {"params": TrustClassifyParams, "result": TrustClassifyResult},

@@ -86,6 +86,16 @@
         ]
       },
       {
+        "id": "recorder.interop",
+        "tier": "flight-recorder",
+        "description": "M52 interoperability with other provenance tools (FR-M52-01/02/03, SEC-42/43, AC-59, NFR-47; MV3-T06). Reads provenance records another tool wrote into the repository — git notes under its own ref, session-log trailers, vendor Co-Authored-By lines — and NOTARISES them: the digest of the record goes into the signed ledger, so a third party can later prove the record has not been altered since Meridian saw it. FLIGHT RECORDER TIER, because this is observation and the honesty floor is where observation lives; a customer running Meridian purely as a recorder gets it. P31: notarise, do not duplicate. The content is not copied into the ledger — only its digest — because copying would make Meridian the custodian of another tool's data. SEC-43: the signature covers the digest and not the claim, and every record is labelled with that tool as the source at `inferred`, never as Meridian's own observation (FR-M52-02).",
+        "rpcMethods": [
+          "interop/records",
+          "interop/notarise",
+          "interop/verify"
+        ]
+      },
+      {
         "id": "recorder.trust-metrics",
         "tier": "flight-recorder",
         "description": "Rejection measurement and trust analytics (FR-M37-01/02/03/04/05/06/07/08, FR-M17-01/05; F0 Workstream F tasks 28-30, F1 Workstream E tasks 19-25): deterministic rejection capture from git history recorded into the ledger (trust/detectRejections), greenfield/brownfield classification of a story's changes (trust/classify), the ledger-derived, in-process-cached rejection rate per agent/repository/action-class/phase/story split by that distinction (trust/rejectionRate), the E-GR-03 rejection-reason distribution per agent (trust/reasonDistribution), the trust score with its full per-component decomposition (trust/score, trust/scoreDecomposition), same-story agent-vs-agent comparison with unknown-labelled components (trust/compareAgents), the adoption J-curve (trust/jcurve), the tokenmaxxing detector over spend series (trust/tokenmaxxing), and the DORA four-keys export in OTLP-friendly JSON (trust/doraExport). Read-only observability. Zero model calls (FR-M36-07). Also carries the F2 evidence gate (evidence/gate, gaps_implementation.md §F2): the GO / STOP / PIVOT / KILL decision computed from the same ledger, with every measure that cannot be evidenced reported as unavailable with its reason rather than as a zero, and a verdict of insufficient_evidence when fewer than twenty stories are in scope. Flight Recorder because it reads only what the recorder already records — the gate must be answerable by a team that never enabled Governor.",

@@ -64,11 +64,6 @@
       "mustSurface": true
     },
     {
-      "method": "ledger.append",
-      "reason": "Write path exercised internally: the sidecar appends on behalf of observe/trust/hook RPCs and the provenance hook; no direct host caller exists by design. No interface surface planned (FR-M46-01 by-design declaration).",
-      "reviewed": "2026-09-09"
-    },
-    {
       "method": "observe/captureEvidence",
       "reason": "N1 volatile-evidence capture (FR-M44-11/12, NFR-37). Phase N1 GUI (evidence-capture affordance on the external-agent surfaces); not one of the G-02 named instruments, so not gate-blocking.",
       "reviewed": "2026-09-09"

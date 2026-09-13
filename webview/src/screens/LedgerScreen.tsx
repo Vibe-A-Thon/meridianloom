@@ -7,6 +7,7 @@ import type {
 import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState';
 import { ConfidenceBar } from '../components/ConfidenceBar';
 import { ExportPanel } from '../components/ExportPanel';
+import { InteropPanel } from './InteropPanel';
 import { ProvenanceHover } from '../components/ProvenanceHover';
 import { SelvageStrip } from '../components/SelvageStrip';
 import { VendorTag } from '../components/VendorTag';
@@ -163,6 +164,8 @@ export function LedgerScreen({ client, ready, enabledTiers }: ScreenProps) {
         <EntryDrawer client={client} sequence={selectedSeq} onClose={() => setSelectedSeq(null)} />
       )}
 
+      {/* M52 (MV3-T06): another tool's record, made tamper-evident. */}
+      <InteropPanel client={client} ready={ready} />
       <ExportPanel client={client} ready={ready} />
     </div>
   );

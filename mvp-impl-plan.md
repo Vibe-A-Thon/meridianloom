@@ -430,6 +430,12 @@ Another provenance tool in the customer's repository is not a competitor to be d
 *Evidence:* `AC-59` — a repository carrying another tool's notes opens, the notes appear attributed to that tool at `inferred`, their digest is in the ledger, and the bundle verifies.
 *Negative control (`MP2`):* alter a notarised third-party record after the fact; verification must show the digest no longer matches. Prove the test fails before the code exists.
 *Principle:* `P31`, `MP9`. *This is `P20` — beneath, not against — pointed at competitors instead of at agents, and it is the cheapest genuinely differentiating thing in this plan.*
+*Built and demonstrated red.* `core/meridian_core/interop.py`; `interop/records`, `interop/notarise` and `interop/verify` at **Flight Recorder** tier, because this is observation and observation is the honesty floor — a customer running Meridian purely as a recorder gets it. Surfaced in the Ledger screen (10.7).
+Three decisions the work forced, each because a test caught the alternative:
+- **The digest is over the note blob's exact bytes** (`git cat-file blob`), not over `git notes show` output. `show` is a presentation command and appends a newline of its own; digesting it would have meant a git upgrade that changed that formatting made every notarised record read as altered.
+- **The parsed payload is not in the ledger entry.** The first version included it, and `test_the_content_is_not_copied_into_the_ledger` caught it: a map of scalars pulled out of the note is the note, rearranged, and `P31` says notarise rather than duplicate. The payload stays on the read path, where a person is looking at their own repository.
+- **A notarisation entry whose blob cannot be read is counted and reported, not skipped.** Skipping would let `interop/verify` report all-clear over records it never looked at.
+`inferred` is a property rather than a field on `ForeignRecord`, so no caller anywhere can construct one claiming direct observation.
 
 **`MV3-T05` — Demo path completed.**
 `DEMO.md` covers install → bind (preset **or** registry) → initiate → gate → PR card → export → independent verification, re-run from the installed package on a machine that has not built it.

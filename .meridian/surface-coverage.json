@@ -1,6 +1,6 @@
 {
   "$schema": "meridian-loom/surface-coverage@1",
-  "generatedAt": "2026-09-12T21:00:15.049Z",
+  "generatedAt": "2026-09-12T21:52:17.455Z",
   "registry": "shared/schema/tiers.json",
   "allowlist": "shared/schema/unsurfaced.json",
   "roots": [
@@ -225,16 +225,40 @@
       ]
     },
     {
+      "method": "interop/notarise",
+      "capability": "recorder.interop",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/screens/InteropPanel.tsx"
+      ]
+    },
+    {
+      "method": "interop/records",
+      "capability": "recorder.interop",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/screens/InteropPanel.tsx"
+      ]
+    },
+    {
+      "method": "interop/verify",
+      "capability": "recorder.interop",
+      "tier": "flight-recorder",
+      "callerCount": 1,
+      "callers": [
+        "webview/src/screens/InteropPanel.tsx"
+      ]
+    },
+    {
       "method": "ledger.append",
       "capability": "recorder.ledger",
       "tier": "flight-recorder",
-      "callerCount": 0,
-      "callers": [],
-      "declared": {
-        "reason": "Write path exercised internally: the sidecar appends on behalf of observe/trust/hook RPCs and the provenance hook; no direct host caller exists by design. No interface surface planned (FR-M46-01 by-design declaration).",
-        "reviewed": "2026-09-09",
-        "mustSurface": false
-      }
+      "callerCount": 1,
+      "callers": [
+        "extension/src/workbench/service.ts"
+      ]
     },
     {
       "method": "ledger.exportBundle",
@@ -809,9 +833,9 @@
     }
   ],
   "summary": {
-    "total": 75,
-    "surfaced": 67,
-    "declared": 18,
+    "total": 78,
+    "surfaced": 71,
+    "declared": 17,
     "undeclaredOrphans": 0,
     "mustSurfacePending": 0,
     "mustSurfaceResolved": 10

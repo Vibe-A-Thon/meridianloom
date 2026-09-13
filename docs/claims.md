@@ -83,6 +83,16 @@ Why this exists: the freeze audit found a requirements document asserting a gree
 | A registry that answers with an unreadable index is reported as a registry fault, not a network one | Adapter Bay | `extension/test/registry-bay.test.ts > a registry that answers with rubbish is NOT reported as unreachable` | backed |
 | **A registry listing is not a review, a security assessment or an endorsement** | `docs/SECURITY-AND-DATA.md` §7 · Adapter Bay | — | limitation |
 | **A content pin proves the bytes did not change, not that they were ever trustworthy** | `docs/SECURITY-AND-DATA.md` §7 | — | limitation |
+| Another tool's provenance record can be read and its digest recorded in the signed ledger | `docs/SECURITY-AND-DATA.md` §5 · Ledger | `core/tests/test_interop_rpc.py::test_the_digest_lands_in_the_signed_ledger` | backed |
+| A notarised record that is later altered is detected, with both digests reported | `docs/SECURITY-AND-DATA.md` §5 · Ledger | `core/tests/test_interop_rpc.py::test_a_rewritten_note_is_caught_by_verify` | backed |
+| A notarised record that is later removed is reported as gone, not as altered | `docs/SECURITY-AND-DATA.md` §5 | `core/tests/test_interop_rpc.py::test_a_deleted_note_reads_as_gone_rather_than_altered` | backed |
+| A foreign provenance record is never recorded above `inferred` | `docs/SECURITY-AND-DATA.md` §5 · Ledger | `core/tests/test_interop.py::test_it_is_never_above_inferred` | backed |
+| A foreign record is attributed to the tool that wrote it, never to Meridian | `docs/SECURITY-AND-DATA.md` §5 · Ledger | `core/tests/test_interop.py::test_it_is_attributed_to_that_tool_and_not_to_meridian` | backed |
+| Notarising records the digest only; the record's content is not copied into the ledger | `docs/SECURITY-AND-DATA.md` §5 | `core/tests/test_interop_rpc.py::test_the_content_is_not_copied_into_the_ledger` | backed |
+| Nothing in the third-party record reader evaluates what it reads | `docs/SECURITY-AND-DATA.md` §5 | `core/tests/test_interop.py::test_nothing_in_this_module_evaluates_what_it_reads` | backed |
+| Reading another tool's records writes nothing to the ledger | Ledger | `core/tests/test_interop_rpc.py::test_reading_records_nothing` | backed |
+| The chain still verifies with notarisation entries in it | `docs/SECURITY-AND-DATA.md` §5 | `core/tests/test_interop_rpc.py::test_the_chain_still_verifies_afterwards` | backed |
+| **Notarising a record proves what it said when Meridian read it, not that it was true** | `docs/SECURITY-AND-DATA.md` §5 · Ledger | — | limitation |
 | **Without a witness, a re-signed fork of the whole ledger still verifies** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **The commit trailer is editable; it is a pointer, not a proof** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |
 | **Enforcement is in the editor, not the SCM** | `docs/SECURITY-AND-DATA.md` §6 | — | limitation |

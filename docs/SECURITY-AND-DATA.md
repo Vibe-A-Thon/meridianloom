@@ -118,6 +118,38 @@ Subject content can be erased on request. Erasure is **crypto-shredding**: the
 subject's key is destroyed, its content becomes permanently unreadable, and the
 chain remains intact and still verifies.
 
+### Other tools' provenance records
+
+If another provenance tool is already working in your repository — writing
+git notes under its own ref, session trailers, co-author lines — Meridian can
+read those records and **notarise** them: the digest of the record goes into
+the signed ledger.
+
+What that buys you is narrow and real. A note in a repository is a mutable
+blob, and anybody who can write the repository can rewrite what it says about
+what an agent did last March. Once Meridian has notarised it, a third party
+can prove the record has not been altered since Meridian read it.
+
+What it does not buy:
+
+- **Meridian did not observe the work.** It read a file claiming the work
+  happened. Every foreign record is attributed to the tool that wrote it and
+  recorded at `inferred` — the bottom rung — and there is no path in the code
+  that produces anything else for one.
+- **Notarising is not endorsing.** Meridian signs the digest, not the claim.
+  The ledger entry carries that sentence, because a signature sitting beside
+  somebody else's assertion gets read as a signature *on* it otherwise.
+- **The content is not copied.** Only the digest is recorded. Meridian is not
+  the custodian of another tool's data, and taking a copy — even a tidy
+  structured one — would make it one, with the retention and erasure
+  obligations that follow.
+
+The record itself is untrusted input: parsed under an allow-list, never
+executed, and capped in size with oversize reported rather than silently
+dropped. A record that has been **removed** since it was notarised is
+reported as gone, not as altered; a tool cleaning up its own notes is
+ordinary and accusing it of tampering would make the check worthless.
+
 ## 6. Limitations we are telling you about
 
 - **Without a witness, a re-signed fork of the whole ledger still verifies.**

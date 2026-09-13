@@ -20,6 +20,18 @@ export const VENDOR_IDS = [
   'codex',
   'devin',
   'gemini',
+  // M52 (MV3-T06): other provenance tools whose records Meridian reads and
+  // notarises. They are vendors here in exactly the sense the ledger means —
+  // the party an observation is attributed to — and leaving them out made
+  // every foreign record render as "Unknown vendor", which loses the
+  // attribution FR-M52-02 exists to preserve.
+  'aider',
+  'continue',
+  'gitbutler',
+  'codeium',
+  'sourcegraph',
+  'git-notes',
+  'unknown-tool',
   'unknown',
 ] as const;
 export type VendorId = (typeof VENDOR_IDS)[number];
@@ -37,6 +49,16 @@ export const VENDOR_LABELS: Record<VendorId, string> = {
   codex: 'Codex',
   devin: 'Devin',
   gemini: 'Gemini',
+  aider: 'Aider',
+  continue: 'Continue',
+  gitbutler: 'GitButler',
+  codeium: 'Codeium',
+  sourcegraph: 'Sourcegraph',
+  'git-notes': 'Git notes',
+  // Distinct from `unknown`: Meridian knows a tool wrote this and does not
+  // recognise which. Collapsing the two would lose the fact that the record
+  // has an author at all.
+  'unknown-tool': 'Unrecognised tool',
   unknown: 'Unknown vendor',
 };
 
@@ -59,6 +81,20 @@ const GLYPHS: Record<VendorId, string> = {
   devin: 'M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0-16 0M17 7m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0',
   /* twin parallel bars */
   gemini: 'M8 4v16M16 4v16',
+  /* a nested arrow pair — editing in place */
+  aider: 'M5 12h14M12 5l7 7-7 7M8 5L1 12l7 7',
+  /* an unbroken onward line with a step */
+  continue: 'M3 16h6l3-8h9',
+  /* stacked branch lozenges */
+  gitbutler: 'M6 4v16M6 8h8a4 4 0 0 1 0 8H6',
+  /* a rising stack of three bars */
+  codeium: 'M5 19V13M12 19V8M19 19V4',
+  /* a search ring crossed by a bar */
+  sourcegraph: 'M10 10m-6 0a6 6 0 1 0 12 0a6 6 0 1 0-12 0M14 14l6 6',
+  /* a page corner with a fold — the note */
+  'git-notes': 'M6 3h9l4 4v14H6zM15 3v4h4',
+  /* a solid ring with a question of a gap — authored, by whom we cannot say */
+  'unknown-tool': 'M12 4a8 8 0 1 1-6 13M12 8v4',
   /* dashed ring — nothing claimed */
   unknown: 'M12 4a8 8 0 1 0 8 8',
 };
