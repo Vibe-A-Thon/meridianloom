@@ -49,6 +49,7 @@ from .governance import revocations as governance_revocations
 from .governance import roles as governance_roles
 from . import initiation
 from . import interop
+from . import contract_versions
 from . import hooks as provenance_hooks
 from . import metrics as metrics_mod
 from .metrics import evidence_gate
@@ -852,6 +853,7 @@ class SidecarServer:
         origin: str | None = None,
         phase: str = "review",
         control: str | None = None,
+        external_contract_version: str | None = None,
     ) -> int:
         """FR-M10-08: the gate decision is committed to the ledger BEFORE the
         RPC returns; the encrypted input blob carries the full detail.
@@ -869,6 +871,14 @@ class SidecarServer:
                 "enforcementPoint": governance_enforcement.audit_record(
                     governance_enforcement.effective_declaration(control)
                 ),
+            }
+        if external_contract_version is not None:
+            # FR-M44-06 (N2-T24): a derived entry states which version of
+            # the external contract produced it. "unpinned" is recorded
+            # explicitly by the resolver — never omitted, never invented.
+            detail = {
+                **detail,
+                "externalContractVersion": external_contract_version,
             }
         entry: dict[str, Any] = {
             "ts_utc": ledger_core.utc_now(),
@@ -1048,10 +1058,20 @@ class SidecarServer:
         pack = self._role_pack(params)
 
         notarised = 0
+        unpinned_tools: list[str] = []
         for record in records:
             if record.digest in already:
                 continue
             entry = interop.notarisation_entry(record)
+            # FR-M44-06/07, NFR-40 (N2-T24): the derived entry records the
+            # pinned version of the contract that produced it. An unpinned
+            # tool degrades visibly — named here, recorded as "unpinned" —
+            # never silently treated as current.
+            detail, contract_version = contract_versions.stamp_external_contract(
+                entry["detail"], entry["vendor"]
+            )
+            if contract_version == contract_versions.UNPINNED:
+                unpinned_tools.append(entry["vendor"])
             self._append_gate_entry(
                 story_id=entry["storyId"],
                 pack=pack,
@@ -1065,7 +1085,8 @@ class SidecarServer:
                 actor_kind="external",
                 vendor=entry["vendor"],
                 observation_confidence=entry["observationConfidence"],
-                detail=entry["detail"],
+                detail=detail,
+                external_contract_version=contract_version,
             )
             already.add(record.digest)
             notarised += 1
@@ -1073,6 +1094,7 @@ class SidecarServer:
         return {
             "notarised": notarised,
             "alreadyNotarised": len(records) - notarised,
+            "unpinnedContracts": sorted(set(unpinned_tools)),
             "records": [self._interop_wire(record) for record in records],
         }
 
