@@ -349,3 +349,124 @@ class PlainPythonBridge:
     def guarded_tool(self, agent_id: str, tool: str, argv: Sequence[str]) -> Any:
         """The ONLY tool path a bridged agent gets — permission-checked."""
         return self._surface.invoke(agent_id, tool, argv)
+
+
+# -- FR-M5 registry deltas -----------------------------------------------------
+
+#: FR-M5-07: provenance is derived from where the adapter was discovered
+#: and whether it wraps an external agent — governance is identical, but
+#: trust history is not, so the distinction rides every adapter.
+PROVENANCE_PREBUILT = "prebuilt"
+PROVENANCE_CUSTOM = "custom"
+PROVENANCE_BRIDGED = "bridged"
+
+
+def classify_provenance(folder: AdapterFolder, prebuilt_roots: Sequence[Path]) -> str:
+    if folder.manifest.bridge:
+        return PROVENANCE_BRIDGED
+    for root in prebuilt_roots:
+        try:
+            folder.root.relative_to(root)
+            return PROVENANCE_PREBUILT
+        except ValueError:
+            continue
+    return PROVENANCE_CUSTOM
+
+
+class AgentRegistryM5:
+    """FR-M5-04/05/06/07 on top of the M31 lifecycle: versioned
+    manifests, agent states, immutable versions, retirement that keeps
+    history, provenance on every agent."""
+
+    def __init__(
+        self,
+        registry: AdapterRegistry,
+        *,
+        prebuilt_roots: Sequence[Path] = (),
+        ledger: Any = None,
+    ) -> None:
+        self._registry = registry
+        self._prebuilt_roots = tuple(prebuilt_roots)
+        self._ledger = ledger
+        #: FR-M5-04: every version of a manifest ever admitted is kept;
+        #: a re-plug with a changed version archives the old one rather
+        #: than overwriting it.
+        self._versions: dict[str, list[AdapterFolder]] = {}
+
+    def admit(self, adapter: AdapterFolder) -> None:
+        manifest = adapter.manifest
+        history = self._versions.setdefault(manifest.adapter_id, [])
+        if history and history[-1].manifest.version != manifest.version:
+            history.append(adapter)  # new immutable version; old kept
+        elif not history:
+            history.append(adapter)
+        self._registry.adapters[manifest.adapter_id] = adapter
+        if adapter.valid:
+            self._registry.states[manifest.adapter_id] = "probation"
+            self._record_version(manifest)
+
+    def _record_version(self, manifest: AdapterManifest) -> None:
+        """FR-M5-04: the ledger records the exact version that acts."""
+        if self._ledger is None:
+            return
+        self._ledger.append(
+            {
+                "story_id": "agent-registry",
+                "phase": "govern",
+                "loop_id": "registry",
+                "loop_iteration": 1,
+                "actor_id": manifest.adapter_id,
+                "actor_version": manifest.version,
+                "actor_kind": "meta",
+                "policy_version": "registry/v1",
+                "action_type": "policy_update",
+                "input": json.dumps(
+                    {
+                        "event": "agent_admitted",
+                        "provenance": self.provenance(manifest.adapter_id),
+                    },
+                    ensure_ascii=False,
+                ),
+            }
+        )
+
+    def promote(self, adapter_id: str) -> None:
+        """Probation -> active. Only active agents may take live work."""
+        if adapter_id not in self._registry.adapters:
+            raise AdapterError(f"unknown adapter {adapter_id!r}")
+        if self._registry.states[adapter_id] != "probation":
+            raise AdapterError(
+                f"FR-M5-05: only probation agents may be promoted; "
+                f"{adapter_id} is {self._registry.states[adapter_id]}"
+            )
+        self._registry.states[adapter_id] = "active"
+
+    def pause(self, adapter_id: str) -> None:
+        self._registry.states[adapter_id] = "paused"
+
+    def retire(self, adapter_id: str) -> None:
+        """FR-M5-06: retirement changes state, never deletes the manifest
+        or the version history."""
+        self._registry.states[adapter_id] = "retired"
+
+    def can_take_work(self, adapter_id: str) -> bool:
+        """FR-M5-05: only `active` agents take live work. Inactive
+        agents display Learning with an accurate substate — callers
+        surface the state rather than fabricating activity."""
+        return self._registry.states.get(adapter_id) == "active"
+
+    def learning_substate(self, adapter_id: str) -> str:
+        state = self._registry.states.get(adapter_id, "unknown")
+        return {
+            "probation": "probation: suggest-tier, under evaluation",
+            "paused": "paused: not taking delivery tasks",
+            "retired": "retired: removed from delivery",
+        }.get(state, "active")
+
+    def provenance(self, adapter_id: str) -> str:
+        folder = self._registry.adapters[adapter_id]
+        return classify_provenance(folder, self._prebuilt_roots)
+
+    def versions(self, adapter_id: str) -> tuple[str, ...]:
+        """FR-M5-04: the full immutable version history."""
+        return tuple(a.manifest.version for a in self._versions.get(adapter_id, ()))
