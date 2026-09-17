@@ -35,6 +35,7 @@ _SUBMODULES = {
     "witness": "witness",
     "archive": "archive",
     "privacy": "privacy",
+    "trailer_spec": "trailer_spec",
     "core": "core",
 }
 
