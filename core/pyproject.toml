@@ -29,6 +29,15 @@ dependencies = [
     # the class's JSON Schema before it takes effect. Deterministic
     # validation only — NEVER used for model calls (FR-M36-07).
     "jsonschema==4.26.0",
+    # Approved pinned dependency for the loop runtime (FR-M4-01..11, D1):
+    # LangGraph executes the loop body graph and the SQLite checkpointer
+    # (langgraph-checkpoint-sqlite) gives durable per-node checkpoints
+    # (FR-M4-05). Wrapped behind the LoopRunner interface in
+    # meridian_core.runtime so it stays substitutable (D1). Orchestration
+    # — bounds, ledger entries, gates, replay tagging — is Meridian code.
+    # NEVER used for model calls (FR-M36-07).
+    "langgraph==1.0.8",
+    "langgraph-checkpoint-sqlite==3.1.1",
 ]
 
 [project.optional-dependencies]
