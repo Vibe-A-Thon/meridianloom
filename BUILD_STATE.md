@@ -5,9 +5,9 @@
 **GOVERNING ORDER (changed mid-build — see DECISIONS.md G-0):** the repo owner committed `gaps-requirements.md` + `gaps_implementation.md` (+ `gaps_guix.md`, `gaps_guix_implementation.md`), which supersede the S0 → GUI → C1…C6 sequencing. New order: **F−1 (legal gate, human-gated — see DECISIONS.md) → F0 Flight Recorder → F1 Governor → F2 Evidence Gate (human-run) → F3 Orchestra → F4+ (old C3–C6).** All six original spec files remain requirement sources; copies of all ten docs are in `docs/spec/`.
 
 - **Current phase:** N2 — Unassailable (N0 quiesce COMPLETE, N1 COMPLETE)
-- **Current workstream:** N2 Workstream D part 2 — T19 headless collector, T20 in-toto attestation (T18 DONE: d0b93e8)
-- **Current task:** T20 attestation module (self-contained), then T19 collector CLI
-- **Last commit:** d0b93e8 — N2-T18 DONE: `Meridian-Ledger:` trailer spec v1 published (`docs/meridian-ledger-trailer.md`), reference parser/verifier (`ledger/trailer_spec.py`: parse/format/verify, unknown-version rejection per NFR-39, malformed→warnings never raises), AC-49 proven by 7 tests in `core/tests/test_trailer_ac49.py` (real git repo, third party works from `git log --format=%B` only; tamper/unknown-key/no-trailer all fail closed).
+- **Current workstream:** N2 Workstream E — Vendor surface and supply chain (T21–T25); N2 Workstream D COMPLETE
+- **Current task:** E1 — T21 ACP/MCP session→agent identity binding, T22 unverified-identity labelling, T23 digest pinning, T24 external contract versioning, T25 compatibility matrix publication (D41)
+- **Last commit:** 8e8510c — N2-T19 DONE: headless collector (`collector.py` + `__main__.py` subcommands collect/export/erase/uninstall): exactly-once observe→ingest via EventIngester, recipient-specific portable export retaining schemaVersion/source identifiers/redaction labels (withheldSubjects), opt-in `--sink` POSTs a copy with tree-head bracketed authority check, uninstall preserves ledger/receipts/archive + refuses while worktrees exist; 7 tests green. Earlier in D part 2: d0b93e8 T18 trailer spec+AC-49 (7 tests), 8c1dd73 T20 in-toto attestation (8 tests). Workstream D = T13–T20 all green.
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## N1 status + CROSS-SESSION TASK LIST for the GUI session (owner's second session — read this)
