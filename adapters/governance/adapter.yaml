@@ -1,0 +1,23 @@
+# Governance — prebuilt Meridian adapter (§6.10 roster, M31).
+# Governance facet of the adapter manifest (§7.9). ACP transport is
+# host-side; this folder carries policy, skills, instructions, learning.
+id: governance
+version: "1.0.0"
+role: governance
+acp: true
+bridge: null
+permittedTools: ["repo_read"]
+trainable:
+  policy: false
+  rules: true
+  memory: true
+  skills: false
+  calibration: true
+actionClasses:
+  plan: "assisted"
+  review: "assisted"
+  diff: "assisted"
+  test_run: "deterministic"
+  note: "deterministic"
+dependencies: ["chief-orchestrator"]
+digest: "sha256:e853f5f47b4c7245b03b9eb4f7b886973c835736d91ce6e1c22297a521fe9b4e"

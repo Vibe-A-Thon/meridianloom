@@ -1,0 +1,25 @@
+# Front End Engineer — prebuilt Meridian adapter (§6.10 roster, M31).
+# Governance facet of the adapter manifest (§7.9). ACP transport is
+# host-side; this folder carries policy, skills, instructions, learning.
+id: front-end-engineer
+version: "1.0.0"
+role: front_end_engineer
+acp: true
+bridge: null
+permittedTools: ["repo_read", "build", "test", "apply_patch"]
+trainable:
+  policy: false
+  rules: true
+  memory: true
+  skills: false
+  calibration: true
+actionClasses:
+  plan: "assisted"
+  review: "assisted"
+  diff: "assisted"
+  test_run: "deterministic"
+  note: "deterministic"
+  parse: "deterministic"
+  resolve_symbol: "deterministic"
+dependencies: ["developer"]
+digest: "sha256:24fef944c8bc760566436d49a87345d9b0d367ca42f1e44a14d4d3299925b533"

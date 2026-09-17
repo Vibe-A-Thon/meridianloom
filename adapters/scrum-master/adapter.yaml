@@ -1,0 +1,23 @@
+# Scrum Master — prebuilt Meridian adapter (§6.10 roster, M31).
+# Governance facet of the adapter manifest (§7.9). ACP transport is
+# host-side; this folder carries policy, skills, instructions, learning.
+id: scrum-master
+version: "1.0.0"
+role: scrum_master
+acp: true
+bridge: null
+permittedTools: ["repo_read"]
+trainable:
+  policy: false
+  rules: true
+  memory: true
+  skills: false
+  calibration: true
+actionClasses:
+  plan: "assisted"
+  review: "assisted"
+  diff: "assisted"
+  test_run: "deterministic"
+  note: "deterministic"
+dependencies: []
+digest: "sha256:988e3e076ee657a1e23b65431c346b4f6e45574b940443be2b0cfdb46aa9bf56"
