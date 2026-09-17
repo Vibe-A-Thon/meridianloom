@@ -40,6 +40,22 @@ PROVENANCE_CLASSES: tuple[str, ...] = (
 
 MEASUREMENT_KINDS: tuple[str, ...] = ("measured", "estimated", "unknown")
 
+#: FR-M45-05: accepted-change economics extends beyond token spend. The
+#: category vocabulary is closed for the same reason the provenance one
+#: is: a free-text category is a different requirement wearing the same
+#: name. New economics surface extends this tuple via a reviewed change.
+COST_CATEGORIES: tuple[str, ...] = (
+    "tokens",
+    "provider_charge",
+    "subscription",
+    "compute",
+    "storage",
+    "failed_attempt",
+    "human_review",
+    "rework",
+    "follow_up_fix",
+)
+
 OUTCOME_MERGED = "merged"
 OUTCOME_ABANDONED = "abandoned"
 
@@ -71,6 +87,7 @@ class CostLine:
     cost_usd: Decimal
     provenance: str
     measurement: str = "unknown"
+    category: str = "tokens"
     gate_sequence: int | None = None
     merged_commit: str | None = None
 
@@ -85,19 +102,25 @@ class CostLine:
                 f"FR-M45-06: measurement must be one of {MEASUREMENT_KINDS},"
                 f" got {self.measurement!r}"
             )
+        if self.category not in COST_CATEGORIES:
+            raise ProvenanceError(
+                f"FR-M45-05: category must be one of {COST_CATEGORIES},"
+                f" got {self.category!r}"
+            )
 
 
 @dataclass(frozen=True)
 class Aggregation:
     """FR-M45-04: an aggregate IS a breakdown.
 
-    ``by_provenance`` and ``by_measurement`` always ride with the total;
-    serialising this value cannot drop them because there is no total
-    field without the breakdown fields beside it.
+    ``by_provenance``, ``by_measurement`` and ``by_category`` always ride
+    with the total; serialising this value cannot drop them because there
+    is no total field without the breakdown fields beside it.
     """
 
     by_provenance: Mapping[str, Decimal]
     by_measurement: Mapping[str, Decimal]
+    by_category: Mapping[str, Decimal]
     total: Decimal
 
     def to_dict(self) -> dict[str, Any]:
@@ -105,26 +128,30 @@ class Aggregation:
             "total": str(self.total),
             "byProvenance": {k: str(v) for k, v in self.by_provenance.items()},
             "byMeasurement": {k: str(v) for k, v in self.by_measurement.items()},
+            "byCategory": {k: str(v) for k, v in self.by_category.items()},
         }
 
 
 def aggregate(lines: Iterable[CostLine]) -> Aggregation:
     """Sum cost lines without ever blending provenance silently (FR-M45-04).
 
-    The total is only ever returned together with its per-provenance and
-    per-measurement breakdowns; callers displaying or exporting ``total``
-    already hold the breakdown.
+    The total is only ever returned together with its per-provenance,
+    per-measurement and per-category breakdowns (FR-M45-05/06); callers
+    displaying or exporting ``total`` already hold the breakdowns.
     """
     by_prov: dict[str, Decimal] = {p: Decimal("0") for p in PROVENANCE_CLASSES}
     by_meas: dict[str, Decimal] = {m: Decimal("0") for m in MEASUREMENT_KINDS}
+    by_cat: dict[str, Decimal] = {c: Decimal("0") for c in COST_CATEGORIES}
     total = Decimal("0")
     for line in lines:
         by_prov[line.provenance] += line.cost_usd
         by_meas[line.measurement] += line.cost_usd
+        by_cat[line.category] += line.cost_usd
         total += line.cost_usd
     return Aggregation(
         by_provenance={k: v for k, v in by_prov.items() if v != 0},
         by_measurement={k: v for k, v in by_meas.items() if v != 0},
+        by_category={k: v for k, v in by_cat.items() if v != 0},
         total=total,
     )
 
@@ -153,9 +180,15 @@ class ChangeCost:
             + abandoned.by_measurement.get(m, Decimal("0"))
             for m in MEASUREMENT_KINDS
         }
+        by_cat: dict[str, Decimal] = {
+            c: merged.by_category.get(c, Decimal("0"))
+            + abandoned.by_category.get(c, Decimal("0"))
+            for c in COST_CATEGORIES
+        }
         return Aggregation(
             by_provenance={k: v for k, v in by_prov.items() if v != 0},
             by_measurement={k: v for k, v in by_meas.items() if v != 0},
+            by_category={k: v for k, v in by_cat.items() if v != 0},
             total=merged.total + abandoned.total,
         )
 
@@ -346,3 +379,196 @@ def bind_gate_and_commit(
         )
         for line in lines
     ]
+
+
+# -- FR-M45-06: sample vendor-bill reconciliation -----------------------------
+
+
+@dataclass(frozen=True)
+class BillLine:
+    """One line of a vendor bill.
+
+    ``category`` uses the same closed vocabulary as cost lines; an
+    excluded line names its exclusion reason rather than vanishing — the
+    requirement says every excluded charge category is documented.
+    """
+
+    category: str
+    amount_usd: Decimal
+    provenance: str = "invoice_reconciled"
+    excluded_reason: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.category not in COST_CATEGORIES:
+            raise ProvenanceError(
+                f"FR-M45-05: bill category must be one of {COST_CATEGORIES},"
+                f" got {self.category!r}"
+            )
+        if self.provenance != "invoice_reconciled":
+            raise ProvenanceError(
+                "FR-M45-03: a bill line is vendor-invoice evidence; its"
+                f" provenance is invoice_reconciled, got {self.provenance!r}"
+            )
+
+
+@dataclass(frozen=True)
+class BillReconciliation:
+    """FR-M45-06: reconcile a sample bill to the ledger-side figure.
+
+    ``within_tolerance`` is only meaningful when ``detailed_billing`` is
+    true — where the bill lacks line detail the reconciliation says so
+    (``reconciled: False``) rather than comparing a total against a guess.
+    Excluded categories are named with their reasons, never absorbed.
+    """
+
+    reconciled: bool
+    detailed_billing: bool
+    bill_total: Decimal
+    included_total: Decimal
+    ledger_total: Decimal
+    residue: Decimal
+    tolerance: Decimal
+    within_tolerance: bool | None
+    exclusions: Mapping[str, str] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "reconciled": self.reconciled,
+            "detailedBilling": self.detailed_billing,
+            "billTotal": str(self.bill_total),
+            "includedTotal": str(self.included_total),
+            "ledgerTotal": str(self.ledger_total),
+            "residue": str(self.residue),
+            "tolerance": str(self.tolerance),
+            "withinTolerance": self.within_tolerance,
+            "exclusions": dict(self.exclusions),
+        }
+
+
+def reconcile_bill(
+    bill_lines: Sequence[BillLine],
+    *,
+    ledger_total: Decimal,
+    detailed_billing: bool,
+    tolerance: Decimal = Decimal("0.01"),
+) -> BillReconciliation:
+    """Reconcile a sample vendor bill against the ledger (FR-M45-06).
+
+    Where detailed billing permits (``detailed_billing=True``) the included
+    lines must reconcile within 1%. Where it does not, the reconciliation
+    is reported as not run (``reconciled: False``, ``within_tolerance:
+    None``) — an unmeasurable condition is stated, never passed off.
+    Excluded lines are documented by category with their reason.
+    """
+    bill_total = sum((b.amount_usd for b in bill_lines), Decimal("0"))
+    included = [b for b in bill_lines if b.excluded_reason is None]
+    included_total = sum((b.amount_usd for b in included), Decimal("0"))
+    exclusions = {
+        b.category: b.excluded_reason or ""
+        for b in bill_lines
+        if b.excluded_reason is not None
+    }
+    if not detailed_billing:
+        return BillReconciliation(
+            reconciled=False,
+            detailed_billing=False,
+            bill_total=bill_total,
+            included_total=included_total,
+            ledger_total=ledger_total,
+            residue=abs(included_total - ledger_total),
+            tolerance=tolerance,
+            within_tolerance=None,
+            exclusions=exclusions,
+        )
+    residue = abs(included_total - ledger_total)
+    return BillReconciliation(
+        reconciled=True,
+        detailed_billing=True,
+        bill_total=bill_total,
+        included_total=included_total,
+        ledger_total=ledger_total,
+        residue=residue,
+        tolerance=tolerance,
+        within_tolerance=residue <= (abs(included_total) * tolerance),
+        exclusions=exclusions,
+    )
+
+
+# -- FR-M45-07: hosted budgets stop, unhosted warns (unenforced) ---------------
+
+
+@dataclass(frozen=True)
+class BudgetPolicy:
+    """A configured spend ceiling and whether Meridian can enforce it.
+
+    ``hosted`` is true when Meridian schedules the agent's work — only
+    then can scheduling stop before the ceiling. An unhosted agent runs
+    outside Meridian's control, so the same check produces a warning
+    explicitly labelled unenforced, never a stop.
+    """
+
+    ceiling_usd: Decimal
+    hosted: bool
+    currency: str = "USD"
+
+
+@dataclass(frozen=True)
+class BudgetDecision:
+    """``stop`` is enforceable only when ``hosted``; otherwise the decision
+    is an advisory warning whose ``enforced`` flag is False and says so in
+    ``label`` — a configuration tier switch is not a paid entitlement and
+    an advisory must never present as a gate."""
+
+    allowed: bool
+    hosted: bool
+    enforced: bool
+    label: str
+    spend_to_date_usd: Decimal
+    projected_next_usd: Decimal
+    ceiling_usd: Decimal
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "allowed": self.allowed,
+            "hosted": self.hosted,
+            "enforced": self.enforced,
+            "label": self.label,
+            "spendToDateUsd": str(self.spend_to_date_usd),
+            "projectedNextUsd": str(self.projected_next_usd),
+            "ceilingUsd": str(self.ceiling_usd),
+        }
+
+
+def check_budget(
+    policy: BudgetPolicy, *, spend_to_date_usd: Decimal, projected_next_usd: Decimal
+) -> BudgetDecision:
+    """FR-M45-07: stop hosted scheduling before the ceiling; warn unhosted.
+
+    Hosted: the next unit of work is refused when spend-to-date plus its
+    projection would reach the ceiling — the stop happens BEFORE the
+    ceiling is crossed. Unhosted: an advisory warning, explicitly labelled
+    unenforced, because Meridian cannot stop work it does not schedule.
+    """
+    would_reach = (spend_to_date_usd + projected_next_usd) >= policy.ceiling_usd
+    if policy.hosted:
+        return BudgetDecision(
+            allowed=not would_reach,
+            hosted=True,
+            enforced=True,
+            label="enforced: hosted scheduling stops before the ceiling",
+            spend_to_date_usd=spend_to_date_usd,
+            projected_next_usd=projected_next_usd,
+            ceiling_usd=policy.ceiling_usd,
+        )
+    return BudgetDecision(
+        allowed=True,  # advisory only — unhosted work is not ours to stop
+        hosted=False,
+        enforced=False,
+        label=(
+            "unenforced advisory: Meridian does not schedule this agent;"
+            " the ceiling cannot be enforced from here"
+        ),
+        spend_to_date_usd=spend_to_date_usd,
+        projected_next_usd=projected_next_usd,
+        ceiling_usd=policy.ceiling_usd,
+    )

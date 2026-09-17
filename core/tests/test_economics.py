@@ -15,7 +15,7 @@ from meridian_core.metrics import economics as eco
 
 
 def line(story="STORY-1", attempt="run-1", cost="10.00", provenance="locally_inferred",
-       measurement="measured", gate=None, commit=None):
+       measurement="measured", category="tokens", gate=None, commit=None):
     return eco.CostLine(
         story_id=story,
         attempt_id=attempt,
@@ -24,6 +24,7 @@ def line(story="STORY-1", attempt="run-1", cost="10.00", provenance="locally_inf
         cost_usd=Decimal(cost),
         provenance=provenance,
         measurement=measurement,
+        category=category,
         gate_sequence=gate,
         merged_commit=commit,
     )
@@ -57,9 +58,9 @@ def test_aggregate_total_always_rides_with_breakdown() -> None:
         ]
     )
     as_dict = agg.to_dict()
-    # The serialised form cannot drop the breakdown: total exists only
-    # beside byProvenance/byMeasurement.
-    assert set(as_dict) == {"total", "byProvenance", "byMeasurement"}
+    # The serialised form cannot drop the breakdowns: total exists only
+    # beside byProvenance/byMeasurement/byCategory.
+    assert set(as_dict) == {"total", "byProvenance", "byMeasurement", "byCategory"}
     assert as_dict["total"] == "17.50"
     assert as_dict["byProvenance"] == {
         "vendor_api": "10.00",
@@ -240,3 +241,132 @@ def test_bind_gate_and_commit_attaches_decision(tmp_path) -> None:
         assert bound[0].merged_commit == "cafe"
     finally:
         ledger.close()
+
+
+# -- FR-M45-05: categories beyond tokens ----------------------------------------
+
+
+def test_category_vocabulary_is_closed() -> None:
+    assert eco.COST_CATEGORIES == (
+        "tokens",
+        "provider_charge",
+        "subscription",
+        "compute",
+        "storage",
+        "failed_attempt",
+        "human_review",
+        "rework",
+        "follow_up_fix",
+    )
+    with pytest.raises(eco.ProvenanceError, match="FR-M45-05"):
+        line(category="consulting")
+
+
+def test_fully_loaded_change_carries_category_breakdown() -> None:
+    attempts = [
+        line(cost="40.00", category="tokens", commit="abc"),
+        line(cost="12.00", category="human_review", commit="abc"),
+        line(cost="3.50", category="rework", commit="abc"),
+        line(cost="25.00", category="failed_attempt"),  # abandoned
+    ]
+    change = eco.split_by_outcome("S", attempts, merged_commit="abc")
+    loaded = change.fully_loaded
+    assert loaded.total == Decimal("80.50")
+    assert loaded.by_category == {
+        "tokens": Decimal("40.00"),
+        "human_review": Decimal("12.00"),
+        "rework": Decimal("3.50"),
+        "failed_attempt": Decimal("25.00"),
+    }
+    assert change.merged.by_category["human_review"] == Decimal("12.00")
+
+
+# -- FR-M45-06: sample bill reconciliation ---------------------------------------
+
+
+def bill(category, amount, excluded=None):
+    return eco.BillLine(
+        category=category, amount_usd=Decimal(amount), excluded_reason=excluded
+    )
+
+
+def test_bill_reconciles_within_one_percent() -> None:
+    result = eco.reconcile_bill(
+        [bill("tokens", "500.00"), bill("compute", "20.00")],
+        ledger_total=Decimal("519.00"),
+        detailed_billing=True,
+    )
+    assert result.reconciled is True
+    assert result.within_tolerance is True
+    assert result.residue == Decimal("1.00")
+
+
+def test_bill_reconciles_over_one_percent_and_reports_residue() -> None:
+    result = eco.reconcile_bill(
+        [bill("tokens", "500.00")],
+        ledger_total=Decimal("520.00"),
+        detailed_billing=True,
+    )
+    assert result.within_tolerance is False
+    assert result.residue == Decimal("20.00")
+
+
+def test_excluded_categories_documented_not_absorbed() -> None:
+    result = eco.reconcile_bill(
+        [bill("tokens", "500.00"), bill("subscription", "99.00", excluded="flat seat fee; allocation rule not yet disclosed")],
+        ledger_total=Decimal("500.00"),
+        detailed_billing=True,
+    )
+    assert result.included_total == Decimal("500.00")
+    assert result.bill_total == Decimal("599.00")
+    assert result.exclusions == {
+        "subscription": "flat seat fee; allocation rule not yet disclosed"
+    }
+    assert result.within_tolerance is True
+
+
+def test_undetailed_billing_is_not_run_not_passed() -> None:
+    result = eco.reconcile_bill(
+        [bill("tokens", "500.00")],
+        ledger_total=Decimal("519.00"),
+        detailed_billing=False,
+    )
+    assert result.reconciled is False
+    assert result.within_tolerance is None
+    assert result.residue == Decimal("19.00")
+
+
+def test_bill_line_provenance_is_invoice_reconciled_only() -> None:
+    with pytest.raises(eco.ProvenanceError, match="FR-M45-03"):
+        eco.BillLine(category="tokens", amount_usd=Decimal("1"), provenance="vendor_api")
+
+
+# -- FR-M45-07: hosted stop vs unhosted unenforced warning -----------------------
+
+
+def test_hosted_budget_stops_before_ceiling() -> None:
+    policy = eco.BudgetPolicy(ceiling_usd=Decimal("100.00"), hosted=True)
+    under = eco.check_budget(
+        policy, spend_to_date_usd=Decimal("80.00"), projected_next_usd=Decimal("10.00")
+    )
+    assert under.allowed is True
+    assert under.enforced is True
+    at = eco.check_budget(
+        policy, spend_to_date_usd=Decimal("95.00"), projected_next_usd=Decimal("5.00")
+    )
+    # reaching the ceiling IS refused — the stop happens before crossing
+    assert at.allowed is False
+    assert at.enforced is True
+
+
+def test_unhosted_budget_is_advisory_unenforced() -> None:
+    policy = eco.BudgetPolicy(ceiling_usd=Decimal("100.00"), hosted=False)
+    decision = eco.check_budget(
+        policy, spend_to_date_usd=Decimal("500.00"), projected_next_usd=Decimal("50.00")
+    )
+    # Even far past the ceiling: Meridian cannot stop work it does not
+    # schedule, so the answer is a labelled advisory, never a gate.
+    assert decision.allowed is True
+    assert decision.enforced is False
+    assert decision.hosted is False
+    assert "unenforced" in decision.label
