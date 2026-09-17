@@ -13,6 +13,39 @@
 - **Last commit:** 6d48b59 — N2-T28 DONE (Workstream F COMPLETE): closed cost-category vocabulary (tokens/provider_charge/subscription/compute/storage/failed_attempt/human_review/rework/follow_up_fix) enforced on CostLine+BillLine; by_category breakdown rides every Aggregation; `reconcile_bill` — detailed billing reconciles ≤1% with residue reported, undetailed billing returns reconciled:False (not run, never passed), exclusions documented by category+reason; `check_budget` — hosted stops before ceiling (reaching = refused, enforced), unhosted returns allowed=True enforced=False with 'unenforced' label. 20 economics tests green. NOTE: economics.py is a library with ledger-derivation entry points; RPC/UI surfacing is a later integration decision (record if N2-G or F3 surfaces need it).
 - **Last commit:** c20e2fd — N2-T26/T27 DONE: `metrics/economics.py` — CostLine bound to gate_sequence + merged_commit; closed provenance vocabulary (invoice_reconciled/vendor_api/locally_inferred/unknown) enforced in the type; Aggregation carries by_provenance+by_measurement beside every total (FR-M45-04 structural); merged/abandoned split per change; AC-51 reconcile_sample(20 changes, tolerance 0.5%) with residue reported never absorbed (incl. within-tolerance residue still named); lines_from_ledger defaults honestly to locally_inferred, refuses to mint vendor_api; bind_gate_and_commit attaches latest approved gate + headCommit. 11 tests green.
 - **Last commit:** 815c4fd — N2-T21/T22 MCP-gateway leg DONE: `mcp/invoke` binds the session to the caller-declared client identity at assurance `asserted` (D38 vocabulary) with reason stated ("no executable digest or resolved version at this boundary"), recorded in the ledger entry blob AND returned in the result; contract updated properly — methods.json source edited preserving formatting, `$defs/McpClientIdentity` hoisted, generate-bus-types.mjs rerun, `npm run check:contracts` green (an earlier json.dump reformat was caught and amended out, 815c4fd). 14 mcp tests green. Earlier: b9f6cc4 — N2-T24 core leg DONE: `contract_versions.py` resolves derived-evidence sources to pinned versions from `shared/schema/external-contracts.json`; `interop/notarise` entries now record `externalContractVersion` in the encrypted detail (rides chain + bundles), unpinned tools (aider, continue, …) degrade visibly as `"unpinned"` + named in RPC `unpinnedContracts` (NFR-40); 8 new tests green, interop+drift suites (30) no regression. T21/T22/T23 host-side already built by parallel session as MV3-T01/T01b (identity.ts, pinning.ts + tests — verified present, not re-done).
+## N2 exit assessment (17 September 2026, this session)
+
+Every §N2 exit criterion mapped to evidence. Verdict: **N2 engineering complete; evidence-gated items blocked with named owners** — no criterion is silently dropped.
+
+| Criterion | Verdict | Evidence |
+|---|---|---|
+| AC-45 SCM block | BLOCKED — D37 (pilot customer) | enforcement-point vocabulary + honest editor-side declaration (N2-T05, `governance/enforcement_points.py`); owner: platform team |
+| AC-46 revocation 5 min + in-flight stop | PASS | `test_identity_assurance.py`, `test_policy_bundles.py`, merge_gate revocation path (FR-M42-06/SEC-31) |
+| AC-48 bypass detection + coverage downgrade | PASS | N2-C (dd71929): five detectors, durable entries, same-session downgrade |
+| AC-49 archive/compact/restore verifies; third-party trailer parse | PASS | T18 (d0b93e8, `test_trailer_ac49.py` 7 tests) + T16 (`test_ledger_archive.py`) + standalone verifier cargo 9 |
+| AC-50 two editors/two SCMs | BLOCKED — human/customer | owner: pilot |
+| AC-51 20-change reconciliation, residue reported, no provenance blend | PASS | T26/27 (c20e2fd, `test_economics.py` 20 tests) |
+| AC-52 binary swap visible | PASS | MV3-T01b `identity.ts` + `adapters-identity.test.ts` |
+| NFR-35 backfill determinism | BLOCKED — POST-MVP | FR-M41-16/17 backfill is F3+ scope per mvp-req-final §M41 |
+| NFR-36 revocation propagation | PASS | identity_assurance + policy_bundles suites |
+| NFR-37 capture margin reported | PASS | `observers/retention.py` record_capture (achieved_margin), suite green |
+| NFR-38 archive restore budget + growth published | PASS | `test_ledger_archive.py` prints per-10k growth + 3-year restore |
+| NFR-39 portable verification | PASS | trailer spec v1 + reference parser + verifier crate |
+| NFR-40 contract drift visible | PASS | dbe6950 + contract_versions (b9f6cc4) |
+| NFR-41 1% bill reconciliation + exclusions | PASS | reconcile_bill (6d48b59) |
+| NFR-42 zero-loss recovery | PASS (single-platform) / matrix BLOCKED | `test_resilience.py` + `record-resilience.mjs`; 3-platform+remote like T31 |
+| NFR-43 7-day soak | BLOCKED — elapsed time | soak.mjs ready; owner: release process |
+| SEC-32 enforcement-point honesty | PASS | N2-T05 + EnforcementBadge; audit record per decision |
+| SEC-33 digest pinning refusal naming both digests | PASS | `pinning.ts` + tests (MV3-T01) |
+| SEC-34 adversarial corpus, no elevation above inferred | PASS | 103 fixtures (a22c23d), hosted/passive split |
+| SEC-35 bundle signature fail-closed | PASS | evaluate_bundle + corpus BUNDLE fixtures |
+| SEC-36 receipts verifiable without servers | PASS | test_ledger_receipts.py (public-keys-only) |
+| SEC-37 erasure across storage/exports/backups | PASS | privacy module + restore replay + corpus + consent-forgery fix |
+| SEC-38 dispute correction append-only | PARTIAL — mechanism PASS, flow N/A | append-only triggers + corpus CHAIN fixtures prove no deletion/alteration; no dispute-correction flow exists because FUT-018 trusted-team scope has no dispute mechanism — recorded in DECISIONS |
+| Independent-reviewer statement | PASS | `enforcementPoint` rides every gate decision detail (FR-M42-12 wiring) |
+
+**Next:** N3 is the F2 evidence gate (human study, not a build phase). F3 resumption: M8 router behind engine, then M4 loops, M9/M28, M7, M38, M31 roster, M5/M6/M13/M26 — interlock: FR-M46-16 growth gate binds engine growth until per-class value measured.
+
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## N1 status + CROSS-SESSION TASK LIST for the GUI session (owner's second session — read this)
