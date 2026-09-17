@@ -23,6 +23,8 @@ omitted or assumed permissive. An absent row would read as "nothing there".
 | --- | --- | --- |
 | `cryptography` | Apache-2.0 OR BSD-3-Clause | permissive |
 | `jsonschema` | MIT | permissive |
+| `langgraph` | MIT | permissive |
+| `langgraph-checkpoint-sqlite` | MIT | permissive |
 | `PyYAML` | MIT | permissive |
 | `tree-sitter` | MIT License | permissive |
 | `tree-sitter-java` | MIT | permissive |

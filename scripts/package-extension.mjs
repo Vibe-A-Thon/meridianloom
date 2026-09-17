@@ -9,6 +9,7 @@ const extensionDir = path.join(root, 'extension');
 const outDir = path.join(root, 'dist');
 const vsceCli = path.join(root, 'node_modules', '@vscode', 'vsce', 'vsce');
 const licensePath = path.join(root, 'LICENSE');
+const extensionLicensePath = path.join(extensionDir, 'LICENSE');
 
 // Only generated directories immediately inside this extension may be cleaned.
 function cleanGeneratedDirectory(target) {
@@ -170,6 +171,7 @@ for (const name of readdirSync(path.join(root, 'policy')).filter((n) => n.endsWi
 }
 
 try {
+  cpSync(licensePath, extensionLicensePath);
   // --no-dependencies: every dependency is a devDependency (the bundle is
   // self-contained), and without it vsce's dependency walk leaks npm
   // workspace-root files into the VSIX and fails.
@@ -184,6 +186,7 @@ try {
     process.exit(result.status ?? 1);
   }
 } finally {
+  rmSync(extensionLicensePath, { force: true });
   cleanGeneratedDirectory(sidecarDir);
   cleanGeneratedDirectory(policyDir);
   cleanGeneratedDirectory(evaluatorDocs);
