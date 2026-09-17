@@ -5409,13 +5409,34 @@ class SidecarServer:
         # The governance trail is durable before and independently of the
         # outcome: an external MCP client invoked this tool, and the ledger
         # says so even if the underlying read then fails.
+        # FR-M44-01/02 (N2-T21/T22): the MCP client identity is whatever the
+        # caller declared at this boundary. The gateway has no executable
+        # evidence about the client — no digest, no resolved version — so
+        # the recorded identity is bound to the declared name at assurance
+        # "asserted" (D38 vocabulary) with the reason stated, and surfaced
+        # in the result so host-side labelling never upgrades it to
+        # verified.
+        declared = params.get("client")
+        client = (
+            declared.strip()
+            if isinstance(declared, str) and declared.strip()
+            else "mcp-client"
+        )
+        identity = {
+            "client": client,
+            "assurance": "asserted",
+            "reason": (
+                "caller-declared MCP client name; no executable digest or"
+                " resolved version is available at this boundary"
+            ),
+        }
         entry: dict[str, Any] = {
             "ts_utc": ledger_core.utc_now(),
             "story_id": f"mcp:{tool}",
             "phase": "intake",
             "loop_id": "mcp-server",
             "loop_iteration": 1,
-            "actor_id": params.get("client") or "mcp-client",
+            "actor_id": client,
             "actor_version": "0",
             "actor_kind": "external",
             "policy_version": "mcp-server/v1",
@@ -5423,7 +5444,8 @@ class SidecarServer:
             "vendor": "mcp",
             "observation_confidence": "direct",
             "input": json.dumps(
-                {"tool": tool, "arguments": arguments}, ensure_ascii=False
+                {"tool": tool, "arguments": arguments, "identity": identity},
+                ensure_ascii=False,
             ),
         }
         if params.get("sessionId"):
@@ -5435,7 +5457,7 @@ class SidecarServer:
         # governance, not a second implementation of the reads.
         handler = self._handlers[self.MCP_TOOLS[tool]]
         outcome = handler(self, arguments)
-        return {"tool": tool, "result": outcome}
+        return {"tool": tool, "result": outcome, "identity": identity}
 
 
 class _RpcError(Exception):

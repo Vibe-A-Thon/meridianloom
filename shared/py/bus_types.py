@@ -1612,10 +1612,17 @@ class McpInvokeParams(TypedDict):
     client: NotRequired[str]  # Optional MCP client identification recorded as the ledger entry's actor_id (default mcp-client).
     sessionId: NotRequired[str]  # Optional MCP session correlation recorded as external_session_id.
 
-# The underlying handler's result, passed through verbatim under `result`.
+# The bound MCP client identity (FR-M44-01/02).
+class McpClientIdentity(TypedDict):
+    client: str
+    assurance: Literal["asserted", "verified"]
+    reason: str
+
+# The underlying handler's result, passed through verbatim under `result`, plus the identity the call was bound to. FR-M44-01/02 (N2-T21/T22): the MCP client identity is caller-declared and carried at assurance `asserted` with the reason stated — consumers must never render it as verified.
 class McpInvokeResult(TypedDict):
     tool: str
     result: dict[str, Any] | list[Any] | str | float | bool | None  # The underlying method's result JSON, unmodified.
+    identity: NotRequired[McpClientIdentity]
 
 class SpendSeriesParams(TypedDict):
     dimension: NotRequired[Literal["vendor", "model", "agent", "story", "team", "costCentre"]]  # The FR-M39-01 dimension to aggregate over (default vendor).

@@ -7267,8 +7267,33 @@
       },
       "additionalProperties": false
     },
+    "McpClientIdentity": {
+      "description": "The bound MCP client identity (FR-M44-01/02).",
+      "type": "object",
+      "required": [
+        "client",
+        "assurance",
+        "reason"
+      ],
+      "properties": {
+        "client": {
+          "type": "string"
+        },
+        "assurance": {
+          "type": "string",
+          "enum": [
+            "asserted",
+            "verified"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "McpInvokeResult": {
-      "description": "The underlying handler's result, passed through verbatim under `result`.",
+      "description": "The underlying handler's result, passed through verbatim under `result`, plus the identity the call was bound to. FR-M44-01/02 (N2-T21/T22): the MCP client identity is caller-declared and carried at assurance `asserted` with the reason stated — consumers must never render it as verified.",
       "type": "object",
       "required": [
         "tool",
@@ -7288,6 +7313,9 @@
             "null"
           ],
           "description": "The underlying method's result JSON, unmodified."
+        },
+        "identity": {
+          "$ref": "#/$defs/McpClientIdentity"
         }
       },
       "additionalProperties": false

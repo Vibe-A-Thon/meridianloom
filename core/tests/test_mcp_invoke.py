@@ -186,6 +186,35 @@ class TestLedgerRecording:
         rows = server.ledger.query(action_type="tool_call")
         assert rows[0]["actor_id"] == "mcp-client"
 
+    def test_identity_bound_as_asserted_with_reason(self, server):
+        """FR-M44-01/02 (N2-T21/T22): the MCP client identity is bound to
+        the declared name at "asserted" assurance with the reason stated —
+        in the ledger entry and in the result, never upgraded to verified.
+        """
+        enable_governor(server)
+        verdict = invoke(server, "ledger_verify", client="vscode-copilot")
+        assert verdict["identity"] == {
+            "client": "vscode-copilot",
+            "assurance": "asserted",
+            "reason": (
+                "caller-declared MCP client name; no executable digest or"
+                " resolved version is available at this boundary"
+            ),
+        }
+        row = server.ledger.query(action_type="tool_call")[0]
+        detail = json.loads(
+            server.ledger.read_blob(row["input_ref"], row["blob_key_id"]).decode("utf-8")
+        )
+        assert detail["identity"]["assurance"] == "asserted"
+        assert detail["identity"]["client"] == "vscode-copilot"
+        assert "no executable digest" in detail["identity"]["reason"]
+
+    def test_default_identity_is_named_mcp_client(self, server):
+        enable_governor(server)
+        verdict = invoke(server, "ledger_verify")
+        assert verdict["identity"]["client"] == "mcp-client"
+        assert verdict["identity"]["assurance"] == "asserted"
+
     def test_session_id_recorded_when_given(self, server):
         enable_governor(server)
         invoke(server, "ledger_verify", sessionId="mcp-session-9")

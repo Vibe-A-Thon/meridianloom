@@ -2275,11 +2275,19 @@ export interface McpInvokeParams {
   "sessionId"?: string;
 }
 
-/** The underlying handler's result, passed through verbatim under `result`. */
+/** The bound MCP client identity (FR-M44-01/02). */
+export interface McpClientIdentity {
+  "client": string;
+  "assurance": "asserted" | "verified";
+  "reason": string;
+}
+
+/** The underlying handler's result, passed through verbatim under `result`, plus the identity the call was bound to. FR-M44-01/02 (N2-T21/T22): the MCP client identity is caller-declared and carried at assurance `asserted` with the reason stated — consumers must never render it as verified. */
 export interface McpInvokeResult {
   "tool": string;
   /** The underlying method's result JSON, unmodified. */
   "result": Record<string, unknown> | unknown[] | string | number | boolean | null;
+  "identity"?: McpClientIdentity;
 }
 
 export interface SpendSeriesParams {
