@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from . import corpus_batch1
+from . import corpus_batch1, corpus_batch2
 from .harness import (
     Fixture,
     SURFACE_HOSTED,
@@ -22,7 +22,7 @@ from .harness import (
     run_fixture,
 )
 
-BATCHES = [corpus_batch1.fixtures]
+BATCHES = [corpus_batch1.fixtures, corpus_batch2.fixtures]
 
 
 def _all_fixtures() -> list[Fixture]:

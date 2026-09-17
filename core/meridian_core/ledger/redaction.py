@@ -36,8 +36,21 @@ _PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"), REDACTED),
     # Slack tokens.
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), REDACTED),
-    # OpenAI-style keys.
-    (re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"), REDACTED),
+    # OpenAI-style keys (incl. dashed vendor variants like sk-ant-).
+    (re.compile(r"\bsk-[A-Za-z0-9][A-Za-z0-9-]{18,}\b"), REDACTED),
+    # npm access tokens and Google API keys (N2-T33 corpus, batch 2).
+    (re.compile(r"\bnpm_[A-Za-z0-9]{30,}\b"), REDACTED),
+    (re.compile(r"\bAIza[0-9A-Za-z_-]{30,}\b"), REDACTED),
+    # JWTs — three base64url segments.
+    (
+        re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"),
+        "[REDACTED-JWT]",
+    ),
+    # Credentials embedded in URLs (https://user:pass@host/…).
+    (
+        re.compile(r"(?i)(https?://[^\s/@:]+:)[^\s/@]{6,}@"),
+        r"\1[REDACTED]@",
+    ),
     # HTTP bearer tokens (RFC 6750 b64token charset). Found by the
     # adversarial corpus (N2-T33, REDACT-BEARER, 17 Sep 2026): header
     # dumps and agent logs carry these with no assignment keyword.
