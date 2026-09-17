@@ -21,6 +21,45 @@
 - **Last commit:** 6d48b59 — N2-T28 DONE (Workstream F COMPLETE): closed cost-category vocabulary (tokens/provider_charge/subscription/compute/storage/failed_attempt/human_review/rework/follow_up_fix) enforced on CostLine+BillLine; by_category breakdown rides every Aggregation; `reconcile_bill` — detailed billing reconciles ≤1% with residue reported, undetailed billing returns reconciled:False (not run, never passed), exclusions documented by category+reason; `check_budget` — hosted stops before ceiling (reaching = refused, enforced), unhosted returns allowed=True enforced=False with 'unenforced' label. 20 economics tests green. NOTE: economics.py is a library with ledger-derivation entry points; RPC/UI surfacing is a later integration decision (record if N2-G or F3 surfaces need it).
 - **Last commit:** c20e2fd — N2-T26/T27 DONE: `metrics/economics.py` — CostLine bound to gate_sequence + merged_commit; closed provenance vocabulary (invoice_reconciled/vendor_api/locally_inferred/unknown) enforced in the type; Aggregation carries by_provenance+by_measurement beside every total (FR-M45-04 structural); merged/abandoned split per change; AC-51 reconcile_sample(20 changes, tolerance 0.5%) with residue reported never absorbed (incl. within-tolerance residue still named); lines_from_ledger defaults honestly to locally_inferred, refuses to mint vendor_api; bind_gate_and_commit attaches latest approved gate + headCommit. 11 tests green.
 - **Last commit:** 815c4fd — N2-T21/T22 MCP-gateway leg DONE: `mcp/invoke` binds the session to the caller-declared client identity at assurance `asserted` (D38 vocabulary) with reason stated ("no executable digest or resolved version at this boundary"), recorded in the ledger entry blob AND returned in the result; contract updated properly — methods.json source edited preserving formatting, `$defs/McpClientIdentity` hoisted, generate-bus-types.mjs rerun, `npm run check:contracts` green (an earlier json.dump reformat was caught and amended out, 815c4fd). 14 mcp tests green. Earlier: b9f6cc4 — N2-T24 core leg DONE: `contract_versions.py` resolves derived-evidence sources to pinned versions from `shared/schema/external-contracts.json`; `interop/notarise` entries now record `externalContractVersion` in the encrypted detail (rides chain + bundles), unpinned tools (aider, continue, …) degrade visibly as `"unpinned"` + named in RPC `unpinnedContracts` (NFR-40); 8 new tests green, interop+drift suites (30) no regression. T21/T22/T23 host-side already built by parallel session as MV3-T01/T01b (identity.ts, pinning.ts + tests — verified present, not re-done).
+## F3 exit assessment (17 September 2026, this session — core-side)
+
+Every AC mapped to evidence or a named owner. Core-side = this session's modules; host-side = parallel session (MV1–MV3). Verdict: **F3 core engineering complete; end-to-end acceptance needs the live ACP runtime (demo path B) and M32 cassettes.**
+
+| AC | Disposition | Evidence / owner |
+|---|---|---|
+| AC-01 clarified spec + ambiguity register | CORE MECHANISM PASS, e2e needs runtime | engine ambiguity + assisted gap; live chain = demo path B |
+| AC-02 seven-phase chain unprompted | CORE PASS (phase set + L4 graph + loops), e2e needs runtime | phases 6da3e4f, L4 chain 31c9eef incl. Security per D14 |
+| AC-03 tests authored, AC traceably covered | CORE MECHANISM PASS, e2e needs runtime | engine validate + tool test_run; traceability via ledger story_id |
+| AC-04 PR with story ref, agents, gates, ledger range, cost | HOST PARTIAL (MV2/MV3 PR card) + economics c20e2fd | end-to-end = demo B |
+| AC-05 ledger answers per-line provenance | PASS (core) | ledger+attribution suites; viewer = host |
+| AC-06 rework re-enters loop with reason | CORE PASS | runtime rework edges + rejection taxonomy (F1) |
+| AC-07 kill sidecar mid-loop, resume ≤1 node | CORE PASS | per-node checkpoints 31c9eef; window reload = host |
+| AC-08 no orphan processes, 3 platforms | SINGLE-PASS, MATRIX BLOCKED | orphan monitor + run lock; CI matrix owner: release |
+| AC-09 skill-pack swap changes conventions | HOST RUNTIME | adapter skills/ + instruction precedence 2fb93e8; demo B |
+| AC-10 yield/cost dashboard, 20 real stories | BLOCKED — F2 human study | spend/trust instruments (N1) ready to display it |
+| AC-11 injection → no out-of-set tools, ledgered | CORE PASS | tool permission gate + adversarial corpus (103) + SEC-07 |
+| AC-12 no protected-branch change w/o recorded human approval | PASS (editor-side) / SCM BLOCKED D37 | merge gate + approvals; SCM = pilot platform team |
+| AC-13 human edit conflict surfaced, never lost | PASS | worktree manager conflict detection (F1/M18 tests) |
+| AC-14 abort leaves primary tree byte-identical | PASS | worktree isolation AC-13/14 tests (F1) |
+| AC-15 cassette replay byte-identical ledger | NOT BUILT — M32 pending | replay/ + simulation/ dirs empty; next F3 slice |
+| AC-16 golden corpus CI, no model calls | PARTIAL — corpus admission (D10) + zero-call guard test live; cassette runner = M32 | next F3 slice |
+| AC-17 steer visible next iteration + ledger | HOST (one-steer N1 closed) | steer/* RPCs + HostedSteerController |
+| AC-18 below-confidence → structured clarifying question | CORE PASS | engine ambiguity/assist (M33 slices) + loop suspension 31c9eef |
+| AC-19 VS Code Remote-SSH | SINGLE-PASS / MATRIX BLOCKED | remote.test.ts; CI matrix owner: release |
+| AC-20 dry-run packet graph + cost, zero writes | HOST PASS (MV2 preflight) | run/preflight + cancel record |
+| AC-21 blame shows agent identity + trailer → ledger range | PASS | trailers + Co-Authored-By + AC-49 trailer spec d0b93e8 |
+| AC-22 synthetic credential redacted + logged | PASS | SEC-07 redaction (16 shapes) + corpus redaction fixtures |
+| AC-23 custom adapter probated ≤5s, no restart; removal retires, history remains | CORE PASS (semantics); watch+UI = host | plug/unplug/re-plug 13 tests ff782ca + M5 deltas 6da3e4f |
+| AC-24 plain-Python bridge governed, wrapped code unmodified | CORE PASS (bridge); full packet = demo B | sandboxed + permission-routed ff782ca |
+| AC-25 export→import applies learned/rules, no model call | CORE PASS | learned/ export/import ff782ca + engine rules loader (M33) |
+| AC-26 zero model calls on deterministic classes; ratio ≤0.35 | CORE PASS (shape) | M33 zero-call structural tests + router ratio AC-26 test 12d4b46; measured on reference story = demo B |
+| AC-27 deterministic-path model call refused + ledgered | PASS | test_router_m8 (12d4b46) |
+| AC-28 webview unchanged against production sidecar | BLOCKED — M32 Simulation Core not built | contract check green; scenario parity = M32 |
+| AC-29 egress outside allow-list → paused + ledgered | PARTIAL — allow-list declared + sandbox honest (SEC-32); pause = host enforcement | enforcement owner: host runtime |
+| AC-35 brownfield gate | PASS | comprehension gate ae15d1f |
+
+**F3 exit verdict:** core module spine PASS (M33, M8, M4, M9/M28, M7, M38, M31, phases, M5, M13). NOT met as numbered: AC-15/16/28 (M32 Simulation Core + cassettes — the one remaining core build slice), AC-10 + §10.2 quality bar (F2 human evidence — D35), 3-platform/remote matrix + live agent demo (release process / demo path B / pilot).
+
 ## N2 exit assessment (17 September 2026, this session)
 
 Every §N2 exit criterion mapped to evidence. Verdict: **N2 engineering complete; evidence-gated items blocked with named owners** — no criterion is silently dropped.
