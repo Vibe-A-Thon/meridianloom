@@ -70,6 +70,8 @@
 
 ## Deferred with reason
 
+- **N2-T25 (compatibility matrix — remaining cells) — PARTIALLY SATISFIED, remainder blocked on real smoke evidence, 17 September 2026.** The machine-readable matrix exists (`shared/schema/compatibility.json`), every published row names a backing test enforced by `scripts/check-compatibility.mjs`, and `scripts/run-compatibility-smoke.mjs` verifies a row only on the machine the row claims (MK5: a failing row is removed, never marked degraded). What is NOT claimed, because the evidence does not exist in this environment: (a) product/version-dimension rows — per-agent-product support and pinned-plus-one-previous-release exercise need release artefacts and CI matrix runs not available here; (b) evidence-channel qualification as a matrix dimension. Per MK5, rows are added only with passing smoke evidence in the same change; none were fabricated. The matrix file is coordinator-owned (shared/schema); the gap is recorded here until the CI matrix or a release window supplies the evidence.
+
 - **D22 (F−1 Gate Zero: legal clearance) — CLOSED 10 September 2026.**
 
   *Why it was open.* The gate required reading the founder's employment
