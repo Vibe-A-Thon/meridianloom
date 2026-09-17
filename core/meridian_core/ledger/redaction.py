@@ -41,6 +41,19 @@ _PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # npm access tokens and Google API keys (N2-T33 corpus, batch 2).
     (re.compile(r"\bnpm_[A-Za-z0-9]{30,}\b"), REDACTED),
     (re.compile(r"\bAIza[0-9A-Za-z_-]{30,}\b"), REDACTED),
+    # Vendor token prefixes (N2-T33 corpus, batch 3): Slack app-level,
+    # Shopify, SendGrid, Square client secrets, DigitalOcean.
+    (re.compile(r"\bxapp-[A-Za-z0-9-]{8,}\b"), REDACTED),
+    (re.compile(r"\bshpat_[A-Za-z0-9]{20,}\b"), REDACTED),
+    (re.compile(r"\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\b"), REDACTED),
+    (re.compile(r"\bsq0csp-[A-Za-z0-9]{16,}\b"), REDACTED),
+    (re.compile(r"\bdop_v1_[A-Za-z0-9]{20,}\b"), REDACTED),
+    # Vendor token prefixes (N2-T33 corpus, batch 3 extensions): age
+    # identities, Square personal access, PyPI, Hugging Face.
+    (re.compile(r"\bAGE-SECRET-KEY-1[A-Z0-9]{20,}\b"), REDACTED),
+    (re.compile(r"\bsq0atp-[A-Za-z0-9]{16,}\b"), REDACTED),
+    (re.compile(r"\bpypi-[A-Za-z0-9_-]{30,}\b"), REDACTED),
+    (re.compile(r"\bhf_[A-Za-z0-9]{30,}\b"), REDACTED),
     # JWTs — three base64url segments.
     (
         re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"),

@@ -241,9 +241,18 @@ class PrivacyController:
         return self.ledger.append(entry)
 
     def consents_for(self, subject_id: str | None = None) -> list[Consent]:
-        """Replay the consent log (chain entries), oldest first."""
+        """Replay the consent log (chain entries), oldest first.
+
+        Only entries that claim the privacy pack count: a consent-shaped
+        row written under any other policy_version is data, not a privacy
+        decision, and never grants consent (SEC-37). Forging an honoured
+        consent would require explicitly impersonating the privacy
+        controller — recorded in the chain as exactly that claim.
+        """
         out: list[Consent] = []
         for row in self.ledger.query(action_type="consent_record", limit=1000):
+            if row.get("policy_version") != "privacy/v1":
+                continue
             for call in _tool_events(row, "consent"):
                 if subject_id is not None and call["subjectId"] != subject_id:
                     continue
@@ -397,6 +406,8 @@ class PrivacyController:
     def erasures(self) -> list[ErasureEvent]:
         out: list[ErasureEvent] = []
         for row in self.ledger.query(action_type="erasure", limit=1000):
+            if row.get("policy_version") != "privacy/v1":
+                continue
             for call in _tool_events(row, "erasure"):
                 out.append(
                     ErasureEvent(

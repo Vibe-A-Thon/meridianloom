@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from . import corpus_batch1, corpus_batch2
+from . import corpus_batch1, corpus_batch2, corpus_batch3
 from .harness import (
     Fixture,
     SURFACE_HOSTED,
@@ -22,7 +22,7 @@ from .harness import (
     run_fixture,
 )
 
-BATCHES = [corpus_batch1.fixtures, corpus_batch2.fixtures]
+BATCHES = [corpus_batch1.fixtures, corpus_batch2.fixtures, corpus_batch3.fixtures]
 
 
 def _all_fixtures() -> list[Fixture]:
@@ -65,6 +65,8 @@ def test_corpus_invariants() -> None:
     surfaces = {f.surface for f in fixtures}
     assert surfaces == {SURFACE_HOSTED, SURFACE_PASSIVE}
     # FR-M46-09: no known critical escape means every hosted block produced
-    # its evidence record (asserted per fixture) — the floor is the count.
-    # The ≥100 target is enforced when the corpus declares completion; until
-    # then the honest state is the batch count, reported by this test's id.
+    # its evidence record (asserted per fixture). The floor is enforced:
+    # below 100 the corpus is a partial batch and says so here.
+    assert len(fixtures) >= 100, (
+        f"corpus has {len(fixtures)} fixtures; the FR-M46-09 floor is 100"
+    )
