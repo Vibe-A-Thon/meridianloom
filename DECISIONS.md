@@ -70,6 +70,12 @@
 
 ## Deferred with reason
 
+- **N2-T30 (onboarding/review measurement) — HUMAN-GATED by definition, 17 September 2026.** Five onboarding sessions with ≥4 reaching first provenance in 15 minutes, ten review tasks with ≥8 identifying the real blocking risk, keyboard/screen-reader journeys, false-alert rate (FR-M46-04/05). Every clause requires human participants; no build-session substitute exists. Recorded, owner: repo owner / pilot customer.
+
+- **N2-T31 (support/recovery rehearsal) — harness exists, multi-platform evidence blocked, 17 September 2026.** `core/tests/test_resilience.py` is the rehearsal (upgrade failure, disk exhaustion, sidecar crash, corrupted bundle, restore), and `scripts/record-resilience.mjs` runs it and writes the record to `docs/baselines/resilience/` — one recorded run per failure per configuration, because a green suite in a terminal is not a record. What cannot be produced here: the runs on three platforms plus one remote configuration (this machine is one platform; FR-M46-06/07, NFR-42). The recorder exists; the matrix of recorded configurations is the blocked part, owner: CI matrix / release process.
+
+- **N2-T32 (seven-day soak) — elapsed time, not effort, 17 September 2026.** `scripts/soak.mjs` spawns the real sidecar and samples memory/handles/disk into JSONL for exactly this (NFR-43, FR-M46-08); the harness makes seven days produce evidence, it cannot make seven days shorter. Not started here; owner: release process. A partial run is not a pass.
+
 - **N2-T25 (compatibility matrix — remaining cells) — PARTIALLY SATISFIED, remainder blocked on real smoke evidence, 17 September 2026.** The machine-readable matrix exists (`shared/schema/compatibility.json`), every published row names a backing test enforced by `scripts/check-compatibility.mjs`, and `scripts/run-compatibility-smoke.mjs` verifies a row only on the machine the row claims (MK5: a failing row is removed, never marked degraded). What is NOT claimed, because the evidence does not exist in this environment: (a) product/version-dimension rows — per-agent-product support and pinned-plus-one-previous-release exercise need release artefacts and CI matrix runs not available here; (b) evidence-channel qualification as a matrix dimension. Per MK5, rows are added only with passing smoke evidence in the same change; none were fabricated. The matrix file is coordinator-owned (shared/schema); the gap is recorded here until the CI matrix or a release window supplies the evidence.
 
 - **D22 (F−1 Gate Zero: legal clearance) — CLOSED 10 September 2026.**
