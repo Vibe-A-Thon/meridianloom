@@ -6,8 +6,8 @@
 
 - **Current phase:** N2 — Unassailable (N0 quiesce COMPLETE, N1 COMPLETE)
 - **Current workstream:** N2 Workstream E — Vendor surface and supply chain (T21–T25); N2 Workstream D COMPLETE
-- **Current task:** E1 — T21 ACP/MCP session→agent identity binding, T22 unverified-identity labelling, T23 digest pinning, T24 external contract versioning, T25 compatibility matrix publication (D41)
-- **Last commit:** 8e8510c — N2-T19 DONE: headless collector (`collector.py` + `__main__.py` subcommands collect/export/erase/uninstall): exactly-once observe→ingest via EventIngester, recipient-specific portable export retaining schemaVersion/source identifiers/redaction labels (withheldSubjects), opt-in `--sink` POSTs a copy with tree-head bracketed authority check, uninstall preserves ledger/receipts/archive + refuses while worktrees exist; 7 tests green. Earlier in D part 2: d0b93e8 T18 trailer spec+AC-49 (7 tests), 8c1dd73 T20 in-toto attestation (8 tests). Workstream D = T13–T20 all green.
+- **Current task:** E2 — T21 MCP-leg identity binding review, T25 matrix gaps (evidence channels, pinned+previous release rows)
+- **Last commit:** b9f6cc4 — N2-T24 core leg DONE: `contract_versions.py` resolves derived-evidence sources to pinned versions from `shared/schema/external-contracts.json`; `interop/notarise` entries now record `externalContractVersion` in the encrypted detail (rides chain + bundles), unpinned tools (aider, continue, …) degrade visibly as `"unpinned"` + named in RPC `unpinnedContracts` (NFR-40); 8 new tests green, interop+drift suites (30) no regression. T21/T22/T23 host-side already built by parallel session as MV3-T01/T01b (identity.ts, pinning.ts + tests — verified present, not re-done).
 - **Orchestrator note:** parallel session works in this tree — never stage or overwrite files outside your task; stage by explicit pathspec. FR-M18-06/09 out of F1 scope per gaps plan (SHOULD v1.x).
 
 ## N1 status + CROSS-SESSION TASK LIST for the GUI session (owner's second session — read this)
