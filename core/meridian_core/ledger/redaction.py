@@ -38,6 +38,13 @@ _PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), REDACTED),
     # OpenAI-style keys.
     (re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"), REDACTED),
+    # HTTP bearer tokens (RFC 6750 b64token charset). Found by the
+    # adversarial corpus (N2-T33, REDACT-BEARER, 17 Sep 2026): header
+    # dumps and agent logs carry these with no assignment keyword.
+    (
+        re.compile(r"(?i)\bbearer\s+[A-Za-z0-9\-._~+/]{16,}=*"),
+        "[REDACTED-BEARER]",
+    ),
     # Explicit assignments: api_key, access_token, auth_token, secret,
     # password, client_secret — value redacted, key/quoting preserved.
     (
