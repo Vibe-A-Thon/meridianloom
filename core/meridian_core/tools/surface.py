@@ -70,7 +70,12 @@ class SandboxConfig:
     the host firewall's job, stated rather than claimed."""
 
     working_dir: Path
-    env_allowlist: tuple[str, ...] = ("PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "HOME", "LANG", "PATHEXT", "COMSPEC")
+    env_allowlist: tuple[str, ...] = (
+        # Paths and OS plumbing — not credentials.
+        "PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "HOME", "LANG",
+        "PATHEXT", "COMSPEC", "APPDATA", "USERPROFILE", "PYTHONUSERBASE",
+        "PYTHONIOENCODING",
+    )
     egress_allowlist: tuple[str, ...] = ()
     timeout_s: float = 300.0
 
