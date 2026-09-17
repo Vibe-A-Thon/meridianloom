@@ -95,6 +95,8 @@ export const RUNTIME_DEPENDENCIES = {
   tree_sitter_python: 'tree-sitter-python==0.25.0',
   yaml: 'PyYAML==6.0.2',
   jsonschema: 'jsonschema==4.26.0',
+  langgraph: 'langgraph==1.0.8',
+  'langgraph.checkpoint.sqlite': 'langgraph-checkpoint-sqlite==3.1.1',
 } as const;
 export const REQUIRED_MODULES = Object.keys(RUNTIME_DEPENDENCIES);
 
