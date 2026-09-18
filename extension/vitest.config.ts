@@ -21,6 +21,10 @@ export default defineConfig({
     // wearing a correctness problem's clothes. Cap the pool so the suite's
     // result reflects the code rather than the host's spare capacity.
     minWorkers: 1,
-    maxWorkers: 4,
+    // Four concurrent real-sidecar spawners still starve on the reference
+    // machine (measured: real-sidecar e2e tests trip their spawn timeouts
+    // under 4-way parallelism, pass at 1-2). Two reflects the code, not
+    // the host.
+    maxWorkers: 2,
   },
 });

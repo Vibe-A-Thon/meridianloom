@@ -371,21 +371,34 @@ class SidecarServer:
             "roles/delegate": SidecarServer._handle_roles_delegate,
         }
         # TASK-011 (audit GAP-001): the Orchestra/F4+ surfaces dispatch to
-        # the real F3/C3-C6 modules via orchestra_handlers. Handler input
-        # violations surface as structured INVALID_PARAMS, never as an
-        # internal error.
-        from . import orchestra_handlers
+        # the real F3/C3-C6 modules via orchestra_handlers. The import is
+        # LAZY — the module pulls the LangGraph/cryptography stack, and
+        # doing that at construction slowed every sidecar spawn enough to
+        # trip parallel e2e readiness windows (recorded in DECISIONS).
+        # The names come from the generated contract (light import).
+        def _make_orchestra_handler(name: str):
+            def _orchestra_bound(server: Any, params: Any) -> Any:
+                from . import orchestra_handlers
 
-        for _name, _fn in orchestra_handlers.HANDLERS.items():
-            def _orchestra_bound(server, params, _fn=_fn):
+                fn = orchestra_handlers.HANDLERS[name]
                 try:
-                    return _fn(server, params)
+                    return fn(server, params)
                 except orchestra_handlers.OrchestraWorkspaceError as exc:
                     raise _RpcError(protocol.ERROR_LEDGER_UNAVAILABLE, str(exc))
                 except orchestra_handlers.OrchestraError as exc:
                     raise _RpcError(protocol.INVALID_PARAMS, str(exc))
 
-            self._handlers[_name] = _orchestra_bound
+            return _orchestra_bound
+
+        _prefixes = (
+            "loop.", "adapters/", "router/", "tools/", "memory/",
+            "comprehension/", "portability/", "trainer/", "tenancy/",
+            "queue/", "annotations/", "issues/", "simulation/", "golden/",
+            "decisions/",
+        )
+        for _name in sorted(bus_types.REQUEST_METHODS):
+            if _name.startswith(_prefixes):
+                self._handlers[_name] = _make_orchestra_handler(_name)
         # The registry must exactly cover the contracted request methods.
         assert set(self._handlers) == set(bus_types.REQUEST_METHODS), (
             f"handler registry drifted from the schema: "
