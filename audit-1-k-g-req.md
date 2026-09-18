@@ -422,3 +422,36 @@ Each item: what exists, what is incomplete and why, severity, fix pointer. "Inte
 - **P3/P4:** the balance of the tech-debt register.
 
 The path to "production ready, fully functional, thoroughly tested" is now: rebuild the artifact (hours) → host consumers (the largest remaining engineering block) → M26-04 levers → TD-002/006/009 → then the external evidence gates. Everything on that path has an implementation task in audit-1-k-g-impl.md §5.
+
+---
+
+## 26. Deep Goal Re-Audit — round 3 (18 September 2026, post-execution)
+
+Verifies the shipped artifact and the register claims against the current tree. This pass included a self-review of the newest code (the orchestrator wiring layer), which found four defects, all fixed before this section was written (commit 5d5b2c5).
+
+### 26.1 Goal scorecard, verified against artifacts
+
+| Goal claim | State | Evidence |
+|---|---|---|
+| Fully functional (every built layer reachable) | **Met for core + host plumbing**; screens not yet wired | 31 RPCs in the 115-method contract, all dispatched by `SidecarServer` (12 integration tests over the real wire); `extension/src/orchestra/services.ts` typed callers (10 vitest wire-shape tests, tsc clean). Webview screens consume none of it yet (`grep`: only the services file references the new methods). loop.stop alone has a GUI consumer (check:surface note). |
+| Production ready (artifact) | **Met for the artifact** | Fresh `dist/meridian-loom-0.1.0.vsix` (sha256 675247ea…) contains `orchestra_handlers.py`, `levers.py`, `interface_contracts.py`, the 115-method `bus_types.py`; validate-package 12/12 from the packaged copy; checksum + AI-BOM committed. |
+| Thoroughly tested | **Strong for core; incomplete for product E2E** | 132 test files; targeted suites green (140+61+26+12+18+22+6+4 across the new work, 103-fixture corpus, plus earlier: 362-sweep, verifier cargo 9). NOT run this pass as one serial full suite (CI runs it). No live-agent E2E. |
+| Marketable to IT companies | **Engineering complete; evidence gates open** | MIT declared in manifest, notices ship, no-telemetry guard, upgrade/tenant docs, compatibility matrix in artifact, demo package backed (check:demo 18 steps). Missing: F2/MV5 evidence, D37 SCM enforcement, AC-50 customer proof, soak, live demo, screen wiring. |
+
+### 26.2 Remaining gaps (all with tasks in §6 of the impl file)
+
+- **GAP-102 residual (P1):** screen wiring only — the service layer exists; `webview/src/workbench/**` components must call `orchestra/services` (GUI session's files; the note in BUILD_STATE has the exact import path and transport contract).
+- **GAP-105 (P2, new this pass):** `check:surface` does not track the 31 new methods in its unsurfaced allowlist (they were never registered as orphans); the gate tolerates them, which is honest today but means UI coverage of the new surfaces is untracked. The GUI session should declare-or-surface each in `shared/schema/unsurfaced.json` (its file) so AC-43's gate covers them.
+- **TD-019 (P3):** golden corpus size is 1 entry — the admission path is proven, breadth is content work (add a story per completed scenario family).
+- **TD-020 (P3):** parity harness probes read methods live; mutating steps are simulation-only (by design — a probe must not mutate); the byte-parity claim stays scoped to cassette replay.
+- **TD-021 (P3):** the local bus has no rate limiting — single-user local trust boundary is documented; IT-services multi-user deployments need a listener policy.
+- **TD-022 (P3):** VIGUIX full-screen sweep is not automated (assistive-journeys + banned-patterns tests exist; pixel/visual checks are manual).
+- **TD-023 (P4):** `interface_contracts.py` is library-only (no RPC) — multi-repo contract generation has no bus surface yet; add when the GUI's Delivery surface needs it.
+
+### 26.3 Self-review defects found this pass (fixed, commit 5d5b2c5)
+
+1. **Persist coverage** — `OrchestraState.persist()` was only called from loop start/resume; queue and tenant mutations were lost on restart. Fixed: persist after every snapshot mutation; `test_orchestrator_state.py` proves restart restoration.
+2. **`hash()` determinism** — memory entry ids used Python's per-process-randomised `hash()`, making entries unreferencable across restarts. Fixed: sha256-derived stable ids.
+3. **Fabricated loop status** — `loop.status` for an unknown loop returned a plausible-looking "pending" instead of refusing. Fixed: refuses with a named error (unknown is unknown, never pending-by-omission).
+4. **Loop-kind mapping** — `loop.status` reconstructed the wire kind by string surgery ("L4"→"L4-task" would have been wrong); fixed with the inverse mapping table.
+5. **(recorded) before that:** `CostLeverSet` disabled-lever test originally asserted an empty dict while the router records zeroes — the honest expectation is zeroes, corrected in TASK-310's commit.

@@ -260,3 +260,30 @@ Mark each task DONE here with commit + evidence as it lands.
 
 ## Execution record — round 4 (18 September 2026)
 - **TASK-301…309 (host half):** `extension/src/orchestra/services.ts` — typed, contract-exact callers for every Orchestra RPC (loops, router, memory, comprehension, adapters, portability incl. trust, trainer, queue/tenancy/issues/annotations, simulation/golden, decisions, tools). 10 vitest wire-shape tests green; extension typecheck clean. The GUI session's remaining work per task is screen wiring: import these services into the owning studio/screen components (their files) and render results. GAP-102 reduced to UI-only.
+
+## 6. What remains (18 September 2026, post round 4)
+
+**Everything on the core lane is done.** Remaining, in dependency order:
+
+### GUI session tasks (their files; all services exist)
+
+1. **Wire the screens to `orchestra/services`.** Per TASK-301…309: Runtime Studio → loop.* (incl. gate resume UI for FR-M4-06); Routing Observatory → router/*; organisation studio → memory/*; file actions → comprehension/*; Registry Bay → adapters/*; portability dialogs → portability/* (import diff shown before confirm, per FR-M16-04); Training Queue → trainer/*; Delivery Ops → queue/tenancy; Problems panel → detected_issue entries; simulation-mode toggle → simulation/*. Each ships a vitest and satisfies AC-43's orphan gate by declaring or surfacing the method in `shared/schema/unsurfaced.json`.
+2. **GAP-105:** register each new method's surface state in the allowlist (GUI session's file) so the gate tracks them.
+
+### External gates (no engineering substitute)
+
+- F2/MV5: twenty-story human study per the preregistered gate.
+- D37: SCM enforcement configuration with the pilot customer's platform team.
+- AC-50: second editor + second SCM evidence.
+- Seven-day soak: `scripts/soak.mjs` run to completion.
+- Live demo (path B): one bounded task with a real ACP runtime and credentials.
+
+### Content/debt lane (optional before marketing)
+
+- TD-019: grow the golden corpus per completed scenario family (admission is one folder).
+- TD-023: add a `contracts/generate` RPC when the Delivery screen needs it (TD-023).
+- TD-021/022: document/expand per release requirements.
+
+### What "done" means for each
+
+Per §23 of the requirements audit: reachable through the real entry point + integration test over the real path + register row citing test and commit + re-proven invariants. The goal's "production ready" verdict flips when the screens are wired, the external gates close, and the evidence pack lands in `docs/baselines/`.
