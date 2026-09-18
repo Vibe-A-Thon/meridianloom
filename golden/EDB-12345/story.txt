@@ -1,0 +1,4 @@
+EDB-12345: Payment processing must be idempotent.
+AC1: Replayed requests return the original response.
+AC2: Concurrent duplicates are deduplicated.
+AC3: The idempotency key is scoped per merchant.

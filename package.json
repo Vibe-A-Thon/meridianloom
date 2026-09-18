@@ -19,6 +19,7 @@
     "bom": "node scripts/generate-bom.mjs",
     "check:bom": "node scripts/generate-bom.mjs --check",
     "notices": "node scripts/generate-notices.mjs",
-    "check:notices": "node scripts/generate-notices.mjs --check"
+    "check:notices": "node scripts/generate-notices.mjs --check",
+    "check:golden": "python scripts/check_golden.py"
   }
 }
