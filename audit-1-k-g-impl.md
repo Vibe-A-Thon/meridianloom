@@ -257,3 +257,6 @@ Mark each task DONE here with commit + evidence as it lands.
 - Checks green this round: check:golden 1/1, check:telemetry clean, check:contracts, 22 integration/unit tests across the new work.
 
 **Remaining (not core-side):** TASK-301…309 host/GUI consumers (parallel session's files; every RPC they need is now live), TASK-330's UI (trust dialog), and the external gates (F2/MV5, D37, AC-50, soak, live demo).
+
+## Execution record — round 4 (18 September 2026)
+- **TASK-301…309 (host half):** `extension/src/orchestra/services.ts` — typed, contract-exact callers for every Orchestra RPC (loops, router, memory, comprehension, adapters, portability incl. trust, trainer, queue/tenancy/issues/annotations, simulation/golden, decisions, tools). 10 vitest wire-shape tests green; extension typecheck clean. The GUI session's remaining work per task is screen wiring: import these services into the owning studio/screen components (their files) and render results. GAP-102 reduced to UI-only.
