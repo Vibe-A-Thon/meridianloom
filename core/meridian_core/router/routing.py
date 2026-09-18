@@ -95,9 +95,18 @@ class Router:
         ledger: Any = None,
         *,
         ceilings: Mapping[str, float] | None = None,
+        levers: Any = None,
     ) -> None:
         self._dispatcher = dispatcher
         self._ledger = ledger
+        #: FR-M26-04 cost levers (prompt caching, compaction,
+        #: summarisation). None = pass-through (levers off).
+        self._levers = levers
+        self._lever_report = None
+        if levers is not None:
+            from meridian_core.levers import LeverReport
+
+            self._lever_report = LeverReport()
         #: FR-M8-17 policy ceilings, e.g. {"default": 0.35} or
         #: {"story:EDB-1": 0.2}. The most specific key wins; "default" is
         #: the fallback.
@@ -180,6 +189,27 @@ class Router:
             # permission FR-M8-15 allows. The override itself is recorded.
             why = WHY_HUMAN_OVERRIDE
 
+        detail: dict[str, Any] = {
+            "whyLlm": why,
+            "humanOverride": human_override,
+            "engineOutcome": outcome.kind,
+        }
+        if self._levers is not None:
+            from meridian_core.levers import savings_to_ledger_detail
+
+            # FR-M26-04: shape the call before it is considered dispatched,
+            # and record what the levers saved. No prompt in the payload
+            # is a pass-through — the levers never invent content.
+            prompt = (payload or {}).get("prompt")
+            savings = None
+            if isinstance(prompt, str):
+                _, savings = self._levers.apply(
+                    prompt=prompt, story_id=story_id, why_llm=why
+                )
+                self._lever_report.record(story_id, savings)
+            detail["levers"] = (
+                savings.to_dict() if savings is not None else {}
+            )
         sequence = self._record(
             action_type="model_call",
             decision="proposed",
@@ -189,11 +219,7 @@ class Router:
             phase=phase,
             loop_id=loop_id,
             loop_iteration=loop_iteration,
-            detail={
-                "whyLlm": why,
-                "humanOverride": human_override,
-                "engineOutcome": outcome.kind,
-            },
+            detail=detail,
         )
         return RouteDecision(
             permitted=True,
