@@ -178,7 +178,7 @@ class LangGraphLoopRunner:
         """FR-M4-03 exit criteria are evaluated by the caller-supplied
         checker — the definition declares the criterion in words; the
         checker is the executable predicate."""
-        self._exit_checks[id(definition)] = checker
+        self._exit_checks[definition.loop_id] = checker
 
     def start(
         self,
@@ -273,7 +273,7 @@ class LangGraphLoopRunner:
             # Exit criteria before bounds: a loop that has finished has
             # consumed nothing further and must not breach (FR-M4-08
             # governs runs that are still going).
-            if self._exit_checks[id(definition)](state):
+            if self._exit_checks[definition.loop_id](state):
                 break
             breach = self._check_bounds(
                 definition, iteration, tokens_used, cost_used, started

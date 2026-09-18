@@ -38,6 +38,13 @@ TRUNCATION_MARKER = "\n...[TRUNCATED: result exceeded the tool size cap]..."
 CHANGE_CLASS_DEPENDENCY_ADD = "dependency_addition"
 
 
+#: Binaries whose only purpose is network egress. FR-M9-05's egress
+#: allow-list is declared config; the tool gate is where refusal is
+#: enforceable today, so these are denied unless policy explicitly allows
+#: network tools for the agent (audit TASK-035 / AC-29's enforceable half).
+NETWORK_TOOLS = frozenset({"curl", "wget", "nc", "netcat", "telnet", "ftp", "ssh", "scp"})
+
+
 class ToolDeniedError(PermissionError):
     """FR-M9-03: the agent's permitted set does not include this tool."""
 
@@ -193,6 +200,20 @@ class ToolSurface:
             raise ToolDeniedError(
                 f"FR-M9-03: agent '{agent_id}' is not permitted tool '{tool}'"
             )
+        binary = Path(str(argv[0])).name.lower()
+        binary = binary.removesuffix(".exe")
+        if binary in NETWORK_TOOLS and not self._network_allowed(agent_id):
+            self._denial_count += 1
+            self._record_denial(
+                agent_id, tool,
+                [f"{a} (egress allow-list: {list(self.sandbox.egress_allowlist) or 'none'})" for a in argv],
+                extra="FR-M9-05/AC-29: network egress outside the allow-list",
+            )
+            raise ToolDeniedError(
+                f"FR-M9-05/AC-29: '{binary}' performs network egress and this"
+                " workspace's egress allow-list does not permit it; the"
+                " attempt is ledger-recorded"
+            )
         result = run_in_sandbox(argv, self.sandbox, size_cap_bytes=self.size_cap_bytes)
         if change_class == CHANGE_CLASS_DEPENDENCY_ADD:
             # FR-M9-06: dependency additions are flagged as their own
@@ -207,7 +228,18 @@ class ToolSurface:
         self._record_invocation(agent_id, tool, argv, result)
         return result
 
-    def _record_denial(self, agent_id: str, tool: str, argv: Sequence[str]) -> None:
+    def permit_network(self, agent_id: str) -> None:
+        """Policy explicitly allows network tools for this agent (the
+        allow-list still applies at the host firewall; SEC-32 honesty)."""
+        if not hasattr(self, "_network_agents"):
+            self._network_agents = set()
+        self._network_agents.add(agent_id)
+
+    def _network_allowed(self, agent_id: str) -> bool:
+        return agent_id in getattr(self, "_network_agents", set())
+
+    def _record_denial(self, agent_id: str, tool: str, argv: Sequence[str],
+                       extra: str | None = None) -> None:
         if self.ledger is None:
             return
         self.ledger.append(
@@ -224,7 +256,8 @@ class ToolSurface:
                 "decision": "rejected",
                 "input": redact_secrets(
                     json.dumps(
-                        {"tool": tool, "argv": list(argv), "reason": "FR-M9-03"},
+                        {"tool": tool, "argv": list(argv),
+                         "reason": extra or "FR-M9-03"},
                         ensure_ascii=False,
                     )
                 ),
