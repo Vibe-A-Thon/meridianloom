@@ -71,6 +71,13 @@ class OrchestraError(ValueError):
     protocol INVALID_PARAMS error at the merge boundary."""
 
 
+class OrchestraWorkspaceError(OrchestraError):
+    """The handler needs a workspace but the handshake never carried one —
+    a configuration refusal, mapped to LEDGER_UNAVAILABLE at the merge
+    boundary (the same shape gate.evaluate uses; refused by configuration,
+    never an internal error)."""
+
+
 PROGRESS_SCHEMA = {
     # reducer declared: several body nodes write progress in one pass —
     # FR-M4-04 merges them, it never last-write-wins.
@@ -145,7 +152,10 @@ class OrchestraState:
     def workspace(self) -> Path:
         workspace = self._server._workspace_dir
         if not workspace:
-            raise RuntimeError("no workspace configured")
+            raise OrchestraWorkspaceError(
+                "no workspace configured: the handshake must carry"
+                " workspaceDir before orchestrator methods are usable"
+            )
         return Path(workspace)
 
     @property

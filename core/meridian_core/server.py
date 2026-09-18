@@ -380,6 +380,8 @@ class SidecarServer:
             def _orchestra_bound(server, params, _fn=_fn):
                 try:
                     return _fn(server, params)
+                except orchestra_handlers.OrchestraWorkspaceError as exc:
+                    raise _RpcError(protocol.ERROR_LEDGER_UNAVAILABLE, str(exc))
                 except orchestra_handlers.OrchestraError as exc:
                     raise _RpcError(protocol.INVALID_PARAMS, str(exc))
 

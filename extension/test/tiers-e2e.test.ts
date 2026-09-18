@@ -94,11 +94,13 @@ run('tier enforcement against the real sidecar (FR-M36-05, G5)', () => {
       });
       await client.start();
       try {
-        // Orchestra method now passes the gate and hits the NOT_IMPLEMENTED
-        // placeholder — refused by contract, not by tier.
+        // Orchestra method now passes the gate and is real (TASK-011): with
+        // no workspaceDir the structured refusal is LEDGER_UNAVAILABLE —
+        // refused by configuration, not by tier, same shape as gate.evaluate
+        // below.
         await expect(
           client.call('loop.start', { loopId: 'x', storyId: 's', kind: 'L1-micro' }, new AbortController().signal),
-        ).rejects.toMatchObject({ code: ErrorCode.NOT_IMPLEMENTED });
+        ).rejects.toMatchObject({ code: ErrorCode.LEDGER_UNAVAILABLE });
         // Governor remains refused.
         await expectTierDisabled(client, 'gate.evaluate', 'governor');
 
