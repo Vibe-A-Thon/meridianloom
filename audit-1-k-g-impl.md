@@ -192,3 +192,57 @@ TASK-001 (INSERT trigger, now P1) → TASK-002 → TASK-100 (license manifest) �
 **Core-side tasks COMPLETE:** TASK-001 (gapless INSERT trigger), TASK-002 (signer marker), TASK-100 (license manifest), TASK-010 (contract, 31 methods + 68 defs), TASK-011 (**GAP-001 closed** — 31 handlers, 12 integration tests), TASK-020 (ten scenarios), TASK-021 (AC-28 parity harness, 20/20; canned shapes aligned to production), TASK-022 (golden EDB-12345 + `check:golden` in CI), TASK-035 (network-binary egress refusal at the tool gate, ledger-recorded), TASK-070 (thread-local run context), TASK-071 (loop-id exit-check keying), TASK-101 (verified: THIRD-PARTY-NOTICES.md with OFL fonts section ships in the VSIX, enforced by package-extension), TASK-103 (upgrade doc §9 + migration test), TASK-104 (no-telemetry guard `check:telemetry` + data-goes statement), TASK-041 (tenant independence doc §10 + test).
 
 **Remaining (owner: host/GUI session or external):** TASK-012's host consumers (briefing assembly, gate-resume UI, blame→trailer join, onboarding wizard — `extension/src/**` and `webview/src/**` are the parallel session's files), TASK-030 (escalation→policy approval UI), TASK-040 (MCP client digest — host-side), and the external gates (F2/MV5, D37, AC-50, soak, live demo). Core-side prerequisites for all host tasks are now reachable over the bus.
+
+---
+
+## 5. Remaining Work — executable tasks (goal: production ready / fully functional / thoroughly tested)
+
+Sequencing: TASK-200 first (it makes everything else shippable), then the host consumers (largest block), then M26-04, then the P2 debt. Every task lists acceptance criteria; §4's execution record tracks completion.
+
+## TASK-200 — Rebuild and re-validate the artifact (GAP-101, P0)
+**Gap:** GAP-101. **Priority:** P0. **Depends:** nothing.
+**Current state:** `dist/meridian-loom-0.1.0.vsix` (18 Sep 06:27) predates the contract registration and handler wiring: it contains the new modules but not `orchestra_handlers.py`, and its `bus_types.py` is the 84-method version.
+**Required state:** a fresh package containing the 115-method contract, `orchestra_handlers.py`, `simulation/scenarios.py`, the v5 ledger schema, and the license manifest; `validate-package` 12/12; checksum + AI-BOM regenerated; `check:golden` and `check:parity` pass against the packaged sidecar.
+**Implementation steps:** `npm run build && npm run package`; run `node scripts/validate-package.mjs`; run `python scripts/check_golden.py` and `python scripts/check_scenario_parity.py` against the packaged sidecar (parity probe already spawns `python -m meridian_core` from the repo — point it at the packaged copy or accept repo equivalence after validate-package passes); commit `dist/` + refreshed `.sha256`/`.cdx.json` + BUILD_STATE.
+**Files:** `dist/`, `extension/package.json` (version bump if warranted), BUILD_STATE.md.
+**Acceptance:** `unzip -l` shows `orchestra_handlers.py` and a `bus_types.py` containing `RouterRequestParams`; validate-package green; checksum matches.
+**Completion evidence:** validate-package output + archive listing + commit.
+
+## TASK-300 series — Host/GUI consumers of the Orchestra RPCs (GAP-102, P1)
+**Gap:** GAP-102. **Priority:** P1. **Depends:** TASK-200 (to test against the artifact). **Owner note:** `extension/src/**` and `webview/src/**` are the parallel session's files; these tasks are specified here so either session can execute. Each task: add the host service method, the workbench surface, and a vitest.
+
+- **TASK-301 Runtime Studio → loops.** Call `loop.start`/`loop.status`/`loop.stop`/`loop.resume` from `webview/src/workbench/RuntimeStudio.tsx`; show run state, iteration, gate; render the FR-M4-06 gate-approve→resume flow. Acceptance: a vitest drives the service with a mocked transport asserting the exact RPC names/params.
+- **TASK-302 Routing Observatory → router.** Surface `router/dependencyRatio` (per-scope) and a policy-ceiling display fed by the ratio's `breached` flag; render `router/requestModelCall` refusals from the ledger (`rejection` entries). Acceptance: vitest + one integration test over the real sidecar.
+- **TASK-303 Memory panel → memory.** `memory/retrieve`/`memory/write`/`memory/layered` in the organisation studio; show included-vs-cut from the retrieval result (FR-M7-13's cut visibility). Acceptance: vitest.
+- **TASK-304 Brownfield → comprehension.** "Comprehend module" action on a file → `comprehension/record`; render the record; blocked packets show the AC-35 reason. Acceptance: vitest with mocked transport + core integration test already present.
+- **TASK-305 Agents catalogue → adapters.** `adapters/discover`/`plug`/`unplug`/`promote` wired to the existing RegistryBay; probation→active promotion gated by the promote button calling `adapters/promote`. Acceptance: vitest.
+- **TASK-306 Portability dialogs → portability.** Export/import/diff buttons calling the three portability RPCs; import flow presents the diff result before confirm. Acceptance: vitest.
+- **TASK-307 Trainer → trainer.** Training Queue surface calling `trainer/train`/`promote`/`rollback`; promote disabled without human approval. Acceptance: vitest.
+- **TASK-308 Delivery Ops → queue/tenancy/issues.** Story queue view over `queue/enqueue`/`tick`; Problems panel reading `detected_issue` entries (already ledger-visible); tenant switcher over `tenancy/register`. Acceptance: vitest.
+- **TASK-309 Simulation mode.** A workbench toggle pointing the transport at `simulation/serve` (scenario param) so every screen can run against canned scenarios; the X-26 band already exists. Acceptance: vitest switching transports.
+
+## TASK-310 — FR-M26-04 cost levers (TD-008/GAP-103, P1)
+**Requirement:** FR-M26-04 (MUST v1). **Priority:** P1.
+**Current state:** no levers exist.
+**Required state:** three configurable levers on the model-call path: (a) **prompt caching** — identical prompt prefixes hashed and reused within a TTL, cache hits recorded; (b) **context compaction** — over-budget contexts compacted by deterministic summarisation (drop oldest tool results first, marked); (c) **tool-result summarisation** — oversized results replaced by a capped extract with the truncation marker (reuse `TRUNCATION_MARKER`). Each lever's savings (tokens, cost) reported per story and in aggregate via a `spend/levers` read (or an extension of `router/dependencyRatio` result).
+**Implementation steps:** new `core/meridian_core/levers.py` with a `CostLeverSet` consumed by `Router.request_model_call` (pre-call) and by a post-call recorder; config from the governance pack (`budget_ceilings`-adjacent key) with safe defaults (all levers on, TTL 15 min); ledger entries for cache hits and compactions (action_type `model_call` with `lever` field in detail).
+**Files:** `core/meridian_core/levers.py` (new), `core/meridian_core/router/routing.py`, `core/meridian_core/orchestra_handlers.py` (ratio extension or new `spend/levers` read), `shared/schema/methods.json` if a new read method is added, policy schema.
+**Testing:** unit per lever (cache hit/miss, compaction order, marker preservation); integration via the bus; savings arithmetic proven against synthetic call logs. **Acceptance:** all three levers demonstrably reduce recorded token spend in a test scenario; savings figures reconcile to the ledger.
+
+## TASK-320 — Persist orchestrator state (TD-006, P2)
+Run registry (loop handles), story queue, and tenant registry survive sidecar restart: store under `<workspace>/.meridian/orchestrator/state.json` (atomic write), rebuilt at `_state()` first touch; `loop.resume` accepts a persisted handle. **Acceptance:** start→suspend→kill→restart→resume completes; queue state survives.
+
+## TASK-321 — Close the checkpointer on shutdown (TD-007, P4)
+Call `server._orchestra.shutdown()` from the shutdown path. **Acceptance:** no leaked connection warning in a start/stop test.
+
+## TASK-330 — Cross-origin import trust (TD-002, P2)
+`portability/import` accepts a package signed by any key whose fingerprint the workspace has explicitly trusted (trust record in the ledger, human-approved). **Acceptance:** untrusted signature still refuses; trusted imports succeed; tests.
+
+## TASK-331 — Narrative ablation (TD-003, P3)
+Store the decision function's replay recipe at record time for hosted decisions (engine class + payload template), enabling ablate without `actionClass`. **Acceptance:** narrative decisions ablate; tests.
+
+## TASK-340 — Interface contract artefacts (TD-009/FR-M22-02, P2)
+For multi-repo stories, generate an interface contract file (OpenAPI skeleton) from declared repo targets before implementation; Review gate requires it when `repos.length > 1`. **Acceptance:** two-repo story produces a contract artefact; gate blocks without it; tests.
+
+## Execution record (§4) continues
+Mark each task DONE here with commit + evidence as it lands.

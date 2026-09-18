@@ -365,3 +365,60 @@ This section re-grades every finding against the commercial goal, not the build 
 ### 24.5 Marketability verdict
 
 **Not marketable today, for three independent reasons:** (1) the built Orchestra layer is unreachable (P0); (2) no live, truthful demo + evidence study (P0 external); (3) the license/manifest/open-core residue blocks any lawful distribution channel (P1). None requires new architecture — all are wiring, evidence, and packaging work already planned in `audit-1-k-g-impl.md` plus the marketability tasks added there.
+
+---
+
+## 25. Goal Re-Audit — "production ready, fully functional, thoroughly tested" (post-execution, 18 September 2026)
+
+This section supersedes §24's verdict. It reflects the code as it exists NOW (after the execution rounds recorded in audit-1-k-g-impl.md §4), verified against artifacts, not registers.
+
+### 25.1 What is now PROVEN (with evidence)
+
+- **The Orchestra layer is reachable** (TASK-011): 31 surfaces dispatch through the real `SidecarServer` handler table; 12 integration tests drive the real JSON-RPC path; tier gating verified (orchestra surfaces refuse without the tier; simulation/golden are zero-tier per FR-M32). Evidence: `core/tests/test_orchestra_rpc.py` (12 passed), commit 9060686.
+- **Contract integrity**: 115 methods, all in the sidecar registry, drift check green, both generated consumers in lockstep. Simulation canned data aligned to production wire shapes (the AC-28 harness caught and fixed `rows`→`entries` drift). Evidence: `scripts/check_scenario_parity.py` 20/20 (6e24b86).
+- **Golden corpus runs in CI**: `golden/EDB-12345/` replays byte-identical; `npm run check:golden` in verify.yml (bfd00d0).
+- **Security hardening landed**: write-time gapless-insert refusal (1d3712e), signer-marker precedence (9447882), egress refusal at the tool gate (b578c2e), 103-fixture adversarial corpus, 16 redaction shapes.
+- **Distribution residue clearing**: MIT in the manifest, private flag dropped (7549d43); notices verified; no-telemetry guard green (7a95532); upgrade + tenant docs with tests.
+
+### 25.2 Goal verdict
+
+**Still not production-ready.** Four independent blockers remain, three of which are engineering tasks and one of which is a missing requirement:
+
+1. **GAP-101 (P0): the shipped artifact is stale — the P0 fix is not in the package.** Verified 18 Sep: `dist/meridian-loom-0.1.0.vsix` (built 06:27) contains the new modules but NOT `orchestra_handlers.py` (no match in the archive), and its `bus_types.py` predates the 115-method contract (file dated 17 Sep 16:54). An evaluator installing the VSIX gets the pre-wiring product. **Fix: rebuild (`npm run package`), re-validate (`validate-package`), refresh checksum + AI-BOM.**
+2. **GAP-102 (P1): zero host/GUI consumers of the 31 RPCs.** Verified: the only match for any new method name in `extension/src`/`webview/src` is a docstring sentence in `steer.ts`. The workbench cannot start a loop, route a call, query memory, run the trainer, or open a portability dialog. "Fully functional" fails at the UI boundary even though the bus is live.
+3. **GAP-103 (P1): FR-M26-04 is unimplemented** — prompt caching, context compaction, and tool-result summarisation as configurable cost levers with reported savings are a MUST v1 requirement with no code (verified: zero matches in `core/`). Omitted requirement, not deferred by any decision.
+4. **GAP-104 (P1, external): no live end-to-end run** — an installed ACP runtime with credentials has never driven a story through the product; the §10.2 quality bar and F2/MV5 remain human/customer-gated.
+
+### 25.3 Tech-debt register (detailed)
+
+Each item: what exists, what is incomplete and why, severity, fix pointer. "Intentional" items are documented design boundaries, not defects; they are listed so the fix work does not mistake them for gaps.
+
+| ID | Item | State | Detail | Severity | Fix |
+|---|---|---|---|---|---|
+| TD-001 | Loop node bodies | Intentional stand-in | `orchestra_handlers._stand_in_nodes` runs deterministic progress markers; real reasoning requires the ACP runtime binding (roster manifests state this). The M4 machinery exercised is real. | P3 (until demo B) | runtime binding at launch |
+| TD-002 | `portability/import` trust scope | Partial | Only packages signed by THIS workspace's ledger key import; cross-origin trust establishment (the FR-M16-04 general case) refuses honestly. | P2 | TASK-330 |
+| TD-003 | `decisions/ablate` scope | Partial | Only engine-dispatchable decisions replay; narrative decisions refuse with the reason named. | P3 | TASK-331 |
+| TD-004 | Simulation parity breadth | Partial | The parity harness probes read methods live; mutating steps are simulation-only by design (they must not mutate a probe workspace). | P3 | document; extend with disposable-workspace probing |
+| TD-005 | Golden corpus size | Partial | One entry (EDB-12345). Admission path proven; corpus breadth is content work. | P3 | add stories as they complete |
+| TD-006 | Orchestrator state is process-local | Real gap | `OrchestraState` holds run handles, story queue, tenants in memory. A sidecar restart loses the run registry (checkpoints survive; `loop.resume` needs the handle). Queue/tenants do not survive restart. | P2 | TASK-320 |
+| TD-007 | Checkpointer connection lifetime | Minor | `_cp_conn` closes at process exit; `OrchestraState.shutdown` exists but is not called from the server's shutdown path. | P4 | TASK-321 |
+| TD-008 | FR-M26-04 cost levers | **Omitted** | No prompt-cache/compaction/summarisation levers; no savings reporting. MUST v1. | P1 | TASK-310 |
+| TD-009 | FR-M22-02 interface contracts | Partial | Multi-repo targets exist; Architect-generated OpenAPI/protobuf contract artefacts are not produced. MUST v1.x. | P2 | TASK-340 |
+| TD-010 | FR-M26-05 model comparison harness | Missing | SHOULD v1.x; golden story × N model configs on yield/cost/latency. | P3 | post-MVP |
+| TD-011 | FR-M13-06 contribution attribution | Missing | SHOULD v1.x; story-level agent contribution marked as estimate. | P3 | post-MVP |
+| TD-012 | Full core suite in one run | Process debt | Targeted suites green (140+12+61+187+35…); the serial full suite (~1h+) was not re-run end-to-end in this pass. CI runs it. | P3 | CI evidence |
+| TD-013 | `server.py` concentration | Improved, residual | Orchestra handlers live in their own module (good); server.py is still ~5.5k lines for the pre-existing surface. | P4 | incremental extraction |
+| TD-014 | Host webview parity for new surfaces | Real gap (GAP-102) | No workbench UI calls the new RPCs. | P1 | TASK-300 series |
+| TD-015 | Live-demo path | External | Runtime + credentials + bounded task never exercised. | P1 ext | demo B runbook |
+| TD-016 | Rate limiting / multi-user sidecar | Documented assumption | Local single-user trust boundary; multi-user deployments need listener hardening. Disclosed. | P3 | deployment guide |
+| TD-017 | VIGUIX sweep automation | Partial | assistive-journeys + banned-patterns tests exist; full §18 banned-pattern and screen-by-screen automated sweep incomplete. | P3 | GUI session |
+| TD-018 | npm/webview full suites this pass | Not re-run | Host suites were green in earlier evidence; not re-executed in this audit pass. | P3 | CI |
+
+### 25.4 Severity roll-up for the goal
+
+- **P0:** 1 (GAP-101 stale artifact — half-day fix).
+- **P1:** 3 engineering (GAP-102 host consumers, GAP-103/TD-008 M26-04, plus rebuild validation) + external gates unchanged (F2/MV5, D37, AC-50, soak, demo).
+- **P2:** TD-002, TD-006, TD-009, SEC residuals from §11.
+- **P3/P4:** the balance of the tech-debt register.
+
+The path to "production ready, fully functional, thoroughly tested" is now: rebuild the artifact (hours) → host consumers (the largest remaining engineering block) → M26-04 levers → TD-002/006/009 → then the external evidence gates. Everything on that path has an implementation task in audit-1-k-g-impl.md §5.
