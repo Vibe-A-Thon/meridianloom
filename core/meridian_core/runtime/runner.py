@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import operator
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -166,9 +167,11 @@ class LangGraphLoopRunner:
         #: is refused at load, before anything is scheduled.
         self._concurrency_cap = concurrency_cap
         self._now = now
-        self._nodes: Mapping[str, NodeFn] = {}
-        self._schemas: Mapping[str, FieldSpec] = {}
-        self._exit_checks: dict[int, Callable[[LoopState], bool]] = {}
+        # Per-run context is thread-local (TASK-070): one runner may serve
+        # concurrent runs on separate threads (the M21 story queue); shared
+        # instance state would let run B's nodes clobber run A's.
+        self._local = threading.local()
+        self._exit_checks: dict[str, Callable[[LoopState], bool]] = {}
 
     # -- public API ------------------------------------------------------------
 
@@ -191,8 +194,8 @@ class LangGraphLoopRunner:
     ) -> RunHandle:
         definition.validate()  # FR-M4-02: load-time, before anything runs
         self._validate_fanout(definition)
-        self._nodes = dict(nodes)
-        self._schemas = dict(schema)
+        self._local.nodes = dict(nodes)
+        self._local.schemas = dict(schema)
         state = LoopState.initial(schema)
         for name, value in (initial or {}).items():
             state.set(name, value)
@@ -205,7 +208,7 @@ class LangGraphLoopRunner:
         """FR-M4-06: continue a suspended run from exactly the state the
         gate saw. The caller updates what the gate awaited (e.g. marks a
         human approval in the state) before resuming."""
-        state = LoopState.initial(self._schemas)
+        state = LoopState.initial(self._local.schemas)
         for name, value in handle.state_snapshot.items():
             state.values[name] = value
         return self._run(
@@ -228,7 +231,7 @@ class LangGraphLoopRunner:
         """FR-M4-07: a MODIFIED-STATE fork. Re-runs from the loop's first
         iteration with the overrides applied; every emitted ledger entry
         is tagged ``replay_of`` and never counted as live work."""
-        state = LoopState.initial(self._schemas)
+        state = LoopState.initial(self._local.schemas)
         for name, value in handle.initial_state.items():
             state.values[name] = value
         for name, value in state_overrides.items():
@@ -266,8 +269,8 @@ class LangGraphLoopRunner:
         started = self._now()
         config = {"configurable": {"thread_id": thread_id}}
         iteration = from_iteration
-        schema = self._schemas
-        self._pending_writes: list[tuple[str, dict]] = []
+        schema = self._local.schemas
+        self._local.pending_writes = []
 
         while True:
             # Exit criteria before bounds: a loop that has finished has
@@ -309,7 +312,7 @@ class LangGraphLoopRunner:
                 # The pass aborted mid-graph: nodes that already ran kept
                 # their writes in _pending_writes — apply them so the
                 # suspension persists what the gate saw (FR-M4-06).
-                state = self._apply_writes(schema, state, self._pending_writes)
+                state = self._apply_writes(schema, state, self._local.pending_writes)
                 # FR-M4-06: persist (checkpointer already did), record, stop.
                 self._record(
                     definition, story_id, run_id, replay_of, iteration,
@@ -355,7 +358,7 @@ class LangGraphLoopRunner:
     def _compile(self, definition: LoopDefinition) -> StateGraph:
         graph = StateGraph(_GraphState)
         for node_id in definition.body_graph:
-            fn = self._nodes.get(node_id)
+            fn = self._local.nodes.get(node_id)
             if fn is None:
                 raise LoopValidationError(
                     f"FR-M4-02: loop '{definition.loop_id}' references node"
@@ -402,7 +405,7 @@ class LangGraphLoopRunner:
 
     def _wrap(self, definition: LoopDefinition, node_id: str, fn: NodeFn):
         def node(state: _GraphState) -> dict[str, Any]:
-            loop_state = LoopState.initial(self._schemas)
+            loop_state = LoopState.initial(self._local.schemas)
             loop_state.values = dict(state["payload"]["state"])
             ctx = NodeContext(
                 loop=definition,
@@ -410,7 +413,7 @@ class LangGraphLoopRunner:
                 state=loop_state,
             )
             updates = fn(ctx) or {}
-            self._pending_writes.append((node_id, dict(updates)))
+            self._local.pending_writes.append((node_id, dict(updates)))
             return {"writes": [(node_id, dict(updates))]}
 
         return node
