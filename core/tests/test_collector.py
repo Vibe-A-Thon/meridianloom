@@ -236,3 +236,58 @@ def test_cli_collect_and_uninstall_round_trip(workspace: Path) -> None:
     )
     assert uninstall_run.returncode == 0, uninstall_run.stderr
     assert json.loads(uninstall_run.stdout)["wasInstalled"] is True
+
+
+# -- TASK-002: one chain, one signer (audit NEW-GAP-E) ---------------------------
+
+
+def test_collector_refuses_marker_mismatch(workspace: Path) -> None:
+    import os
+
+    collector.collect(workspace)  # creates ledger + marker with seed A
+    env_seed = os.environ.get("MERIDIAN_LEDGER_SIGNING_SEED")
+    os.environ["MERIDIAN_LEDGER_SIGNING_SEED"] = "bb" * 32  # different key
+    try:
+        with pytest.raises(collector.CollectorError, match="TASK-002"):
+            collector.collect(workspace)
+    finally:
+        if env_seed is None:
+            del os.environ["MERIDIAN_LEDGER_SIGNING_SEED"]
+        else:
+            os.environ["MERIDIAN_LEDGER_SIGNING_SEED"] = env_seed
+
+
+def test_collector_refuses_unsigned_marker_with_existing_heads(workspace: Path, tmp_path) -> None:
+    # A ledger signed by an unknown key (no marker): the collector must
+    # not adopt it.
+    from meridian_core.ledger import Ledger, ProvisionedSigningKeyProvider
+
+    led = Ledger(
+        workspace / ".meridian" / "ledger",
+        ProvisionedSigningKeyProvider(bytes(range(32))),
+    )
+    led.append(
+        {
+            "story_id": "HOST-1",
+            "phase": "build",
+            "loop_id": "L1",
+            "loop_iteration": 1,
+            "actor_id": "host",
+            "actor_version": "0.0.1",
+            "actor_kind": "meta",
+            "policy_version": "host/v1",
+            "action_type": "note",
+        }
+    )
+    led.emit_tree_head_now()
+    led.close()
+    with pytest.raises(collector.CollectorError, match="TASK-002"):
+        collector.collect(workspace)
+
+
+def test_collector_records_marker_on_first_use(workspace: Path) -> None:
+    collector.collect(workspace)
+    marker = workspace / ".meridian" / "ledger-signer.fp"
+    assert marker.is_file()
+    # Same key re-opens fine (no mismatch).
+    collector.collect(workspace)

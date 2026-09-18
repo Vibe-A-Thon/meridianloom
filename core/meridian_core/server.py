@@ -80,6 +80,31 @@ from .rpc import (
 logger = logging.getLogger("meridian_core.server")
 
 
+def _signer_fingerprint(public_key: bytes) -> str:
+    import hashlib
+
+    return hashlib.sha256(public_key).hexdigest()
+
+
+def _record_signer_marker(workspace: Path, public_key: bytes) -> None:
+    """TASK-002 (audit NEW-GAP-E): the extension host's provisioned
+    signing key is authoritative; record its fingerprint so headless
+    consumers (the collector) can detect a two-signer ambiguity instead
+    of silently signing one chain with two keys. A changed fingerprint
+    (legitimate key rotation via the host) rewrites the marker and is
+    logged — collector users must then be given the new seed."""
+    marker = workspace / ".meridian" / "ledger-signer.fp"
+    fingerprint = _signer_fingerprint(public_key)
+    if marker.is_file() and marker.read_text(encoding="ascii").strip() != fingerprint:
+        logger.warning(
+            "ledger signing key changed for %s — collector/headless users "
+            "must be given the new MERIDIAN_LEDGER_SIGNING_SEED",
+            workspace,
+        )
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(fingerprint + "\n", encoding="ascii")
+
+
 def _parse_iso(value: Any, field: str) -> datetime:
     """Parse an ISO 8601 timestamp param; an invalid value is an
     INVALID_PARAMS refusal, never a silent default."""
@@ -405,6 +430,9 @@ class SidecarServer:
                 provider = ledger_keys.EphemeralSigningKeyProvider()
             self._ledger = ledger_core.Ledger(
                 Path(self._workspace_dir) / ".meridian" / "ledger", provider
+            )
+            _record_signer_marker(
+                Path(self._workspace_dir), self._ledger.signing_public_key
             )
         return self._ledger
 

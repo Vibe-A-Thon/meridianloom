@@ -99,7 +99,16 @@ def _seed_bytes(workspace: Path, warnings: list[str]) -> bytes | None:
 
 
 def open_collector_ledger(workspace: Path | str) -> tuple[ledger_core.Ledger, list[str]]:
-    """Open (creating if needed) the workspace ledger for headless use."""
+    """Open (creating if needed) the workspace ledger for headless use.
+
+    TASK-002 (audit NEW-GAP-E): one chain, one signer. The extension
+    host's provisioned key is authoritative and records its fingerprint
+    at ``.meridian/ledger-signer.fp``. The collector refuses — rather
+    than silently signing one chain with two keys — when the marker
+    names a different key, and refuses to adopt a ledger that already
+    carries signed tree heads with no marker (it was signed by a key
+    the collector does not know; the remedy is to set
+    ``MERIDIAN_LEDGER_SIGNING_SEED`` to that same key)."""
     root = Path(workspace)
     warnings: list[str] = []
     try:
@@ -120,6 +129,39 @@ def open_collector_ledger(workspace: Path | str) -> tuple[ledger_core.Ledger, li
             " cannot be re-signed later"
         )
     ledger = ledger_core.Ledger(root / MERIDIAN_DIR / "ledger", provider)
+    if seed is not None:
+        fingerprint = ledger_keys.public_key_bytes(
+            ledger_keys.ProvisionedSigningKeyProvider(seed).private_key()
+        )
+        import hashlib
+
+        fingerprint = hashlib.sha256(fingerprint).hexdigest()
+        marker = root / MERIDIAN_DIR / "ledger-signer.fp"
+        if marker.is_file():
+            recorded = marker.read_text(encoding="ascii").strip()
+            if recorded != fingerprint:
+                ledger.close()
+                raise CollectorError(
+                    "TASK-002: this workspace's ledger is signed by a"
+                    " different key (marker mismatch) — refusing a"
+                    " two-signer chain; set MERIDIAN_LEDGER_SIGNING_SEED"
+                    " to the workspace's provisioned seed"
+                )
+        else:
+            heads = ledger.conn.execute(
+                "SELECT COUNT(*) FROM tree_head"
+            ).fetchone()[0]
+            if heads > 0:
+                ledger.close()
+                raise CollectorError(
+                    "TASK-002: this ledger already carries signed tree"
+                    " heads but no signer marker — it was signed by a key"
+                    " the collector does not know; set"
+                    " MERIDIAN_LEDGER_SIGNING_SEED to that key"
+                )
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(fingerprint + "\n", encoding="ascii")
+            warnings.append("recorded ledger signer marker for this workspace")
     return ledger, warnings
 
 
