@@ -1,0 +1,1168 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-09-18T16:05:01.531Z",
+    "tools": [
+      {
+        "vendor": "Meridian Loom",
+        "name": "generate-bom.mjs",
+        "version": "0.1.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "bom-ref": "meridian-loom@0.1.0",
+      "name": "meridian-loom",
+      "version": "0.1.0",
+      "description": "A governed organisation of AI agents inside VS Code.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "675247ea7babb35dc2853206f7313a31349f4d7d951101d62875dc33ed426775"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:artefact",
+          "value": "meridian-loom-0.1.0.vsix"
+        },
+        {
+          "name": "meridian:scope",
+          "value": "Describes the contents of this package only. No workspace content, no credentials and no customer identifiers appear here (SEC-44)."
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/analyst-agent.md",
+      "group": "meridian.agents",
+      "name": "analyst-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9b0bd80baa7dd144cb23d172146871d92646da50a344140c49ddb00a499b9ee4"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/analyst-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/api-contract-agent.md",
+      "group": "meridian.agents",
+      "name": "api-contract-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a6e913dedceb043d4f0117c5fd0a4177657e0b7ca2ef9da9c14f22ee2cf03a22"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/api-contract-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/architect-agent.md",
+      "group": "meridian.agents",
+      "name": "architect-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "dcda5d10c31472c68269d495ed3a5aab4c7d42c3ff6d3748adabada80bed5e6c"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/architect-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/cloud-aws-agent.md",
+      "group": "meridian.agents",
+      "name": "cloud-aws-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0460e6a8395d15f711720bd9a35542c43381a70a72224f88196c60dde92f0b9e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/cloud-aws-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/database-migration-agent.md",
+      "group": "meridian.agents",
+      "name": "database-migration-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4a8bca1010d582044ec5cc195852776a2b5e2d732a211aba346c8fb8129e1a65"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/database-migration-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/developer-agent.md",
+      "group": "meridian.agents",
+      "name": "developer-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1086638df74399aa701fd5313aa12ac9a540a6de10374bd9e85f34adeafe3b85"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/developer-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/dotnet-service-agent.md",
+      "group": "meridian.agents",
+      "name": "dotnet-service-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "62c082c2de518af56e0e7a39ac36e5692fdec5ee9f05325915bc2be7cf5ee54d"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/dotnet-service-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/frontend-agent.md",
+      "group": "meridian.agents",
+      "name": "frontend-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "fa3b9c0be15c4f3ede8e16f16572da9f3935b8e763a7c8f020e7085f551b7186"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/frontend-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/go-service-agent.md",
+      "group": "meridian.agents",
+      "name": "go-service-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "36308267b9c8d13e36584ed49207b741fd330f28b02f546b1dc5c41dbe535f4c"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/go-service-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/java-fullstack-agent.md",
+      "group": "meridian.agents",
+      "name": "java-fullstack-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2d0eb026fab8b9fe7f9b08a0f877c25404249decdc90b115ec7b8adbe31cb3db"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/java-fullstack-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/java-spring-boot-agent.md",
+      "group": "meridian.agents",
+      "name": "java-spring-boot-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "07a441e834df4ec795dd3f89a36c1bc9b030a8b35d75ac2b27031c48dcb30ea7"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/java-spring-boot-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/node-service-agent.md",
+      "group": "meridian.agents",
+      "name": "node-service-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3d4cf8751f422158933c6264d24b7fa9f3a713d28a8bf53256557963dc4919ef"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/node-service-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/python-service-agent.md",
+      "group": "meridian.agents",
+      "name": "python-service-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "809a4c17c08ed08408ad36657890d8a42caa3ac42e1747fd42c6ccc7d49bcd9b"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/python-service-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/qa-engineer-agent.md",
+      "group": "meridian.agents",
+      "name": "qa-engineer-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cdb42a89b1b24f4936f66673629c51a54e136da9ad5de483b4137e9fc742d590"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/qa-engineer-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/qa-lead-agent.md",
+      "group": "meridian.agents",
+      "name": "qa-lead-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "287165b0b9c5901244b5a244770c43005fbd95b4b6a5c70c3dc8291ee99851b1"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/qa-lead-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/react-frontend-agent.md",
+      "group": "meridian.agents",
+      "name": "react-frontend-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "721b1ae29ccb036a566685c804d11f601bdd4aed9697ec8dfac06baac7a44378"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/react-frontend-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/release-agent.md",
+      "group": "meridian.agents",
+      "name": "release-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a54471ae8ee15edb3cb65480e0aeb8410dd1d49fc7a7c7fa107d4564239be992"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/release-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/reviewer-agent.md",
+      "group": "meridian.agents",
+      "name": "reviewer-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b889cc065d69d48ba55606bc622ea6428057e49622bd66af3dd499a937fb2ff1"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/reviewer-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/scrummaster-agent.md",
+      "group": "meridian.agents",
+      "name": "scrummaster-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "26c85d908c890e56609282bb26c205d05a9a535e4c411a3abd97759aded7fc1a"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/scrummaster-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/security-agent.md",
+      "group": "meridian.agents",
+      "name": "security-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "25bd1e8bbdd0df2bd8d9347ccf5b3505efc9ace5f78dbb3dd52cdd7346f7e4bf"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/security-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/sre-agent.md",
+      "group": "meridian.agents",
+      "name": "sre-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1ee4cc9fb177d7fde5ea3156e5e43a4622db30d21fb0642971fc3d1c6b017814"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/sre-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/agents/techlead-agent.md",
+      "group": "meridian.agents",
+      "name": "techlead-agent",
+      "version": "1.0.0",
+      "description": "Shipped agent configuration: role, permissions, bound skills. No model weights and no inference code ship with it.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "aecc5559121662a133c271ebd38f7665ad6c9d68531394632ebb2bfa5dd383e9"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/agents/techlead-agent.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/skills/api-contract-first.md",
+      "group": "meridian.skills",
+      "name": "api-contract-first",
+      "version": "1.0.0",
+      "description": "Skill pack: conventions, layout and build/test invocations for a stack.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "583c3fcce5797d6a7fb233914696d6aabb0d62e51852771cb42d927249d1d0e1"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/skills/api-contract-first.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/skills/aws-iac.md",
+      "group": "meridian.skills",
+      "name": "aws-iac",
+      "version": "1.0.0",
+      "description": "Skill pack: conventions, layout and build/test invocations for a stack.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e8bc301edc181e1c3cd7bba8a9c74561fa601aa37980cfe86d3be595677b699e"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/skills/aws-iac.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/skills/dotnet-service.md",
+      "group": "meridian.skills",
+      "name": "dotnet-service",
+      "version": "1.0.0",
+      "description": "Skill pack: conventions, layout and build/test invocations for a stack.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "920ded87c35c9183b2d7783c75359f671daa14554f9b01cb98157ed8a0d6940a"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/skills/dotnet-service.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/skills/golang-service.md",
+      "group": "meridian.skills",
+      "name": "golang-service",
+      "version": "1.0.0",
+      "description": "Skill pack: conventions, layout and build/test invocations for a stack.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d61e81be80a79ea5b820764bc8fb4956925f6e5daa2901fd1ce59637d2c8ab92"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/skills/golang-service.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/skills/java-fullstack.md",
+      "group": "meridian.skills",
+      "name": "java-fullstack",
+      "version": "1.0.0",
+      "description": "Skill pack: conventions, layout and build/test invocations for a stack.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "793ae53348f7b962bb0dc87d21f1f01a1037ee3c5deedbf4412d26492d8f0d7c"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/skills/java-fullstack.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/skills/java-spring-gradle.md",
+      "group": "meridian.skills",
+      "name": "java-spring-gradle",
+      "version": "1.0.0",
+      "description": "Skill pack: conventions, layout and build/test invocations for a stack.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "c3834b760e8da862634f93e92af64e9219525c60f694941a2ef214c240fd3ac1"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/skills/java-spring-gradle.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/skills/node-service.md",
+      "group": "meridian.skills",
+      "name": "node-service",
+      "version": "1.0.0",
+      "description": "Skill pack: conventions, layout and build/test invocations for a stack.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "091b47c0e0b344d0782a823a31f89715a7177c1d322040f54824776a1d0f76c4"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/skills/node-service.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/skills/python-service.md",
+      "group": "meridian.skills",
+      "name": "python-service",
+      "version": "1.0.0",
+      "description": "Skill pack: conventions, layout and build/test invocations for a stack.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "467d1075622d7cb2a969990fd86b9734b360c28a4b0d20b0888b4e92ab268b0c"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/skills/python-service.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/skills/react-frontend.md",
+      "group": "meridian.skills",
+      "name": "react-frontend",
+      "version": "1.0.0",
+      "description": "Skill pack: conventions, layout and build/test invocations for a stack.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "bc9fd183ed7eadd31d08dc7e4c3091b594ef806e3344fcedc31fdd7a90745590"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/skills/react-frontend.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/skills/sql-migration.md",
+      "group": "meridian.skills",
+      "name": "sql-migration",
+      "version": "1.0.0",
+      "description": "Skill pack: conventions, layout and build/test invocations for a stack.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d74bbc6910bcbf082cc82c85122707c245f20eca23090b898d45dd61a76a8ab8"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/skills/sql-migration.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/instructions/definition-of-done.md",
+      "group": "meridian.instructions",
+      "name": "definition-of-done",
+      "version": "0.1.0",
+      "description": "Instruction document an agent is briefed from.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5f0ba7f13b6daf721177abf332752d190c6d624556581e135039d89a0e84f5e5"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/instructions/definition-of-done.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/instructions/engineering-standards.md",
+      "group": "meridian.instructions",
+      "name": "engineering-standards",
+      "version": "0.1.0",
+      "description": "Instruction document an agent is briefed from.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1c6d6dd39a2fb2aecda10f0295edb5566b5158d9d2f279feb7bbd75df5c33bd1"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/instructions/engineering-standards.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/instructions/review-checklist.md",
+      "group": "meridian.instructions",
+      "name": "review-checklist",
+      "version": "0.1.0",
+      "description": "Instruction document an agent is briefed from.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0b5993cd762b787d834827edcdeeb59a4b6735581ee72e85f66f2a889d6164b4"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/instructions/review-checklist.md"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "extension/library/instructions/security-baseline.md",
+      "group": "meridian.instructions",
+      "name": "security-baseline",
+      "version": "0.1.0",
+      "description": "Instruction document an agent is briefed from.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b2ab18c7184d7d0e379b08f1c459a07a0696a645a11580110cfecf2b36d1f660"
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:path",
+          "value": "extension/library/instructions/security-baseline.md"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "bom-ref": "runtime-preset:claude-acp",
+      "group": "meridian.runtime-presets",
+      "name": "Claude Agent",
+      "version": "unpinned",
+      "description": "ACP runtime preset: a command line Meridian offers to bind. The package neither contains nor fetches this agent; a person installs and authenticates it themselves.",
+      "properties": [
+        {
+          "name": "meridian:command",
+          "value": "npx"
+        },
+        {
+          "name": "meridian:shipped",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "bom-ref": "runtime-preset:gemini-cli",
+      "group": "meridian.runtime-presets",
+      "name": "Gemini CLI",
+      "version": "unpinned",
+      "description": "ACP runtime preset: a command line Meridian offers to bind. The package neither contains nor fetches this agent; a person installs and authenticates it themselves.",
+      "properties": [
+        {
+          "name": "meridian:command",
+          "value": "npx"
+        },
+        {
+          "name": "meridian:shipped",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "bom-ref": "runtime-preset:codex-acp",
+      "group": "meridian.runtime-presets",
+      "name": "Codex CLI",
+      "version": "unpinned",
+      "description": "ACP runtime preset: a command line Meridian offers to bind. The package neither contains nor fetches this agent; a person installs and authenticates it themselves.",
+      "properties": [
+        {
+          "name": "meridian:command",
+          "value": "npx"
+        },
+        {
+          "name": "meridian:shipped",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "type": "application",
+      "bom-ref": "runtime-preset:minion-code",
+      "group": "meridian.runtime-presets",
+      "name": "Minion Code",
+      "version": "unpinned",
+      "description": "ACP runtime preset: a command line Meridian offers to bind. The package neither contains nor fetches this agent; a person installs and authenticates it themselves.",
+      "properties": [
+        {
+          "name": "meridian:command",
+          "value": "uvx"
+        },
+        {
+          "name": "meridian:shipped",
+          "value": "false"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/@zed-industries/agent-client-protocol",
+      "name": "@zed-industries/agent-client-protocol",
+      "version": "declared",
+      "purl": "pkg:npm/@zed-industries/agent-client-protocol",
+      "licenses": [
+        {
+          "license": {
+            "name": "Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "extension"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "permitted"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/yaml",
+      "name": "yaml",
+      "version": "declared",
+      "purl": "pkg:npm/yaml",
+      "licenses": [
+        {
+          "license": {
+            "name": "ISC"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "extension"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "permitted"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/@fontsource/archivo",
+      "name": "@fontsource/archivo",
+      "version": "declared",
+      "purl": "pkg:npm/@fontsource/archivo",
+      "licenses": [
+        {
+          "license": {
+            "name": "OFL-1.1"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "webview"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "font"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/@fontsource/jetbrains-mono",
+      "name": "@fontsource/jetbrains-mono",
+      "version": "declared",
+      "purl": "pkg:npm/@fontsource/jetbrains-mono",
+      "licenses": [
+        {
+          "license": {
+            "name": "OFL-1.1"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "webview"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "font"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/react",
+      "name": "react",
+      "version": "declared",
+      "purl": "pkg:npm/react",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "webview"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "permitted"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/react-dom",
+      "name": "react-dom",
+      "version": "declared",
+      "purl": "pkg:npm/react-dom",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "webview"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "permitted"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/cryptography",
+      "name": "cryptography",
+      "version": "declared",
+      "purl": "pkg:pypi/cryptography",
+      "licenses": [
+        {
+          "license": {
+            "name": "Apache-2.0 OR BSD-3-Clause"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "core"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "permitted"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/tree-sitter",
+      "name": "tree-sitter",
+      "version": "declared",
+      "purl": "pkg:pypi/tree-sitter",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT License"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "core"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "permitted"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/tree-sitter-java",
+      "name": "tree-sitter-java",
+      "version": "declared",
+      "purl": "pkg:pypi/tree-sitter-java",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "core"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "permitted"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/tree-sitter-python",
+      "name": "tree-sitter-python",
+      "version": "declared",
+      "purl": "pkg:pypi/tree-sitter-python",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "core"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "permitted"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/PyYAML",
+      "name": "PyYAML",
+      "version": "declared",
+      "purl": "pkg:pypi/PyYAML",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "core"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "permitted"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/jsonschema",
+      "name": "jsonschema",
+      "version": "declared",
+      "purl": "pkg:pypi/jsonschema",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "core"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "permitted"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/langgraph",
+      "name": "langgraph",
+      "version": "declared",
+      "purl": "pkg:pypi/langgraph",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "core"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "permitted"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/langgraph-checkpoint-sqlite",
+      "name": "langgraph-checkpoint-sqlite",
+      "version": "declared",
+      "purl": "pkg:pypi/langgraph-checkpoint-sqlite",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "meridian:workspace",
+          "value": "core"
+        },
+        {
+          "name": "meridian:licenceVerdict",
+          "value": "permitted"
+        }
+      ]
+    }
+  ]
+}
