@@ -148,6 +148,39 @@ in that repository may do.
 
 ## 8. Backup and retention
 
+## 9. Upgrading
+
+Reinstall the VSIX (`code --install-extension` over the existing install);
+no uninstall step is needed first. On first open the sidecar migrates
+workspace state forward:
+
+- the ledger upgrades in place through its versioned migrations
+  (`meridian_core.ledger.schema.apply_migrations` — schema v5 at the time
+  of writing), preserving the full chain and every tree head;
+- policy packs under `.meridian/policy/` are preserved (they override the
+  shipped defaults; review the shipped defaults' changelog when upgrading
+  across a policy change);
+- adapters under `.meridian/adapters/` and the prebuilt library are
+  preserved; adapter digests are re-verified on load, so an adapter whose
+  files changed since its pin is listed with its errors, never loaded;
+- `learned/` state travels with the adapter (FR-M31-12).
+
+Rollback: reinstall the previous VSIX. Migrations are forward-only, so a
+rollback keeps migrated state readable by the older sidecar only where the
+older sidecar understands the newer columns (they are additive and
+NULL-optional); the ledger chain itself verifies under both. Tested by
+`core/tests/test_upgrade_path.py` (audit TASK-103).
+
+## 10. Multi-tenant deployments
+
+State is per-workspace under `<workspace>/.meridian/` — ledgers, memory,
+adapters, checkpoints. Two workspaces never share state: there is no
+shared store to leak through (SEC-23's enforcement point is the
+per-workspace root; the `TenantRegistry` adds named, refused-cross-
+resolution tenants for IT-services deployments). Tested by
+`core/tests/test_upgrade_path.py` (audit TASK-041).
+
+
 The ledger is a SQLite database plus encrypted blobs under
 `<workspace>/.meridian/ledger`. Back it up the way you back up the repository —
 it lives in the same place.

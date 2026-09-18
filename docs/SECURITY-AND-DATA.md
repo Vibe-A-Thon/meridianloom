@@ -23,6 +23,16 @@ model-client import in the recording paths (`core/tests/test_no_model_calls.py`,
 
 ## 2. Where data goes
 
+**Telemetry: none.** The extension makes no network connection on its own.
+The only egress paths are operator-configured: the model provider the
+workspace binds (sidecar), the adapter/skill registry URL
+(`extension/src/adapters/registry-source.ts`), connector endpoints
+(M19, `extension/src/workbench/integrations.ts`), and the headless
+collector's opt-in `--sink`. A CI guard fails the build if any unreviewed
+network client appears in the host or webview sources
+(`npm run check:telemetry`, audit TASK-104).
+
+
 **Everything is local by default.** The record lives in the repository you open:
 
 | Location | Contents |
