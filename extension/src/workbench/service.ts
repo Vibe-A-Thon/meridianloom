@@ -457,6 +457,24 @@ export function validateWorkbenchAgent(value: unknown): WorkbenchAgentInput {
  * hundred is roughly a month of steady use and tens of megabytes below the
  * ceiling, leaving it as the backstop it was meant to be.
  */
+const SIDECAR_PASSTHROUGH_PREFIXES = [
+  "loop.",
+  "adapters/",
+  "router/",
+  "tools/",
+  "memory/",
+  "comprehension/",
+  "portability/",
+  "trainer/",
+  "tenancy/",
+  "queue/",
+  "annotations/",
+  "issues/",
+  "simulation/",
+  "golden/",
+  "decisions/",
+] as const;
+
 const RETAINED_RUNS = 200;
 
 /** Local drafts and participation are independent from the sidecar. Only

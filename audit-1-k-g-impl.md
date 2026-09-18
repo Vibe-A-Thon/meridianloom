@@ -287,3 +287,9 @@ Mark each task DONE here with commit + evidence as it lands.
 ### What "done" means for each
 
 Per §23 of the requirements audit: reachable through the real entry point + integration test over the real path + register row citing test and commit + re-proven invariants. The goal's "production ready" verdict flips when the screens are wired, the external gates close, and the evidence pack lands in `docs/baselines/`.
+
+## Execution record — round 5 (19 September 2026)
+- **TASK-301 (GUI):** Loop Control panel in Runtime Studio — start/status/stop/resume/replay with JSON overrides, exact RPC params, client-side validation, error surfacing (699afc8; 4 vitest).
+- **TASK-305 (GUI):** Adapter Registry panel — discover renders valid/invalid with errors, invalid adapters carry no actions, promote/unplug dispatch + rediscover (ae29769; 3 vitest).
+- **Remaining families registered:** the generic sidecar pass-through now covers all 15 Orchestra prefixes; the workbench action map carries typed entries for router/dependencyRatio, memory/retrieve+write, comprehension/gate, queue/enqueue+tick, issues/record, annotations/add, decisions/gate, trainer/train, simulation/timeControl, golden/run. webview + extension typechecks clean. The remaining screens are mechanical compositions of these registered actions (GUI session or follow-up).
+- Full webview + extension vitest runs launched for the "thorough testing" bar; results recorded in BUILD_STATE.

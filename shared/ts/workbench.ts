@@ -467,6 +467,84 @@ export interface WorkbenchActionMap {
     params: { id: string };
     result: { state: string };
   };
+  /* The remaining Orchestra/F4+ surfaces (audits TASK-302…309) share one
+   * shape discipline: params and results mirror shared/schema/methods.json
+   * exactly — the webview never invents a field the sidecar does not send. */
+  "router/dependencyRatio": {
+    params: {
+      agentId?: string;
+      phase?: string;
+      storyId?: string;
+      actionClass?: string;
+      ceiling?: number;
+    };
+    result: {
+      modelCalls: number;
+      engineExecutions: number;
+      ratio: number | null;
+      ceiling: number | null;
+      breached: boolean | null;
+    };
+  };
+  "memory/retrieve": {
+    params: { agentId: string; queryTerms: string[]; budgetChars: number; tiers?: string[] };
+    result: { included: { entryId: string; subject: string; digest: string }[]; cut: string[] };
+  };
+  "memory/write": {
+    params: {
+      entry: {
+        tier: "procedural" | "semantic" | "episodic";
+        subject: string;
+        content: string;
+        author: string;
+        confidence: number;
+        origin: string;
+        pinned?: boolean;
+        source?: string;
+      };
+      actorIsHuman?: boolean;
+    };
+    result: { written: boolean; reason: string | null };
+  };
+  "comprehension/gate": {
+    params: { path: string };
+    result: { allowed: boolean; path: string; reason: string; record: Record<string, unknown> };
+  };
+  "queue/enqueue": {
+    params: { story: { storyId: string; priority: number; tenantId: string; dependencies?: string[] } };
+    result: { enqueued: boolean };
+  };
+  "queue/tick": { params: Record<string, never>; result: { admitted: string[] } };
+  "issues/record": {
+    params: { agentId: string; severity: "info" | "warning" | "critical"; description: string; storyId: string };
+    result: { sequence: number };
+  };
+  "annotations/add": {
+    params: { targetSeq: number; author: string; text: string; bookmark?: boolean };
+    result: { sequence: number };
+  };
+  "decisions/gate": {
+    params: {
+      testsPassed: boolean;
+      scansPassed: boolean;
+      approvals: string[];
+      changeClass: string;
+      ablations?: number[];
+    };
+    result: { passed: boolean };
+  };
+  "trainer/train": {
+    params: { openPhases: string[] };
+    result: { ran: boolean; refusedReason: string | null };
+  };
+  "simulation/timeControl": {
+    params: { action: "pause" | "step" | "play" | "jump"; rate?: number; sequence?: number };
+    result: { position: number; paused: boolean };
+  };
+  "golden/run": {
+    params: { folder: string };
+    result: { storyId: string; ok: boolean; ledgerRoot: string; expectedRoot: string; entries: number };
+  };
 }
 
 /**
