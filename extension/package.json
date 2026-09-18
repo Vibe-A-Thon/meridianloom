@@ -5,7 +5,7 @@
   "icon": "media/icon.png",
   "version": "0.1.0",
   "publisher": "meridianloom",
-  "private": true,
+  "license": "MIT",
   "engines": {
     "vscode": "^1.95.0"
   },

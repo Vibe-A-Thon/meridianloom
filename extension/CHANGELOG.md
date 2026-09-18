@@ -4,6 +4,11 @@ All notable changes to Meridian Loom.
 
 ## [Unreleased]
 
+**Licensing.** The extension manifest now declares the MIT license matching
+the repository LICENSE, and the manifest is no longer marked private — the
+distribution-channel decision (audit TASK-100, DECISIONS 18 Sep 2026) is
+unblocked. No runtime change.
+
 **Governed initiation, a reachable supply chain, and the release artefacts an
 organisation needs to adopt and to leave.**
 
