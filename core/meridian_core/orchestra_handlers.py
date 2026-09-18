@@ -18,6 +18,7 @@ FR-M32; delivery surfaces are orchestra; governance surfaces governor).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from pathlib import Path
@@ -85,6 +86,7 @@ KIND_TO_LOOP = {
     "L5-learning": "L5",
     "L6-organisation": "L6",
 }
+_KIND_OF_LOOP = {v: k for k, v in KIND_TO_LOOP.items()}
 
 
 def _stand_in_nodes(definition) -> dict[str, Callable]:
@@ -404,6 +406,7 @@ def loop_stop(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
             ),
         }
     )
+    orch.persist()
     return {"stopped": True, "was": handle.result["status"] if handle else "unknown"}
 
 
@@ -412,11 +415,13 @@ def loop_status(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
     _require(params, "loopId")
     handle = orch._handles.get(str(params["loopId"]))
     if handle is None:
-        return {"loopId": params["loopId"], "kind": params.get("kind", "L2-task"),
-                "state": "pending", "iteration": 0}
+        raise OrchestraError(
+            f"unknown loop {params['loopId']!r} — 'pending' would be a"
+            " fabricated state; unknown is unknown"
+        )
     return {
         "loopId": params["loopId"],
-        "kind": params.get("kind", "L2-task"),
+        "kind": _KIND_OF_LOOP.get(handle.definition.loop_id, handle.definition.loop_id),
         "state": handle.result["status"],
         "iteration": handle.result["iterations"],
     }
@@ -437,6 +442,7 @@ def loop_replay(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
     _require(params, "loopId", "stateOverrides")
     handle = orch._handles[str(params["loopId"])]
     fork = orch.runner.replay(handle, state_overrides=params["stateOverrides"])
+    orch.persist()
     return {"forkRunId": fork.run_id, "status": fork.result["status"]}
 
 
@@ -504,7 +510,10 @@ def tools_invoke(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _entry_from_wire(raw: Mapping[str, Any]) -> MemoryEntry:
     return MemoryEntry(
-        entry_id=f"mem-{abs(hash((raw['subject'], raw['author']))) % 10_000_000}",
+        entry_id=f"mem-{int.from_bytes(hashlib.sha256((str(raw['subject']) + '|' + str(raw['author'])).encode()).digest()[:4])}",
+        # Deterministic id: the same entry content identifies the same
+        # entry across processes (hash() is randomised per interpreter —
+        # never used for anything persisted).
         tier=str(raw["tier"]),
         subject=str(raw["subject"]),
         content=str(raw["content"]),
@@ -829,6 +838,7 @@ def tenancy_register(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any
     orch = _state(server)
     _require(params, "tenantId", "root")
     orch._tenants.register(Tenant(str(params["tenantId"]), Path(str(params["root"]))))
+    orch.persist()
     return {"registered": True}
 
 
@@ -844,6 +854,7 @@ def queue_enqueue(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
             dependencies=tuple(raw.get("dependencies") or ()),
         )
     )
+    orch.persist()
     return {"enqueued": True}
 
 
