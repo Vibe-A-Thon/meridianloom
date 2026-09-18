@@ -23,7 +23,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 # Statement lists (not executescript blobs) so each migration runs inside
 # one explicit transaction with its schema_migrations row.
@@ -169,6 +169,29 @@ _V4_STATEMENTS = [
     "ALTER TABLE ledger_entry ADD COLUMN rejecting_commit TEXT",
 ]
 
+_V5_STATEMENTS = [
+    # FR-M10-01 write-path completion (audit SEC-GAP-01): the append-only
+    # triggers covered UPDATE/DELETE; a raw forged INSERT bypassed the
+    # facade and was caught only by chain verification. The gapless
+    # trigger refuses at write time: seq must be exactly MAX(seq)+1 and
+    # prev_hash must be the current tip. The Ledger facade computes both
+    # the same way, so ordinary appends are unaffected.
+    """
+    CREATE TRIGGER ledger_entry_gapless_insert
+    BEFORE INSERT ON ledger_entry
+    WHEN NEW.seq IS NULL
+         OR NEW.seq != (SELECT COALESCE(MAX(seq), 0) + 1 FROM ledger_entry)
+         OR ((SELECT COUNT(*) FROM ledger_entry) > 0
+             AND (NEW.prev_hash IS NULL
+                  OR NEW.prev_hash != (SELECT entry_hash FROM ledger_entry
+                                       WHERE seq = (SELECT MAX(seq)
+                                                    FROM ledger_entry))))
+    BEGIN
+      SELECT RAISE(ABORT, 'FR-M10-01: ledger_entry is append-only; INSERT must extend the chain gaplessly');
+    END
+    """,
+]
+
 MIGRATIONS: list[tuple[int, str, list[str]]] = [
     (
         1,
@@ -196,6 +219,14 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
         "(rejected_sequence, rejected_commit, rejecting_commit) for "
         "action_type='rejection' entries",
         _V4_STATEMENTS,
+    ),
+    (
+        5,
+        "FR-M10-01 write-path completion (audit SEC-GAP-01): gapless "
+        "BEFORE INSERT trigger — seq must be MAX+1 and prev_hash the "
+        "current tip, so a raw forged INSERT is refused at write time "
+        "(chain verification remains the second layer)",
+        _V5_STATEMENTS,
     ),
 ]
 

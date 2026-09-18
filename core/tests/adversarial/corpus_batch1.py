@@ -65,28 +65,28 @@ def _ledger(tmp: Path) -> Ledger:
 
 def _expect_append_only_refusal(tmp: Path, mutate: str) -> None:
     """FR-M10-01's triggers ABORT any UPDATE/DELETE of recorded rows; a raw
-    forged INSERT (mutate == "insert_forged") is NOT refused at write time —
-    the gapless invariant lives in the Ledger facade, so a raw SQL attack
-    reaching the file directly is *detected* by chain verification instead.
-    Both layers are asserted here, classified honestly per case."""
+    forged INSERT (mutate == "insert_forged") IS refused at write time since
+    schema v5's gapless BEFORE INSERT trigger (audit SEC-GAP-01): seq must
+    be MAX+1 and prev_hash the current tip. Chain verification remains the
+    second layer for anything the trigger cannot see."""
     led = _ledger(tmp)
     try:
         seq, entry_hash, prev = led.conn.execute(
             "SELECT seq, entry_hash, prev_hash FROM ledger_entry WHERE seq = 2"
         ).fetchone()
         if mutate == "insert_forged":
-            led.conn.execute(
-                "INSERT INTO ledger_entry (seq, ts_utc, prev_hash, entry_hash,"
-                " story_id, phase, loop_id, loop_iteration, actor_id,"
-                " actor_version, actor_kind, policy_version, action_type)"
-                " VALUES (99, '2026-09-17T00:00:00Z', ?, ?, 'FORGED', 'build',"
-                " 'L1', 1, 'mallory', '0.0.1', 'role', 'policy-v1', 'diff')",
-                (entry_hash, b"\xff" * 32),
-            )
-            led.conn.commit()
-            # Detection layer: the forged row breaks the hash chain — the
-            # verify verdict is the usable evidence record.
-            assert led.verify().ok is False
+            with pytest.raises(sqlite3.IntegrityError, match="FR-M10-01"):
+                led.conn.execute(
+                    "INSERT INTO ledger_entry (seq, ts_utc, prev_hash, entry_hash,"
+                    " story_id, phase, loop_id, loop_iteration, actor_id,"
+                    " actor_version, actor_kind, policy_version, action_type)"
+                    " VALUES (99, '2026-09-17T00:00:00Z', ?, ?, 'FORGED', 'build',"
+                    " 'L1', 1, 'mallory', '0.0.1', 'role', 'policy-v1', 'diff')",
+                    (entry_hash, b"\xff" * 32),
+                )
+            led.conn.rollback()
+            # Write-time refusal: the chain is untouched and verifies.
+            assert led.verify().ok is True
             return
         statements: dict[str, tuple[str, tuple]] = {
             "entry_hash": (
@@ -456,11 +456,11 @@ def fixtures() -> list[Fixture]:
             id="CHAIN-INSERT_FORGED",
             family="ledger_chain_tamper",
             surface=SURFACE_HOSTED,
-            kind=KIND_DETECTED,
+            kind=KIND_BLOCKED,
             description=(
-                "raw forged INSERT (seq 99, forged hash) bypasses the write"
-                " path; chain verification detects it — enforcement layer"
-                " is verify, not a write-time refusal"
+                "raw forged INSERT (seq 99, forged hash) is refused at write"
+                " time by the v5 gapless trigger (audit SEC-GAP-01); chain"
+                " verification remains the second layer"
             ),
             fn=lambda tmp: _expect_append_only_refusal(tmp, "insert_forged"),
         ),
