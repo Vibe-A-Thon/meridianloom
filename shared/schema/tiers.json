@@ -298,7 +298,8 @@
         "rpcMethods": [
           "portability/export",
           "portability/import",
-          "portability/diff"
+          "portability/diff",
+          "portability/trust"
         ]
       },
       {

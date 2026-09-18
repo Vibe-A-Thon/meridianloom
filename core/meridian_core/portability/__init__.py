@@ -157,6 +157,60 @@ def export_package(
     )
 
 
+def signer_fingerprint(public_key_hex: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(bytes.fromhex(public_key_hex)).hexdigest()
+
+
+def trust_signer(ledger: Any, *, fingerprint: str, human_approved: bool) -> None:
+    """TASK-330: record an explicit, human-approved trust decision for an
+    external signer fingerprint. The record is an ordinary ledger entry —
+    auditable, hash-chained, reversible only by a later distrust entry."""
+    if not human_approved:
+        raise ImportRefusedError(
+            "signer trust requires explicit human approval; it is never"
+            " self-granted"
+        )
+    ledger.append(
+        {
+            "story_id": "portability-trust",
+            "phase": "govern",
+            "loop_id": "portability",
+            "loop_iteration": 1,
+            "actor_id": "operator",
+            "actor_version": "local",
+            "actor_kind": "meta",
+            "policy_version": "portability/v1",
+            "action_type": "policy_update",
+            "tool_calls": [
+                {"event": "signer_trusted", "fingerprint": fingerprint}
+            ],
+        }
+    )
+
+
+def trusted_signers(ledger: Any) -> set[str]:
+    """The trusted fingerprint set: latest event per fingerprint wins, so
+    a distrust entry (event=signer_distrusted) revokes."""
+    state: dict[str, bool] = {}
+    for row in ledger.query(action_type="policy_update", limit=100_000):
+        raw = row.get("tool_calls")
+        if not raw:
+            continue
+        try:
+            calls = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        for call in calls:
+            event = call.get("event")
+            if event == "signer_trusted":
+                state[call["fingerprint"]] = True
+            elif event == "signer_distrusted":
+                state[call["fingerprint"]] = False
+    return {fp for fp, trusted in state.items() if trusted}
+
+
 def inspect_package(package: Path) -> Mapping[str, Any]:
     """FR-M16-04: what the package contains — for the import diff."""
     with zipfile.ZipFile(package) as bundle:
@@ -165,14 +219,44 @@ def inspect_package(package: Path) -> Mapping[str, Any]:
     return {"card": card["agentCard"], "files": names, "excluded": card.get("excluded", [])}
 
 
-def verify_package(package: Path, *, trusted_key: Ed25519PublicKey) -> Mapping[str, Any]:
-    """FR-M16-04: signature verification — the FIRST thing import does.
-    An unverifiable package never reaches the filesystem."""
+def package_signature(package: Path) -> tuple[bytes, str]:
+    """The signed card bytes and the signer public key (hex)."""
     with zipfile.ZipFile(package) as bundle:
         card_bytes = bundle.read(AGENT_CARD)
         sig_raw = json.loads(bundle.read(SIGNATURE_FILE).decode("utf-8"))
-    trusted_key.verify(bytes.fromhex(sig_raw["signature"]), card_bytes)
+    return card_bytes, str(sig_raw["publicKey"])
+
+
+def verify_package(package: Path, *, trusted_key: Ed25519PublicKey) -> Mapping[str, Any]:
+    """FR-M16-04: signature verification — the FIRST thing import does.
+    An unverifiable package never reaches the filesystem."""
+    card_bytes, _ = package_signature(package)
+    trusted_key.verify(
+        bytes.fromhex(
+            json.loads(
+                zipfile.ZipFile(package).read(SIGNATURE_FILE).decode("utf-8")
+            )["signature"]
+        ),
+        card_bytes,
+    )
     return json.loads(card_bytes.decode("utf-8"))
+
+
+def verify_package_trust(
+    package: Path, *, trusted_fingerprints: set[str]
+) -> Mapping[str, Any]:
+    """TASK-330: verify the package against its own embedded key and
+    require the signer's fingerprint to be explicitly trusted."""
+    card_bytes, public_key_hex = package_signature(package)
+    if signer_fingerprint(public_key_hex) not in trusted_fingerprints:
+        raise ImportRefusedError(
+            "package signed by an untrusted fingerprint; record trust with"
+            " an explicit human approval first (portability/trust)"
+        )
+    return verify_package(
+        package,
+        trusted_key=Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key_hex)),
+    )
 
 
 def diff_against_workspace(

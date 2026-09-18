@@ -1023,6 +1023,15 @@
     "result": {
       "$ref": "#/$defs/GoldenRunResult"
     }
+  },
+  "portability/trust": {
+    "description": "Record explicit human-approved trust for an external package signer (FR-M16-04 cross-origin; audit TASK-330).",
+    "params": {
+      "$ref": "#/$defs/PortabilityTrustParams"
+    },
+    "result": {
+      "$ref": "#/$defs/PortabilityTrustResult"
+    }
   }
   },
   "$defs": {
@@ -9471,6 +9480,37 @@
         },
         "entries": {
           "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    }
+,
+    "PortabilityTrustParams": {
+      "description": "Explicit, human-approved trust for an external package signer fingerprint (audit TASK-330).",
+      "type": "object",
+      "required": [
+        "fingerprint",
+        "humanApproved"
+      ],
+      "properties": {
+        "fingerprint": {
+          "type": "string"
+        },
+        "humanApproved": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PortabilityTrustResult": {
+      "description": "Trust record outcome.",
+      "type": "object",
+      "required": [
+        "trusted"
+      ],
+      "properties": {
+        "trusted": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false

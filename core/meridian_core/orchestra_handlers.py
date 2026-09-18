@@ -132,6 +132,7 @@ class OrchestraState:
         self._simulation: SimulationCore | None = None
         self._calibration = CalibrationTracker()
         self._decisions: dict[str, DecisionRecord] = {}
+        self._decision_replays: dict[str, dict[str, Any]] = {}
         self._handles: dict[str, RunHandle] = {}
         self._cp_conn: sqlite3.Connection | None = None
         self._restore()
@@ -638,6 +639,8 @@ def decisions_record(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any
     )
     orch._calibration.capture(record)
     orch._decisions[record.decision_id] = record
+    if params.get("replay"):
+        orch._decision_replays[record.decision_id] = dict(params["replay"])
     sequence = orch.ledger.append(
         {
             "story_id": "decisions",
@@ -661,14 +664,18 @@ def decisions_ablate(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any
     record = orch._decisions.get(str(params["decisionId"]))
     if record is None:
         raise OrchestraError(f"unknown decision {params['decisionId']!r}")
-    # Real, bounded scope: ablation re-runs through the deterministic
-    # engine when the caller names an action class — the engine is the
-    # replayable decision function. Other decision kinds refuse honestly.
+    # TASK-331: the replay recipe may be supplied now or was stored with
+    # the decision at record time (hosted decisions record it). The engine
+    # is the replayable decision function in both cases.
     action_class = params.get("actionClass")
+    recipe = orch._decision_replays.get(str(params["decisionId"]))
+    if not action_class and recipe:
+        action_class = recipe.get("actionClass")
     if not action_class:
         raise OrchestraError(
-            "decisions/ablate requires actionClass: the engine is the "
-            "replayable decision function; narrative decisions are not"
+            "decisions/ablate requires actionClass (or a decision recorded"
+            " with a replay recipe): the engine is the replayable decision"
+            " function; narrative decisions without a recipe are not"
         )
     runner = AblationRunner(
         lambda inputs: orch.router._dispatcher.dispatch(str(action_class), inputs).kind
@@ -718,19 +725,51 @@ def portability_diff(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any
     return {"added": diff["added"], "overwritten": diff["overwritten"]}
 
 
+def portability_trust(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
+    orch = _state(server)
+    _require(params, "fingerprint", "humanApproved")
+    from meridian_core.portability import trust_signer
+
+    trust_signer(
+        orch.ledger,
+        fingerprint=str(params["fingerprint"]),
+        human_approved=bool(params["humanApproved"]),
+    )
+    return {"trusted": True}
+
+
 def portability_import(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
     orch = _state(server)
     _require(params, "package", "confirm", "availableTools")
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    from meridian_core.portability import (
+        import_package,
+        package_signature,
+        signer_fingerprint,
+        trusted_signers,
+        verify_package_trust,
+    )
     from meridian_core.ledger.keys import public_key_bytes
 
-    # v1 scope: packages signed by THIS workspace's ledger key (self-
-    # transfer). Cross-origin trust establishment is refused honestly.
-    public_key = public_key_bytes(orch.ledger._signing_key.private_key())
+    # TASK-330: the package must verify against its own embedded key AND
+    # its signer fingerprint must be trusted — either this workspace's
+    # own key or one explicitly trusted via portability/trust.
+    package = Path(str(params["package"]))
+    _, public_key_hex = package_signature(package)
+    fingerprints = trusted_signers(orch.ledger)
+    fingerprints.add(
+        signer_fingerprint(
+            public_key_bytes(
+                orch.ledger._signing_key.private_key()
+            ).hex()
+        )
+    )
+    verify_package_trust(package, trusted_fingerprints=fingerprints)
     adapter = import_package(
-        Path(str(params["package"])),
+        package,
         orch.workspace / ".meridian" / "adapters",
-        trusted_key=Ed25519PublicKey.from_public_bytes(public_key),
+        trusted_key=__import__(
+            "cryptography.hazmat.primitives.asymmetric.ed25519", fromlist=["Ed25519PublicKey"]
+        ).Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key_hex)),
         available_tools=frozenset(params["availableTools"]),
         registry=orch.adapters,
         confirm=bool(params["confirm"]),
@@ -912,6 +951,7 @@ HANDLERS: dict[str, Callable[[Any, Mapping[str, Any]], Mapping[str, Any]]] = {
     "decisions/ablate": decisions_ablate,
     "decisions/gate": decisions_gate,
     "portability/export": portability_export,
+    "portability/trust": portability_trust,
     "portability/import": portability_import,
     "portability/diff": portability_diff,
     "trainer/train": trainer_train,
