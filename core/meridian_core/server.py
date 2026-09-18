@@ -277,9 +277,6 @@ class SidecarServer:
             "spend/ceilingCheck": SidecarServer._handle_spend_ceiling_check,
             "spend/forecast": SidecarServer._handle_spend_forecast,
             "spend/pricing": SidecarServer._handle_spend_pricing,
-            "loop.start": lambda self, params: self._not_implemented("loop.start", "F3 (Orchestra)"),
-            "loop.stop": lambda self, params: self._not_implemented("loop.stop", "F3 (Orchestra)"),
-            "loop.status": lambda self, params: self._not_implemented("loop.status", "F3 (Orchestra)"),
             # FR-M42-11/12, SEC-32 (MV1-T01): the honest enforcement-point
             # declaration. The computation already existed and fed the audit
             # bundle; nothing exposed it to an interface, so a surface had no
@@ -373,6 +370,20 @@ class SidecarServer:
             "roles/check": SidecarServer._handle_roles_check,
             "roles/delegate": SidecarServer._handle_roles_delegate,
         }
+        # TASK-011 (audit GAP-001): the Orchestra/F4+ surfaces dispatch to
+        # the real F3/C3-C6 modules via orchestra_handlers. Handler input
+        # violations surface as structured INVALID_PARAMS, never as an
+        # internal error.
+        from . import orchestra_handlers
+
+        for _name, _fn in orchestra_handlers.HANDLERS.items():
+            def _orchestra_bound(server, params, _fn=_fn):
+                try:
+                    return _fn(server, params)
+                except orchestra_handlers.OrchestraError as exc:
+                    raise _RpcError(protocol.INVALID_PARAMS, str(exc))
+
+            self._handlers[_name] = _orchestra_bound
         # The registry must exactly cover the contracted request methods.
         assert set(self._handlers) == set(bus_types.REQUEST_METHODS), (
             f"handler registry drifted from the schema: "
