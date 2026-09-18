@@ -625,6 +625,11 @@ class SidecarServer:
         logger.info("shutdown requested: %s", (params or {}).get("reason", "no reason"))
         if self._session_monitor is not None:
             self._session_monitor.stop()
+        # TASK-321: release the loop checkpointer connection if the
+        # orchestrator was used this session.
+        orch = getattr(self, "_orchestra", None)
+        if orch is not None:
+            orch.shutdown()
         self._shutdown_requested.set()
         return {"ok": True}
 

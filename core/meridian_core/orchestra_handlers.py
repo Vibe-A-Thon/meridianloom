@@ -110,7 +110,12 @@ def _all_visited(definition) -> Callable[[LoopState], bool]:
 
 
 class OrchestraState:
-    """Lazily-built, workspace-scoped module instances."""
+    """Lazily-built, workspace-scoped module instances.
+
+    TASK-320: the run registry, story queue and tenant registry persist
+    under ``.meridian/orchestrator/state.json`` (atomic write) so a
+    sidecar restart resumes rather than forgets. Module instances stay
+    lazy; only the small state snapshots persist."""
 
     def __init__(self, server: Any) -> None:
         self._server = server
@@ -129,6 +134,7 @@ class OrchestraState:
         self._decisions: dict[str, DecisionRecord] = {}
         self._handles: dict[str, RunHandle] = {}
         self._cp_conn: sqlite3.Connection | None = None
+        self._restore()
 
     # -- lazy builders -----------------------------------------------------
 
@@ -231,6 +237,87 @@ class OrchestraState:
                 return candidate
         raise OrchestraError(f"unknown adapter {adapter_id!r}")
 
+    # -- TASK-320 persistence ------------------------------------------------
+
+    @property
+    def _state_path(self) -> Path:
+        return self.workspace / ".meridian" / "orchestrator" / "state.json"
+
+    def _restore(self) -> None:
+        path = self._state_path
+        if not path.is_file():
+            return
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        for handle_raw in raw.get("runs", []):
+            definition = canonical_loops().get(handle_raw["loopKey"])
+            if definition is not None:
+                handle = RunHandle(
+                    run_id=handle_raw["runId"],
+                    thread_id=handle_raw["threadId"],
+                    definition=definition,
+                    result=dict(handle_raw["result"]),
+                    state_snapshot=dict(handle_raw.get("stateSnapshot") or {}),
+                    initial_state=dict(handle_raw.get("initialState") or {}),
+                )
+                self._handles[handle_raw["loopId"]] = handle
+        for story_raw in raw.get("queue", []):
+            self._queue.enqueue(Story(
+                story_id=story_raw["storyId"],
+                priority=int(story_raw["priority"]),
+                tenant_id=story_raw["tenantId"],
+                dependencies=tuple(story_raw.get("dependencies") or ()),
+                waited_ticks=int(story_raw.get("waitedTicks") or 0),
+            ))
+        for tenant_raw in raw.get("tenants", []):
+            try:
+                self._tenants.register(
+                    Tenant(tenant_raw["tenantId"], Path(tenant_raw["root"]))
+                )
+            except ValueError:
+                continue  # duplicate from a prior snapshot: keep first
+
+    def persist(self) -> None:
+        """Atomic snapshot: tmp file + replace, never a half-written state."""
+        payload = {
+            "version": 1,
+            "runs": [
+                {
+                    "loopId": loop_id,
+                    "loopKey": handle.definition.loop_id,
+                    "runId": handle.run_id,
+                    "threadId": handle.thread_id,
+                    "result": dict(handle.result),
+                    "stateSnapshot": dict(handle.state_snapshot),
+                    "initialState": dict(handle.initial_state),
+                }
+                for loop_id, handle in self._handles.items()
+            ],
+            "queue": [
+                {
+                    "storyId": story.story_id,
+                    "priority": story.priority,
+                    "tenantId": story.tenant_id,
+                    "dependencies": list(story.dependencies),
+                    "waitedTicks": story.waited_ticks,
+                }
+                for story in self._queue._waiting
+            ],
+            "tenants": [
+                {"tenantId": t.tenant_id, "root": str(t.root)}
+                for t in self._tenants._tenants.values()
+            ],
+        }
+        path = self._state_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(
+            json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+        )
+        tmp.replace(path)
+
     def adapter_roots(self) -> list[Path]:
         return [
             self.workspace / ".meridian" / "adapters",
@@ -239,6 +326,10 @@ class OrchestraState:
         ]
 
     def shutdown(self) -> None:
+        try:
+            self.persist()
+        except OSError:
+            pass
         if self._cp_conn is not None:
             self._cp_conn.close()
             self._cp_conn = None
@@ -282,6 +373,7 @@ def loop_start(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
         story_id=str(params["storyId"]),
     )
     orch._handles[str(params["loopId"])] = handle
+    orch.persist()
     return {
         "runId": handle.run_id,
         "status": handle.result["status"],
@@ -335,6 +427,7 @@ def loop_resume(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
     handle = orch._handles[str(params["loopId"])]
     finished = orch.runner.resume(handle)
     orch._handles[str(params["loopId"])] = finished
+    orch.persist()
     return {"status": finished.result["status"], "iteration": finished.result["iterations"]}
 
 
