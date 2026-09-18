@@ -414,6 +414,35 @@ export interface WorkbenchActionMap {
    * FR-M34-03, FR-M44-03: install a listed agent, pinned, into probation.
    */
   "registry/install": { params: { id: string }; result: RegistryInstallResult };
+  /**
+   * FR-M4 (audit TASK-301): the six canonical loops over the Orchestra tier.
+   * Every action is ledger-recorded by the sidecar; replay is the FR-M4-07
+   * modified-state fork and never counted as live work.
+   */
+  "loop.start": {
+    params: {
+      loopId: string;
+      storyId: string;
+      kind: "L1-micro" | "L2-task" | "L3-phase" | "L4-delivery" | "L5-learning" | "L6-organisation";
+    };
+    result: { runId: string; status: string; iterations: number; checkpointed: boolean };
+  };
+  "loop.status": {
+    params: { loopId: string };
+    result: { loopId: string; kind: string; state: string; iteration: number };
+  };
+  "loop.stop": {
+    params: { loopId: string; reason?: string };
+    result: { stopped: boolean; was: string };
+  };
+  "loop.resume": {
+    params: { loopId: string };
+    result: { status: string; iteration: number };
+  };
+  "loop.replay": {
+    params: { loopId: string; stateOverrides: Record<string, unknown> };
+    result: { forkRunId: string; status: string };
+  };
 }
 
 /**

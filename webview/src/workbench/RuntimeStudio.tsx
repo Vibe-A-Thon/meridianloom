@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRpcQuery } from '../hooks/useRpcQuery';
+import type { WorkbenchExecute } from '../../../shared/ts/workbench';
 import { ErrorState, LoadingState } from '../components/AsyncState';
 import type { ScreenProps } from '../screens/registry';
 import type { WorkbenchController } from './useWorkbench';
@@ -13,6 +14,59 @@ export function RuntimeStudio({
   controller,
 }: ScreenProps & { controller: WorkbenchController }) {
   const [diagnose, setDiagnose] = useState(false);
+  const [loopId, setLoopId] = useState('');
+  const [storyId, setStoryId] = useState('');
+  const [loopKind, setLoopKind] = useState('L2-task');
+  const [loopResult, setLoopResult] = useState<Record<string, unknown> | null>(null);
+  const [loopError, setLoopError] = useState<string | null>(null);
+  const [loopBusy, setLoopBusy] = useState(false);
+
+  // FR-M4: the loop surfaces dispatch through the governor/orchestra tiers
+  // (shared/schema/tiers.json). Every action is ledger-recorded; replay
+  // overrides are the FR-M4-07 modified-state fork.
+  async function runLoopAction(action: 'start' | 'status' | 'stop' | 'resume' | 'replay', execute: WorkbenchExecute) {
+    setLoopError(null);
+    setLoopBusy(true);
+    try {
+      const id = loopId.trim();
+      if (!id) {
+        setLoopError('A loop id is required.');
+        return;
+      }
+      // Narrowed per action: the action map types each params shape.
+      let result: unknown;
+      if (action === 'start') {
+        result = await execute('loop.start', {
+          loopId: id,
+          storyId: storyId.trim(),
+          kind: loopKind as 'L1-micro' | 'L2-task' | 'L3-phase' | 'L4-delivery' | 'L5-learning' | 'L6-organisation',
+        });
+      } else if (action === 'status') {
+        result = await execute('loop.status', { loopId: id });
+      } else if (action === 'stop') {
+        result = await execute('loop.stop', { loopId: id, reason: 'operator' });
+      } else if (action === 'resume') {
+        result = await execute('loop.resume', { loopId: id });
+      } else {
+        let stateOverrides: Record<string, unknown>;
+        try {
+          stateOverrides = JSON.parse(
+            (document.getElementById('loop-replay-overrides') as HTMLTextAreaElement | null)?.value || '{}',
+          ) as Record<string, unknown>;
+        } catch {
+          setLoopError('Replay overrides must be valid JSON.');
+          return;
+        }
+        result = await execute('loop.replay', { loopId: id, stateOverrides });
+      }
+      setLoopResult(result as Record<string, unknown>);
+    } catch (error) {
+      setLoopError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoopBusy(false);
+    }
+  }
+
   const health = useRpcQuery(ready ? client : undefined, 'health', {});
   const doctor = useRpcQuery(
     ready ? client : undefined,
@@ -113,6 +167,69 @@ export function RuntimeStudio({
             <span className={s.statusBadge}>{health.data.status}</span>
           </div>
         )}
+      </section>
+      <section className={s.panel}>
+        <div className={s.panelHeader}>
+          <h2>Loop control</h2>
+          <span className={s.statusBadge}>Orchestra tier</span>
+        </div>
+        <div className={s.settingRow}>
+          <label className={s.field}>
+            <span className={s.fieldLabel}>Loop id</span>
+            <input
+              value={loopId}
+              onChange={(e) => setLoopId(e.target.value)}
+              placeholder="L-task-1"
+              disabled={!ready || loopBusy}
+            />
+          </label>
+          <label className={s.field}>
+            <span className={s.fieldLabel}>Story id (start)</span>
+            <input
+              value={storyId}
+              onChange={(e) => setStoryId(e.target.value)}
+              placeholder="EDB-12345"
+              disabled={!ready || loopBusy}
+            />
+          </label>
+          <label className={s.field}>
+            <span className={s.fieldLabel}>Kind</span>
+            <select
+              value={loopKind}
+              onChange={(e) => setLoopKind(e.target.value)}
+              disabled={!ready || loopBusy}
+            >
+              {['L1-micro', 'L2-task', 'L3-phase', 'L4-delivery', 'L5-learning', 'L6-organisation'].map((k) => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className={s.buttonRow}>
+          {(['start', 'status', 'stop', 'resume', 'replay'] as const).map((action) => (
+            <button
+              key={action}
+              className={action === 'start' ? s.primary : s.textButton}
+              disabled={!ready || loopBusy}
+              onClick={() => void runLoopAction(action, controller.execute)}
+            >
+              {action === 'start' ? 'Start' : action === 'status' ? 'Status' : action === 'stop' ? 'Stop' : action === 'resume' ? 'Resume at gate' : 'Replay with overrides'}
+            </button>
+          ))}
+        </div>
+        <label className={s.field}>
+          <span className={s.fieldLabel}>Replay overrides (JSON)</span>
+          <textarea
+            id="loop-replay-overrides"
+            rows={3}
+            placeholder='{"approved": true}'
+            disabled={!ready || loopBusy}
+          />
+        </label>
+        {loopError ? <p role="alert">{loopError}</p> : null}
+        {loopResult ? (
+          <pre data-testid="loop-result">{JSON.stringify(loopResult, null, 2)}</pre>
+        ) : null}
       </section>
       {diagnose && (
         <section className={s.panel}>

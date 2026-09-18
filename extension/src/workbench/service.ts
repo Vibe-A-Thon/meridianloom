@@ -1085,6 +1085,15 @@ export class WorkbenchService {
     if (request.action === "registry/browse") return this.browseRegistry();
     if (request.action === "registry/install")
       return this.installFromRegistry(record(request.params ?? {}));
+    // FR-M4 (audit TASK-301): loop.* actions are direct sidecar pass-
+    // throughs — they orchestrate governed work (checkpointed, ledger-
+    // recorded there), they change no local workbench state, and they run
+    // outside the mutation queue because a loop can take minutes.
+    if (typeof request.action === "string" && request.action.startsWith("loop.")) {
+      const sidecar = this.options.sidecar();
+      if (!sidecar) throw new Error("The sidecar is not connected.");
+      return sidecar.request(request.action, request.params ?? {});
+    }
     return this.serialize(async () => {
       if (this.disposed) throw new Error("The workbench has been closed.");
       await this.load();
