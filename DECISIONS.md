@@ -134,6 +134,11 @@
 
 - **F2 (Evidence Gate).** Requires twenty real stories from a real team using real agents, measured over weeks — not executable inside a build session. When F1 exits, F2 will be documented as pending-human-evidence rather than faked.
 
+## Goal-shift decision record (18 September 2026)
+
+- **D19 residue — promoted to required by the owner's marketability goal.** A LICENSE file (MIT, "Meridian Loom contributors") now exists at the repository root — moved by release work after the 10 September deferral. What remains: `package.json`/`extension/package.json` carry no `license` field and retain `private: true`; no open-core split statement exists. The goal ("marketed to other companies") is incompatible with continued deferral, so the residue is now REQUIRED work (audit TASK-100/101/102), not a deferred question. MIT is consistent with the verified dependency tree (all permissive; OFL fonts carry attribution obligations handled by TASK-101). The open-core split is recorded as a PROPOSAL (core: host+ledger+Flight Recorder+Governor+shell; paid candidates: Orchestra-at-scale, tenancy, OIDC identity, team-scale policy simulator) — implementation awaits owner approval; no entitlement or billing code is created.
+- **"Engineering complete" vs "marketable" distinction.** BUILD_STATE's completion headline is scoped to engineering. The marketability verdict (not marketable today; three independent blockers, all with paths) lives in audit-1-k-g-req.md section 24 and is the authoritative product-readiness statement as of 18 September 2026.
+
 ## Pre-decided (from the kickoff message — do not revisit)
 
 - **D1** Loop runtime: LangGraph (Python) with a SQLite checkpointer. Wrap it behind an interface so it stays substitutable.
