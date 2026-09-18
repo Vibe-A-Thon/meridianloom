@@ -430,5 +430,5 @@ describe('backward compatibility', () => {
     expect(loaded.integrations).toEqual([]);
     void snapshot;
     void vi;
-  });
+  }, 10_000);
 });

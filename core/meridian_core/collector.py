@@ -38,12 +38,12 @@ import hashlib
 import json
 import os
 import shutil
-import subprocess
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from meridian_core.gitcmd import GitTimeout, run_git_command
 from meridian_core.ingest import EventIngester, SourceEvent
 from meridian_core.ledger import core as ledger_core
 from meridian_core.ledger import keys as ledger_keys
@@ -208,18 +208,20 @@ def workspace_identity(workspace: Path | str) -> dict[str, Any]:
     root = Path(workspace)
     identity: dict[str, Any] = {"kind": "directory", "name": root.name}
     try:
-        toplevel = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
-            check=True,
-            capture_output=True,
-            text=True,
+        toplevel_result = run_git_command(
+            root,
+            "rev-parse",
+            "--show-toplevel",
             timeout=15,
-        ).stdout.strip()
-        remote = subprocess.run(
-            ["git", "-C", str(root), "config", "--get", "remote.origin.url"],
-            check=False,
-            capture_output=True,
-            text=True,
+        )
+        if toplevel_result.returncode != 0:
+            raise OSError(toplevel_result.stderr.strip())
+        toplevel = toplevel_result.stdout.strip()
+        remote = run_git_command(
+            root,
+            "config",
+            "--get",
+            "remote.origin.url",
             timeout=15,
         ).stdout.strip()
         identity.update(
@@ -231,7 +233,7 @@ def workspace_identity(workspace: Path | str) -> dict[str, Any]:
                 ).hexdigest(),
             }
         )
-    except (subprocess.SubprocessError, OSError):
+    except (GitTimeout, OSError):
         identity["pathDigest"] = hashlib.sha256(
             str(root.resolve()).encode("utf-8")
         ).hexdigest()

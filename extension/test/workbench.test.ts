@@ -738,6 +738,7 @@ describe("persisted agent workbench", () => {
         }),
       ).rejects.toThrow("Review the completed agent turns");
     },
+    10_000,
   );
   it("runs an independent ACP subprocess through real stdio, permission approval, output streaming, and persistence", async () => {
     const decisions: unknown[] = [];

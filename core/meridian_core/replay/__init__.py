@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from meridian_core.ledger import Ledger, ProvisionedSigningKeyProvider
+from meridian_core.ledger.blobs import normalise_ref
 
 CASSETTE_VERSION = 1
 _HASH_COLUMNS = ("prev_hash", "entry_hash")
@@ -125,9 +126,10 @@ def record_cassette(
             ref = row[index]
             if not ref:
                 continue
-            blob_path = blob_root / str(ref)
-            if blob_path.is_file() and str(ref) not in blobs:
-                blobs[str(ref)] = blob_path.read_bytes().hex()
+            blob_ref = normalise_ref(str(ref))
+            blob_path = blob_root / blob_ref
+            if blob_path.is_file() and blob_ref not in blobs:
+                blobs[blob_ref] = blob_path.read_bytes().hex()
     return Cassette(
         story_id=story_id,
         signing_seed_hex=signing_seed.hex(),
@@ -156,7 +158,8 @@ def replay_cassette(cassette: Cassette, destination: Path) -> Ledger:
                 (key_id, subject, bytes.fromhex(wrapped_hex), created),
             )
         for ref, hex_bytes in cassette.blobs.items():
-            path = blob_root / ref
+            blob_ref = normalise_ref(ref)
+            path = blob_root / blob_ref
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(bytes.fromhex(hex_bytes))
         for raw_row in cassette.rows:

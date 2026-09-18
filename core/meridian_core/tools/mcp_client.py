@@ -18,6 +18,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any, Sequence
 
+from meridian_core.childenv import child_environment
 from .surface import PinnedMcpServer, validate_mcp_server
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -44,6 +45,7 @@ class McpStdioClient:
         validate_mcp_server(self.server)  # FR-M9-08 gate, no bypass path
         self._process = subprocess.Popen(
             list(self.server.command),
+            env=child_environment(),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,

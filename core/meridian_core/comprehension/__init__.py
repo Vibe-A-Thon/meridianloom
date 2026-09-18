@@ -27,11 +27,11 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from meridian_core.gitcmd import run_git_command
 from meridian_core.memory.fabric import MemoryEntry, MemoryFabric, Provenance
 
 IMPORT_RE = re.compile(
@@ -111,9 +111,7 @@ class GateVerdict:
 
 
 def _git(repo: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=repo, capture_output=True, text=True, timeout=60
-    )
+    result = run_git_command(repo, *args, timeout=60)
     return result.stdout if result.returncode == 0 else ""
 
 

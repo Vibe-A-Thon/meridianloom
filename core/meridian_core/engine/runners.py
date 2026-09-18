@@ -42,6 +42,21 @@ def _tail(text: str) -> list[str]:
     return lines[-_TAIL_LINES:]
 
 
+def _tool_environment() -> dict[str, str]:
+    """Environment for sandboxed tool commands.
+
+    The general child process rule removes Meridian secrets. Tool runs also
+    must not inherit pytest's own control variables when the capability is
+    tested from inside pytest: nested pytest invocations then treat themselves
+    as part of the parent run and can change reporting behavior.
+    """
+    return {
+        key: value
+        for key, value in child_environment().items()
+        if not key.startswith("PYTEST_")
+    }
+
+
 class ToolRunnerCapability:
     """The ``tool_runner`` capability, owned by the ``run_tests`` action
     class (FR-M33-01).
@@ -105,7 +120,7 @@ class ToolRunnerCapability:
                 # A sandboxed tool that inherits the ledger signing key is not
                 # sandboxed. It used to inherit the sidecar's whole
                 # environment (SEC-27; see meridian_core.childenv).
-                env=child_environment(),
+                env=_tool_environment(),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

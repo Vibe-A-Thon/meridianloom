@@ -1,0 +1,67 @@
+{
+  "recordedAt": "2026-09-18T00:58:20.330Z",
+  "platform": "windows",
+  "package": "meridian-loom-0.1.0.vsix",
+  "steps": [
+    {
+      "step": "checksum matches",
+      "ok": true,
+      "detail": "sha256 57244792eacf04ab…"
+    },
+    {
+      "step": "no nested extension/extension/",
+      "ok": true,
+      "detail": "absent from the package and untracked in git"
+    },
+    {
+      "step": "evaluator documents staged",
+      "ok": true,
+      "detail": "7 documents present"
+    },
+    {
+      "step": "sidecar and verifier shipped",
+      "ok": true,
+      "detail": "156 files extracted and run from the package copy"
+    },
+    {
+      "step": "packaged ledger writes",
+      "ok": true,
+      "detail": "5 entries appended by the shipped meridian_core"
+    },
+    {
+      "step": "packaged doctor passes an intact workspace",
+      "ok": true,
+      "detail": "exit 0, ledger pass"
+    },
+    {
+      "step": "packaged verifier verifies a packaged export",
+      "ok": true,
+      "detail": "verify.py exit 0"
+    },
+    {
+      "step": "packaged verifier rejects a tampered export",
+      "ok": true,
+      "detail": "verify.py exit 1 on an altered entry"
+    },
+    {
+      "step": "packaged evidence gate scores a study",
+      "ok": true,
+      "detail": "outcome insufficient_evidence, preregistration intact, slice verifies"
+    },
+    {
+      "step": "packaged compare-evidence passes one shape and fails an altered bundle",
+      "ok": true,
+      "detail": "two exports of one ledger exit 0; altered bundle exit 1"
+    },
+    {
+      "step": "packaged doctor exits non-zero on an induced failure",
+      "ok": true,
+      "detail": "altered entry 3; doctor exit 1, ledger fail"
+    },
+    {
+      "step": "shipped library matches its source",
+      "ok": true,
+      "detail": "22 agents, 10 skills, 4 instructions, byte-identical to extension/library/"
+    }
+  ]
+}

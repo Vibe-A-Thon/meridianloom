@@ -39,6 +39,7 @@ from test_attribution import ALICE, T0, git
 #: So the name is suite-agnostic and `extension/test/run-lock.ts` takes this
 #: same file. Whichever starts second waits or refuses.
 _LOCK = Path(tempfile.gettempdir()) / "meridian-suite.lock"
+_FIXTURE_INPUTS = Path(__file__).resolve().parent / "fixtures"
 
 
 def _holder_is_alive(pid: int) -> bool:
@@ -87,6 +88,8 @@ def pytest_configure(config: pytest.Config) -> None:
     """Take an exclusive run lock, or refuse with the reason."""
     if os.environ.get("MERIDIAN_ALLOW_CONCURRENT_SUITE") == "1":
         return
+    if _is_fixture_input_run(config):
+        return
     # xdist workers inherit the parent's lock; only the controller takes one.
     if os.environ.get("PYTEST_XDIST_WORKER"):
         return
@@ -121,6 +124,32 @@ def pytest_configure(config: pytest.Config) -> None:
     os.write(handle, str(os.getpid()).encode("utf-8"))
     os.close(handle)
     config.stash[_lock_taken] = True
+
+
+def _is_fixture_input_run(config: pytest.Config) -> bool:
+    """Fixture corpora are inputs, not independent Meridian suite runs.
+
+    Some capability tests deliberately invoke pytest against a tiny failing
+    fixture to prove deterministic failure parsing. That nested process must
+    not take the global suite lock held by its parent run.
+    """
+    args = [
+        item.split("::", 1)[0]
+        for item in config.args
+        if item and not item.startswith("-")
+    ]
+    if not args:
+        return False
+    invocation_dir = Path(str(config.invocation_params.dir))
+    for arg in args:
+        path = Path(arg)
+        if not path.is_absolute():
+            path = invocation_dir / path
+        try:
+            path.resolve().relative_to(_FIXTURE_INPUTS)
+        except ValueError:
+            return False
+    return True
 
 
 _lock_taken = pytest.StashKey[bool]()
