@@ -184,3 +184,11 @@ These tasks close the gap between "engineering complete" and "sellable to other 
 
 ### Re-sequenced top order under the goal
 TASK-001 (INSERT trigger, now P1) → TASK-002 → TASK-100 (license manifest) → TASK-010/011/012 (P0 wiring) → TASK-020/021/022 → TASK-101/102/103/104 → PART/SEC tasks → TASK-105 packaging as externals land.
+
+---
+
+## 4. Execution Record (updated 18 September 2026)
+
+**Core-side tasks COMPLETE:** TASK-001 (gapless INSERT trigger), TASK-002 (signer marker), TASK-100 (license manifest), TASK-010 (contract, 31 methods + 68 defs), TASK-011 (**GAP-001 closed** — 31 handlers, 12 integration tests), TASK-020 (ten scenarios), TASK-021 (AC-28 parity harness, 20/20; canned shapes aligned to production), TASK-022 (golden EDB-12345 + `check:golden` in CI), TASK-035 (network-binary egress refusal at the tool gate, ledger-recorded), TASK-070 (thread-local run context), TASK-071 (loop-id exit-check keying), TASK-101 (verified: THIRD-PARTY-NOTICES.md with OFL fonts section ships in the VSIX, enforced by package-extension), TASK-103 (upgrade doc §9 + migration test), TASK-104 (no-telemetry guard `check:telemetry` + data-goes statement), TASK-041 (tenant independence doc §10 + test).
+
+**Remaining (owner: host/GUI session or external):** TASK-012's host consumers (briefing assembly, gate-resume UI, blame→trailer join, onboarding wizard — `extension/src/**` and `webview/src/**` are the parallel session's files), TASK-030 (escalation→policy approval UI), TASK-040 (MCP client digest — host-side), and the external gates (F2/MV5, D37, AC-50, soak, live demo). Core-side prerequisites for all host tasks are now reachable over the bus.
