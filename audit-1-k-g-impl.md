@@ -246,3 +246,14 @@ For multi-repo stories, generate an interface contract file (OpenAPI skeleton) f
 
 ## Execution record (§4) continues
 Mark each task DONE here with commit + evidence as it lands.
+
+## Execution record — round 3 (18 September 2026)
+- **TASK-200** (P0): rebuilt and repackaged; `bus_types.py` in the VSIX verified to carry `RouterRequestParams`; validate-package re-run (see BUILD_STATE for the verdict line). GAP-101 closed.
+- **TASK-310 / GAP-103** (P1): `core/meridian_core/levers.py` — prompt caching (prefix-hash, TTL, savings recorded), context compaction (oldest tool results first, marked), tool-result summarisation (capped extract + marker); wired into `Router.request_model_call`; savings per call ride the model_call ledger entry and reconcile per story via `LeverReport` (985f374; 6 tests).
+- **TASK-320/321**: orchestrator state (runs/queue/tenants) persists atomically under `.meridian/orchestrator/state.json` and restores at first touch; checkpointer closed on shutdown (6153a90).
+- **TASK-330**: cross-origin import trust — `portability/trust` RPC records explicit human-approved signer fingerprints in the ledger; import verifies the package's own key AND requires a trusted fingerprint (d162340).
+- **TASK-331**: narrative ablation — decisions/record stores an optional replay recipe; ablate uses it when no actionClass is passed (d162340).
+- **TASK-340**: FR-M22-02 — `interface_contracts.py` generates the OpenAPI skeleton per multi-repo story; Review gate blocks multi-repo stories without it (d162340).
+- Checks green this round: check:golden 1/1, check:telemetry clean, check:contracts, 22 integration/unit tests across the new work.
+
+**Remaining (not core-side):** TASK-301…309 host/GUI consumers (parallel session's files; every RPC they need is now live), TASK-330's UI (trust dialog), and the external gates (F2/MV5, D37, AC-50, soak, live demo).
