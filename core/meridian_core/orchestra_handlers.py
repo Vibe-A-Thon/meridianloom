@@ -757,6 +757,14 @@ def issues_record(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
 def simulation_serve(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
     orch = _state(server)
     _require(params, "method", "params")
+    if params.get("scenario"):
+        from meridian_core.simulation.scenarios import load_scenario
+
+        scenario = load_scenario(str(params["scenario"]))
+        orch.simulation._scenario = scenario
+        orch.simulation.clock = __import__(
+            "meridian_core.simulation", fromlist=["SimulationClock"]
+        ).SimulationClock(scenario.sequences())
     response = orch.simulation.serve(str(params["method"]), params["params"] or {})
     return {"response": response, "backend": orch.simulation.backend}
 
