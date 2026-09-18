@@ -6,7 +6,7 @@
  * with the same id, which shadows a builtin one. Invalid adapters are listed
  * with their validation errors and are NOT loaded (FR-M31-03, fail-closed).
  */
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -94,6 +94,44 @@ describe('adapter discovery across three tiers (FR-M31-02)', () => {
     adapterDir(path.join(workspaceDir, '.meridian', 'adapters'), 'not-an-adapter');
     const result = await discoverAdapters({ workspaceDir, userDir, builtinDir });
     expect(result.adapters).toEqual([]);
+    expect(result.invalid).toEqual([]);
+  });
+
+  it('only directories are adapter candidates; metadata and unrelated files are ignored', async () => {
+    const adaptersRoot = path.join(workspaceDir, '.meridian', 'adapters');
+    mkdirSync(adaptersRoot, { recursive: true });
+    writeFileSync(path.join(adaptersRoot, '.pins.json'), '{"good":{"digest":"sha256:abc"}}\n');
+    writeFileSync(path.join(adaptersRoot, 'README.md'), 'not an adapter\n');
+    writeFileSync(path.join(adapterDir(adaptersRoot, 'good'), 'manifest.yaml'), manifestYaml('good'));
+    writeFileSync(path.join(adapterDir(adaptersRoot, 'broken'), 'manifest.yaml'), 'adapter: { id: "!!!" }\n');
+    adapterDir(adaptersRoot, 'missing-manifest');
+
+    const result = await discoverAdapters({ workspaceDir, userDir, builtinDir });
+
+    expect(result.adapters.map((a) => a.id)).toEqual(['good']);
+    expect(result.invalid.map((a) => a.id)).toEqual(['!!!']);
+  });
+
+  it('supports a symlink to a real adapter directory when the filesystem supports it', async () => {
+    const adaptersRoot = path.join(workspaceDir, '.meridian', 'adapters');
+    const external = adapterDir(path.join(root, 'external-adapters'), 'linked-real');
+    writeFileSync(path.join(external, 'manifest.yaml'), manifestYaml('linked-real'));
+    mkdirSync(adaptersRoot, { recursive: true });
+    try {
+      symlinkSync(external, path.join(adaptersRoot, 'linked-real'), 'junction');
+    } catch (error) {
+      // Some Windows environments still disable symlink/junction creation for
+      // unprivileged processes. Discovery supports the case through stat()
+      // following the link; this test exercises it wherever the OS allows it.
+      if ((error as NodeJS.ErrnoException).code === 'EPERM') {
+        return;
+      }
+      throw error;
+    }
+
+    const result = await discoverAdapters({ workspaceDir, userDir, builtinDir });
+
+    expect(result.adapters.map((a) => a.id)).toEqual(['linked-real']);
     expect(result.invalid).toEqual([]);
   });
 

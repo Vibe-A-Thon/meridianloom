@@ -94,6 +94,11 @@ function isEnoent(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT';
 }
 
+function isMissingDiscoveryEntry(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === 'ENOENT' || code === 'ENOTDIR';
+}
+
 function adapterRoot(root: DiscoveryRoots, tier: AdapterTier): string | undefined {
   if (tier === 'builtin') {
     return root.builtinDir;
@@ -175,8 +180,20 @@ export async function discoverAdapters(
       }
       throw error;
     }
-    for (const entry of entries) {
+    for (const entry of entries.sort()) {
       const dir = path.join(base, entry);
+      let stats: { isDirectory(): boolean };
+      try {
+        stats = await fs.stat(dir);
+      } catch (error) {
+        if (isMissingDiscoveryEntry(error)) {
+          continue;
+        }
+        throw error;
+      }
+      if (!stats.isDirectory()) {
+        continue;
+      }
       let manifestText: string | undefined;
       let manifestPath: string | undefined;
       for (const name of MANIFEST_NAMES) {

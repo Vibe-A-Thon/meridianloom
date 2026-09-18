@@ -44,6 +44,21 @@ let workspace: string;
 
 beforeEach(async () => {
   workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'meridian-steer-e2e-'));
+  // FR-M12-07 is a production invariant: anonymous approval is forbidden.
+  // This fixture exercises approval/steering, so it must provide the same
+  // deterministic local git identity a real workspace owner would configure.
+  execFileSync('git', ['init'], {
+    cwd: workspace,
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  execFileSync('git', ['config', 'user.name', 'Meridian CI Human'], {
+    cwd: workspace,
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  execFileSync('git', ['config', 'user.email', 'meridian-ci@example.invalid'], {
+    cwd: workspace,
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
 });
 
 afterEach(async () => {

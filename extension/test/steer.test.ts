@@ -179,13 +179,15 @@ describe('hosted-session registry wiring (FR-M12-06 seam made real)', () => {
     expect(h.registry.ids()).toContain('sess-halt');
     expect(h.controller.hosted('sess-halt')).toBe(true);
 
-    const exit = new Promise<{ code: number | null }>((resolve) => {
-      client.once('exit', (code: number | null) => resolve({ code }));
+    const exit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+      client.once('exit', (code: number | null, signal: NodeJS.Signals | null) =>
+        resolve({ code, signal }),
+      );
     });
     // The task-11 seam: gate/halt routes here, and the kill is real.
     expect(h.registry.halt('sess-halt', 'Governance halt')).toBe(true);
-    const { code } = await exit;
-    expect(code).not.toBeNull();
+    const { code, signal } = await exit;
+    expect(code !== null || signal !== null).toBe(true);
     expect(h.registry.ids()).not.toContain('sess-halt');
     // Post-halt capability answers are honest in the same beat (task 18).
     expect(h.controller.hosted('sess-halt')).toBe(false);

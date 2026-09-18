@@ -26,6 +26,13 @@ def _columns(connection: sqlite3.Connection, table: str) -> list[str]:
 
 
 def _insert_entry(connection: sqlite3.Connection, seq: int = 1) -> None:
+    prev_hash = (
+        connection.execute(
+            "SELECT entry_hash FROM ledger_entry WHERE seq = ?", (seq - 1,)
+        ).fetchone()
+        or [b"\x00" * 32]
+    )[0]
+    entry_hash = bytes([seq]) * 32
     connection.execute(
         """
         INSERT INTO ledger_entry (
@@ -37,8 +44,8 @@ def _insert_entry(connection: sqlite3.Connection, seq: int = 1) -> None:
         (
             seq,
             "2026-09-01T00:00:00Z",
-            b"\x00" * 32,
-            b"\x01" * 32,
+            prev_hash,
+            entry_hash,
             "EDB-12345",
             "build",
             "L2-task",
@@ -140,18 +147,39 @@ class TestAppendOnlyTriggers:
         count = conn.execute("SELECT COUNT(*) FROM ledger_entry").fetchone()[0]
         assert count == 2
 
+    def test_raw_insert_must_extend_the_chain_gaplessly(self, conn):
+        apply_migrations(conn)
+        _insert_entry(conn)
+        with pytest.raises(sqlite3.IntegrityError, match="gaplessly"):
+            conn.execute(
+                "INSERT INTO ledger_entry (seq, ts_utc, prev_hash, entry_hash,"
+                " story_id, phase, loop_id, loop_iteration, actor_id,"
+                " actor_version, actor_kind, policy_version, action_type)"
+                " VALUES (3, 't', x'00', x'03', 's', 'p', 'l', 0, 'a', 'v',"
+                " 'role', 'pol', 'diff')"
+            )
+        with pytest.raises(sqlite3.IntegrityError, match="gaplessly"):
+            conn.execute(
+                "INSERT INTO ledger_entry (seq, ts_utc, prev_hash, entry_hash,"
+                " story_id, phase, loop_id, loop_iteration, actor_id,"
+                " actor_version, actor_kind, policy_version, action_type)"
+                " VALUES (2, 't', x'00', x'02', 's', 'p', 'l', 0, 'a', 'v',"
+                " 'role', 'pol', 'diff')"
+            )
+
 
 class TestMigrations:
     def test_migration_is_recorded(self, conn):
         newly = apply_migrations(conn)
-        assert newly == [1, 2, 3, 4]
+        assert newly == [1, 2, 3, 4, 5]
         rows = conn.execute(
             "SELECT version, description FROM schema_migrations"
         ).fetchall()
-        assert [row[0] for row in rows] == [1, 2, 3, SCHEMA_VERSION]
+        assert [row[0] for row in rows] == list(range(1, SCHEMA_VERSION + 1))
         assert "FR-M10-01" in rows[0][1]
         assert "FR-M40-02" in rows[1][1]
         assert "FR-M37-01" in rows[3][1]
+        assert "gapless" in rows[4][1]
 
     def test_reapply_is_a_noop(self, conn):
         apply_migrations(conn)
@@ -159,7 +187,8 @@ class TestMigrations:
 
     def test_v1_database_is_upgraded(self, tmp_path):
         """A ledger created at v1 gains run_id/origin (v2), blob keys (v3)
-        and the rejection linkage columns (v4) via migrations."""
+        the rejection linkage columns (v4), and the gapless raw-insert
+        trigger (v5) via migrations."""
         db = tmp_path / "ledger.db"
         old = connect(db)
         old.execute(
@@ -178,7 +207,7 @@ class TestMigrations:
         old.close()
 
         upgraded = connect(db)
-        assert apply_migrations(upgraded) == [2, 3, 4]
+        assert apply_migrations(upgraded) == [2, 3, 4, 5]
         cols = _columns(upgraded, "ledger_entry")
         assert "run_id" in cols and "origin" in cols
         assert "rejected_sequence" in cols and "rejecting_commit" in cols
