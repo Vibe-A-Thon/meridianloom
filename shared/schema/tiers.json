@@ -225,11 +225,119 @@
       {
         "id": "orchestra.loops",
         "tier": "orchestra",
-        "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.",
+        "description": "The six canonical loops (FR-M4-03) and their gates, checkpoints, resume and replay (F3).",
         "rpcMethods": [
           "loop.start",
           "loop.stop",
-          "loop.status"
+          "loop.status",
+          "loop.resume",
+          "loop.replay"
+        ]
+      },
+      {
+        "id": "orchestra.routing",
+        "tier": "orchestra",
+        "description": "Model router behind the deterministic engine (FR-M8-15..17).",
+        "rpcMethods": [
+          "router/requestModelCall",
+          "router/dependencyRatio"
+        ]
+      },
+      {
+        "id": "orchestra.tools",
+        "tier": "orchestra",
+        "description": "Permissioned native tool surface (FR-M9-02/03).",
+        "rpcMethods": [
+          "tools/invoke"
+        ]
+      },
+      {
+        "id": "orchestra.memory",
+        "tier": "orchestra",
+        "description": "Memory fabric and layered procedural memory (FR-M7).",
+        "rpcMethods": [
+          "memory/retrieve",
+          "memory/write",
+          "memory/layered"
+        ]
+      },
+      {
+        "id": "orchestra.comprehension",
+        "tier": "orchestra",
+        "description": "Brownfield comprehension records and the AC-35 gate (FR-M38).",
+        "rpcMethods": [
+          "comprehension/record",
+          "comprehension/gate"
+        ]
+      },
+      {
+        "id": "orchestra.adapters",
+        "tier": "orchestra",
+        "description": "Adapter discovery, hot plug, promotion (FR-M31, FR-M5-05).",
+        "rpcMethods": [
+          "adapters/discover",
+          "adapters/plug",
+          "adapters/unplug",
+          "adapters/promote"
+        ]
+      },
+      {
+        "id": "governor.decisions",
+        "tier": "governor",
+        "description": "Decision records, counterfactual replay, explanation-free gates (FR-M13).",
+        "rpcMethods": [
+          "decisions/record",
+          "decisions/ablate",
+          "decisions/gate"
+        ]
+      },
+      {
+        "id": "governor.portability",
+        "tier": "governor",
+        "description": "Signed adapter package export/import/diff (FR-M16).",
+        "rpcMethods": [
+          "portability/export",
+          "portability/import",
+          "portability/diff"
+        ]
+      },
+      {
+        "id": "governor.trainer",
+        "tier": "governor",
+        "description": "Trainer runs and human-approved promotion (FR-M14).",
+        "rpcMethods": [
+          "trainer/train",
+          "trainer/promote",
+          "trainer/rollback"
+        ]
+      },
+      {
+        "id": "governor.tenancy",
+        "tier": "governor",
+        "description": "Tenant registration and the story queue (SEC-23, FR-M21).",
+        "rpcMethods": [
+          "tenancy/register",
+          "queue/enqueue",
+          "queue/tick"
+        ]
+      },
+      {
+        "id": "recorder.annotations",
+        "tier": "flight-recorder",
+        "description": "Ledger annotations/bookmarks and agent-detected issues (FR-M10-16, FR-M24-05).",
+        "rpcMethods": [
+          "annotations/add",
+          "issues/record"
+        ]
+      },
+      {
+        "id": "recorder.simulation",
+        "tier": "flight-recorder",
+        "description": "Simulation Core serving, time control, and the golden-corpus runner (FR-M32, FR-M27-03). Usable with zero tiers and zero credentials.",
+        "rpcMethods": [
+          "simulation/serve",
+          "simulation/timeControl",
+          "golden/run"
         ]
       }
     ]
