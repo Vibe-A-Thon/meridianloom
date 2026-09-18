@@ -30,8 +30,8 @@ def clean_story() -> Scenario:
     for index, phase in enumerate(chain, start=1):
         steps.append(_step(
             index, "ledger.query", {"storyId": STORY, "phase": phase},
-            {"rows": [{"storyId": STORY, "phase": phase, "state": "complete"}],
-             "phase": phase},
+            {"entries": [{"storyId": STORY, "phase": phase, "state": "complete"}],
+             "truncated": False, "nextAfterSequence": None},
             ({"story_id": STORY, "phase": phase, "action_type": "diff",
               "loop_iteration": index},),
         ))
@@ -45,13 +45,15 @@ def clean_story() -> Scenario:
 def rework_and_unravel() -> Scenario:
     return Scenario(name="rework-and-unravel", steps=(
         _step(1, "ledger.query", {"storyId": STORY},
-              {"rows": [{"seq": 4, "decision": "rejected",
-                         "rework_reason": "tests failed on boundary input"}]},
+              {"entries": [{"seq": 4, "decision": "rejected",
+                         "rework_reason": "tests failed on boundary input"}],
+              "truncated": False, "nextAfterSequence": None},
               ({"story_id": STORY, "phase": "build", "action_type": "rejection",
                 "decision": "rejected", "loop_iteration": 1},)),
         _step(2, "ledger.query", {"storyId": STORY, "reworked": True},
-              {"rows": [{"seq": 7, "decision": "reworked",
-                         "rework_reason": "tests failed on boundary input"}]},
+              {"entries": [{"seq": 7, "decision": "reworked",
+                         "rework_reason": "tests failed on boundary input"}],
+              "truncated": False, "nextAfterSequence": None},
               ({"story_id": STORY, "phase": "build", "action_type": "diff",
                 "decision": "reworked", "loop_iteration": 2},)),
     ))
@@ -60,10 +62,11 @@ def rework_and_unravel() -> Scenario:
 def loop_bound_hit() -> Scenario:
     return Scenario(name="loop-bound-hit", steps=(
         _step(1, "loop.status", {"loopId": "L-bound"},
-              {"state": "breached", "iteration": 5}),
+              {"loopId": "L-bound", "kind": "L2-task", "state": "breached", "iteration": 5}),
         _step(2, "ledger.query", {"storyId": STORY, "event": "bound_breached"},
-              {"rows": [{"event": "bound_breached", "bound": "iterations",
-                         "limit": 5, "escalation_target": "human"}]},
+              {"entries": [{"event": "bound_breached", "bound": "iterations",
+                         "limit": 5, "escalation_target": "human"}],
+              "truncated": False, "nextAfterSequence": None},
               ({"story_id": STORY, "phase": "build", "action_type": "loop_event",
                 "loop_iteration": 5},)),
     ))
@@ -89,7 +92,8 @@ def clarifying_question() -> Scenario:
 def mid_loop_steer() -> Scenario:
     return Scenario(name="mid-loop-steer", steps=(
         _step(1, "ledger.query", {"storyId": STORY, "event": "steer"},
-              {"rows": [{"event": "steer_injected", "text": "prefer table-driven tests"}]},
+              {"entries": [{"event": "steer_injected", "text": "prefer table-driven tests"}],
+              "truncated": False, "nextAfterSequence": None},
               ({"story_id": STORY, "phase": "build", "action_type": "note",
                 "loop_iteration": 3},)),
     ))
@@ -98,11 +102,11 @@ def mid_loop_steer() -> Scenario:
 def multi_story_portfolio() -> Scenario:
     return Scenario(name="multi-story-portfolio", steps=(
         _step(1, "ledger.query", {"portfolio": True},
-              {"rows": [
+              {"entries": [
                   {"storyId": "EDB-1", "phase": "build", "state": "running"},
                   {"storyId": "EDB-2", "phase": "verify", "state": "running"},
                   {"storyId": "EDB-3", "phase": "review", "state": "gated"},
-              ]}),
+              ], "truncated": False, "nextAfterSequence": None}),
     ))
 
 
@@ -117,8 +121,9 @@ def tamper_detected_ledger() -> Scenario:
 def budget_breach() -> Scenario:
     return Scenario(name="budget-breach", steps=(
         _step(1, "ledger.query", {"storyId": STORY, "event": "bound_breached"},
-              {"rows": [{"event": "bound_breached", "bound": "cost_usd",
-                         "limit": 3.0, "observed": 3.12}]},
+              {"entries": [{"event": "bound_breached", "bound": "cost_usd",
+                         "limit": 3.0, "observed": 3.12}],
+              "truncated": False, "nextAfterSequence": None},
               ({"story_id": STORY, "phase": "build", "action_type": "loop_event",
                 "loop_iteration": 4},)),
     ))

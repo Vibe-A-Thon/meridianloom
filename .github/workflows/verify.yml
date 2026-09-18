@@ -121,6 +121,8 @@ jobs:
         run: npm run check:surface
       - name: golden corpus replays byte-identical with no model calls (FR-M27-03, AC-16)
         run: npm run check:golden
+      - name: simulation scenarios serve on both backends with matching shapes (AC-28)
+        run: npm run check:parity
 
       # MV0's document gates. Each guards a document against the tree, each
       # takes about a second, and each exists because a document drifted and
