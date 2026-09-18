@@ -19,6 +19,7 @@ import {
 } from "./shared";
 import { LaunchScreen } from "../../screens/LaunchScreen";
 import s from "./operations.module.css";
+import { AdapterRegistryPanel } from "./AdapterRegistry";
 
 export function WorkspaceOperations(props: OperationsProps) {
   const { view, controller, client, ready, workspaceDir, enabledTiers, onNavigate } =
@@ -1052,6 +1053,7 @@ export function WorkspaceOperations(props: OperationsProps) {
     configuration: config,
     unlock,
     shortcuts,
+    adapters: <AdapterRegistryPanel controller={controller} />,
   };
   return (
     <StudioPage

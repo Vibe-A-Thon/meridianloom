@@ -443,6 +443,30 @@ export interface WorkbenchActionMap {
     params: { loopId: string; stateOverrides: Record<string, unknown> };
     result: { forkRunId: string; status: string };
   };
+  /**
+   * FR-M31 (audit TASK-305): adapter discovery and hot-plug lifecycle.
+   * Plug admits to probation; promote gates probation -> active; unplug
+   * retires with in-flight work checkpointed by the sidecar.
+   */
+  "adapters/discover": {
+    params: { roots?: string[] };
+    result: {
+      adapters: { id: string; version: string; valid: boolean; errors: string[] }[];
+      states: Record<string, string>;
+    };
+  };
+  "adapters/plug": {
+    params: { folder: string };
+    result: { id: string; valid: boolean; state: string };
+  };
+  "adapters/unplug": {
+    params: { id: string; inflight?: Record<string, unknown> };
+    result: { retired: boolean; checkpointed: boolean };
+  };
+  "adapters/promote": {
+    params: { id: string };
+    result: { state: string };
+  };
 }
 
 /**

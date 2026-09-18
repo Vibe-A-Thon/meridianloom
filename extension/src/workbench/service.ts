@@ -1094,6 +1094,13 @@ export class WorkbenchService {
       if (!sidecar) throw new Error("The sidecar is not connected.");
       return sidecar.request(request.action, request.params ?? {});
     }
+    // FR-M31 (audit TASK-305): adapter registry actions are sidecar
+    // pass-throughs like the loop family.
+    if (typeof request.action === "string" && request.action.startsWith("adapters/")) {
+      const sidecar = this.options.sidecar();
+      if (!sidecar) throw new Error("The sidecar is not connected.");
+      return sidecar.request(request.action, request.params ?? {});
+    }
     return this.serialize(async () => {
       if (this.disposed) throw new Error("The workbench has been closed.");
       await this.load();
