@@ -1719,8 +1719,387 @@ class EvidenceGateResult(TypedDict):
     recommendation: dict[str, Any]  # {verdict, reasons, invalidated, undecidedOutcome?, unmeasured?}. verdict is go | stop | pivot | kill | insufficient_evidence | unclassified, applying docs/evidence-gate.md §4 in order over three-valued logic. invalidated is true when the preregistration is not intact (§5).
     coverage: NotRequired[CoverageEnvelope]
 
+# The eight FR-M4-02 bound fields of a loop definition, as wire data.
+class LoopDefinitionWire(TypedDict):
+    loopId: str
+    entryCondition: str
+    bodyGraph: dict[str, Any]
+    exitCriteria: str
+    maxIterations: int | str
+    tokenBudget: int | str
+    wallClockBudgetS: int | str
+    costCeilingUsd: float | str
+    escalationTarget: str
+
+# Resume a suspended loop at its gate (FR-M4-06).
+class LoopResumeParams(TypedDict):
+    loopId: str
+
+# Resumed run state.
+class LoopResumeResult(TypedDict):
+    status: str
+    iteration: NotRequired[int]
+
+# Fork-replay a run with state overrides (FR-M4-07).
+class LoopReplayParams(TypedDict):
+    loopId: str
+    stateOverrides: dict[str, Any]
+
+# The forked run.
+class LoopReplayResult(TypedDict):
+    forkRunId: str
+    status: str
+
+# Request a model call through the engine-first router (FR-M8-15/16).
+class RouterRequestParams(TypedDict):
+    actionClass: str
+    agentId: str
+    storyId: str
+    phase: str
+    humanOverride: NotRequired[bool]
+    payload: NotRequired[dict[str, Any]]
+
+# The router decision (recorded).
+class RouterRequestResult(TypedDict):
+    permitted: bool
+    actionClass: str
+    whyLlm: NotRequired[str | None]
+    refusalReason: NotRequired[str | None]
+    recordedSequence: NotRequired[int | None]
+
+# LLM dependency ratio scope (FR-M8-17).
+class RouterRatioParams(TypedDict):
+    agentId: NotRequired[str | None]
+    phase: NotRequired[str | None]
+    storyId: NotRequired[str | None]
+    actionClass: NotRequired[str | None]
+    ceiling: NotRequired[float | None]
+
+# Ratio with breakdown-relevant counts.
+class RouterRatioResult(TypedDict):
+    modelCalls: int
+    engineExecutions: int
+    ratio: NotRequired[float | None]
+    ceiling: NotRequired[float | None]
+    breached: NotRequired[bool | None]
+
+# Invoke a native tool through the permission gate.
+class ToolsInvokeParams(TypedDict):
+    agentId: str
+    tool: str
+    argv: list[str]
+    changeClass: NotRequired[str]
+
+# Capped, marked tool result.
+class ToolsInvokeResult(TypedDict):
+    ok: bool
+    output: str
+    truncated: bool
+    changeClass: str
+    exitCode: NotRequired[int | None]
+
+# A declarative memory entry (FR-M7-04 provenance).
+class MemoryEntryWire(TypedDict):
+    tier: Literal["procedural", "semantic", "episodic"]
+    subject: str
+    content: str
+    author: str
+    confidence: float
+    origin: Literal["workspace", "user", "organisation", "story", "repository", "third_party"]
+    pinned: NotRequired[bool]
+    source: NotRequired[str | None]
+
+# Budgeted, ranked retrieval (FR-M7-13).
+class MemoryRetrieveParams(TypedDict):
+    agentId: str
+    queryTerms: list[str]
+    budgetChars: int
+    tiers: NotRequired[list[str]]
+
+# Included and cut entries, both logged.
+class MemoryRetrieveResult(TypedDict):
+    included: list[MemoryHitWire]
+    cut: list[str]
+
+class MemoryHitWire(TypedDict):
+    entryId: str
+    subject: str
+    digest: str
+
+# Gated memory writeback (FR-M7-05/07/11).
+class MemoryWriteParams(TypedDict):
+    entry: MemoryEntryWire
+    actorIsHuman: NotRequired[bool]
+
+# Write outcome.
+class MemoryWriteResult(TypedDict):
+    written: bool
+    reason: NotRequired[str | None]
+
+# Layered procedural merge (FR-M7-09).
+class MemoryLayeredParams(TypedDict):
+    layers: list[MemoryLayerWire]
+
+class MemoryLayerWire(TypedDict):
+    tier: str
+    dir: str
+
+# Effective playbook.
+class MemoryLayeredResult(TypedDict):
+    effective: dict[str, Any]
+
+# Produce a module comprehension record (FR-M38-01).
+class ComprehensionRecordParams(TypedDict):
+    path: str
+
+# The deterministic record.
+class ComprehensionRecordResult(TypedDict):
+    record: dict[str, Any]
+
+# Evaluate the AC-35 characterisation gate.
+class ComprehensionGateParams(TypedDict):
+    path: str
+
+# Gate verdict citing the record.
+class ComprehensionGateResult(TypedDict):
+    allowed: bool
+    path: str
+    reason: str
+    record: NotRequired[dict[str, Any]]
+
+# Discover adapter roots (FR-M31-02).
+class AdaptersDiscoverParams(TypedDict):
+    roots: list[str]
+
+# Discovered adapters with validation state.
+class AdaptersDiscoverResult(TypedDict):
+    adapters: list[AdapterWire]
+    states: dict[str, Any]
+
+class AdapterWire(TypedDict):
+    id: str
+    version: str
+    valid: bool
+    errors: NotRequired[list[str]]
+
+# Hot-plug an adapter folder (FR-M31-04).
+class AdaptersPlugParams(TypedDict):
+    folder: str
+
+# Admission outcome.
+class AdaptersPlugResult(TypedDict):
+    id: str
+    valid: bool
+    state: str
+
+# Retire an adapter; in-flight work checkpointed (FR-M31-04).
+class AdaptersUnplugParams(TypedDict):
+    id: str
+    inflight: NotRequired[dict[str, Any]]
+
+# Retirement outcome.
+class AdaptersUnplugResult(TypedDict):
+    retired: bool
+    checkpointed: NotRequired[bool]
+
+# Promote probation -> active (FR-M5-05).
+class AdaptersPromoteParams(TypedDict):
+    id: str
+
+# New state.
+class AdaptersPromoteResult(TypedDict):
+    state: str
+
+# Record a consequential decision (FR-M13-01).
+class DecisionsRecordParams(TypedDict):
+    agentId: str
+    inputs: dict[str, Any]
+    output: dict[str, Any] | str | float | bool | None
+    confidence: float
+    rationale: NotRequired[str | None]
+    retrievedMemory: NotRequired[list[str]]
+    toolCalls: NotRequired[list[str]]
+
+# Ledger sequence of the record.
+class DecisionsRecordResult(TypedDict):
+    sequence: int
+
+# Counterfactual replay with a factor removed (FR-M13-04/08).
+class DecisionsAblateParams(TypedDict):
+    decisionId: str
+    withoutFactor: str
+    inputs: dict[str, Any]
+
+# Marked-as-evidence ablation outcome.
+class DecisionsAblateResult(TypedDict):
+    changedFactor: str
+    outputChanged: bool
+    labelled: str
+
+# Gate on tests/scans/approvals only (FR-M13-07).
+class DecisionsGateParams(TypedDict):
+    testsPassed: bool
+    scansPassed: bool
+    approvals: list[str]
+    changeClass: str
+    ablations: NotRequired[list[int]]
+
+# Gate verdict.
+class DecisionsGateResult(TypedDict):
+    passed: bool
+
+# Export a signed adapter package (FR-M16-01/02/03).
+class PortabilityExportParams(TypedDict):
+    adapterId: str
+    destination: str
+
+# Package path and card.
+class PortabilityExportResult(TypedDict):
+    package: str
+    scannedFiles: NotRequired[int]
+
+# Verify + confirm + import (FR-M16-04/05/06).
+class PortabilityImportParams(TypedDict):
+    package: str
+    confirm: bool
+    availableTools: list[str]
+
+# Admission outcome.
+class PortabilityImportResult(TypedDict):
+    adapterId: str
+    state: str
+
+# Diff a package against the workspace (FR-M16-04).
+class PortabilityDiffParams(TypedDict):
+    package: str
+
+# The full diff.
+class PortabilityDiffResult(TypedDict):
+    added: list[str]
+    overwritten: list[str]
+
+# Run the Trainer (never mid-story, FR-M14-09).
+class TrainerTrainParams(TypedDict):
+    openPhases: list[str]
+
+# Train outcome.
+class TrainerTrainResult(TypedDict):
+    ran: bool
+    refusedReason: NotRequired[str | None]
+
+# Human-approved promotion (FR-M14-04..06).
+class TrainerPromoteParams(TypedDict):
+    kind: Literal["prompt", "playbook", "checklist", "rule"]
+    subject: str
+    content: str
+    incumbentScore: float
+    candidateScore: float
+    humanApproved: bool
+    actorIsHuman: NotRequired[bool]
+
+# Promotion verdict.
+class TrainerPromoteResult(TypedDict):
+    promoted: bool
+    reason: str
+    path: NotRequired[str | None]
+
+# Single-action rollback (FR-M14-07).
+class TrainerRollbackParams(TypedDict):
+    kind: str
+    subject: str
+
+# Restored version path.
+class TrainerRollbackResult(TypedDict):
+    path: str
+
+# Register a tenant root (SEC-23).
+class TenancyRegisterParams(TypedDict):
+    tenantId: str
+    root: str
+
+# Registration outcome.
+class TenancyRegisterResult(TypedDict):
+    registered: bool
+
+# Enqueue a story (FR-M21-01).
+class QueueEnqueueParams(TypedDict):
+    story: StoryWire
+
+class StoryWire(TypedDict):
+    storyId: str
+    priority: int
+    tenantId: str
+    dependencies: NotRequired[list[str]]
+
+# Enqueue outcome.
+class QueueEnqueueResult(TypedDict):
+    enqueued: bool
+
+# One scheduling tick (FR-M21-03).
+class QueueTickParams(TypedDict):
+    pass
+
+# Newly admitted stories.
+class QueueTickResult(TypedDict):
+    admitted: list[str]
+
+# Annotate/bookmark a ledger entry (FR-M10-16).
+class AnnotationsAddParams(TypedDict):
+    targetSeq: int
+    author: str
+    text: str
+    bookmark: NotRequired[bool]
+
+# Annotation sequence.
+class AnnotationsAddResult(TypedDict):
+    sequence: int
+
+# Record an agent-detected issue (FR-M24-05).
+class IssuesRecordParams(TypedDict):
+    agentId: str
+    severity: Literal["info", "warning", "critical"]
+    description: str
+    storyId: str
+
+# Issue sequence.
+class IssuesRecordResult(TypedDict):
+    sequence: int
+
+# Serve one bus request against a scripted scenario (FR-M32-01).
+class SimulationServeParams(TypedDict):
+    method: str
+    params: dict[str, Any]
+
+# Canned scenario response.
+class SimulationServeResult(TypedDict):
+    response: dict[str, Any]
+    backend: str
+
+# Time control (FR-M32-06).
+class SimulationTimeControlParams(TypedDict):
+    action: Literal["pause", "step", "play", "jump"]
+    rate: NotRequired[float]
+    sequence: NotRequired[int]
+
+# Clock state.
+class SimulationTimeControlResult(TypedDict):
+    position: int
+    paused: bool
+
+# Run one golden corpus entry (FR-M27-03/AC-16).
+class GoldenRunParams(TypedDict):
+    folder: str
+
+# Golden validation verdict.
+class GoldenRunResult(TypedDict):
+    storyId: str
+    ok: bool
+    ledgerRoot: str
+    expectedRoot: str
+    entries: int
+
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "interop/records", "interop/notarise", "interop/verify", "interop/conflicts", "interop/export", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "interop/records", "interop/notarise", "interop/verify", "interop/conflicts", "interop/export", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate", "loop.resume", "loop.replay", "router/requestModelCall", "router/dependencyRatio", "tools/invoke", "memory/retrieve", "memory/write", "memory/layered", "comprehension/record", "comprehension/gate", "adapters/discover", "adapters/plug", "adapters/unplug", "adapters/promote", "decisions/record", "decisions/ablate", "decisions/gate", "portability/export", "portability/import", "portability/diff", "trainer/train", "trainer/promote", "trainer/rollback", "tenancy/register", "queue/enqueue", "queue/tick", "annotations/add", "issues/record", "simulation/serve", "simulation/timeControl", "golden/run"]
 
 # Every notification method on the bus.
 NotificationName = Literal["gate/halt", "spend/ceiling", "tiers/set", "$/cancel"]
@@ -1794,7 +2173,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "orchestra.loops", "tier": "orchestra", "description": "The six canonical loops (FR-M4-03; F3). Stub RPCs until F3 lands them.", "rpcMethods": ["loop.start", "loop.stop", "loop.status"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "interop/records", "interop/notarise", "interop/verify", "interop/conflicts", "interop/export", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "interop/records", "interop/notarise", "interop/verify", "interop/conflicts", "interop/export", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate", "loop.resume", "loop.replay", "router/requestModelCall", "router/dependencyRatio", "tools/invoke", "memory/retrieve", "memory/write", "memory/layered", "comprehension/record", "comprehension/gate", "adapters/discover", "adapters/plug", "adapters/unplug", "adapters/promote", "decisions/record", "decisions/ablate", "decisions/gate", "portability/export", "portability/import", "portability/diff", "trainer/train", "trainer/promote", "trainer/rollback", "tenancy/register", "queue/enqueue", "queue/tick", "annotations/add", "issues/record", "simulation/serve", "simulation/timeControl", "golden/run")
 NOTIFICATION_METHODS: tuple[str, ...] = ("gate/halt", "spend/ceiling", "tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -1879,4 +2258,35 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "roles/check": {"params": RolesCheckParams, "result": RolesCheckResult},
     "roles/delegate": {"params": RolesDelegateParams, "result": RolesDelegateResult},
     "evidence/gate": {"params": EvidenceGateParams, "result": EvidenceGateResult},
+    "loop.resume": {"params": LoopResumeParams, "result": LoopResumeResult},
+    "loop.replay": {"params": LoopReplayParams, "result": LoopReplayResult},
+    "router/requestModelCall": {"params": RouterRequestParams, "result": RouterRequestResult},
+    "router/dependencyRatio": {"params": RouterRatioParams, "result": RouterRatioResult},
+    "tools/invoke": {"params": ToolsInvokeParams, "result": ToolsInvokeResult},
+    "memory/retrieve": {"params": MemoryRetrieveParams, "result": MemoryRetrieveResult},
+    "memory/write": {"params": MemoryWriteParams, "result": MemoryWriteResult},
+    "memory/layered": {"params": MemoryLayeredParams, "result": MemoryLayeredResult},
+    "comprehension/record": {"params": ComprehensionRecordParams, "result": ComprehensionRecordResult},
+    "comprehension/gate": {"params": ComprehensionGateParams, "result": ComprehensionGateResult},
+    "adapters/discover": {"params": AdaptersDiscoverParams, "result": AdaptersDiscoverResult},
+    "adapters/plug": {"params": AdaptersPlugParams, "result": AdaptersPlugResult},
+    "adapters/unplug": {"params": AdaptersUnplugParams, "result": AdaptersUnplugResult},
+    "adapters/promote": {"params": AdaptersPromoteParams, "result": AdaptersPromoteResult},
+    "decisions/record": {"params": DecisionsRecordParams, "result": DecisionsRecordResult},
+    "decisions/ablate": {"params": DecisionsAblateParams, "result": DecisionsAblateResult},
+    "decisions/gate": {"params": DecisionsGateParams, "result": DecisionsGateResult},
+    "portability/export": {"params": PortabilityExportParams, "result": PortabilityExportResult},
+    "portability/import": {"params": PortabilityImportParams, "result": PortabilityImportResult},
+    "portability/diff": {"params": PortabilityDiffParams, "result": PortabilityDiffResult},
+    "trainer/train": {"params": TrainerTrainParams, "result": TrainerTrainResult},
+    "trainer/promote": {"params": TrainerPromoteParams, "result": TrainerPromoteResult},
+    "trainer/rollback": {"params": TrainerRollbackParams, "result": TrainerRollbackResult},
+    "tenancy/register": {"params": TenancyRegisterParams, "result": TenancyRegisterResult},
+    "queue/enqueue": {"params": QueueEnqueueParams, "result": QueueEnqueueResult},
+    "queue/tick": {"params": QueueTickParams, "result": QueueTickResult},
+    "annotations/add": {"params": AnnotationsAddParams, "result": AnnotationsAddResult},
+    "issues/record": {"params": IssuesRecordParams, "result": IssuesRecordResult},
+    "simulation/serve": {"params": SimulationServeParams, "result": SimulationServeResult},
+    "simulation/timeControl": {"params": SimulationTimeControlParams, "result": SimulationTimeControlResult},
+    "golden/run": {"params": GoldenRunParams, "result": GoldenRunResult},
 }

@@ -744,7 +744,286 @@
       "result": {
         "$ref": "#/$defs/EvidenceGateResult"
       }
+    },
+  "loop.resume": {
+    "description": "FR-M4-06: resume at a human gate.",
+    "params": {
+      "$ref": "#/$defs/LoopResumeParams"
+    },
+    "result": {
+      "$ref": "#/$defs/LoopResumeResult"
     }
+  },
+  "loop.replay": {
+    "description": "FR-M4-07: modified-state fork replay.",
+    "params": {
+      "$ref": "#/$defs/LoopReplayParams"
+    },
+    "result": {
+      "$ref": "#/$defs/LoopReplayResult"
+    }
+  },
+  "router/requestModelCall": {
+    "description": "FR-M8-15/16: engine-first model-call boundary.",
+    "params": {
+      "$ref": "#/$defs/RouterRequestParams"
+    },
+    "result": {
+      "$ref": "#/$defs/RouterRequestResult"
+    }
+  },
+  "router/dependencyRatio": {
+    "description": "FR-M8-17: per-scope LLM dependency ratio.",
+    "params": {
+      "$ref": "#/$defs/RouterRatioParams"
+    },
+    "result": {
+      "$ref": "#/$defs/RouterRatioResult"
+    }
+  },
+  "tools/invoke": {
+    "description": "FR-M9-02/03: permissioned native tool invocation.",
+    "params": {
+      "$ref": "#/$defs/ToolsInvokeParams"
+    },
+    "result": {
+      "$ref": "#/$defs/ToolsInvokeResult"
+    }
+  },
+  "memory/retrieve": {
+    "description": "FR-M7-08/13: budgeted ranked retrieval.",
+    "params": {
+      "$ref": "#/$defs/MemoryRetrieveParams"
+    },
+    "result": {
+      "$ref": "#/$defs/MemoryRetrieveResult"
+    }
+  },
+  "memory/write": {
+    "description": "FR-M7-05: gated writeback.",
+    "params": {
+      "$ref": "#/$defs/MemoryWriteParams"
+    },
+    "result": {
+      "$ref": "#/$defs/MemoryWriteResult"
+    }
+  },
+  "memory/layered": {
+    "description": "FR-M7-09: layered procedural memory.",
+    "params": {
+      "$ref": "#/$defs/MemoryLayeredParams"
+    },
+    "result": {
+      "$ref": "#/$defs/MemoryLayeredResult"
+    }
+  },
+  "comprehension/record": {
+    "description": "FR-M38-01: comprehension record.",
+    "params": {
+      "$ref": "#/$defs/ComprehensionRecordParams"
+    },
+    "result": {
+      "$ref": "#/$defs/ComprehensionRecordResult"
+    }
+  },
+  "comprehension/gate": {
+    "description": "AC-35/FR-M38-04: characterisation gate.",
+    "params": {
+      "$ref": "#/$defs/ComprehensionGateParams"
+    },
+    "result": {
+      "$ref": "#/$defs/ComprehensionGateResult"
+    }
+  },
+  "adapters/discover": {
+    "description": "FR-M31-02: discovery with precedence.",
+    "params": {
+      "$ref": "#/$defs/AdaptersDiscoverParams"
+    },
+    "result": {
+      "$ref": "#/$defs/AdaptersDiscoverResult"
+    }
+  },
+  "adapters/plug": {
+    "description": "FR-M31-04: hot plug to probation.",
+    "params": {
+      "$ref": "#/$defs/AdaptersPlugParams"
+    },
+    "result": {
+      "$ref": "#/$defs/AdaptersPlugResult"
+    }
+  },
+  "adapters/unplug": {
+    "description": "FR-M31-04: retire with checkpoint+escalation.",
+    "params": {
+      "$ref": "#/$defs/AdaptersUnplugParams"
+    },
+    "result": {
+      "$ref": "#/$defs/AdaptersUnplugResult"
+    }
+  },
+  "adapters/promote": {
+    "description": "FR-M5-05: probation promotion gate.",
+    "params": {
+      "$ref": "#/$defs/AdaptersPromoteParams"
+    },
+    "result": {
+      "$ref": "#/$defs/AdaptersPromoteResult"
+    }
+  },
+  "decisions/record": {
+    "description": "FR-M13-01/02: decision record with labelled rationale.",
+    "params": {
+      "$ref": "#/$defs/DecisionsRecordParams"
+    },
+    "result": {
+      "$ref": "#/$defs/DecisionsRecordResult"
+    }
+  },
+  "decisions/ablate": {
+    "description": "FR-M13-04/08: counterfactual replay.",
+    "params": {
+      "$ref": "#/$defs/DecisionsAblateParams"
+    },
+    "result": {
+      "$ref": "#/$defs/DecisionsAblateResult"
+    }
+  },
+  "decisions/gate": {
+    "description": "FR-M13-05/07: explanation-free gate.",
+    "params": {
+      "$ref": "#/$defs/DecisionsGateParams"
+    },
+    "result": {
+      "$ref": "#/$defs/DecisionsGateResult"
+    }
+  },
+  "portability/export": {
+    "description": "FR-M16-01..03: signed, scanned export.",
+    "params": {
+      "$ref": "#/$defs/PortabilityExportParams"
+    },
+    "result": {
+      "$ref": "#/$defs/PortabilityExportResult"
+    }
+  },
+  "portability/import": {
+    "description": "FR-M16-04..06: verified, confirmed, probated import.",
+    "params": {
+      "$ref": "#/$defs/PortabilityImportParams"
+    },
+    "result": {
+      "$ref": "#/$defs/PortabilityImportResult"
+    }
+  },
+  "portability/diff": {
+    "description": "FR-M16-04: pre-import diff.",
+    "params": {
+      "$ref": "#/$defs/PortabilityDiffParams"
+    },
+    "result": {
+      "$ref": "#/$defs/PortabilityDiffResult"
+    }
+  },
+  "trainer/train": {
+    "description": "FR-M14-09: scheduled/explicit training only.",
+    "params": {
+      "$ref": "#/$defs/TrainerTrainParams"
+    },
+    "result": {
+      "$ref": "#/$defs/TrainerTrainResult"
+    }
+  },
+  "trainer/promote": {
+    "description": "FR-M14-04..06: margin + invariant + human approval.",
+    "params": {
+      "$ref": "#/$defs/TrainerPromoteParams"
+    },
+    "result": {
+      "$ref": "#/$defs/TrainerPromoteResult"
+    }
+  },
+  "trainer/rollback": {
+    "description": "FR-M14-07/08: one-action rollback.",
+    "params": {
+      "$ref": "#/$defs/TrainerRollbackParams"
+    },
+    "result": {
+      "$ref": "#/$defs/TrainerRollbackResult"
+    }
+  },
+  "tenancy/register": {
+    "description": "SEC-23/D13: tenant registration.",
+    "params": {
+      "$ref": "#/$defs/TenancyRegisterParams"
+    },
+    "result": {
+      "$ref": "#/$defs/TenancyRegisterResult"
+    }
+  },
+  "queue/enqueue": {
+    "description": "FR-M21-01: story enqueue.",
+    "params": {
+      "$ref": "#/$defs/QueueEnqueueParams"
+    },
+    "result": {
+      "$ref": "#/$defs/QueueEnqueueResult"
+    }
+  },
+  "queue/tick": {
+    "description": "FR-M21-03: scheduling tick with starvation surfacing.",
+    "params": {
+      "$ref": "#/$defs/QueueTickParams"
+    },
+    "result": {
+      "$ref": "#/$defs/QueueTickResult"
+    }
+  },
+  "annotations/add": {
+    "description": "FR-M10-16: ledger annotations/bookmarks.",
+    "params": {
+      "$ref": "#/$defs/AnnotationsAddParams"
+    },
+    "result": {
+      "$ref": "#/$defs/AnnotationsAddResult"
+    }
+  },
+  "issues/record": {
+    "description": "FR-M24-05: agent-detected issues.",
+    "params": {
+      "$ref": "#/$defs/IssuesRecordParams"
+    },
+    "result": {
+      "$ref": "#/$defs/IssuesRecordResult"
+    }
+  },
+  "simulation/serve": {
+    "description": "FR-M32-01/04: scripted scenario serving.",
+    "params": {
+      "$ref": "#/$defs/SimulationServeParams"
+    },
+    "result": {
+      "$ref": "#/$defs/SimulationServeResult"
+    }
+  },
+  "simulation/timeControl": {
+    "description": "FR-M32-06: pause/step/play/jump.",
+    "params": {
+      "$ref": "#/$defs/SimulationTimeControlParams"
+    },
+    "result": {
+      "$ref": "#/$defs/SimulationTimeControlResult"
+    }
+  },
+  "golden/run": {
+    "description": "FR-M27-03/AC-16: golden corpus validation.",
+    "params": {
+      "$ref": "#/$defs/GoldenRunParams"
+    },
+    "result": {
+      "$ref": "#/$defs/GoldenRunResult"
+    }
+  }
   },
   "$defs": {
     "CoverageEnvelope": {
@@ -7737,6 +8016,1464 @@
         "measures",
         "recommendation"
       ]
+    }
+,
+    "LoopDefinitionWire": {
+      "description": "The eight FR-M4-02 bound fields of a loop definition, as wire data.",
+      "type": "object",
+      "required": [
+        "loopId",
+        "entryCondition",
+        "bodyGraph",
+        "exitCriteria",
+        "maxIterations",
+        "tokenBudget",
+        "wallClockBudgetS",
+        "costCeilingUsd",
+        "escalationTarget"
+      ],
+      "properties": {
+        "loopId": {
+          "type": "string"
+        },
+        "entryCondition": {
+          "type": "string"
+        },
+        "bodyGraph": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "exitCriteria": {
+          "type": "string"
+        },
+        "maxIterations": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "tokenBudget": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "wallClockBudgetS": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "costCeilingUsd": {
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "escalationTarget": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LoopResumeParams": {
+      "description": "Resume a suspended loop at its gate (FR-M4-06).",
+      "type": "object",
+      "required": [
+        "loopId"
+      ],
+      "properties": {
+        "loopId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LoopResumeResult": {
+      "description": "Resumed run state.",
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "iteration": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LoopReplayParams": {
+      "description": "Fork-replay a run with state overrides (FR-M4-07).",
+      "type": "object",
+      "required": [
+        "loopId",
+        "stateOverrides"
+      ],
+      "properties": {
+        "loopId": {
+          "type": "string"
+        },
+        "stateOverrides": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "LoopReplayResult": {
+      "description": "The forked run.",
+      "type": "object",
+      "required": [
+        "forkRunId",
+        "status"
+      ],
+      "properties": {
+        "forkRunId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "RouterRequestParams": {
+      "description": "Request a model call through the engine-first router (FR-M8-15/16).",
+      "type": "object",
+      "required": [
+        "actionClass",
+        "agentId",
+        "storyId",
+        "phase"
+      ],
+      "properties": {
+        "actionClass": {
+          "type": "string"
+        },
+        "agentId": {
+          "type": "string"
+        },
+        "storyId": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "humanOverride": {
+          "type": "boolean"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "RouterRequestResult": {
+      "description": "The router decision (recorded).",
+      "type": "object",
+      "required": [
+        "permitted",
+        "actionClass"
+      ],
+      "properties": {
+        "permitted": {
+          "type": "boolean"
+        },
+        "actionClass": {
+          "type": "string"
+        },
+        "whyLlm": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "refusalReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "recordedSequence": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "RouterRatioParams": {
+      "description": "LLM dependency ratio scope (FR-M8-17).",
+      "type": "object",
+      "required": [],
+      "properties": {
+        "agentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "storyId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "actionClass": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ceiling": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "RouterRatioResult": {
+      "description": "Ratio with breakdown-relevant counts.",
+      "type": "object",
+      "required": [
+        "modelCalls",
+        "engineExecutions"
+      ],
+      "properties": {
+        "modelCalls": {
+          "type": "integer"
+        },
+        "engineExecutions": {
+          "type": "integer"
+        },
+        "ratio": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ceiling": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "breached": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "ToolsInvokeParams": {
+      "description": "Invoke a native tool through the permission gate.",
+      "type": "object",
+      "required": [
+        "agentId",
+        "tool",
+        "argv"
+      ],
+      "properties": {
+        "agentId": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "changeClass": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ToolsInvokeResult": {
+      "description": "Capped, marked tool result.",
+      "type": "object",
+      "required": [
+        "ok",
+        "output",
+        "truncated",
+        "changeClass"
+      ],
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "output": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "changeClass": {
+          "type": "string"
+        },
+        "exitCode": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "MemoryEntryWire": {
+      "description": "A declarative memory entry (FR-M7-04 provenance).",
+      "type": "object",
+      "required": [
+        "tier",
+        "subject",
+        "content",
+        "author",
+        "confidence",
+        "origin"
+      ],
+      "properties": {
+        "tier": {
+          "type": "string",
+          "enum": [
+            "procedural",
+            "semantic",
+            "episodic"
+          ]
+        },
+        "subject": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "workspace",
+            "user",
+            "organisation",
+            "story",
+            "repository",
+            "third_party"
+          ]
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "MemoryRetrieveParams": {
+      "description": "Budgeted, ranked retrieval (FR-M7-13).",
+      "type": "object",
+      "required": [
+        "agentId",
+        "queryTerms",
+        "budgetChars"
+      ],
+      "properties": {
+        "agentId": {
+          "type": "string"
+        },
+        "queryTerms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "budgetChars": {
+          "type": "integer"
+        },
+        "tiers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "MemoryRetrieveResult": {
+      "description": "Included and cut entries, both logged.",
+      "type": "object",
+      "required": [
+        "included",
+        "cut"
+      ],
+      "properties": {
+        "included": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MemoryHitWire"
+          }
+        },
+        "cut": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "MemoryHitWire": {
+      "type": "object",
+      "required": [
+        "entryId",
+        "subject",
+        "digest"
+      ],
+      "properties": {
+        "entryId": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MemoryWriteParams": {
+      "description": "Gated memory writeback (FR-M7-05/07/11).",
+      "type": "object",
+      "required": [
+        "entry"
+      ],
+      "properties": {
+        "entry": {
+          "$ref": "#/$defs/MemoryEntryWire"
+        },
+        "actorIsHuman": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MemoryWriteResult": {
+      "description": "Write outcome.",
+      "type": "object",
+      "required": [
+        "written"
+      ],
+      "properties": {
+        "written": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "MemoryLayeredParams": {
+      "description": "Layered procedural merge (FR-M7-09).",
+      "type": "object",
+      "required": [
+        "layers"
+      ],
+      "properties": {
+        "layers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MemoryLayerWire"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "MemoryLayerWire": {
+      "type": "object",
+      "required": [
+        "tier",
+        "dir"
+      ],
+      "properties": {
+        "tier": {
+          "type": "string"
+        },
+        "dir": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MemoryLayeredResult": {
+      "description": "Effective playbook.",
+      "type": "object",
+      "required": [
+        "effective"
+      ],
+      "properties": {
+        "effective": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ComprehensionRecordParams": {
+      "description": "Produce a module comprehension record (FR-M38-01).",
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ComprehensionRecordResult": {
+      "description": "The deterministic record.",
+      "type": "object",
+      "required": [
+        "record"
+      ],
+      "properties": {
+        "record": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "ComprehensionGateParams": {
+      "description": "Evaluate the AC-35 characterisation gate.",
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ComprehensionGateResult": {
+      "description": "Gate verdict citing the record.",
+      "type": "object",
+      "required": [
+        "allowed",
+        "path",
+        "reason"
+      ],
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "record": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "AdaptersDiscoverParams": {
+      "description": "Discover adapter roots (FR-M31-02).",
+      "type": "object",
+      "required": [
+        "roots"
+      ],
+      "properties": {
+        "roots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "AdaptersDiscoverResult": {
+      "description": "Discovered adapters with validation state.",
+      "type": "object",
+      "required": [
+        "adapters",
+        "states"
+      ],
+      "properties": {
+        "adapters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AdapterWire"
+          }
+        },
+        "states": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "AdapterWire": {
+      "type": "object",
+      "required": [
+        "id",
+        "version",
+        "valid"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "AdaptersPlugParams": {
+      "description": "Hot-plug an adapter folder (FR-M31-04).",
+      "type": "object",
+      "required": [
+        "folder"
+      ],
+      "properties": {
+        "folder": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AdaptersPlugResult": {
+      "description": "Admission outcome.",
+      "type": "object",
+      "required": [
+        "id",
+        "valid",
+        "state"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AdaptersUnplugParams": {
+      "description": "Retire an adapter; in-flight work checkpointed (FR-M31-04).",
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "inflight": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "AdaptersUnplugResult": {
+      "description": "Retirement outcome.",
+      "type": "object",
+      "required": [
+        "retired"
+      ],
+      "properties": {
+        "retired": {
+          "type": "boolean"
+        },
+        "checkpointed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AdaptersPromoteParams": {
+      "description": "Promote probation -> active (FR-M5-05).",
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AdaptersPromoteResult": {
+      "description": "New state.",
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DecisionsRecordParams": {
+      "description": "Record a consequential decision (FR-M13-01).",
+      "type": "object",
+      "required": [
+        "agentId",
+        "inputs",
+        "output",
+        "confidence"
+      ],
+      "properties": {
+        "agentId": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "output": {
+          "type": [
+            "object",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "rationale": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "retrievedMemory": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "toolCalls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "DecisionsRecordResult": {
+      "description": "Ledger sequence of the record.",
+      "type": "object",
+      "required": [
+        "sequence"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DecisionsAblateParams": {
+      "description": "Counterfactual replay with a factor removed (FR-M13-04/08).",
+      "type": "object",
+      "required": [
+        "decisionId",
+        "withoutFactor",
+        "inputs"
+      ],
+      "properties": {
+        "decisionId": {
+          "type": "string"
+        },
+        "withoutFactor": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "DecisionsAblateResult": {
+      "description": "Marked-as-evidence ablation outcome.",
+      "type": "object",
+      "required": [
+        "changedFactor",
+        "outputChanged",
+        "labelled"
+      ],
+      "properties": {
+        "changedFactor": {
+          "type": "string"
+        },
+        "outputChanged": {
+          "type": "boolean"
+        },
+        "labelled": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DecisionsGateParams": {
+      "description": "Gate on tests/scans/approvals only (FR-M13-07).",
+      "type": "object",
+      "required": [
+        "testsPassed",
+        "scansPassed",
+        "approvals",
+        "changeClass"
+      ],
+      "properties": {
+        "testsPassed": {
+          "type": "boolean"
+        },
+        "scansPassed": {
+          "type": "boolean"
+        },
+        "approvals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "changeClass": {
+          "type": "string"
+        },
+        "ablations": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "DecisionsGateResult": {
+      "description": "Gate verdict.",
+      "type": "object",
+      "required": [
+        "passed"
+      ],
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PortabilityExportParams": {
+      "description": "Export a signed adapter package (FR-M16-01/02/03).",
+      "type": "object",
+      "required": [
+        "adapterId",
+        "destination"
+      ],
+      "properties": {
+        "adapterId": {
+          "type": "string"
+        },
+        "destination": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PortabilityExportResult": {
+      "description": "Package path and card.",
+      "type": "object",
+      "required": [
+        "package"
+      ],
+      "properties": {
+        "package": {
+          "type": "string"
+        },
+        "scannedFiles": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PortabilityImportParams": {
+      "description": "Verify + confirm + import (FR-M16-04/05/06).",
+      "type": "object",
+      "required": [
+        "package",
+        "confirm",
+        "availableTools"
+      ],
+      "properties": {
+        "package": {
+          "type": "string"
+        },
+        "confirm": {
+          "type": "boolean"
+        },
+        "availableTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "PortabilityImportResult": {
+      "description": "Admission outcome.",
+      "type": "object",
+      "required": [
+        "adapterId",
+        "state"
+      ],
+      "properties": {
+        "adapterId": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PortabilityDiffParams": {
+      "description": "Diff a package against the workspace (FR-M16-04).",
+      "type": "object",
+      "required": [
+        "package"
+      ],
+      "properties": {
+        "package": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PortabilityDiffResult": {
+      "description": "The full diff.",
+      "type": "object",
+      "required": [
+        "added",
+        "overwritten"
+      ],
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "overwritten": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "TrainerTrainParams": {
+      "description": "Run the Trainer (never mid-story, FR-M14-09).",
+      "type": "object",
+      "required": [
+        "openPhases"
+      ],
+      "properties": {
+        "openPhases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "TrainerTrainResult": {
+      "description": "Train outcome.",
+      "type": "object",
+      "required": [
+        "ran"
+      ],
+      "properties": {
+        "ran": {
+          "type": "boolean"
+        },
+        "refusedReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "TrainerPromoteParams": {
+      "description": "Human-approved promotion (FR-M14-04..06).",
+      "type": "object",
+      "required": [
+        "kind",
+        "subject",
+        "content",
+        "incumbentScore",
+        "candidateScore",
+        "humanApproved"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "playbook",
+            "checklist",
+            "rule"
+          ]
+        },
+        "subject": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "incumbentScore": {
+          "type": "number"
+        },
+        "candidateScore": {
+          "type": "number"
+        },
+        "humanApproved": {
+          "type": "boolean"
+        },
+        "actorIsHuman": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TrainerPromoteResult": {
+      "description": "Promotion verdict.",
+      "type": "object",
+      "required": [
+        "promoted",
+        "reason"
+      ],
+      "properties": {
+        "promoted": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "TrainerRollbackParams": {
+      "description": "Single-action rollback (FR-M14-07).",
+      "type": "object",
+      "required": [
+        "kind",
+        "subject"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TrainerRollbackResult": {
+      "description": "Restored version path.",
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TenancyRegisterParams": {
+      "description": "Register a tenant root (SEC-23).",
+      "type": "object",
+      "required": [
+        "tenantId",
+        "root"
+      ],
+      "properties": {
+        "tenantId": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TenancyRegisterResult": {
+      "description": "Registration outcome.",
+      "type": "object",
+      "required": [
+        "registered"
+      ],
+      "properties": {
+        "registered": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "QueueEnqueueParams": {
+      "description": "Enqueue a story (FR-M21-01).",
+      "type": "object",
+      "required": [
+        "story"
+      ],
+      "properties": {
+        "story": {
+          "$ref": "#/$defs/StoryWire"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StoryWire": {
+      "type": "object",
+      "required": [
+        "storyId",
+        "priority",
+        "tenantId"
+      ],
+      "properties": {
+        "storyId": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "tenantId": {
+          "type": "string"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "QueueEnqueueResult": {
+      "description": "Enqueue outcome.",
+      "type": "object",
+      "required": [
+        "enqueued"
+      ],
+      "properties": {
+        "enqueued": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "QueueTickParams": {
+      "description": "One scheduling tick (FR-M21-03).",
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    },
+    "QueueTickResult": {
+      "description": "Newly admitted stories.",
+      "type": "object",
+      "required": [
+        "admitted"
+      ],
+      "properties": {
+        "admitted": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "AnnotationsAddParams": {
+      "description": "Annotate/bookmark a ledger entry (FR-M10-16).",
+      "type": "object",
+      "required": [
+        "targetSeq",
+        "author",
+        "text"
+      ],
+      "properties": {
+        "targetSeq": {
+          "type": "integer"
+        },
+        "author": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "bookmark": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AnnotationsAddResult": {
+      "description": "Annotation sequence.",
+      "type": "object",
+      "required": [
+        "sequence"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "IssuesRecordParams": {
+      "description": "Record an agent-detected issue (FR-M24-05).",
+      "type": "object",
+      "required": [
+        "agentId",
+        "severity",
+        "description",
+        "storyId"
+      ],
+      "properties": {
+        "agentId": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "info",
+            "warning",
+            "critical"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "storyId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "IssuesRecordResult": {
+      "description": "Issue sequence.",
+      "type": "object",
+      "required": [
+        "sequence"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SimulationServeParams": {
+      "description": "Serve one bus request against a scripted scenario (FR-M32-01).",
+      "type": "object",
+      "required": [
+        "method",
+        "params"
+      ],
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "SimulationServeResult": {
+      "description": "Canned scenario response.",
+      "type": "object",
+      "required": [
+        "response",
+        "backend"
+      ],
+      "properties": {
+        "response": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "backend": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SimulationTimeControlParams": {
+      "description": "Time control (FR-M32-06).",
+      "type": "object",
+      "required": [
+        "action"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "pause",
+            "step",
+            "play",
+            "jump"
+          ]
+        },
+        "rate": {
+          "type": "number"
+        },
+        "sequence": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SimulationTimeControlResult": {
+      "description": "Clock state.",
+      "type": "object",
+      "required": [
+        "position",
+        "paused"
+      ],
+      "properties": {
+        "position": {
+          "type": "integer"
+        },
+        "paused": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "GoldenRunParams": {
+      "description": "Run one golden corpus entry (FR-M27-03/AC-16).",
+      "type": "object",
+      "required": [
+        "folder"
+      ],
+      "properties": {
+        "folder": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "GoldenRunResult": {
+      "description": "Golden validation verdict.",
+      "type": "object",
+      "required": [
+        "storyId",
+        "ok",
+        "ledgerRoot",
+        "expectedRoot",
+        "entries"
+      ],
+      "properties": {
+        "storyId": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "ledgerRoot": {
+          "type": "string"
+        },
+        "expectedRoot": {
+          "type": "string"
+        },
+        "entries": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

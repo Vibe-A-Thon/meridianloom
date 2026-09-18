@@ -2444,8 +2444,453 @@ export interface EvidenceGateResult {
   "coverage"?: CoverageEnvelope;
 }
 
+/** The eight FR-M4-02 bound fields of a loop definition, as wire data. */
+export interface LoopDefinitionWire {
+  "loopId": string;
+  "entryCondition": string;
+  "bodyGraph": Record<string, unknown>;
+  "exitCriteria": string;
+  "maxIterations": number | string;
+  "tokenBudget": number | string;
+  "wallClockBudgetS": number | string;
+  "costCeilingUsd": number | string;
+  "escalationTarget": string;
+}
+
+/** Resume a suspended loop at its gate (FR-M4-06). */
+export interface LoopResumeParams {
+  "loopId": string;
+}
+
+/** Resumed run state. */
+export interface LoopResumeResult {
+  "status": string;
+  "iteration"?: number;
+}
+
+/** Fork-replay a run with state overrides (FR-M4-07). */
+export interface LoopReplayParams {
+  "loopId": string;
+  "stateOverrides": Record<string, unknown>;
+}
+
+/** The forked run. */
+export interface LoopReplayResult {
+  "forkRunId": string;
+  "status": string;
+}
+
+/** Request a model call through the engine-first router (FR-M8-15/16). */
+export interface RouterRequestParams {
+  "actionClass": string;
+  "agentId": string;
+  "storyId": string;
+  "phase": string;
+  "humanOverride"?: boolean;
+  "payload"?: Record<string, unknown>;
+}
+
+/** The router decision (recorded). */
+export interface RouterRequestResult {
+  "permitted": boolean;
+  "actionClass": string;
+  "whyLlm"?: string | null;
+  "refusalReason"?: string | null;
+  "recordedSequence"?: number | null;
+}
+
+/** LLM dependency ratio scope (FR-M8-17). */
+export interface RouterRatioParams {
+  "agentId"?: string | null;
+  "phase"?: string | null;
+  "storyId"?: string | null;
+  "actionClass"?: string | null;
+  "ceiling"?: number | null;
+}
+
+/** Ratio with breakdown-relevant counts. */
+export interface RouterRatioResult {
+  "modelCalls": number;
+  "engineExecutions": number;
+  "ratio"?: number | null;
+  "ceiling"?: number | null;
+  "breached"?: boolean | null;
+}
+
+/** Invoke a native tool through the permission gate. */
+export interface ToolsInvokeParams {
+  "agentId": string;
+  "tool": string;
+  "argv": string[];
+  "changeClass"?: string;
+}
+
+/** Capped, marked tool result. */
+export interface ToolsInvokeResult {
+  "ok": boolean;
+  "output": string;
+  "truncated": boolean;
+  "changeClass": string;
+  "exitCode"?: number | null;
+}
+
+/** A declarative memory entry (FR-M7-04 provenance). */
+export interface MemoryEntryWire {
+  "tier": "procedural" | "semantic" | "episodic";
+  "subject": string;
+  "content": string;
+  "author": string;
+  "confidence": number;
+  "origin": "workspace" | "user" | "organisation" | "story" | "repository" | "third_party";
+  "pinned"?: boolean;
+  "source"?: string | null;
+}
+
+/** Budgeted, ranked retrieval (FR-M7-13). */
+export interface MemoryRetrieveParams {
+  "agentId": string;
+  "queryTerms": string[];
+  "budgetChars": number;
+  "tiers"?: string[];
+}
+
+/** Included and cut entries, both logged. */
+export interface MemoryRetrieveResult {
+  "included": MemoryHitWire[];
+  "cut": string[];
+}
+
+export interface MemoryHitWire {
+  "entryId": string;
+  "subject": string;
+  "digest": string;
+}
+
+/** Gated memory writeback (FR-M7-05/07/11). */
+export interface MemoryWriteParams {
+  "entry": MemoryEntryWire;
+  "actorIsHuman"?: boolean;
+}
+
+/** Write outcome. */
+export interface MemoryWriteResult {
+  "written": boolean;
+  "reason"?: string | null;
+}
+
+/** Layered procedural merge (FR-M7-09). */
+export interface MemoryLayeredParams {
+  "layers": MemoryLayerWire[];
+}
+
+export interface MemoryLayerWire {
+  "tier": string;
+  "dir": string;
+}
+
+/** Effective playbook. */
+export interface MemoryLayeredResult {
+  "effective": Record<string, unknown>;
+}
+
+/** Produce a module comprehension record (FR-M38-01). */
+export interface ComprehensionRecordParams {
+  "path": string;
+}
+
+/** The deterministic record. */
+export interface ComprehensionRecordResult {
+  "record": Record<string, unknown>;
+}
+
+/** Evaluate the AC-35 characterisation gate. */
+export interface ComprehensionGateParams {
+  "path": string;
+}
+
+/** Gate verdict citing the record. */
+export interface ComprehensionGateResult {
+  "allowed": boolean;
+  "path": string;
+  "reason": string;
+  "record"?: Record<string, unknown>;
+}
+
+/** Discover adapter roots (FR-M31-02). */
+export interface AdaptersDiscoverParams {
+  "roots": string[];
+}
+
+/** Discovered adapters with validation state. */
+export interface AdaptersDiscoverResult {
+  "adapters": AdapterWire[];
+  "states": Record<string, unknown>;
+}
+
+export interface AdapterWire {
+  "id": string;
+  "version": string;
+  "valid": boolean;
+  "errors"?: string[];
+}
+
+/** Hot-plug an adapter folder (FR-M31-04). */
+export interface AdaptersPlugParams {
+  "folder": string;
+}
+
+/** Admission outcome. */
+export interface AdaptersPlugResult {
+  "id": string;
+  "valid": boolean;
+  "state": string;
+}
+
+/** Retire an adapter; in-flight work checkpointed (FR-M31-04). */
+export interface AdaptersUnplugParams {
+  "id": string;
+  "inflight"?: Record<string, unknown>;
+}
+
+/** Retirement outcome. */
+export interface AdaptersUnplugResult {
+  "retired": boolean;
+  "checkpointed"?: boolean;
+}
+
+/** Promote probation -> active (FR-M5-05). */
+export interface AdaptersPromoteParams {
+  "id": string;
+}
+
+/** New state. */
+export interface AdaptersPromoteResult {
+  "state": string;
+}
+
+/** Record a consequential decision (FR-M13-01). */
+export interface DecisionsRecordParams {
+  "agentId": string;
+  "inputs": Record<string, unknown>;
+  "output": Record<string, unknown> | string | number | boolean | null;
+  "confidence": number;
+  "rationale"?: string | null;
+  "retrievedMemory"?: string[];
+  "toolCalls"?: string[];
+}
+
+/** Ledger sequence of the record. */
+export interface DecisionsRecordResult {
+  "sequence": number;
+}
+
+/** Counterfactual replay with a factor removed (FR-M13-04/08). */
+export interface DecisionsAblateParams {
+  "decisionId": string;
+  "withoutFactor": string;
+  "inputs": Record<string, unknown>;
+}
+
+/** Marked-as-evidence ablation outcome. */
+export interface DecisionsAblateResult {
+  "changedFactor": string;
+  "outputChanged": boolean;
+  "labelled": string;
+}
+
+/** Gate on tests/scans/approvals only (FR-M13-07). */
+export interface DecisionsGateParams {
+  "testsPassed": boolean;
+  "scansPassed": boolean;
+  "approvals": string[];
+  "changeClass": string;
+  "ablations"?: number[];
+}
+
+/** Gate verdict. */
+export interface DecisionsGateResult {
+  "passed": boolean;
+}
+
+/** Export a signed adapter package (FR-M16-01/02/03). */
+export interface PortabilityExportParams {
+  "adapterId": string;
+  "destination": string;
+}
+
+/** Package path and card. */
+export interface PortabilityExportResult {
+  "package": string;
+  "scannedFiles"?: number;
+}
+
+/** Verify + confirm + import (FR-M16-04/05/06). */
+export interface PortabilityImportParams {
+  "package": string;
+  "confirm": boolean;
+  "availableTools": string[];
+}
+
+/** Admission outcome. */
+export interface PortabilityImportResult {
+  "adapterId": string;
+  "state": string;
+}
+
+/** Diff a package against the workspace (FR-M16-04). */
+export interface PortabilityDiffParams {
+  "package": string;
+}
+
+/** The full diff. */
+export interface PortabilityDiffResult {
+  "added": string[];
+  "overwritten": string[];
+}
+
+/** Run the Trainer (never mid-story, FR-M14-09). */
+export interface TrainerTrainParams {
+  "openPhases": string[];
+}
+
+/** Train outcome. */
+export interface TrainerTrainResult {
+  "ran": boolean;
+  "refusedReason"?: string | null;
+}
+
+/** Human-approved promotion (FR-M14-04..06). */
+export interface TrainerPromoteParams {
+  "kind": "prompt" | "playbook" | "checklist" | "rule";
+  "subject": string;
+  "content": string;
+  "incumbentScore": number;
+  "candidateScore": number;
+  "humanApproved": boolean;
+  "actorIsHuman"?: boolean;
+}
+
+/** Promotion verdict. */
+export interface TrainerPromoteResult {
+  "promoted": boolean;
+  "reason": string;
+  "path"?: string | null;
+}
+
+/** Single-action rollback (FR-M14-07). */
+export interface TrainerRollbackParams {
+  "kind": string;
+  "subject": string;
+}
+
+/** Restored version path. */
+export interface TrainerRollbackResult {
+  "path": string;
+}
+
+/** Register a tenant root (SEC-23). */
+export interface TenancyRegisterParams {
+  "tenantId": string;
+  "root": string;
+}
+
+/** Registration outcome. */
+export interface TenancyRegisterResult {
+  "registered": boolean;
+}
+
+/** Enqueue a story (FR-M21-01). */
+export interface QueueEnqueueParams {
+  "story": StoryWire;
+}
+
+export interface StoryWire {
+  "storyId": string;
+  "priority": number;
+  "tenantId": string;
+  "dependencies"?: string[];
+}
+
+/** Enqueue outcome. */
+export interface QueueEnqueueResult {
+  "enqueued": boolean;
+}
+
+/** One scheduling tick (FR-M21-03). */
+export type QueueTickParams = Record<string, never>;
+
+/** Newly admitted stories. */
+export interface QueueTickResult {
+  "admitted": string[];
+}
+
+/** Annotate/bookmark a ledger entry (FR-M10-16). */
+export interface AnnotationsAddParams {
+  "targetSeq": number;
+  "author": string;
+  "text": string;
+  "bookmark"?: boolean;
+}
+
+/** Annotation sequence. */
+export interface AnnotationsAddResult {
+  "sequence": number;
+}
+
+/** Record an agent-detected issue (FR-M24-05). */
+export interface IssuesRecordParams {
+  "agentId": string;
+  "severity": "info" | "warning" | "critical";
+  "description": string;
+  "storyId": string;
+}
+
+/** Issue sequence. */
+export interface IssuesRecordResult {
+  "sequence": number;
+}
+
+/** Serve one bus request against a scripted scenario (FR-M32-01). */
+export interface SimulationServeParams {
+  "method": string;
+  "params": Record<string, unknown>;
+}
+
+/** Canned scenario response. */
+export interface SimulationServeResult {
+  "response": Record<string, unknown>;
+  "backend": string;
+}
+
+/** Time control (FR-M32-06). */
+export interface SimulationTimeControlParams {
+  "action": "pause" | "step" | "play" | "jump";
+  "rate"?: number;
+  "sequence"?: number;
+}
+
+/** Clock state. */
+export interface SimulationTimeControlResult {
+  "position": number;
+  "paused": boolean;
+}
+
+/** Run one golden corpus entry (FR-M27-03/AC-16). */
+export interface GoldenRunParams {
+  "folder": string;
+}
+
+/** Golden validation verdict. */
+export interface GoldenRunResult {
+  "storyId": string;
+  "ok": boolean;
+  "ledgerRoot": string;
+  "expectedRoot": string;
+  "entries": number;
+}
+
 /** Every request/response method on the bus. */
-export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "observe/sessions" | "observe/health" | "observe/captureEvidence" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "hook/install" | "hook/status" | "hook/remove" | "hook/pending" | "trailers/parse" | "loop.start" | "loop.stop" | "loop.status" | "governance/enforcementPoints" | "run/preflight" | "run/start" | "run/cancel" | "gate.evaluate" | "gate.profiles" | "gate.approve" | "gate.status" | "gate.halt" | "identity.revoke" | "pr/ingest" | "pr/status" | "pr/conflicts" | "steer.send" | "steer/question" | "steer/answer" | "steer/escalate" | "steer/accept" | "steer/acceptanceStatus" | "steer/status" | "steer/plan" | "interop/records" | "interop/notarise" | "interop/verify" | "interop/conflicts" | "interop/export" | "trust.summary" | "trust/detectRejections" | "trust/classify" | "trust/rejectionRate" | "trust/reasonDistribution" | "trust/score" | "trust/scoreDecomposition" | "trust/compareAgents" | "trust/jcurve" | "trust/tokenmaxxing" | "trust/doraExport" | "spend/series" | "spend/ceilingCheck" | "spend/forecast" | "spend/pricing" | "acp/sessionBegin" | "acp/sessionEnd" | "acp/permissionDecision" | "worktree/create" | "worktree/list" | "worktree/remove" | "worktree/abortStory" | "worktree/conflicts" | "mcp/invoke" | "roles/list" | "roles/check" | "roles/delegate" | "evidence/gate";
+export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "observe/sessions" | "observe/health" | "observe/captureEvidence" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "hook/install" | "hook/status" | "hook/remove" | "hook/pending" | "trailers/parse" | "loop.start" | "loop.stop" | "loop.status" | "governance/enforcementPoints" | "run/preflight" | "run/start" | "run/cancel" | "gate.evaluate" | "gate.profiles" | "gate.approve" | "gate.status" | "gate.halt" | "identity.revoke" | "pr/ingest" | "pr/status" | "pr/conflicts" | "steer.send" | "steer/question" | "steer/answer" | "steer/escalate" | "steer/accept" | "steer/acceptanceStatus" | "steer/status" | "steer/plan" | "interop/records" | "interop/notarise" | "interop/verify" | "interop/conflicts" | "interop/export" | "trust.summary" | "trust/detectRejections" | "trust/classify" | "trust/rejectionRate" | "trust/reasonDistribution" | "trust/score" | "trust/scoreDecomposition" | "trust/compareAgents" | "trust/jcurve" | "trust/tokenmaxxing" | "trust/doraExport" | "spend/series" | "spend/ceilingCheck" | "spend/forecast" | "spend/pricing" | "acp/sessionBegin" | "acp/sessionEnd" | "acp/permissionDecision" | "worktree/create" | "worktree/list" | "worktree/remove" | "worktree/abortStory" | "worktree/conflicts" | "mcp/invoke" | "roles/list" | "roles/check" | "roles/delegate" | "evidence/gate" | "loop.resume" | "loop.replay" | "router/requestModelCall" | "router/dependencyRatio" | "tools/invoke" | "memory/retrieve" | "memory/write" | "memory/layered" | "comprehension/record" | "comprehension/gate" | "adapters/discover" | "adapters/plug" | "adapters/unplug" | "adapters/promote" | "decisions/record" | "decisions/ablate" | "decisions/gate" | "portability/export" | "portability/import" | "portability/diff" | "trainer/train" | "trainer/promote" | "trainer/rollback" | "tenancy/register" | "queue/enqueue" | "queue/tick" | "annotations/add" | "issues/record" | "simulation/serve" | "simulation/timeControl" | "golden/run";
 
 /** Every notification method on the bus. */
 export type NotificationName = "gate/halt" | "spend/ceiling" | "tiers/set" | "$/cancel";
@@ -2585,11 +3030,42 @@ export interface MethodMap {
   "roles/check": { params: RolesCheckParams; result: RolesCheckResult };
   "roles/delegate": { params: RolesDelegateParams; result: RolesDelegateResult };
   "evidence/gate": { params: EvidenceGateParams; result: EvidenceGateResult };
+  "loop.resume": { params: LoopResumeParams; result: LoopResumeResult };
+  "loop.replay": { params: LoopReplayParams; result: LoopReplayResult };
+  "router/requestModelCall": { params: RouterRequestParams; result: RouterRequestResult };
+  "router/dependencyRatio": { params: RouterRatioParams; result: RouterRatioResult };
+  "tools/invoke": { params: ToolsInvokeParams; result: ToolsInvokeResult };
+  "memory/retrieve": { params: MemoryRetrieveParams; result: MemoryRetrieveResult };
+  "memory/write": { params: MemoryWriteParams; result: MemoryWriteResult };
+  "memory/layered": { params: MemoryLayeredParams; result: MemoryLayeredResult };
+  "comprehension/record": { params: ComprehensionRecordParams; result: ComprehensionRecordResult };
+  "comprehension/gate": { params: ComprehensionGateParams; result: ComprehensionGateResult };
+  "adapters/discover": { params: AdaptersDiscoverParams; result: AdaptersDiscoverResult };
+  "adapters/plug": { params: AdaptersPlugParams; result: AdaptersPlugResult };
+  "adapters/unplug": { params: AdaptersUnplugParams; result: AdaptersUnplugResult };
+  "adapters/promote": { params: AdaptersPromoteParams; result: AdaptersPromoteResult };
+  "decisions/record": { params: DecisionsRecordParams; result: DecisionsRecordResult };
+  "decisions/ablate": { params: DecisionsAblateParams; result: DecisionsAblateResult };
+  "decisions/gate": { params: DecisionsGateParams; result: DecisionsGateResult };
+  "portability/export": { params: PortabilityExportParams; result: PortabilityExportResult };
+  "portability/import": { params: PortabilityImportParams; result: PortabilityImportResult };
+  "portability/diff": { params: PortabilityDiffParams; result: PortabilityDiffResult };
+  "trainer/train": { params: TrainerTrainParams; result: TrainerTrainResult };
+  "trainer/promote": { params: TrainerPromoteParams; result: TrainerPromoteResult };
+  "trainer/rollback": { params: TrainerRollbackParams; result: TrainerRollbackResult };
+  "tenancy/register": { params: TenancyRegisterParams; result: TenancyRegisterResult };
+  "queue/enqueue": { params: QueueEnqueueParams; result: QueueEnqueueResult };
+  "queue/tick": { params: QueueTickParams; result: QueueTickResult };
+  "annotations/add": { params: AnnotationsAddParams; result: AnnotationsAddResult };
+  "issues/record": { params: IssuesRecordParams; result: IssuesRecordResult };
+  "simulation/serve": { params: SimulationServeParams; result: SimulationServeResult };
+  "simulation/timeControl": { params: SimulationTimeControlParams; result: SimulationTimeControlResult };
+  "golden/run": { params: GoldenRunParams; result: GoldenRunResult };
 }
 export type RequestMethod = keyof MethodMap;
 
 /** Runtime list of every request method (for tier/ownership checks). */
-export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","observe/sessions","observe/health","observe/captureEvidence","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","hook/install","hook/status","hook/remove","hook/pending","trailers/parse","loop.start","loop.stop","loop.status","governance/enforcementPoints","run/preflight","run/start","run/cancel","gate.evaluate","gate.profiles","gate.approve","gate.status","gate.halt","identity.revoke","pr/ingest","pr/status","pr/conflicts","steer.send","steer/question","steer/answer","steer/escalate","steer/accept","steer/acceptanceStatus","steer/status","steer/plan","interop/records","interop/notarise","interop/verify","interop/conflicts","interop/export","trust.summary","trust/detectRejections","trust/classify","trust/rejectionRate","trust/reasonDistribution","trust/score","trust/scoreDecomposition","trust/compareAgents","trust/jcurve","trust/tokenmaxxing","trust/doraExport","spend/series","spend/ceilingCheck","spend/forecast","spend/pricing","acp/sessionBegin","acp/sessionEnd","acp/permissionDecision","worktree/create","worktree/list","worktree/remove","worktree/abortStory","worktree/conflicts","mcp/invoke","roles/list","roles/check","roles/delegate","evidence/gate"] as const;
+export const REQUEST_METHODS = ["handshake","ping","shutdown","health","attrib/blame","attrib/diff","attrib/symbol","attrib/classify","observe/sessions","observe/health","observe/captureEvidence","doctor/run","ledger.append","ledger.query","ledger.getEntry","ledger.verify","ledger.proof","ledger.exportBundle","hook/install","hook/status","hook/remove","hook/pending","trailers/parse","loop.start","loop.stop","loop.status","governance/enforcementPoints","run/preflight","run/start","run/cancel","gate.evaluate","gate.profiles","gate.approve","gate.status","gate.halt","identity.revoke","pr/ingest","pr/status","pr/conflicts","steer.send","steer/question","steer/answer","steer/escalate","steer/accept","steer/acceptanceStatus","steer/status","steer/plan","interop/records","interop/notarise","interop/verify","interop/conflicts","interop/export","trust.summary","trust/detectRejections","trust/classify","trust/rejectionRate","trust/reasonDistribution","trust/score","trust/scoreDecomposition","trust/compareAgents","trust/jcurve","trust/tokenmaxxing","trust/doraExport","spend/series","spend/ceilingCheck","spend/forecast","spend/pricing","acp/sessionBegin","acp/sessionEnd","acp/permissionDecision","worktree/create","worktree/list","worktree/remove","worktree/abortStory","worktree/conflicts","mcp/invoke","roles/list","roles/check","roles/delegate","evidence/gate","loop.resume","loop.replay","router/requestModelCall","router/dependencyRatio","tools/invoke","memory/retrieve","memory/write","memory/layered","comprehension/record","comprehension/gate","adapters/discover","adapters/plug","adapters/unplug","adapters/promote","decisions/record","decisions/ablate","decisions/gate","portability/export","portability/import","portability/diff","trainer/train","trainer/promote","trainer/rollback","tenancy/register","queue/enqueue","queue/tick","annotations/add","issues/record","simulation/serve","simulation/timeControl","golden/run"] as const;
 
 /** Runtime list of every notification method. */
 export const NOTIFICATION_METHODS = ["gate/halt","spend/ceiling","tiers/set","$/cancel"] as const;
