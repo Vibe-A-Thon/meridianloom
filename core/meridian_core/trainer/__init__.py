@@ -126,8 +126,8 @@ def harvest_signals(ledger: Any, *, story_id: str | None = None) -> HarvestedSig
     """Harvest the six signal sources from the ledger. Rows are read by
     action type; each source keeps the subjects it saw."""
     def subjects(action_type: str) -> tuple[str, ...]:
-        rows = ledger.query(action_type=action_type, story_id=story_id, limit=1000) \
-            if story_id else ledger.query(action_type=action_type, limit=1000)
+        rows = ledger.query_all(action_type=action_type, story_id=story_id) \
+            if story_id else ledger.query_all(action_type=action_type)
         return tuple(
             sorted({str(r.get("story_id") or r.get("seq")) for r in rows})
         )

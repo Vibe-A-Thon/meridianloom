@@ -1056,6 +1056,33 @@
       "result": {
         "$ref": "#/$defs/PortabilityTrustResult"
       }
+    },
+    "licence/status": {
+      "description": "Report the active edition (community | premium) and the licence evaluation behind it. Always available, whatever the licence state, so an expired licence can always be inspected and replaced.",
+      "params": {
+        "$ref": "#/$defs/LicenceStatusParams"
+      },
+      "result": {
+        "$ref": "#/$defs/LicenceStatusResult"
+      }
+    },
+    "licence/install": {
+      "description": "Verify a Premium licence file (signature, product, dates, and binding to this machine or developer) and store it in the user or machine licence directory. Refuses a licence that would not unlock Premium here, with the reason. Always available.",
+      "params": {
+        "$ref": "#/$defs/LicenceInstallParams"
+      },
+      "result": {
+        "$ref": "#/$defs/LicenceStatusResult"
+      }
+    },
+    "licence/remove": {
+      "description": "Delete installed licence files in a scope and return the resulting status (normally Community). Always available.",
+      "params": {
+        "$ref": "#/$defs/LicenceRemoveParams"
+      },
+      "result": {
+        "$ref": "#/$defs/LicenceRemoveResult"
+      }
     }
   },
   "$defs": {
@@ -9962,6 +9989,188 @@
         },
         "was": {
           "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LicenceSummary": {
+      "description": "What the UI may show about an installed licence: never the signature and never other seats' machine fingerprints (only counts).",
+      "type": "object",
+      "required": [
+        "licenceId",
+        "licensee",
+        "kind",
+        "seats",
+        "features"
+      ],
+      "properties": {
+        "licenceId": {
+          "type": "string"
+        },
+        "licensee": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "developer",
+            "machine"
+          ]
+        },
+        "seats": {
+          "type": "integer"
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "issuedAt": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trial": {
+          "type": "boolean"
+        },
+        "boundDevelopers": {
+          "type": "integer"
+        },
+        "boundMachines": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LicenceStatusResult": {
+      "description": "The licence evaluation: which edition is active and why. 'community' is the free edition; 'premium' means a valid (or in-grace) licence is installed and evaluated against this machine and the developer's git identity. Offline: nothing is sent anywhere.",
+      "type": "object",
+      "required": [
+        "edition",
+        "state",
+        "reason",
+        "premiumActive"
+      ],
+      "properties": {
+        "edition": {
+          "enum": [
+            "community",
+            "premium"
+          ]
+        },
+        "state": {
+          "enum": [
+            "none",
+            "valid",
+            "grace",
+            "expired",
+            "not-yet-valid",
+            "invalid",
+            "untrusted-key",
+            "wrong-machine",
+            "wrong-developer"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "premiumActive": {
+          "type": "boolean"
+        },
+        "licence": {
+          "$ref": "#/$defs/LicenceSummary"
+        },
+        "source": {
+          "type": "string",
+          "description": "The licence file that decided the state."
+        },
+        "daysRemaining": {
+          "type": "integer",
+          "description": "Days to expiry; negative once expired. Absent for a perpetual licence."
+        },
+        "checked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Every licence file examined and its state."
+        },
+        "machineFingerprint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "This machine's fingerprint (MLM1-...) for ordering a per-machine licence; null when the OS offers no machine id."
+        }
+      },
+      "additionalProperties": false
+    },
+    "LicenceStatusParams": {
+      "type": "object",
+      "properties": {
+        "reload": {
+          "type": "boolean",
+          "description": "Re-read the licence files instead of using the cached evaluation."
+        },
+        "includeFingerprint": {
+          "type": "boolean",
+          "description": "Also return this machine's fingerprint."
+        }
+      },
+      "additionalProperties": false
+    },
+    "LicenceInstallParams": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Absolute path of a .mlic licence file."
+        },
+        "text": {
+          "type": "string",
+          "description": "The licence file's contents (alternative to path)."
+        },
+        "scope": {
+          "enum": [
+            "user",
+            "machine"
+          ],
+          "description": "'user' (default) for a per-developer licence; 'machine' for a licence every account on the host shares (needs administrator rights)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "LicenceRemoveParams": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "enum": [
+            "user",
+            "machine"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "LicenceRemoveResult": {
+      "type": "object",
+      "required": [
+        "removed",
+        "status"
+      ],
+      "properties": {
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/LicenceStatusResult"
         }
       },
       "additionalProperties": false

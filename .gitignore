@@ -27,3 +27,7 @@ core/tests/fixtures/**/.gradle/
 
 # Evaluator docs staged into the VSIX at package time (see scripts/package-extension.mjs).
 /extension/docs/
+
+# Licence signing keys: the private half must never be committed.
+*.private.key
+*.private.pem

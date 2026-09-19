@@ -8,6 +8,7 @@
     python -m meridian_core.cli evidence-gate --workspace . --study study.json --out gate/
     python -m meridian_core.cli compare-evidence first.json second.json
     python -m meridian_core.cli export-attribution --workspace . --format git-notes
+    python -m meridian_core.cli licence status|install <file>|remove|fingerprint
 
 Everything here works with no extension, no editor and no running sidecar. It
 reads and writes the same ``.meridian/`` directory the extension uses, so a
@@ -625,6 +626,75 @@ def command_export_attribution(args: argparse.Namespace) -> int:
 # -- argument parsing ----------------------------------------------------------
 
 
+def command_licence(args: argparse.Namespace) -> int:
+    """Premium licence management: no editor and no running sidecar needed, so
+    an administrator can deploy a licence from a script or an installer."""
+    from .licensing import machine as licence_machine
+    from .licensing import runtime as licence_runtime
+    from .licensing.licence import LicenceError
+
+    workspace = str(Path(getattr(args, "workspace", ".")).resolve())
+    manager = licence_runtime.LicenceManager(workspace_dir=workspace)
+
+    def show(status: Any) -> None:
+        wire = status.to_wire()
+        if args.json:
+            sys.stdout.write(json.dumps(wire, indent=2, sort_keys=True) + "\n")
+            return
+        lines = [f"Edition : {wire['edition'].capitalize()}  ({wire['state']})"]
+        licence = wire.get("licence")
+        if licence:
+            lines.append(f"Licensee: {licence['licensee']}")
+            bound = licence["boundDevelopers"] or licence["boundMachines"]
+            lines.append(
+                f"Licence : {licence['licenceId']}  ({licence['kind']}-bound, "
+                f"{licence['seats']} seat(s), {bound} named)"
+            )
+            expires = licence["expiresAt"] or "never (perpetual)"
+            days = wire.get("daysRemaining")
+            lines.append(f"Expires : {expires}" + (f"  ({days} day(s))" if days is not None else ""))
+            lines.append("Features: " + ("all Premium features" if "*" in licence["features"] else ", ".join(licence["features"])))
+        lines.append(f"Detail  : {wire['reason']}")
+        if wire.get("source"):
+            lines.append(f"File    : {wire['source']}")
+        sys.stdout.write("\n".join(lines) + "\n")
+
+    action = args.licence_command
+    if action == "status":
+        status = manager.reload()
+        show(status)
+        return 0 if (status.premium_active or not args.require_premium) else 3
+    if action == "fingerprint":
+        value = licence_machine.machine_fingerprint()
+        if value is None:
+            raise CliError(
+                "this system exposes no machine identifier, so a per-machine licence cannot be "
+                "bound to it. Ask for a per-developer licence instead."
+            )
+        sys.stdout.write(value + "\n")
+        return 0
+    if action == "install":
+        try:
+            text = Path(args.file).read_text(encoding="utf-8-sig")
+            status = manager.install(text, args.scope)
+        except LicenceError as error:
+            raise CliError(f"licence not installed ({error.state}): {error}") from error
+        except PermissionError as error:
+            raise CliError(str(error)) from error
+        show(status)
+        return 0
+    if action == "remove":
+        removed = manager.remove(args.scope)
+        if args.json:
+            sys.stdout.write(json.dumps({"removed": removed}, indent=2) + "\n")
+        elif removed:
+            sys.stdout.write(f"Removed {len(removed)} licence file(s).\n")
+        else:
+            sys.stdout.write("No licence files found in that scope.\n")
+        return 0
+    raise CliError(f"unknown licence command {action!r}")  # pragma: no cover
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="meridian",
@@ -741,6 +811,35 @@ def build_parser() -> argparse.ArgumentParser:
         "--installed-at",
         help="Meridian's installation time; older commits are attributed at inferred",
     )
+
+    licence = sub.add_parser("licence", help="Premium licence: status, install, remove, fingerprint")
+    licence_sub = licence.add_subparsers(dest="licence_command", required=True)
+    for name, helptext in (
+        ("status", "show the active edition and why"),
+        ("install", "verify and install a licence file"),
+        ("remove", "remove installed licence files (back to the free Community edition)"),
+        ("fingerprint", "print this machine's fingerprint, for ordering a per-machine licence"),
+    ):
+        command = licence_sub.add_parser(name, help=helptext)
+        command.add_argument("--json", action="store_true", help="machine-readable output")
+        if name in ("status", "install"):
+            command.add_argument(
+                "--workspace", default=".",
+                help="folder whose git identity a per-developer licence is checked against",
+            )
+        if name in ("install", "remove"):
+            command.add_argument(
+                "--scope", choices=("user", "machine"), default="user",
+                help="user: this account (per-developer). machine: every account on this host "
+                "(per-machine; needs administrator/root)",
+            )
+        if name == "install":
+            command.add_argument("file", help="the .mlic licence file from your licensor")
+        if name == "status":
+            command.add_argument(
+                "--require-premium", action="store_true",
+                help="exit 3 unless Premium is active (for install scripts and CI)",
+            )
     return parser
 
 
@@ -754,6 +853,7 @@ _COMMANDS = {
     "evidence-gate": command_evidence_gate,
     "compare-evidence": command_compare_evidence,
     "export-attribution": command_export_attribution,
+    "licence": command_licence,
 }
 
 

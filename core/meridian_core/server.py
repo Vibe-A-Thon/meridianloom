@@ -32,6 +32,8 @@ from typing import Any
 import bus_types
 
 from . import doctor, protocol, tiers
+from . import licensing
+from .licensing import store as licence_store
 from . import identity as authenticated_identity
 from .attribution import blame, diff as attribution_diff, wire as attribution_wire
 from .attribution import symbols as symbols_mod
@@ -175,8 +177,13 @@ class SidecarServer:
         ledger: ledger_core.Ledger | None = None,
         identity_provider: Any | None = None,
         notification_sink: Callable[[dict[str, Any]], None] | None = None,
+        licence: licensing.LicenceManager | None = None,
     ) -> None:
         self._started_at = time.monotonic()
+        # Free Community edition by default; Premium features unlock only
+        # when a licence that verifies for this machine/developer is found
+        # (see meridian_core.licensing). Offline; nothing is ever sent.
+        self._licence = licence or licensing.new_manager()
         self._shutdown_requested = threading.Event()
         self._ping_seq = 0
         # FR-M36-05: enabled tiers default to the base tier only; the
@@ -233,6 +240,9 @@ class SidecarServer:
             "ping": SidecarServer._handle_ping,
             "shutdown": SidecarServer._handle_shutdown,
             "health": SidecarServer._handle_health,
+            "licence/status": SidecarServer._handle_licence_status,
+            "licence/install": SidecarServer._handle_licence_install,
+            "licence/remove": SidecarServer._handle_licence_remove,
             "doctor/run": SidecarServer._handle_doctor_run,
             "observe/sessions": SidecarServer._handle_observe_sessions,
             "observe/health": SidecarServer._handle_observe_health,
@@ -497,6 +507,18 @@ class SidecarServer:
                 tiers.tier_disabled_message(method),
                 tiers.tier_disabled_data(method, self._enabled_tiers),
             )
+        # Edition gate, after the tier gate: a Premium feature needs a valid
+        # licence in addition to its tier being enabled. Community methods
+        # (the whole Flight Recorder, and licence management itself) never
+        # reach the licence check at all.
+        denial = self._licence.check_method(method)
+        if denial is not None:
+            return make_error_response(
+                request_id,
+                protocol.ERROR_LICENCE_REQUIRED,
+                denial["message"],
+                denial["data"],
+            )
         handler = self._handlers.get(method)
         if handler is None:
             return make_error_response(
@@ -572,6 +594,9 @@ class SidecarServer:
         workspace_dir = (params or {}).get("workspaceDir")
         if isinstance(workspace_dir, str) and workspace_dir:
             self._workspace_dir = workspace_dir
+            # The per-developer licence check reads this workspace's git
+            # identity, so the licence is (re)evaluated once it is known.
+            self._licence.reload(workspace_dir)
             self._ensure_session_monitor()
             self._run_policy_bootstrap(Path(workspace_dir))
         # FR-M10-04/SEC-06: signing-key material arrives from the OS-keychain
@@ -658,6 +683,55 @@ class SidecarServer:
             # workspace handshake (empty when nothing was scaffolded).
             "policyScaffolds": list(self._policy_scaffolds),
         }
+
+    # -- licence (always available; see licensing/editions.ALWAYS_AVAILABLE) --
+
+    def _licence_result(self, status: licensing.LicenceStatus, fingerprint: bool) -> dict[str, Any]:
+        wire = status.to_wire()
+        if fingerprint:
+            from .licensing import machine as licence_machine
+
+            wire["machineFingerprint"] = licence_machine.machine_fingerprint()
+        return wire
+
+    def _handle_licence_status(self, params: Any) -> dict[str, Any]:
+        params = params or {}
+        status = self._licence.reload() if params.get("reload") else self._licence.status
+        return self._licence_result(status, bool(params.get("includeFingerprint")))
+
+    def _handle_licence_install(self, params: Any) -> dict[str, Any]:
+        params = params or {}
+        text = params.get("text")
+        path = params.get("path")
+        if (text is None) == (path is None):
+            raise _RpcError(protocol.INVALID_PARAMS, "licence/install needs exactly one of 'path' or 'text'")
+        if path is not None:
+            try:
+                text = Path(path).read_text(encoding="utf-8-sig")
+            except OSError as error:
+                raise _RpcError(
+                    protocol.INVALID_PARAMS, f"cannot read licence file: {error.strerror or error}"
+                ) from error
+        scope = params.get("scope") or licence_store.SCOPE_USER
+        try:
+            status = self._licence.install(str(text), scope)
+        except licensing.LicenceError as error:
+            raise _RpcError(
+                protocol.INVALID_PARAMS,
+                f"licence not installed: {error}",
+                data={"state": error.state},
+            ) from error
+        except (PermissionError, ValueError) as error:
+            raise _RpcError(protocol.INVALID_PARAMS, f"licence not installed: {error}") from error
+        return self._licence_result(status, False)
+
+    def _handle_licence_remove(self, params: Any) -> dict[str, Any]:
+        scope = (params or {}).get("scope") or licence_store.SCOPE_USER
+        try:
+            removed = self._licence.remove(scope)
+        except ValueError as error:
+            raise _RpcError(protocol.INVALID_PARAMS, str(error)) from error
+        return {"removed": removed, "status": self._licence_result(self._licence.status, False)}
 
     def _handle_doctor_run(
         self, params: bus_types.DoctorRunParams
@@ -1075,7 +1149,7 @@ class SidecarServer:
         """
         ledger = self._ensure_ledger()
         details: list[dict[str, Any] | None] = []
-        for row in ledger.query(action_type="foreign_record_notarised", limit=1000):
+        for row in ledger.query_all(action_type="foreign_record_notarised"):
             ref = row.get("input_ref")
             if not isinstance(ref, str) or not ref:
                 details.append(None)
@@ -2597,7 +2671,7 @@ class SidecarServer:
             story_id = ingest["row"].get("story_id")
             head_commit = ingest["detail"].get("headCommit")
             base_branch = ingest["detail"].get("baseBranch")
-            for row in ledger.query(action_type="gate", story_id=story_id, limit=1000):
+            for row in ledger.query_all(action_type="gate", story_id=story_id):
                 detail = self._read_entry_detail(ledger, row)
                 if detail.get("subject") != subject.strip():
                     continue
@@ -2763,7 +2837,7 @@ class SidecarServer:
         self, ledger: ledger_core.Ledger, subject: str
     ) -> dict[str, Any] | None:
         """The newest pr_ingest entry for ``subject``: (row, decoded detail)."""
-        for row in reversed(ledger.query(action_type="pr_ingest", limit=1000)):
+        for row in reversed(ledger.query_all(action_type="pr_ingest")):
             detail = self._read_entry_detail(ledger, row)
             if detail.get("subject") == subject:
                 return {"row": row, "detail": detail}
@@ -2887,7 +2961,7 @@ class SidecarServer:
         tool_calls JSON detail.
         """
         known: dict[tuple[str, str, str, int, int], int] = {}
-        rows = ledger.query(action_type="rejection", limit=1000)
+        rows = ledger.query_all(action_type="rejection")
         for row in rows:
             if row.get("repo_id") != repo_id:
                 continue
@@ -3306,7 +3380,7 @@ class SidecarServer:
         # Idempotency: rejection entries already recorded for this repo.
         # The key is the mechanical identity (commits + shape), NOT the
         # taxonomy class — a later human classification must not re-record.
-        existing = ledger.query(action_type="rejection", limit=1000)
+        existing = ledger.query_all(action_type="rejection")
         known: dict[tuple, int] = {}
         for row in existing:
             key = (
@@ -4756,7 +4830,7 @@ class SidecarServer:
         """Best-effort attribution of a session end to the begin entry's
         actor; 'unknown' when no begin was recorded (never a crash)."""
         ledger = self._ensure_ledger()
-        begins = ledger.query(action_type="session_begin", limit=10_000)
+        begins = ledger.query_all(action_type="session_begin")
         for row in reversed(begins):
             if row.get("external_session_id") == session_id:
                 return str(row["actor_id"])
@@ -4872,7 +4946,7 @@ class SidecarServer:
         so the row's existence IS the hosted fact (F1 Workstream D task 18).
         """
         ledger = self._ensure_ledger()
-        begins = ledger.query(action_type="session_begin", limit=10_000)
+        begins = ledger.query_all(action_type="session_begin")
         for row in reversed(begins):
             if row.get("external_session_id") == session_id:
                 return row
@@ -5107,10 +5181,9 @@ class SidecarServer:
         """The decrypted partial_acceptance details, ascending — the
         fold order for the latest-state answer."""
         ledger = self._ensure_ledger()
-        rows = ledger.query(
+        rows = ledger.query_all(
             story_id=f"acp:{session_id}",
             action_type="partial_acceptance",
-            limit=1000,
         )
         entries: list[dict[str, Any]] = []
         for row in rows:
@@ -5138,8 +5211,8 @@ class SidecarServer:
         # Fold every recorded acceptance in order; the newest record for a
         # file wins, the ledger keeps the full history.
         latest: dict[str, dict[str, Any]] = {}
-        rows = self._ensure_ledger().query(
-            story_id=f"acp:{session_id}", action_type="partial_acceptance", limit=1000
+        rows = self._ensure_ledger().query_all(
+            story_id=f"acp:{session_id}", action_type="partial_acceptance"
         )
         for index, entry in enumerate(self._steer_acceptance_entries(session_id)):
             row = rows[index] if index < len(rows) else {}
@@ -5202,7 +5275,7 @@ class SidecarServer:
                 except (TypeError, ValueError):
                     mode = "normal"
                 status["mode"] = mode if mode in ("normal", "dry-run") else "normal"
-        ends = ledger.query(action_type="session_end", limit=10_000)
+        ends = ledger.query_all(action_type="session_end")
         for row in reversed(ends):
             if row.get("external_session_id") == session_id:
                 status["endedAt"] = row["ts_utc"]

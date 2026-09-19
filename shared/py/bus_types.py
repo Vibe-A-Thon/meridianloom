@@ -19,6 +19,7 @@ PROTOCOL_MISMATCH: int = -32002
 TIER_DISABLED: int = -32003
 LEDGER_UNAVAILABLE: int = -32004
 NOT_HOSTED: int = -32005
+LICENCE_REQUIRED: int = -32006
 
 # FR-M41-08 (N1 Workstream A, D36): the coverage disclosure every analytic result carries — computed in the same operation as the figure, never a separate call (NFR-34). G-01's defect was silent 1,000-row truncation; the envelope makes any residual bound visible. trust/score carries it under `coverageEnvelope` because that result's `coverage` key already names the FR-M37-03 component list.
 class CoverageEnvelope(TypedDict):
@@ -2121,8 +2122,49 @@ class LoopStopResult(TypedDict):
     stopped: bool
     was: str
 
+# What the UI may show about an installed licence: never the signature and never other seats' machine fingerprints (only counts).
+class LicenceSummary(TypedDict):
+    licenceId: str
+    licensee: str
+    kind: Literal["developer", "machine"]
+    seats: int
+    features: list[str]
+    issuedAt: NotRequired[str]
+    expiresAt: NotRequired[str | None]
+    trial: NotRequired[bool]
+    boundDevelopers: NotRequired[int]
+    boundMachines: NotRequired[int]
+
+# The licence evaluation: which edition is active and why. 'community' is the free edition; 'premium' means a valid (or in-grace) licence is installed and evaluated against this machine and the developer's git identity. Offline: nothing is sent anywhere.
+class LicenceStatusResult(TypedDict):
+    edition: Literal["community", "premium"]
+    state: Literal["none", "valid", "grace", "expired", "not-yet-valid", "invalid", "untrusted-key", "wrong-machine", "wrong-developer"]
+    reason: str
+    premiumActive: bool
+    licence: NotRequired[LicenceSummary]
+    source: NotRequired[str]  # The licence file that decided the state.
+    daysRemaining: NotRequired[int]  # Days to expiry; negative once expired. Absent for a perpetual licence.
+    checked: NotRequired[list[str]]  # Every licence file examined and its state.
+    machineFingerprint: NotRequired[str | None]  # This machine's fingerprint (MLM1-...) for ordering a per-machine licence; null when the OS offers no machine id.
+
+class LicenceStatusParams(TypedDict):
+    reload: NotRequired[bool]  # Re-read the licence files instead of using the cached evaluation.
+    includeFingerprint: NotRequired[bool]  # Also return this machine's fingerprint.
+
+class LicenceInstallParams(TypedDict):
+    path: NotRequired[str]  # Absolute path of a .mlic licence file.
+    text: NotRequired[str]  # The licence file's contents (alternative to path).
+    scope: NotRequired[Literal["user", "machine"]]  # 'user' (default) for a per-developer licence; 'machine' for a licence every account on the host shares (needs administrator rights).
+
+class LicenceRemoveParams(TypedDict):
+    scope: NotRequired[Literal["user", "machine"]]
+
+class LicenceRemoveResult(TypedDict):
+    removed: list[str]
+    status: LicenceStatusResult
+
 # Every request/response method on the bus.
-MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "interop/records", "interop/notarise", "interop/verify", "interop/conflicts", "interop/export", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate", "loop.resume", "loop.replay", "router/requestModelCall", "router/dependencyRatio", "tools/invoke", "memory/retrieve", "memory/write", "memory/layered", "comprehension/record", "comprehension/gate", "adapters/discover", "adapters/plug", "adapters/unplug", "adapters/promote", "decisions/record", "decisions/ablate", "decisions/gate", "portability/export", "portability/import", "portability/diff", "trainer/train", "trainer/promote", "trainer/rollback", "tenancy/register", "queue/enqueue", "queue/tick", "annotations/add", "issues/record", "simulation/serve", "simulation/timeControl", "golden/run", "portability/trust"]
+MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "interop/records", "interop/notarise", "interop/verify", "interop/conflicts", "interop/export", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate", "loop.resume", "loop.replay", "router/requestModelCall", "router/dependencyRatio", "tools/invoke", "memory/retrieve", "memory/write", "memory/layered", "comprehension/record", "comprehension/gate", "adapters/discover", "adapters/plug", "adapters/unplug", "adapters/promote", "decisions/record", "decisions/ablate", "decisions/gate", "portability/export", "portability/import", "portability/diff", "trainer/train", "trainer/promote", "trainer/rollback", "tenancy/register", "queue/enqueue", "queue/tick", "annotations/add", "issues/record", "simulation/serve", "simulation/timeControl", "golden/run", "portability/trust", "licence/status", "licence/install", "licence/remove"]
 
 # Every notification method on the bus.
 NotificationName = Literal["gate/halt", "spend/ceiling", "tiers/set", "$/cancel"]
@@ -2174,7 +2216,7 @@ DEFAULT_ENABLED_TIERS: tuple[str, ...] = ("flight-recorder",)
 
 # FR-M36-05: capability registry; every capability is owned by exactly one tier.
 CAPABILITIES: tuple[CapabilityDefinition, ...] = (
-    {"id": "recorder.lifecycle", "tier": "flight-recorder", "description": "Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.", "rpcMethods": ["handshake", "ping", "shutdown", "health"]},
+    {"id": "recorder.lifecycle", "tier": "flight-recorder", "description": "Sidecar lifecycle: handshake, heartbeat, shutdown, health, and licence status/install/remove (always available, whatever the licence state). Always enabled — the base tier cannot be turned off.", "rpcMethods": ["handshake", "ping", "shutdown", "health", "licence/status", "licence/install", "licence/remove"]},
     {"id": "recorder.doctor", "tier": "flight-recorder", "description": "Self-diagnostic check registry (FR-M30-01).", "rpcMethods": ["doctor/run"]},
     {"id": "recorder.attribution", "tier": "flight-recorder", "description": "Deterministic git-native attribution: line blame, unified-diff attribution for worktree/staged/ranges, tree-sitter line→symbol naming, human-vs-agent change heuristics (FR-M33-02 subset, FR-M35-02 aid; F0 Workstream C tasks 13–15). Zero model calls (FR-M36-07).", "rpcMethods": ["attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify"]},
     {"id": "recorder.ledger", "tier": "flight-recorder", "description": "Append-only provenance ledger, query API and Chain Viewer backend (FR-M10-01/02/07/08/09/12, FR-M11-01..05; F0 Workstream B).", "rpcMethods": ["ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle"]},
@@ -2207,7 +2249,7 @@ CAPABILITIES: tuple[CapabilityDefinition, ...] = (
     {"id": "recorder.simulation", "tier": "flight-recorder", "description": "Simulation Core serving, time control, and the golden-corpus runner (FR-M32, FR-M27-03). Usable with zero tiers and zero credentials.", "rpcMethods": ["simulation/serve", "simulation/timeControl", "golden/run"]},
 )
 
-REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "interop/records", "interop/notarise", "interop/verify", "interop/conflicts", "interop/export", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate", "loop.resume", "loop.replay", "router/requestModelCall", "router/dependencyRatio", "tools/invoke", "memory/retrieve", "memory/write", "memory/layered", "comprehension/record", "comprehension/gate", "adapters/discover", "adapters/plug", "adapters/unplug", "adapters/promote", "decisions/record", "decisions/ablate", "decisions/gate", "portability/export", "portability/import", "portability/diff", "trainer/train", "trainer/promote", "trainer/rollback", "tenancy/register", "queue/enqueue", "queue/tick", "annotations/add", "issues/record", "simulation/serve", "simulation/timeControl", "golden/run", "portability/trust")
+REQUEST_METHODS: tuple[str, ...] = ("handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "interop/records", "interop/notarise", "interop/verify", "interop/conflicts", "interop/export", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate", "loop.resume", "loop.replay", "router/requestModelCall", "router/dependencyRatio", "tools/invoke", "memory/retrieve", "memory/write", "memory/layered", "comprehension/record", "comprehension/gate", "adapters/discover", "adapters/plug", "adapters/unplug", "adapters/promote", "decisions/record", "decisions/ablate", "decisions/gate", "portability/export", "portability/import", "portability/diff", "trainer/train", "trainer/promote", "trainer/rollback", "tenancy/register", "queue/enqueue", "queue/tick", "annotations/add", "issues/record", "simulation/serve", "simulation/timeControl", "golden/run", "portability/trust", "licence/status", "licence/install", "licence/remove")
 NOTIFICATION_METHODS: tuple[str, ...] = ("gate/halt", "spend/ceiling", "tiers/set", "$/cancel")
 
 # Runtime pairing of method name -> params/result TypedDicts.
@@ -2324,4 +2366,7 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "simulation/timeControl": {"params": SimulationTimeControlParams, "result": SimulationTimeControlResult},
     "golden/run": {"params": GoldenRunParams, "result": GoldenRunResult},
     "portability/trust": {"params": PortabilityTrustParams, "result": PortabilityTrustResult},
+    "licence/status": {"params": LicenceStatusParams, "result": LicenceStatusResult},
+    "licence/install": {"params": LicenceInstallParams, "result": LicenceStatusResult},
+    "licence/remove": {"params": LicenceRemoveParams, "result": LicenceRemoveResult},
 }

@@ -436,7 +436,7 @@ def _read_detail(ledger: Any, row: dict[str, Any]) -> dict[str, Any]:
 def iter_delegations(ledger: Any) -> list[dict[str, Any]]:
     """Active-shape delegation details, newest first (unfiltered by expiry)."""
     found: list[dict[str, Any]] = []
-    for row in reversed(ledger.query(action_type="delegation", limit=1000)):
+    for row in reversed(ledger.query_all(action_type="delegation")):
         detail = _read_detail(ledger, row)
         if detail.get("method") == "roles/delegate":
             detail = dict(detail)
@@ -547,14 +547,14 @@ def assess_hygiene(ledger: Any, pack: RolePack, *, subject: str) -> list[str]:
 
     approval_rows = [
         row
-        for row in ledger.query(action_type="approval", limit=1000)
+        for row in ledger.query_all(action_type="approval")
         if row.get("decision") == "approved" and str(row.get("human_actor") or "").strip()
     ]
 
     # Approver == requester + latency for this subject's approvals.
     ingest_rows = [
         (row, _read_detail(ledger, row))
-        for row in ledger.query(action_type="pr_ingest", limit=1000)
+        for row in ledger.query_all(action_type="pr_ingest")
     ]
     ingester_emails = {
         str(detail.get("ingestedBy", {}).get("email", "")).strip().lower()
@@ -565,7 +565,7 @@ def assess_hygiene(ledger: Any, pack: RolePack, *, subject: str) -> list[str]:
     for row, detail in ingest_rows:
         if detail.get("subject") == subject:
             gate_open_ts.append(str(row.get("ts_utc") or ""))
-    for row in ledger.query(action_type="gate", limit=1000):
+    for row in ledger.query_all(action_type="gate"):
         detail = _read_detail(ledger, row)
         if detail.get("subject") == subject:
             gate_open_ts.append(str(row.get("ts_utc") or ""))

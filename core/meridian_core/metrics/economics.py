@@ -319,7 +319,7 @@ def lines_from_ledger(
     """
     if provenance not in PROVENANCE_CLASSES:
         raise ProvenanceError(f"FR-M45-03: {provenance!r}")
-    rows = ledger.query(action_type="tool_call", limit=100000)
+    rows = ledger.query_all(action_type="tool_call")
     lines: list[CostLine] = []
     for row in rows:
         if story_ids is not None and row.get("story_id") not in story_ids:
@@ -356,7 +356,7 @@ def bind_gate_and_commit(
     """
     gate_rows = [
         row
-        for row in ledger.query(action_type="gate", story_id=story_id, limit=1000)
+        for row in ledger.query_all(action_type="gate", story_id=story_id)
         if row.get("decision") == "approved"
     ]
     gate_sequence = gate_rows[-1]["seq"] if gate_rows else None

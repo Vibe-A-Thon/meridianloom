@@ -287,13 +287,13 @@ def sha256_file(path: str) -> str:
 
 
 def detect_ruleset_bypass_actor(
-    ledger: Ledger, *, limit: int = 10_000
+    ledger: Ledger, *, limit: int | None = None
 ) -> list[BypassDetection]:
     """Detector 1: a decision entry claiming a human ``approvedBy`` class
     whose acting identity classifies as a ruleset/bypass actor."""
     rows: list[dict[str, Any]] = []
     for action_type in _DECISION_ACTION_TYPES:
-        rows.extend(ledger.query(action_type=action_type, limit=limit))
+        rows.extend(ledger.query_all(action_type=action_type, max_rows=limit))
     rows.sort(key=lambda row: row["seq"])
     detections: list[BypassDetection] = []
     for row in rows:
@@ -340,7 +340,7 @@ def detect_ruleset_bypass_actor(
 
 
 def detect_allowlist_tamper(
-    ledger: Ledger, *, path: str, current_sha256: str, limit: int = 10_000
+    ledger: Ledger, *, path: str, current_sha256: str, limit: int | None = None
 ) -> list[BypassDetection]:
     """Detector 2: the allow-list digest changed since the recorded
     baseline and the new digest appears in NO policy-version entry — a
@@ -349,7 +349,7 @@ def detect_allowlist_tamper(
     a state, never fabricated into a claim)."""
     records = [
         row
-        for row in ledger.query(action_type=_POLICY_DIGEST_ACTION, limit=limit)
+        for row in ledger.query_all(action_type=_POLICY_DIGEST_ACTION, max_rows=limit)
         if _read_detail(ledger, row).get("path") == str(path)
     ]
     if not records:
@@ -399,7 +399,7 @@ def _path_is_excluded(path: str, excluded_paths: Sequence[str]) -> str | None:
 
 
 def detect_content_exclusion_gap(
-    ledger: Ledger, *, excluded_paths: Sequence[str], limit: int = 10_000
+    ledger: Ledger, *, excluded_paths: Sequence[str], limit: int | None = None
 ) -> list[BypassDetection]:
     """Detector 3: an AGENT-attributed file-access entry touching an
     excluded path — the content exclusion did not apply in agent mode."""
@@ -408,7 +408,7 @@ def detect_content_exclusion_gap(
     from ..metrics.coverage import ledger_row_attribution_state
 
     detections: list[BypassDetection] = []
-    for row in ledger.query(action_type="tool_call", limit=limit):
+    for row in ledger.query_all(action_type="tool_call", max_rows=limit):
         if ledger_row_attribution_state(row) != "agent":
             continue
         detail = _read_detail(ledger, row)
@@ -438,7 +438,7 @@ def detect_content_exclusion_gap(
 
 
 def detect_provenance_hook_removed(
-    ledger: Ledger, *, status: Mapping[str, Any], limit: int = 10_000
+    ledger: Ledger, *, status: Mapping[str, Any], limit: int | None = None
 ) -> list[BypassDetection]:
     """Detector 4: an installed-state baseline exists and the hook's
     current status is not installed — the provenance hook was removed or
@@ -446,7 +446,7 @@ def detect_provenance_hook_removed(
     (the hook is opt-in; never-installed is not a removal)."""
     if status.get("installed"):
         return []
-    rows = ledger.query(action_type=_HOOK_LIFECYCLE_ACTION, limit=limit)
+    rows = ledger.query_all(action_type=_HOOK_LIFECYCLE_ACTION, max_rows=limit)
     installs = [
         row for row in rows if row.get("decision") == "installed"
     ]
@@ -476,12 +476,12 @@ def detect_provenance_hook_removed(
 
 
 def detect_telemetry_downgrade(
-    ledger: Ledger, *, limit: int = 10_000
+    ledger: Ledger, *, limit: int | None = None
 ) -> list[BypassDetection]:
     """Detector 5: per observer, an ``enabled`` telemetry state followed by
     a ``disabled`` state — telemetry disabled after having been enabled.
     Each disabled row that closes an enabled interval is one event."""
-    rows = ledger.query(action_type=_TELEMETRY_STATE_ACTION, limit=limit)
+    rows = ledger.query_all(action_type=_TELEMETRY_STATE_ACTION, max_rows=limit)
     detections: list[BypassDetection] = []
     enabled_observers: set[str] = set()
     for row in rows:  # query returns ascending seq — a state machine walk
@@ -516,9 +516,9 @@ def detect_telemetry_downgrade(
 # -- recording (FR-M42-10: durable before return, idempotent per fingerprint) ---
 
 
-def _open_fingerprints(ledger: Ledger, *, limit: int = 10_000) -> set[str]:
+def _open_fingerprints(ledger: Ledger, *, limit: int | None = None) -> set[str]:
     fingerprints: set[str] = set()
-    for row in ledger.query(action_type=DETECTION_ACTION, limit=limit):
+    for row in ledger.query_all(action_type=DETECTION_ACTION, max_rows=limit):
         detail = _read_detail(ledger, row)
         fingerprint = detail.get("fingerprint")
         if isinstance(fingerprint, str) and fingerprint:
@@ -581,7 +581,7 @@ def run_detections(ledger: Ledger, evidence: BypassEvidence) -> list[BypassDetec
 
 
 def _existing_sequence(ledger: Ledger, fingerprint: str) -> int | None:
-    for row in reversed(ledger.query(action_type=DETECTION_ACTION, limit=10_000)):
+    for row in reversed(ledger.query_all(action_type=DETECTION_ACTION)):
         detail = _read_detail(ledger, row)
         if detail.get("fingerprint") == fingerprint:
             return int(row["seq"])
@@ -591,11 +591,11 @@ def _existing_sequence(ledger: Ledger, fingerprint: str) -> int | None:
 # -- the downgrade wiring (FR-M42-10 / AC-48) -----------------------------------
 
 
-def open_detections(ledger: Ledger, *, limit: int = 10_000) -> list[BypassDetection]:
+def open_detections(ledger: Ledger, *, limit: int | None = None) -> list[BypassDetection]:
     """Every detection currently open (v1: every recorded detection — no
     resolution path ships). The claim stays weakened until one does."""
     detections: list[BypassDetection] = []
-    for row in ledger.query(action_type=DETECTION_ACTION, limit=limit):
+    for row in ledger.query_all(action_type=DETECTION_ACTION, max_rows=limit):
         detail = _read_detail(ledger, row)
         circumvention = detail.get("circumvention")
         if not isinstance(circumvention, str) or circumvention not in CIRCUMVENTIONS:

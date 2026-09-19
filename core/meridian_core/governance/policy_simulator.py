@@ -235,7 +235,7 @@ def simulate_policy_change(
     *,
     from_sequence: int | None = None,
     to_sequence: int | None = None,
-    limit: int = 10_000,
+    limit: int | None = None,
 ) -> SimulationReport:
     """Replay ``proposed_text`` (a full policy-pack YAML document) against
     the historical gate and permission verdicts in the slice. Read-only
@@ -244,11 +244,11 @@ def simulate_policy_change(
     rows: list[dict[str, Any]] = []
     for action_type in _SIMULATED_ACTIONS:
         rows.extend(
-            ledger.query(
+            ledger.query_all(
                 action_type=action_type,
                 from_sequence=from_sequence,
                 to_sequence=to_sequence,
-                limit=limit,
+                max_rows=limit,
             )
         )
     rows.sort(key=lambda row: row["seq"])

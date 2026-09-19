@@ -92,6 +92,21 @@
       "method": "loop.status",
       "reason": "Orchestra-tier stub; see loop.start. Phase Orchestra.",
       "reviewed": "2026-09-09"
+    },
+    {
+      "method": "licence/status",
+      "reason": "Base-tier licence inspection is implemented in the sidecar but has no UI consumer yet; surface through the edition/licence settings flow before Premium release.",
+      "reviewed": "2026-09-19"
+    },
+    {
+      "method": "licence/install",
+      "reason": "Base-tier licence installation is implemented in the sidecar but has no UI consumer yet; surface through the edition/licence settings flow before Premium release.",
+      "reviewed": "2026-09-19"
+    },
+    {
+      "method": "licence/remove",
+      "reason": "Base-tier licence removal is implemented in the sidecar but has no UI consumer yet; surface through the edition/licence settings flow before Premium release.",
+      "reviewed": "2026-09-19"
     }
   ]
 }

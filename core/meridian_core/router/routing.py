@@ -335,7 +335,7 @@ class Router:
         model_calls = 0
         engine_runs = 0
         for action_type in ("model_call", "engine_executed"):
-            for row in self._ledger.query(action_type=action_type, limit=100000):
+            for row in self._ledger.query_all(action_type=action_type):
                 if not self._scope_matches(row, scope):
                     continue
                 if action_type == "model_call":

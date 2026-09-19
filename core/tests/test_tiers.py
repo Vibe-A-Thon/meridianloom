@@ -105,9 +105,12 @@ class TestEnablingTiers:
     def test_handshake_enables_upper_tiers(self):
         server = SidecarServer()
         handshake(server, ["flight-recorder", "orchestra"])
-        # Orchestra method now passes the gate and hits the placeholder.
+        # Orchestra method now passes the tier gate. loop.* is implemented
+        # (it used to be a NOT_IMPLEMENTED placeholder), and with no
+        # workspace configured it answers LEDGER_UNAVAILABLE — a refusal
+        # from the handler, not from the gate.
         response = call(server, "loop.start")
-        assert response["error"]["code"] == protocol.ERROR_NOT_IMPLEMENTED
+        assert response["error"]["code"] == protocol.ERROR_LEDGER_UNAVAILABLE
         # Governor stays refused — enabling is per-tier.
         response = call(server, "gate.evaluate")
         assert response["error"]["code"] == protocol.ERROR_TIER_DISABLED

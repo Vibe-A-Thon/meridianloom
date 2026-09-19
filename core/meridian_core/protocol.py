@@ -23,6 +23,7 @@ ERROR_PROTOCOL_MISMATCH = bus_types.PROTOCOL_MISMATCH
 ERROR_TIER_DISABLED = bus_types.TIER_DISABLED
 ERROR_LEDGER_UNAVAILABLE = bus_types.LEDGER_UNAVAILABLE
 ERROR_NOT_HOSTED = bus_types.NOT_HOSTED
+ERROR_LICENCE_REQUIRED = bus_types.LICENCE_REQUIRED
 
 # Version of this sidecar build, reported in the handshake for diagnostics.
 CORE_VERSION = "0.0.1"

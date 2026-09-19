@@ -227,7 +227,7 @@ def trusted_signers(ledger: Any) -> set[str]:
     """The trusted fingerprint set: latest event per fingerprint wins, so
     a distrust entry (event=signer_distrusted) revokes."""
     state: dict[str, bool] = {}
-    for row in ledger.query(action_type="policy_update", limit=100_000):
+    for row in ledger.query_all(action_type="policy_update"):
         raw = row.get("tool_calls")
         if not raw:
             continue

@@ -58,11 +58,10 @@ def test_placeholder_methods_answer_not_implemented():
         }
     )
     for method in (
-        "loop.start",
-        "loop.stop",
-        "loop.status",
-        # steer.send is implemented since F1 Workstream D task 17
-        # (core/tests/test_steer.py); trust.summary is the remaining stub.
+        # loop.start/stop/status were placeholders here until the loop
+        # runtime landed (a00e4cd); steer.send has been implemented since F1
+        # Workstream D task 17 (core/tests/test_steer.py). trust.summary is
+        # the remaining stub.
         "trust.summary",
     ):
         response = server.handle_message({"jsonrpc": "2.0", "id": 1, "method": method})

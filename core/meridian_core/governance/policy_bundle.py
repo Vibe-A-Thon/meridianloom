@@ -320,12 +320,12 @@ def revoke_bundle(
     return result.sequence
 
 
-def revoked_bundle_ids(ledger: Ledger, *, limit: int = 10_000) -> set[str]:
+def revoked_bundle_ids(ledger: Ledger, *, limit: int | None = None) -> set[str]:
     """Currently-revoked bundle ids (v1 knows only ``revoked``; newest
     entry per bundle wins, so a future ``reinstated`` row clears it)."""
     revoked: set[str] = set()
     seen: set[str] = set()
-    for row in reversed(ledger.query(action_type=BUNDLE_REVOCATION_ACTION, limit=limit)):
+    for row in reversed(ledger.query_all(action_type=BUNDLE_REVOCATION_ACTION, max_rows=limit)):
         ref = row.get("input_ref")
         key_id = row.get("blob_key_id")
         bundle_id = ""
@@ -488,7 +488,7 @@ def _record_stop(
 ) -> LeaseCheck:
     existing = [
         row
-        for row in ledger.query(action_type=_LEASE_CHECKPOINT_ACTION, limit=10_000)
+        for row in ledger.query_all(action_type=_LEASE_CHECKPOINT_ACTION)
         if row.get("decision") == decision
         and _blob_detail(ledger, row).get("leaseId") == lease.lease_id
     ]

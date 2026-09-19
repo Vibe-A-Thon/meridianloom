@@ -250,7 +250,7 @@ class PrivacyController:
         controller — recorded in the chain as exactly that claim.
         """
         out: list[Consent] = []
-        for row in self.ledger.query(action_type="consent_record", limit=1000):
+        for row in self.ledger.query_all(action_type="consent_record"):
             if row.get("policy_version") != "privacy/v1":
                 continue
             for call in _tool_events(row, "consent"):
@@ -405,7 +405,7 @@ class PrivacyController:
 
     def erasures(self) -> list[ErasureEvent]:
         out: list[ErasureEvent] = []
-        for row in self.ledger.query(action_type="erasure", limit=1000):
+        for row in self.ledger.query_all(action_type="erasure"):
             if row.get("policy_version") != "privacy/v1":
                 continue
             for call in _tool_events(row, "erasure"):
@@ -442,7 +442,7 @@ class PrivacyController:
             event.key_id for event in self.erasures()
         }
         gaps: list[dict[str, Any]] = []
-        for row in self.ledger.query(limit=1000):
+        for row in self.ledger.query_all():
             key_id = row.get("blob_key_id")
             has_refs = bool(row.get("input_ref") or row.get("output_ref"))
             if not has_refs:

@@ -75,7 +75,7 @@ class AnnotationStore:
 
     def bookmarks(self) -> list[Mapping[str, Any]]:
         out = []
-        for row in self._ledger.query(action_type="annotation", limit=10_000):
+        for row in self._ledger.query_all(action_type="annotation"):
             for call in json.loads(row["tool_calls"] or "[]"):
                 if call.get("bookmark"):
                     out.append(call)
@@ -300,9 +300,9 @@ def record_detected_issue(
 
 
 def detected_issues(ledger: Any, *, story_id: str | None = None) -> list[Mapping[str, Any]]:
-    rows = ledger.query(
-        action_type="detected_issue", story_id=story_id, limit=10_000
-    ) if story_id else ledger.query(action_type="detected_issue", limit=10_000)
+    rows = ledger.query_all(
+        action_type="detected_issue", story_id=story_id
+    ) if story_id else ledger.query_all(action_type="detected_issue")
     out = []
     for row in rows:
         for call in json.loads(row["tool_calls"] or "[]"):

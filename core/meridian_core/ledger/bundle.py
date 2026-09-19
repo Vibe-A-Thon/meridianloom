@@ -84,14 +84,15 @@ def build_bundle(ledger: Any, params: dict[str, Any]) -> dict[str, Any]:
 
     rows: list[dict[str, Any]] = []
     if to_seq >= from_seq and to_seq > 0:
-        rows = ledger.query(
+        # query_all, not query: a bundle whose range says 1..N must contain
+        # every entry in it. One page (<= 1,000 rows) silently cut the rest.
+        rows = ledger.query_all(
             story_id=params.get("storyId"),
             actor_id=params.get("agentId"),
             from_sequence=from_seq,
             to_sequence=to_seq,
             from_timestamp=params.get("fromTimestamp"),
             to_timestamp=params.get("toTimestamp"),
-            limit=EXPORT_LIMIT,
         )
 
     # A signed head must cover the range end; emit one at the tip if the

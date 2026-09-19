@@ -37,6 +37,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import StateGraph
 from langgraph.graph.state import END, START
 
+from .. import egress
 from .loops import LoopDefinition, LoopValidationError
 from .state import FieldSpec, LoopState, StateMergeError
 
@@ -301,13 +302,17 @@ class LangGraphLoopRunner:
                     },
                 )
             try:
-                outcome = app.invoke(
-                    {
-                        "payload": {"state": state.values, "iteration": iteration},
-                        "writes": [],
-                    },
-                    config,
-                )
+                # CLD-C01: LangSmith uploads run inputs/outputs when its
+                # environment variables are set. Tracing is disabled in an
+                # explicit context, so no variable can turn it on here.
+                with egress.no_tracing():
+                    outcome = app.invoke(
+                        {
+                            "payload": {"state": state.values, "iteration": iteration},
+                            "writes": [],
+                        },
+                        config,
+                    )
             except GateSuspend as suspend:
                 # The pass aborted mid-graph: nodes that already ran kept
                 # their writes in _pending_writes — apply them so the

@@ -108,7 +108,7 @@ def active_revocations(ledger: Ledger) -> dict[str, str]:
     per identity wins, so a later ``reinstated`` row clears the entry."""
     revoked: dict[str, str] = {}
     seen: set[str] = set()
-    for row in reversed(ledger.query(action_type=REVOKE_ACTION, limit=1000)):
+    for row in reversed(ledger.query_all(action_type=REVOKE_ACTION)):
         detail = _read_detail(ledger, row)
         email = _normalise_email(str(detail.get("email") or ""))
         if not email or email in seen:

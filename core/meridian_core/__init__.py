@@ -39,6 +39,13 @@ def _add_shared_types_to_path() -> None:
 
 _add_shared_types_to_path()
 
+# Before anything imports langgraph/langsmith: nothing leaves the machine
+# through a third-party tracing variable inherited from the editor's
+# environment (audit CLD-C01). See meridian_core/egress.py.
+from . import egress as _egress  # noqa: E402
+
+_egress.disable_third_party_telemetry()
+
 from .protocol import CORE_VERSION, PROTOCOL_VERSION  # noqa: E402
 
 __all__ = ["PROTOCOL_VERSION", "CORE_VERSION"]

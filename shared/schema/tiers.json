@@ -15,12 +15,15 @@
       {
         "id": "recorder.lifecycle",
         "tier": "flight-recorder",
-        "description": "Sidecar lifecycle: handshake, heartbeat, shutdown, health. Always enabled — the base tier cannot be turned off.",
+        "description": "Sidecar lifecycle: handshake, heartbeat, shutdown, health, and licence status/install/remove (always available, whatever the licence state). Always enabled — the base tier cannot be turned off.",
         "rpcMethods": [
           "handshake",
           "ping",
           "shutdown",
-          "health"
+          "health",
+          "licence/status",
+          "licence/install",
+          "licence/remove"
         ]
       },
       {

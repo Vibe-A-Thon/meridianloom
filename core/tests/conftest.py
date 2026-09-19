@@ -169,3 +169,34 @@ def repo(tmp_path: Path) -> Path:
     git(tmp_path, "add", ".")
     git(tmp_path, "commit", "-m", "initial", date=T0)
     return tmp_path
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _suite_premium_licence(tmp_path_factory):
+    """The suite exercises Premium features (governor, orchestra, analytics)
+    all over, so every server it builds must see a valid Premium licence.
+
+    Two routes, because the suite reaches the sidecar two ways:
+
+    * in-process servers — the licensing module's test hook, no files;
+    * real subprocesses — a development-signed licence file plus the
+      source-checkout-only trust variable, inherited through the environment.
+
+    ``test_licensing_*.py`` builds its own ``LicenceManager`` with explicit
+    directories, so it exercises the real behaviour, not this shortcut.
+    """
+    from licensing_support import make_dev_licence_files
+    from meridian_core import licensing
+    from meridian_core.licensing import runtime as licence_runtime
+
+    env = make_dev_licence_files(tmp_path_factory.mktemp("suite-licence"))
+    saved = {key: os.environ.get(key) for key in env}
+    os.environ.update(env)
+    licensing.set_test_status(licence_runtime.premium_test_status())
+    yield
+    licensing.set_test_status(None)
+    for key, value in saved.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value

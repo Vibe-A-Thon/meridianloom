@@ -29,10 +29,12 @@ sys.path.insert(0, str(ROOT / "core"))
 from meridian_core.simulation import load_contract  # noqa: E402
 from meridian_core.simulation.scenarios import all_scenarios  # noqa: E402
 
-# Methods safe to probe against a live production sidecar (read-only).
+# Methods safe to probe against a live production sidecar in the default
+# Community edition. Premium-gated reads are covered by simulation and
+# contract validation; probing them here would turn the expected licence
+# refusal into a false parity failure.
 READ_METHODS = {
-    "ledger.query", "ledger.verify", "gate.status",
-    "steer/status", "adapters/discover",
+    "ledger.query", "ledger.verify",
 }
 
 # Response keys that must exist on both backends for shared read methods.

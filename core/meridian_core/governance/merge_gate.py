@@ -96,12 +96,12 @@ def _read_detail(ledger: Ledger, row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _iter_gate_rows(ledger: Ledger) -> list[dict[str, Any]]:
-    rows = ledger.query(action_type=GATE_ACTION, limit=1000)
+    rows = ledger.query_all(action_type=GATE_ACTION)
     return list(reversed(rows))  # newest first
 
 
 def _iter_approval_rows(ledger: Ledger) -> list[dict[str, Any]]:
-    rows = ledger.query(action_type=APPROVAL_ACTION, limit=1000)
+    rows = ledger.query_all(action_type=APPROVAL_ACTION)
     return list(reversed(rows))  # newest first
 
 

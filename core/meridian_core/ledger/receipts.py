@@ -465,7 +465,7 @@ def signer_history(ledger: Any) -> list[SignerEvent]:
     import base64
 
     history: list[SignerEvent] = []
-    for row in ledger.query(action_type="policy_update", limit=1000):
+    for row in ledger.query_all(action_type="policy_update"):
         tool_calls = row.get("tool_calls")
         if not tool_calls:
             continue

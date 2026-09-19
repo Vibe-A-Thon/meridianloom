@@ -161,11 +161,10 @@ class EngineReporter:
         if cached is not None:
             return cached
 
-        rows = self._ledger.query(
+        rows = self._ledger.query_all(
             action_type=ENGINE_DISPATCH_ACTION,
             from_sequence=from_sequence,
             to_sequence=to_sequence,
-            limit=1000,
         )
         if story_id is not None:
             rows = [row for row in rows if row.get("story_id") == story_id]

@@ -24,7 +24,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 
 logger = logging.getLogger("meridian_core.ledger")
 
@@ -520,6 +520,60 @@ class Ledger:
         cursor = self.conn.execute(sql, arguments)
         columns = [d[0] for d in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    #: Rows fetched per round trip by :meth:`iter_query`.
+    QUERY_PAGE = 1000
+
+    def iter_query(
+        self,
+        *,
+        story_id: str | None = None,
+        actor_id: str | None = None,
+        vendor: str | None = None,
+        action_type: str | None = None,
+        from_sequence: int | None = None,
+        to_sequence: int | None = None,
+        from_timestamp: str | None = None,
+        to_timestamp: str | None = None,
+        after_sequence: int | None = None,
+        max_rows: int | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """Every matching entry, ascending by sequence — the whole history.
+
+        :meth:`query` returns ONE page (at most 1,000 rows, however large a
+        ``limit`` is asked for). A caller that needs *the answer over all of
+        history* — is this identity revoked? is a halt in force? which
+        subjects were erased? — must not use it: past the first page the
+        newer rows are simply absent, and a governance check that cannot see
+        the newest halt or revocation fails **open** (audit CLD-B01,
+        reproduced: a halt recorded after 1,000 gate rows was invisible).
+
+        This walks the FR-M41-07 ``after_sequence`` cursor to exhaustion.
+        ``max_rows`` exists only for callers that genuinely want a bounded
+        prefix; it is a total, not a page size.
+        """
+        cursor_after = after_sequence
+        yielded = 0
+        while True:
+            page = self.query(
+                story_id=story_id, actor_id=actor_id, vendor=vendor,
+                action_type=action_type, from_sequence=from_sequence,
+                to_sequence=to_sequence, from_timestamp=from_timestamp,
+                to_timestamp=to_timestamp, after_sequence=cursor_after,
+                limit=self.QUERY_PAGE,
+            )
+            for row in page:
+                yield row
+                yielded += 1
+                if max_rows is not None and yielded >= max_rows:
+                    return
+            if len(page) < self.QUERY_PAGE:
+                return
+            cursor_after = page[-1]["seq"]
+
+    def query_all(self, **filters: Any) -> list[dict[str, Any]]:
+        """:meth:`iter_query` as a list, for callers that need it in memory."""
+        return list(self.iter_query(**filters))
 
     def count(
         self,
