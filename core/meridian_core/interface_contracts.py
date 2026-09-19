@@ -80,8 +80,24 @@ def interface_contract_gate(
                 "reason": "single-repository story: no interface contract required"}
     contract = contracts_dir / f"{story_id}.yaml"
     if contract.is_file():
-        return {"gate": "review", "passed": True,
-                "reason": f"interface contract present: {contract.name}"}
+        try:
+            head = contract.read_text(encoding="utf-8", errors="replace")[:400]
+        except OSError:
+            head = ""
+        # GP-018: the audit wrote "not an API contract" into the expected
+        # file and the is_file gate passed. Presence is not validity: the
+        # artefact must actually be an OpenAPI contract.
+        if "openapi:" in head and "paths:" in head:
+            return {"gate": "review", "passed": True,
+                    "reason": f"interface contract present: {contract.name}"}
+        return {
+            "gate": "review",
+            "passed": False,
+            "reason": (
+                "FR-M22-02: the contract file exists but is not an OpenAPI"
+                " contract — regenerate it from the design artefacts"
+            ),
+        }
     return {
         "gate": "review",
         "passed": False,

@@ -216,7 +216,7 @@
         "$ref": "#/$defs/LoopStartParams"
       },
       "result": {
-        "$ref": "#/$defs/LoopStatusResult"
+        "$ref": "#/$defs/LoopStartResult"
       }
     },
     "loop.stop": {
@@ -225,7 +225,7 @@
         "$ref": "#/$defs/LoopStopParams"
       },
       "result": {
-        "$ref": "#/$defs/LoopStatusResult"
+        "$ref": "#/$defs/LoopStopResult"
       }
     },
     "loop.status": {
@@ -248,18 +248,30 @@
     },
     "run/preflight": {
       "description": "FR-M40-03 (MV2-T02): assemble the preflight a human must see and confirm before anything is created — the parsed intent echoed back, the adapters that will act, the repository, base branch and worktree path that WOULD be created, the cost estimate and the ceiling, the gates the run will stop at, and whether this is a dry run or live. Returns `confirmable: false` with `missing` naming the unanswered questions rather than raising: the surface has to SHOW what is incomplete, and an exception leaves a dialog that will not open and no way to see why. Preflight is not skippable and has no 'do not show this again'.",
-      "params": { "$ref": "#/$defs/RunPreflightParams" },
-      "result": { "$ref": "#/$defs/RunPreflightResult" }
+      "params": {
+        "$ref": "#/$defs/RunPreflightParams"
+      },
+      "result": {
+        "$ref": "#/$defs/RunPreflightResult"
+      }
     },
     "run/start": {
       "description": "FR-M40-01/02/05, SEC-30, AC-38 (MV2-T01/T03): the single entry point every door invokes. Refuses unless preflight was confirmed (FR-M40-03) and the launching identity was resolved and role-checked for this mode (FR-M40-05) — an asserted git identity never satisfies a policy requiring verified (FR-M42-05). Records the run's first ledger entry carrying `runId` and `origin` BEFORE the worktree is created (E1/FR-M10-08: nothing acts without being recorded first; on a crash, an entry with no worktree is a run that plainly did not start, while a worktree with no entry is unexplained work). Runs started from different doors produce records differing only in `origin`.",
-      "params": { "$ref": "#/$defs/RunStartParams" },
-      "result": { "$ref": "#/$defs/RunStartResult" }
+      "params": {
+        "$ref": "#/$defs/RunStartParams"
+      },
+      "result": {
+        "$ref": "#/$defs/RunStartResult"
+      }
     },
     "run/cancel": {
       "description": "FR-M40-09, AC-39 (MV2-T04): cancel at preflight. Leaves a single `run_cancelled_at_preflight` ledger record and nothing else — no worktree, no branch, no entry implying work began. This is a guarantee rather than a cleanup path: run/start creates nothing until after confirmation and authorisation, so there is nothing to tidy up. A cancellation IS recorded, because a run that vanished without a trace would be indistinguishable from one that never reached preflight.",
-      "params": { "$ref": "#/$defs/RunCancelParams" },
-      "result": { "$ref": "#/$defs/RunCancelResult" }
+      "params": {
+        "$ref": "#/$defs/RunCancelParams"
+      },
+      "result": {
+        "$ref": "#/$defs/RunCancelResult"
+      }
     },
     "gate.evaluate": {
       "description": "FR-M12-01/FR-M12-09 (F1 Workstream B task 9): evaluate a packet/PR payload against a named gate profile of the governance policy pack (FR-M12-01, fail-closed YAML). Every criterion is a machine-checkable DoR/DoD predicate (requiredFields, testEvidence, securityScan, humanApproval) with a pass/fail reason; the verdict is their conjunction. Fail-closed pack or unknown profile blocks. The decision is ledger-recorded (actionType gate) BEFORE the response returns (FR-M10-08).",
@@ -448,18 +460,30 @@
     },
     "interop/records": {
       "description": "FR-M52-01 (MV3-T06): every provenance record another tool has written into this repository — git notes under that tool's own ref, session-log trailers, vendor Co-Authored-By lines. Read-only and side-effect free: it does not notarise, so a surface can show what is there before anybody commits to recording it. Each record carries the tool that wrote it and confidence `inferred`, never higher: Meridian did not observe the act, it read a file claiming the act happened. The record content is untrusted input — parsed under an allow-list, never executed (SEC-42) — and capped, with oversize reported rather than silently dropped.",
-      "params": { "$ref": "#/$defs/InteropRecordsParams" },
-      "result": { "$ref": "#/$defs/InteropRecordsResult" }
+      "params": {
+        "$ref": "#/$defs/InteropRecordsParams"
+      },
+      "result": {
+        "$ref": "#/$defs/InteropRecordsResult"
+      }
     },
     "interop/notarise": {
       "description": "FR-M52-03, SEC-43, AC-59 (MV3-T06): make a foreign provenance record tamper-evident by writing the digest of it into the signed ledger. The DIGEST, not the content: Meridian is not the custodian of another tool's data, and copying it would make it one, with the retention and erasure obligations that follow. The entry states in words that the signature covers the digest and not the claim — a signature beside somebody else's assertion reads as a signature ON it unless something stops it. Notarising the same unchanged record twice is idempotent and records nothing new; there is nothing to prove a second time.",
-      "params": { "$ref": "#/$defs/InteropNotariseParams" },
-      "result": { "$ref": "#/$defs/InteropNotariseResult" }
+      "params": {
+        "$ref": "#/$defs/InteropNotariseParams"
+      },
+      "result": {
+        "$ref": "#/$defs/InteropNotariseResult"
+      }
     },
     "interop/verify": {
       "description": "AC-59's second half (MV3-T06): re-read each notarised record and compare it with the digest in the ledger. A record that has been altered since Meridian saw it is reported with both digests. A record that has been REMOVED is reported as gone rather than as altered — a tool cleaning up its own notes is ordinary, and accusing it of tampering would make this check the boy who cried wolf.",
-      "params": { "$ref": "#/$defs/InteropVerifyParams" },
-      "result": { "$ref": "#/$defs/InteropVerifyResult" }
+      "params": {
+        "$ref": "#/$defs/InteropVerifyParams"
+      },
+      "result": {
+        "$ref": "#/$defs/InteropVerifyResult"
+      }
     },
     "interop/conflicts": {
       "description": "FR-M52-05, AC-60, NFR-53 (CP1-T02): where provenance records disagree about which agent produced a commit. Every claim is compared commit by commit: Meridian's own ledger entries reached through the Meridian-Ledger trailer, a bot author identity, and each other tool's note or trailer. A disagreement lists every claim with no winner, including when one is Meridian's own. One agent spelled two ways, two co-author lines in one message, and a recorder note naming no agent are not disagreements. Reading writes nothing; with record, each new disagreement is appended to the signed ledger as digests, never content. The walk is bounded and reports truncated when it stops early.",
@@ -745,294 +769,294 @@
         "$ref": "#/$defs/EvidenceGateResult"
       }
     },
-  "loop.resume": {
-    "description": "FR-M4-06: resume at a human gate.",
-    "params": {
-      "$ref": "#/$defs/LoopResumeParams"
+    "loop.resume": {
+      "description": "FR-M4-06: resume at a human gate.",
+      "params": {
+        "$ref": "#/$defs/LoopResumeParams"
+      },
+      "result": {
+        "$ref": "#/$defs/LoopResumeResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/LoopResumeResult"
-    }
-  },
-  "loop.replay": {
-    "description": "FR-M4-07: modified-state fork replay.",
-    "params": {
-      "$ref": "#/$defs/LoopReplayParams"
+    "loop.replay": {
+      "description": "FR-M4-07: modified-state fork replay.",
+      "params": {
+        "$ref": "#/$defs/LoopReplayParams"
+      },
+      "result": {
+        "$ref": "#/$defs/LoopReplayResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/LoopReplayResult"
-    }
-  },
-  "router/requestModelCall": {
-    "description": "FR-M8-15/16: engine-first model-call boundary.",
-    "params": {
-      "$ref": "#/$defs/RouterRequestParams"
+    "router/requestModelCall": {
+      "description": "FR-M8-15/16: engine-first model-call boundary.",
+      "params": {
+        "$ref": "#/$defs/RouterRequestParams"
+      },
+      "result": {
+        "$ref": "#/$defs/RouterRequestResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/RouterRequestResult"
-    }
-  },
-  "router/dependencyRatio": {
-    "description": "FR-M8-17: per-scope LLM dependency ratio.",
-    "params": {
-      "$ref": "#/$defs/RouterRatioParams"
+    "router/dependencyRatio": {
+      "description": "FR-M8-17: per-scope LLM dependency ratio.",
+      "params": {
+        "$ref": "#/$defs/RouterRatioParams"
+      },
+      "result": {
+        "$ref": "#/$defs/RouterRatioResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/RouterRatioResult"
-    }
-  },
-  "tools/invoke": {
-    "description": "FR-M9-02/03: permissioned native tool invocation.",
-    "params": {
-      "$ref": "#/$defs/ToolsInvokeParams"
+    "tools/invoke": {
+      "description": "FR-M9-02/03: permissioned native tool invocation.",
+      "params": {
+        "$ref": "#/$defs/ToolsInvokeParams"
+      },
+      "result": {
+        "$ref": "#/$defs/ToolsInvokeResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/ToolsInvokeResult"
-    }
-  },
-  "memory/retrieve": {
-    "description": "FR-M7-08/13: budgeted ranked retrieval.",
-    "params": {
-      "$ref": "#/$defs/MemoryRetrieveParams"
+    "memory/retrieve": {
+      "description": "FR-M7-08/13: budgeted ranked retrieval.",
+      "params": {
+        "$ref": "#/$defs/MemoryRetrieveParams"
+      },
+      "result": {
+        "$ref": "#/$defs/MemoryRetrieveResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/MemoryRetrieveResult"
-    }
-  },
-  "memory/write": {
-    "description": "FR-M7-05: gated writeback.",
-    "params": {
-      "$ref": "#/$defs/MemoryWriteParams"
+    "memory/write": {
+      "description": "FR-M7-05: gated writeback.",
+      "params": {
+        "$ref": "#/$defs/MemoryWriteParams"
+      },
+      "result": {
+        "$ref": "#/$defs/MemoryWriteResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/MemoryWriteResult"
-    }
-  },
-  "memory/layered": {
-    "description": "FR-M7-09: layered procedural memory.",
-    "params": {
-      "$ref": "#/$defs/MemoryLayeredParams"
+    "memory/layered": {
+      "description": "FR-M7-09: layered procedural memory.",
+      "params": {
+        "$ref": "#/$defs/MemoryLayeredParams"
+      },
+      "result": {
+        "$ref": "#/$defs/MemoryLayeredResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/MemoryLayeredResult"
-    }
-  },
-  "comprehension/record": {
-    "description": "FR-M38-01: comprehension record.",
-    "params": {
-      "$ref": "#/$defs/ComprehensionRecordParams"
+    "comprehension/record": {
+      "description": "FR-M38-01: comprehension record.",
+      "params": {
+        "$ref": "#/$defs/ComprehensionRecordParams"
+      },
+      "result": {
+        "$ref": "#/$defs/ComprehensionRecordResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/ComprehensionRecordResult"
-    }
-  },
-  "comprehension/gate": {
-    "description": "AC-35/FR-M38-04: characterisation gate.",
-    "params": {
-      "$ref": "#/$defs/ComprehensionGateParams"
+    "comprehension/gate": {
+      "description": "AC-35/FR-M38-04: characterisation gate.",
+      "params": {
+        "$ref": "#/$defs/ComprehensionGateParams"
+      },
+      "result": {
+        "$ref": "#/$defs/ComprehensionGateResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/ComprehensionGateResult"
-    }
-  },
-  "adapters/discover": {
-    "description": "FR-M31-02: discovery with precedence.",
-    "params": {
-      "$ref": "#/$defs/AdaptersDiscoverParams"
+    "adapters/discover": {
+      "description": "FR-M31-02: discovery with precedence.",
+      "params": {
+        "$ref": "#/$defs/AdaptersDiscoverParams"
+      },
+      "result": {
+        "$ref": "#/$defs/AdaptersDiscoverResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/AdaptersDiscoverResult"
-    }
-  },
-  "adapters/plug": {
-    "description": "FR-M31-04: hot plug to probation.",
-    "params": {
-      "$ref": "#/$defs/AdaptersPlugParams"
+    "adapters/plug": {
+      "description": "FR-M31-04: hot plug to probation.",
+      "params": {
+        "$ref": "#/$defs/AdaptersPlugParams"
+      },
+      "result": {
+        "$ref": "#/$defs/AdaptersPlugResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/AdaptersPlugResult"
-    }
-  },
-  "adapters/unplug": {
-    "description": "FR-M31-04: retire with checkpoint+escalation.",
-    "params": {
-      "$ref": "#/$defs/AdaptersUnplugParams"
+    "adapters/unplug": {
+      "description": "FR-M31-04: retire with checkpoint+escalation.",
+      "params": {
+        "$ref": "#/$defs/AdaptersUnplugParams"
+      },
+      "result": {
+        "$ref": "#/$defs/AdaptersUnplugResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/AdaptersUnplugResult"
-    }
-  },
-  "adapters/promote": {
-    "description": "FR-M5-05: probation promotion gate.",
-    "params": {
-      "$ref": "#/$defs/AdaptersPromoteParams"
+    "adapters/promote": {
+      "description": "FR-M5-05: probation promotion gate.",
+      "params": {
+        "$ref": "#/$defs/AdaptersPromoteParams"
+      },
+      "result": {
+        "$ref": "#/$defs/AdaptersPromoteResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/AdaptersPromoteResult"
-    }
-  },
-  "decisions/record": {
-    "description": "FR-M13-01/02: decision record with labelled rationale.",
-    "params": {
-      "$ref": "#/$defs/DecisionsRecordParams"
+    "decisions/record": {
+      "description": "FR-M13-01/02: decision record with labelled rationale.",
+      "params": {
+        "$ref": "#/$defs/DecisionsRecordParams"
+      },
+      "result": {
+        "$ref": "#/$defs/DecisionsRecordResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/DecisionsRecordResult"
-    }
-  },
-  "decisions/ablate": {
-    "description": "FR-M13-04/08: counterfactual replay.",
-    "params": {
-      "$ref": "#/$defs/DecisionsAblateParams"
+    "decisions/ablate": {
+      "description": "FR-M13-04/08: counterfactual replay.",
+      "params": {
+        "$ref": "#/$defs/DecisionsAblateParams"
+      },
+      "result": {
+        "$ref": "#/$defs/DecisionsAblateResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/DecisionsAblateResult"
-    }
-  },
-  "decisions/gate": {
-    "description": "FR-M13-05/07: explanation-free gate.",
-    "params": {
-      "$ref": "#/$defs/DecisionsGateParams"
+    "decisions/gate": {
+      "description": "FR-M13-05/07: explanation-free gate.",
+      "params": {
+        "$ref": "#/$defs/DecisionsGateParams"
+      },
+      "result": {
+        "$ref": "#/$defs/DecisionsGateResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/DecisionsGateResult"
-    }
-  },
-  "portability/export": {
-    "description": "FR-M16-01..03: signed, scanned export.",
-    "params": {
-      "$ref": "#/$defs/PortabilityExportParams"
+    "portability/export": {
+      "description": "FR-M16-01..03: signed, scanned export.",
+      "params": {
+        "$ref": "#/$defs/PortabilityExportParams"
+      },
+      "result": {
+        "$ref": "#/$defs/PortabilityExportResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/PortabilityExportResult"
-    }
-  },
-  "portability/import": {
-    "description": "FR-M16-04..06: verified, confirmed, probated import.",
-    "params": {
-      "$ref": "#/$defs/PortabilityImportParams"
+    "portability/import": {
+      "description": "FR-M16-04..06: verified, confirmed, probated import.",
+      "params": {
+        "$ref": "#/$defs/PortabilityImportParams"
+      },
+      "result": {
+        "$ref": "#/$defs/PortabilityImportResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/PortabilityImportResult"
-    }
-  },
-  "portability/diff": {
-    "description": "FR-M16-04: pre-import diff.",
-    "params": {
-      "$ref": "#/$defs/PortabilityDiffParams"
+    "portability/diff": {
+      "description": "FR-M16-04: pre-import diff.",
+      "params": {
+        "$ref": "#/$defs/PortabilityDiffParams"
+      },
+      "result": {
+        "$ref": "#/$defs/PortabilityDiffResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/PortabilityDiffResult"
-    }
-  },
-  "trainer/train": {
-    "description": "FR-M14-09: scheduled/explicit training only.",
-    "params": {
-      "$ref": "#/$defs/TrainerTrainParams"
+    "trainer/train": {
+      "description": "FR-M14-09: scheduled/explicit training only.",
+      "params": {
+        "$ref": "#/$defs/TrainerTrainParams"
+      },
+      "result": {
+        "$ref": "#/$defs/TrainerTrainResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/TrainerTrainResult"
-    }
-  },
-  "trainer/promote": {
-    "description": "FR-M14-04..06: margin + invariant + human approval.",
-    "params": {
-      "$ref": "#/$defs/TrainerPromoteParams"
+    "trainer/promote": {
+      "description": "FR-M14-04..06: margin + invariant + human approval.",
+      "params": {
+        "$ref": "#/$defs/TrainerPromoteParams"
+      },
+      "result": {
+        "$ref": "#/$defs/TrainerPromoteResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/TrainerPromoteResult"
-    }
-  },
-  "trainer/rollback": {
-    "description": "FR-M14-07/08: one-action rollback.",
-    "params": {
-      "$ref": "#/$defs/TrainerRollbackParams"
+    "trainer/rollback": {
+      "description": "FR-M14-07/08: one-action rollback.",
+      "params": {
+        "$ref": "#/$defs/TrainerRollbackParams"
+      },
+      "result": {
+        "$ref": "#/$defs/TrainerRollbackResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/TrainerRollbackResult"
-    }
-  },
-  "tenancy/register": {
-    "description": "SEC-23/D13: tenant registration.",
-    "params": {
-      "$ref": "#/$defs/TenancyRegisterParams"
+    "tenancy/register": {
+      "description": "SEC-23/D13: tenant registration.",
+      "params": {
+        "$ref": "#/$defs/TenancyRegisterParams"
+      },
+      "result": {
+        "$ref": "#/$defs/TenancyRegisterResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/TenancyRegisterResult"
-    }
-  },
-  "queue/enqueue": {
-    "description": "FR-M21-01: story enqueue.",
-    "params": {
-      "$ref": "#/$defs/QueueEnqueueParams"
+    "queue/enqueue": {
+      "description": "FR-M21-01: story enqueue.",
+      "params": {
+        "$ref": "#/$defs/QueueEnqueueParams"
+      },
+      "result": {
+        "$ref": "#/$defs/QueueEnqueueResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/QueueEnqueueResult"
-    }
-  },
-  "queue/tick": {
-    "description": "FR-M21-03: scheduling tick with starvation surfacing.",
-    "params": {
-      "$ref": "#/$defs/QueueTickParams"
+    "queue/tick": {
+      "description": "FR-M21-03: scheduling tick with starvation surfacing.",
+      "params": {
+        "$ref": "#/$defs/QueueTickParams"
+      },
+      "result": {
+        "$ref": "#/$defs/QueueTickResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/QueueTickResult"
-    }
-  },
-  "annotations/add": {
-    "description": "FR-M10-16: ledger annotations/bookmarks.",
-    "params": {
-      "$ref": "#/$defs/AnnotationsAddParams"
+    "annotations/add": {
+      "description": "FR-M10-16: ledger annotations/bookmarks.",
+      "params": {
+        "$ref": "#/$defs/AnnotationsAddParams"
+      },
+      "result": {
+        "$ref": "#/$defs/AnnotationsAddResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/AnnotationsAddResult"
-    }
-  },
-  "issues/record": {
-    "description": "FR-M24-05: agent-detected issues.",
-    "params": {
-      "$ref": "#/$defs/IssuesRecordParams"
+    "issues/record": {
+      "description": "FR-M24-05: agent-detected issues.",
+      "params": {
+        "$ref": "#/$defs/IssuesRecordParams"
+      },
+      "result": {
+        "$ref": "#/$defs/IssuesRecordResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/IssuesRecordResult"
-    }
-  },
-  "simulation/serve": {
-    "description": "FR-M32-01/04: scripted scenario serving.",
-    "params": {
-      "$ref": "#/$defs/SimulationServeParams"
+    "simulation/serve": {
+      "description": "FR-M32-01/04: scripted scenario serving.",
+      "params": {
+        "$ref": "#/$defs/SimulationServeParams"
+      },
+      "result": {
+        "$ref": "#/$defs/SimulationServeResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/SimulationServeResult"
-    }
-  },
-  "simulation/timeControl": {
-    "description": "FR-M32-06: pause/step/play/jump.",
-    "params": {
-      "$ref": "#/$defs/SimulationTimeControlParams"
+    "simulation/timeControl": {
+      "description": "FR-M32-06: pause/step/play/jump.",
+      "params": {
+        "$ref": "#/$defs/SimulationTimeControlParams"
+      },
+      "result": {
+        "$ref": "#/$defs/SimulationTimeControlResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/SimulationTimeControlResult"
-    }
-  },
-  "golden/run": {
-    "description": "FR-M27-03/AC-16: golden corpus validation.",
-    "params": {
-      "$ref": "#/$defs/GoldenRunParams"
+    "golden/run": {
+      "description": "FR-M27-03/AC-16: golden corpus validation.",
+      "params": {
+        "$ref": "#/$defs/GoldenRunParams"
+      },
+      "result": {
+        "$ref": "#/$defs/GoldenRunResult"
+      }
     },
-    "result": {
-      "$ref": "#/$defs/GoldenRunResult"
+    "portability/trust": {
+      "description": "Record explicit human-approved trust for an external package signer (FR-M16-04 cross-origin; audit TASK-330).",
+      "params": {
+        "$ref": "#/$defs/PortabilityTrustParams"
+      },
+      "result": {
+        "$ref": "#/$defs/PortabilityTrustResult"
+      }
     }
-  },
-  "portability/trust": {
-    "description": "Record explicit human-approved trust for an external package signer (FR-M16-04 cross-origin; audit TASK-330).",
-    "params": {
-      "$ref": "#/$defs/PortabilityTrustParams"
-    },
-    "result": {
-      "$ref": "#/$defs/PortabilityTrustResult"
-    }
-  }
   },
   "$defs": {
     "CoverageEnvelope": {
@@ -3661,7 +3685,12 @@
     "EnforcementPointsResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["vocabularyVersion", "vocabulary", "scmBindingConfigured", "controls"],
+      "required": [
+        "vocabularyVersion",
+        "vocabulary",
+        "scmBindingConfigured",
+        "controls"
+      ],
       "properties": {
         "vocabularyVersion": {
           "type": "string",
@@ -3669,7 +3698,9 @@
         },
         "vocabulary": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "The closed FR-M42-11 enforcement-point vocabulary."
         },
         "scmBindingConfigured": {
@@ -3677,7 +3708,9 @@
         },
         "controls": {
           "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/ControlDeclaration" },
+          "additionalProperties": {
+            "$ref": "#/$defs/ControlDeclaration"
+          },
           "description": "Control id to its effective declaration."
         }
       }
@@ -3685,19 +3718,36 @@
     "ControlDeclaration": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["control", "enforcementPoint", "enforced", "vocabularyVersion", "boundaryNote"],
+      "required": [
+        "control",
+        "enforcementPoint",
+        "enforced",
+        "vocabularyVersion",
+        "boundaryNote"
+      ],
       "properties": {
-        "control": { "type": "string" },
+        "control": {
+          "type": "string"
+        },
         "enforcementPoint": {
           "type": "string",
-          "enum": ["editor", "extension_host", "sidecar", "scm", "ci", "advisory_only"],
+          "enum": [
+            "editor",
+            "extension_host",
+            "sidecar",
+            "scm",
+            "ci",
+            "advisory_only"
+          ],
           "description": "Where the control ACTUALLY binds, after any D37 downgrade."
         },
         "enforced": {
           "type": "boolean",
           "description": "false = advisory: it observes, records and warns, and no surface may render it as enforced (SEC-32)."
         },
-        "vocabularyVersion": { "type": "string" },
+        "vocabularyVersion": {
+          "type": "string"
+        },
         "boundaryNote": {
           "type": "string",
           "description": "What could bypass this control and who could do so. Written to be quoted into an audit bundle verbatim (FR-M42-12)."
@@ -3707,199 +3757,547 @@
     "RunPreflightParams": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["origin", "intent", "repo"],
+      "required": [
+        "origin",
+        "intent",
+        "repo"
+      ],
       "properties": {
         "origin": {
           "type": "string",
-          "enum": ["ui", "command", "omnibar", "chat", "editor", "file", "connector", "api"],
+          "enum": [
+            "ui",
+            "command",
+            "omnibar",
+            "chat",
+            "editor",
+            "file",
+            "connector",
+            "api"
+          ],
           "description": "FR-M40-02: which door this run came through. Closed vocabulary, identical to the ledger CHECK constraint carried since schema v2."
         },
-        "intent": { "type": "string", "description": "What the human asked for, in their words." },
-        "repo": { "type": "string" },
-        "baseBranch": { "type": "string", "default": "main" },
+        "intent": {
+          "type": "string",
+          "description": "What the human asked for, in their words."
+        },
+        "repo": {
+          "type": "string"
+        },
+        "baseBranch": {
+          "type": "string",
+          "default": "main"
+        },
         "adapters": {
           "type": "object",
-          "additionalProperties": { "type": "string" },
+          "additionalProperties": {
+            "type": "string"
+          },
           "description": "Role to adapter id. Which agent fills which role for THIS run."
         },
-        "mode": { "type": "string", "enum": ["dry_run", "live"] },
-        "gates": { "type": "array", "items": { "type": "string" } },
-        "estimateUsd": { "type": ["number", "null"], "description": "null is unknown; 0 is a measured zero (P26)." },
-        "costCeilingUsd": { "type": ["number", "null"] },
-        "runId": { "type": "string", "description": "Supplied only to re-preflight an existing request." }
+        "mode": {
+          "type": "string",
+          "enum": [
+            "dry_run",
+            "live"
+          ]
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "estimateUsd": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "null is unknown; 0 is a measured zero (P26)."
+        },
+        "costCeilingUsd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "runId": {
+          "type": "string",
+          "description": "Supplied only to re-preflight an existing request."
+        }
       }
     },
     "RunPreflight": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["runId", "origin", "intent", "adapters", "repo", "baseBranch", "branch", "worktree", "gates", "mode", "confirmable", "missing"],
+      "required": [
+        "runId",
+        "origin",
+        "intent",
+        "adapters",
+        "repo",
+        "baseBranch",
+        "branch",
+        "worktree",
+        "gates",
+        "mode",
+        "confirmable",
+        "missing"
+      ],
       "properties": {
-        "runId": { "type": "string" },
-        "origin": { "type": "string", "enum": ["ui", "command", "omnibar", "chat", "editor", "file", "connector", "api"] },
-        "intent": { "type": "string" },
-        "adapters": { "type": "object", "additionalProperties": { "type": "string" } },
-        "repo": { "type": "string" },
-        "baseBranch": { "type": "string" },
-        "branch": { "type": "string", "description": "Derived from the run id, never supplied — two doors passing different branches for one run is the divergence the single contract prevents." },
-        "worktree": { "type": "string", "description": "The path that WOULD be created. Nothing exists yet." },
-        "estimateUsd": { "type": ["number", "null"] },
-        "costCeilingUsd": { "type": ["number", "null"] },
-        "gates": { "type": "array", "items": { "type": "string" } },
-        "mode": { "type": "string", "enum": ["dry_run", "live"] },
-        "confirmable": { "type": "boolean", "description": "false when any of FR-M40-03's six answers is missing." },
-        "missing": { "type": "array", "items": { "type": "string" } }
+        "runId": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "ui",
+            "command",
+            "omnibar",
+            "chat",
+            "editor",
+            "file",
+            "connector",
+            "api"
+          ]
+        },
+        "intent": {
+          "type": "string"
+        },
+        "adapters": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "repo": {
+          "type": "string"
+        },
+        "baseBranch": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string",
+          "description": "Derived from the run id, never supplied — two doors passing different branches for one run is the divergence the single contract prevents."
+        },
+        "worktree": {
+          "type": "string",
+          "description": "The path that WOULD be created. Nothing exists yet."
+        },
+        "estimateUsd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "costCeilingUsd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "dry_run",
+            "live"
+          ]
+        },
+        "confirmable": {
+          "type": "boolean",
+          "description": "false when any of FR-M40-03's six answers is missing."
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "RunPreflightResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["preflight"],
-      "properties": { "preflight": { "$ref": "#/$defs/RunPreflight" } }
+      "required": [
+        "preflight"
+      ],
+      "properties": {
+        "preflight": {
+          "$ref": "#/$defs/RunPreflight"
+        }
+      }
     },
     "RunStartParams": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["preflight", "confirmed"],
+      "required": [
+        "preflight",
+        "confirmed"
+      ],
       "properties": {
-        "preflight": { "$ref": "#/$defs/RunPreflight" },
-        "confirmed": { "type": "boolean", "description": "The human's confirmation of THIS preflight. false is refused." },
-        "role": { "type": "string", "description": "FR-M40-05: the launching role, checked against the role pack; absent uses the pack's defaultRole. A read-only role may start a dry run and not a live one." },
-        "requiresVerifiedIdentity": { "type": "boolean", "description": "FR-M42-05: when set, a git-asserted identity is refused. An asserted identity never satisfies a verified requirement." },
-        "adapterId": { "type": "string", "description": "FR-M18-07: the agent identity the run worktree's commits are attributed to. Absent uses the Developer role's adapter, else the first role by name." },
-        "rolePath": { "type": "string" },
-        "policyPath": { "type": "string" },
-        "repoPath": { "type": "string", "description": "Repository root. Absent means the handshake workspaceDir." }
+        "preflight": {
+          "$ref": "#/$defs/RunPreflight"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "description": "The human's confirmation of THIS preflight. false is refused."
+        },
+        "role": {
+          "type": "string",
+          "description": "FR-M40-05: the launching role, checked against the role pack; absent uses the pack's defaultRole. A read-only role may start a dry run and not a live one."
+        },
+        "requiresVerifiedIdentity": {
+          "type": "boolean",
+          "description": "FR-M42-05: when set, a git-asserted identity is refused. An asserted identity never satisfies a verified requirement."
+        },
+        "adapterId": {
+          "type": "string",
+          "description": "FR-M18-07: the agent identity the run worktree's commits are attributed to. Absent uses the Developer role's adapter, else the first role by name."
+        },
+        "rolePath": {
+          "type": "string"
+        },
+        "policyPath": {
+          "type": "string"
+        },
+        "repoPath": {
+          "type": "string",
+          "description": "Repository root. Absent means the handshake workspaceDir."
+        }
       }
     },
     "RunStartResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["runId", "origin", "branch", "worktree", "mode", "authorisedBy", "assurance"],
+      "required": [
+        "runId",
+        "origin",
+        "branch",
+        "worktree",
+        "mode",
+        "authorisedBy",
+        "assurance"
+      ],
       "properties": {
-        "runId": { "type": "string" },
-        "origin": { "type": "string", "enum": ["ui", "command", "omnibar", "chat", "editor", "file", "connector", "api"] },
-        "branch": { "type": "string" },
-        "worktree": { "type": "string" },
-        "mode": { "type": "string" },
-        "authorisedBy": { "type": "string" },
-        "assurance": { "type": "string", "description": "The assurance level of the authorising identity, so a run authorised by a git name is never later read as verified." },
-        "sequence": { "type": ["integer", "null"], "description": "The run's first ledger entry." }
+        "runId": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "ui",
+            "command",
+            "omnibar",
+            "chat",
+            "editor",
+            "file",
+            "connector",
+            "api"
+          ]
+        },
+        "branch": {
+          "type": "string"
+        },
+        "worktree": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "authorisedBy": {
+          "type": "string"
+        },
+        "assurance": {
+          "type": "string",
+          "description": "The assurance level of the authorising identity, so a run authorised by a git name is never later read as verified."
+        },
+        "sequence": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "The run's first ledger entry."
+        }
       }
     },
     "RunCancelParams": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["preflight"],
+      "required": [
+        "preflight"
+      ],
       "properties": {
-        "preflight": { "$ref": "#/$defs/RunPreflight" },
-        "reason": { "type": "string" },
-        "rolePath": { "type": "string" },
-        "policyPath": { "type": "string" }
+        "preflight": {
+          "$ref": "#/$defs/RunPreflight"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "rolePath": {
+          "type": "string"
+        },
+        "policyPath": {
+          "type": "string"
+        }
       }
     },
     "RunCancelResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["runId", "cancelled"],
+      "required": [
+        "runId",
+        "cancelled"
+      ],
       "properties": {
-        "runId": { "type": "string" },
-        "cancelled": { "type": "boolean" },
-        "sequence": { "type": ["integer", "null"] },
-        "note": { "type": "string" }
+        "runId": {
+          "type": "string"
+        },
+        "cancelled": {
+          "type": "boolean"
+        },
+        "sequence": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
       }
     },
     "ForeignRecord": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tool", "kind", "source", "commit", "digest", "observedAt", "confidence", "truncated", "notEndorsed"],
+      "required": [
+        "tool",
+        "kind",
+        "source",
+        "commit",
+        "digest",
+        "observedAt",
+        "confidence",
+        "truncated",
+        "notEndorsed"
+      ],
       "properties": {
-        "tool": { "type": "string", "description": "Which tool wrote it. `unknown-tool` for a notes ref Meridian does not recognise — named as unknown rather than guessed." },
-        "kind": { "type": "string", "enum": ["git-note", "trailer"] },
-        "source": { "type": "string", "description": "The notes ref, or the trailer key." },
-        "commit": { "type": "string" },
-        "digest": { "type": "string", "description": "sha256 over the exact bytes read, before any parsing and with no normalisation." },
-        "observedAt": { "type": "string" },
-        "confidence": { "type": "string", "enum": ["inferred"], "description": "FR-M52-02: a foreign record is never above `inferred`. The enum is closed to one value so no future change can widen it without changing this contract." },
-        "truncated": { "type": "boolean" },
-        "notEndorsed": { "type": "string", "description": "SEC-43, carried on every record so it cannot be lost between the ledger and a surface." },
-        "payload": { "$ref": "#/$defs/ForeignPayload" }
+        "tool": {
+          "type": "string",
+          "description": "Which tool wrote it. `unknown-tool` for a notes ref Meridian does not recognise — named as unknown rather than guessed."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "git-note",
+            "trailer"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "description": "The notes ref, or the trailer key."
+        },
+        "commit": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string",
+          "description": "sha256 over the exact bytes read, before any parsing and with no normalisation."
+        },
+        "observedAt": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "inferred"
+          ],
+          "description": "FR-M52-02: a foreign record is never above `inferred`. The enum is closed to one value so no future change can widen it without changing this contract."
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "notEndorsed": {
+          "type": "string",
+          "description": "SEC-43, carried on every record so it cannot be lost between the ledger and a surface."
+        },
+        "payload": {
+          "$ref": "#/$defs/ForeignPayload"
+        }
       }
     },
     "ForeignPayload": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["format", "parsed"],
+      "required": [
+        "format",
+        "parsed"
+      ],
       "properties": {
-        "format": { "type": "string", "enum": ["json", "text"] },
-        "parsed": { "type": "boolean" },
-        "fields": { "type": "object", "additionalProperties": true, "description": "Scalar leaves only. A nested structure from an untrusted file is where a surface renders something nobody designed for." }
+        "format": {
+          "type": "string",
+          "enum": [
+            "json",
+            "text"
+          ]
+        },
+        "parsed": {
+          "type": "boolean"
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Scalar leaves only. A nested structure from an untrusted file is where a surface renders something nobody designed for."
+        }
       }
     },
     "InteropRecordsParams": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "repoPath": { "type": "string" },
-        "commit": { "type": "string", "description": "Also read session-log and vendor co-author trailers from this commit." }
+        "repoPath": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string",
+          "description": "Also read session-log and vendor co-author trailers from this commit."
+        }
       }
     },
     "InteropRecordsResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["records"],
+      "required": [
+        "records"
+      ],
       "properties": {
-        "records": { "type": "array", "items": { "$ref": "#/$defs/ForeignRecord" } }
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ForeignRecord"
+          }
+        }
       }
     },
     "InteropNotariseParams": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "repoPath": { "type": "string" },
-        "commit": { "type": "string" }
+        "repoPath": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        }
       }
     },
     "InteropNotariseResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["notarised", "alreadyNotarised", "records"],
+      "required": [
+        "notarised",
+        "alreadyNotarised",
+        "records"
+      ],
       "properties": {
-        "notarised": { "type": "integer", "description": "How many records were newly recorded." },
-        "alreadyNotarised": { "type": "integer", "description": "Unchanged records already in the ledger. Re-recording them would prove nothing twice." },
-        "records": { "type": "array", "items": { "$ref": "#/$defs/ForeignRecord" } }
+        "notarised": {
+          "type": "integer",
+          "description": "How many records were newly recorded."
+        },
+        "alreadyNotarised": {
+          "type": "integer",
+          "description": "Unchanged records already in the ledger. Re-recording them would prove nothing twice."
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ForeignRecord"
+          }
+        }
       }
     },
     "InteropVerifyParams": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "repoPath": { "type": "string" },
-        "commit": { "type": "string" }
+        "repoPath": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        }
       }
     },
     "InteropVerdict": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ok", "tool", "source", "commit", "digestAtNotarisation", "detail"],
+      "required": [
+        "ok",
+        "tool",
+        "source",
+        "commit",
+        "digestAtNotarisation",
+        "detail"
+      ],
       "properties": {
-        "ok": { "type": "boolean" },
-        "tool": { "type": "string" },
-        "source": { "type": "string" },
-        "commit": { "type": "string" },
-        "digestAtNotarisation": { "type": "string" },
-        "digestNow": { "type": ["string", "null"], "description": "null when the record is no longer in the repository — gone, which is not the same as altered." },
-        "detail": { "type": "string" }
+        "ok": {
+          "type": "boolean"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "digestAtNotarisation": {
+          "type": "string"
+        },
+        "digestNow": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "null when the record is no longer in the repository — gone, which is not the same as altered."
+        },
+        "detail": {
+          "type": "string"
+        }
       }
     },
     "InteropVerifyResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["verdicts", "altered", "missing", "unreadable"],
+      "required": [
+        "verdicts",
+        "altered",
+        "missing",
+        "unreadable"
+      ],
       "properties": {
-        "verdicts": { "type": "array", "items": { "$ref": "#/$defs/InteropVerdict" } },
-        "altered": { "type": "integer" },
-        "missing": { "type": "integer" },
-        "unreadable": { "type": "integer", "description": "Notarisation entries whose recorded detail could not be read back because the per-subject blob key was destroyed. Reported rather than skipped: an entry that cannot be checked is not an entry that passed." }
+        "verdicts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InteropVerdict"
+          }
+        },
+        "altered": {
+          "type": "integer"
+        },
+        "missing": {
+          "type": "integer"
+        },
+        "unreadable": {
+          "type": "integer",
+          "description": "Notarisation entries whose recorded detail could not be read back because the per-subject blob key was destroyed. Reported rather than skipped: an entry that cannot be checked is not an entry that passed."
+        }
       }
     },
     "InteropConflictsParams": {
@@ -8025,8 +8423,7 @@
         "measures",
         "recommendation"
       ]
-    }
-,
+    },
     "LoopDefinitionWire": {
       "description": "The eight FR-M4-02 bound fields of a loop definition, as wire data.",
       "type": "object",
@@ -8264,7 +8661,8 @@
       "type": "object",
       "required": [
         "modelCalls",
-        "engineExecutions"
+        "engineExecutions",
+        "scope"
       ],
       "properties": {
         "modelCalls": {
@@ -8288,6 +8686,18 @@
         "breached": {
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "scope": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "escalationSequence": {
+          "type": [
+            "integer",
             "null"
           ]
         }
@@ -9483,8 +9893,7 @@
         }
       },
       "additionalProperties": false
-    }
-,
+    },
     "PortabilityTrustParams": {
       "description": "Explicit, human-approved trust for an external package signer fingerprint (audit TASK-330).",
       "type": "object",
@@ -9511,6 +9920,48 @@
       "properties": {
         "trusted": {
           "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LoopStartResult": {
+      "description": "A started loop run (GP-006: matches the handler's real shape).",
+      "type": "object",
+      "required": [
+        "runId",
+        "status",
+        "iterations",
+        "checkpointed"
+      ],
+      "properties": {
+        "runId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "iterations": {
+          "type": "integer"
+        },
+        "checkpointed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LoopStopResult": {
+      "description": "Stop outcome (GP-006).",
+      "type": "object",
+      "required": [
+        "stopped",
+        "was"
+      ],
+      "properties": {
+        "stopped": {
+          "type": "boolean"
+        },
+        "was": {
+          "type": "string"
         }
       },
       "additionalProperties": false

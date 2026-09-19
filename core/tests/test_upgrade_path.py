@@ -19,6 +19,27 @@ from meridian_core.tenancy import Tenant, TenantRegistry
 
 
 def test_reopening_an_older_schema_migrates_and_preserves_the_chain(tmp_path):
+    # GP-030: build a GENUINELY old database — apply only the v1 schema to
+    # a fresh file, insert rows the old way, then open with current code.
+    # Rewinding migration records on a current-schema file is not an old
+    # database (its columns already exist and re-migration fails).
+    import sqlite3
+
+    from meridian_core.ledger import schema as ledger_schema
+
+    db_path = tmp_path / "ledger" / "ledger.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    old_conn = sqlite3.connect(str(db_path))
+    try:
+        for statement in ledger_schema._V1_STATEMENTS:
+            old_conn.execute(statement)
+        old_conn.execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (1, 'x')"
+        )
+        old_conn.commit()
+    finally:
+        old_conn.close()
+
     led = Ledger(tmp_path / "ledger", EphemeralSigningKeyProvider())
     try:
         for seq in range(1, 4):
@@ -33,17 +54,15 @@ def test_reopening_an_older_schema_migrates_and_preserves_the_chain(tmp_path):
             for row in led.conn.execute(
                 "SELECT entry_hash FROM ledger_entry ORDER BY seq"
             ).fetchall()
-        ]
-        # Simulate an older sidecar: rewind the schema version, reopen.
-        led.conn.execute("PRAGMA user_version = 1")
-        led.conn.commit()
     finally:
         led.close()
 
     reopened = Ledger(tmp_path / "ledger", EphemeralSigningKeyProvider())
     try:
-        import meridian_core.ledger as _l
-        assert _l.SCHEMA_VERSION >= 5  # migrations applied on open
+        applied = [row[0] for row in reopened.conn.execute(
+            "SELECT version FROM schema_migrations ORDER BY version"
+        ).fetchall()]
+        assert max(applied) >= 5  # migrations re-applied on open
         hashes_after = [
             row[0].hex()
             for row in reopened.conn.execute(

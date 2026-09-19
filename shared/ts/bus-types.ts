@@ -2515,6 +2515,8 @@ export interface RouterRatioResult {
   "ratio"?: number | null;
   "ceiling"?: number | null;
   "breached"?: boolean | null;
+  "scope": Record<string, unknown>;
+  "escalationSequence"?: number | null;
 }
 
 /** Invoke a native tool through the permission gate. */
@@ -2900,6 +2902,20 @@ export interface PortabilityTrustResult {
   "trusted": boolean;
 }
 
+/** A started loop run (GP-006: matches the handler's real shape). */
+export interface LoopStartResult {
+  "runId": string;
+  "status": string;
+  "iterations": number;
+  "checkpointed": boolean;
+}
+
+/** Stop outcome (GP-006). */
+export interface LoopStopResult {
+  "stopped": boolean;
+  "was": string;
+}
+
 /** Every request/response method on the bus. */
 export type MethodName = "handshake" | "ping" | "shutdown" | "health" | "attrib/blame" | "attrib/diff" | "attrib/symbol" | "attrib/classify" | "observe/sessions" | "observe/health" | "observe/captureEvidence" | "doctor/run" | "ledger.append" | "ledger.query" | "ledger.getEntry" | "ledger.verify" | "ledger.proof" | "ledger.exportBundle" | "hook/install" | "hook/status" | "hook/remove" | "hook/pending" | "trailers/parse" | "loop.start" | "loop.stop" | "loop.status" | "governance/enforcementPoints" | "run/preflight" | "run/start" | "run/cancel" | "gate.evaluate" | "gate.profiles" | "gate.approve" | "gate.status" | "gate.halt" | "identity.revoke" | "pr/ingest" | "pr/status" | "pr/conflicts" | "steer.send" | "steer/question" | "steer/answer" | "steer/escalate" | "steer/accept" | "steer/acceptanceStatus" | "steer/status" | "steer/plan" | "interop/records" | "interop/notarise" | "interop/verify" | "interop/conflicts" | "interop/export" | "trust.summary" | "trust/detectRejections" | "trust/classify" | "trust/rejectionRate" | "trust/reasonDistribution" | "trust/score" | "trust/scoreDecomposition" | "trust/compareAgents" | "trust/jcurve" | "trust/tokenmaxxing" | "trust/doraExport" | "spend/series" | "spend/ceilingCheck" | "spend/forecast" | "spend/pricing" | "acp/sessionBegin" | "acp/sessionEnd" | "acp/permissionDecision" | "worktree/create" | "worktree/list" | "worktree/remove" | "worktree/abortStory" | "worktree/conflicts" | "mcp/invoke" | "roles/list" | "roles/check" | "roles/delegate" | "evidence/gate" | "loop.resume" | "loop.replay" | "router/requestModelCall" | "router/dependencyRatio" | "tools/invoke" | "memory/retrieve" | "memory/write" | "memory/layered" | "comprehension/record" | "comprehension/gate" | "adapters/discover" | "adapters/plug" | "adapters/unplug" | "adapters/promote" | "decisions/record" | "decisions/ablate" | "decisions/gate" | "portability/export" | "portability/import" | "portability/diff" | "trainer/train" | "trainer/promote" | "trainer/rollback" | "tenancy/register" | "queue/enqueue" | "queue/tick" | "annotations/add" | "issues/record" | "simulation/serve" | "simulation/timeControl" | "golden/run" | "portability/trust";
 
@@ -2984,8 +3000,8 @@ export interface MethodMap {
   "hook/remove": { params: HookRemoveParams; result: HookRemoveResult };
   "hook/pending": { params: HookPendingParams; result: HookPendingResult };
   "trailers/parse": { params: TrailersParseParams; result: TrailersParseResult };
-  "loop.start": { params: LoopStartParams; result: LoopStatusResult };
-  "loop.stop": { params: LoopStopParams; result: LoopStatusResult };
+  "loop.start": { params: LoopStartParams; result: LoopStartResult };
+  "loop.stop": { params: LoopStopParams; result: LoopStopResult };
   "loop.status": { params: LoopStatusParams; result: LoopStatusResult };
   "governance/enforcementPoints": { params: EnforcementPointsParams; result: EnforcementPointsResult };
   "run/preflight": { params: RunPreflightParams; result: RunPreflightResult };

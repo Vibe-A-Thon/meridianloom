@@ -1782,6 +1782,8 @@ class RouterRatioResult(TypedDict):
     ratio: NotRequired[float | None]
     ceiling: NotRequired[float | None]
     breached: NotRequired[bool | None]
+    scope: dict[str, Any]
+    escalationSequence: NotRequired[int | None]
 
 # Invoke a native tool through the permission gate.
 class ToolsInvokeParams(TypedDict):
@@ -2107,6 +2109,18 @@ class PortabilityTrustParams(TypedDict):
 class PortabilityTrustResult(TypedDict):
     trusted: bool
 
+# A started loop run (GP-006: matches the handler's real shape).
+class LoopStartResult(TypedDict):
+    runId: str
+    status: str
+    iterations: int
+    checkpointed: bool
+
+# Stop outcome (GP-006).
+class LoopStopResult(TypedDict):
+    stopped: bool
+    was: str
+
 # Every request/response method on the bus.
 MethodName = Literal["handshake", "ping", "shutdown", "health", "attrib/blame", "attrib/diff", "attrib/symbol", "attrib/classify", "observe/sessions", "observe/health", "observe/captureEvidence", "doctor/run", "ledger.append", "ledger.query", "ledger.getEntry", "ledger.verify", "ledger.proof", "ledger.exportBundle", "hook/install", "hook/status", "hook/remove", "hook/pending", "trailers/parse", "loop.start", "loop.stop", "loop.status", "governance/enforcementPoints", "run/preflight", "run/start", "run/cancel", "gate.evaluate", "gate.profiles", "gate.approve", "gate.status", "gate.halt", "identity.revoke", "pr/ingest", "pr/status", "pr/conflicts", "steer.send", "steer/question", "steer/answer", "steer/escalate", "steer/accept", "steer/acceptanceStatus", "steer/status", "steer/plan", "interop/records", "interop/notarise", "interop/verify", "interop/conflicts", "interop/export", "trust.summary", "trust/detectRejections", "trust/classify", "trust/rejectionRate", "trust/reasonDistribution", "trust/score", "trust/scoreDecomposition", "trust/compareAgents", "trust/jcurve", "trust/tokenmaxxing", "trust/doraExport", "spend/series", "spend/ceilingCheck", "spend/forecast", "spend/pricing", "acp/sessionBegin", "acp/sessionEnd", "acp/permissionDecision", "worktree/create", "worktree/list", "worktree/remove", "worktree/abortStory", "worktree/conflicts", "mcp/invoke", "roles/list", "roles/check", "roles/delegate", "evidence/gate", "loop.resume", "loop.replay", "router/requestModelCall", "router/dependencyRatio", "tools/invoke", "memory/retrieve", "memory/write", "memory/layered", "comprehension/record", "comprehension/gate", "adapters/discover", "adapters/plug", "adapters/unplug", "adapters/promote", "decisions/record", "decisions/ablate", "decisions/gate", "portability/export", "portability/import", "portability/diff", "trainer/train", "trainer/promote", "trainer/rollback", "tenancy/register", "queue/enqueue", "queue/tick", "annotations/add", "issues/record", "simulation/serve", "simulation/timeControl", "golden/run", "portability/trust"]
 
@@ -2221,8 +2235,8 @@ METHOD_CONTRACT: dict[str, dict[str, Any]] = {
     "hook/remove": {"params": HookRemoveParams, "result": HookRemoveResult},
     "hook/pending": {"params": HookPendingParams, "result": HookPendingResult},
     "trailers/parse": {"params": TrailersParseParams, "result": TrailersParseResult},
-    "loop.start": {"params": LoopStartParams, "result": LoopStatusResult},
-    "loop.stop": {"params": LoopStopParams, "result": LoopStatusResult},
+    "loop.start": {"params": LoopStartParams, "result": LoopStartResult},
+    "loop.stop": {"params": LoopStopParams, "result": LoopStopResult},
     "loop.status": {"params": LoopStatusParams, "result": LoopStatusResult},
     "governance/enforcementPoints": {"params": EnforcementPointsParams, "result": EnforcementPointsResult},
     "run/preflight": {"params": RunPreflightParams, "result": RunPreflightResult},

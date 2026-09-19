@@ -172,7 +172,9 @@ class OrchestraState:
             registry = CapabilityRegistry(catalogue)
             registry.register("parse", StructuralParseCapability())
             dispatcher = Dispatcher(catalogue=catalogue, registry=registry)
-            self._router = Router(dispatcher, self.ledger)
+            from meridian_core.levers import CostLeverSet
+
+            self._router = Router(dispatcher, self.ledger, levers=CostLeverSet())
         return self._router
 
     @property
@@ -276,7 +278,9 @@ class OrchestraState:
                     initial_state=dict(handle_raw.get("initialState") or {}),
                 )
                 self._handles[handle_raw["loopId"]] = handle
-        for story_raw in raw.get("queue", []):
+        queue_raw = raw.get("queue", [])
+        story_rows = queue_raw if isinstance(queue_raw, list) else queue_raw.get("waiting", [])
+        for story_raw in story_rows:
             self._queue.enqueue(Story(
                 story_id=story_raw["storyId"],
                 priority=int(story_raw["priority"]),
@@ -284,6 +288,17 @@ class OrchestraState:
                 dependencies=tuple(story_raw.get("dependencies") or ()),
                 waited_ticks=int(story_raw.get("waitedTicks") or 0),
             ))
+        if isinstance(queue_raw, dict):
+            self._queue._done = set(queue_raw.get("done") or ())
+            self._queue._agent_bindings = dict(queue_raw.get("agentBindings") or {})
+            for story_raw in queue_raw.get("inFlight", []):
+                story = Story(
+                    story_id=story_raw["storyId"],
+                    priority=int(story_raw["priority"]),
+                    tenant_id=story_raw["tenantId"],
+                    dependencies=(),
+                )
+                self._queue._in_flight[story.story_id] = story
         for tenant_raw in raw.get("tenants", []):
             try:
                 self._tenants.register(
@@ -308,16 +323,25 @@ class OrchestraState:
                 }
                 for loop_id, handle in self._handles.items()
             ],
-            "queue": [
-                {
-                    "storyId": story.story_id,
-                    "priority": story.priority,
-                    "tenantId": story.tenant_id,
-                    "dependencies": list(story.dependencies),
-                    "waitedTicks": story.waited_ticks,
-                }
-                for story in self._queue._waiting
-            ],
+            "queue": {
+                "waiting": [
+                    {
+                        "storyId": story.story_id,
+                        "priority": story.priority,
+                        "tenantId": story.tenant_id,
+                        "dependencies": list(story.dependencies),
+                        "waitedTicks": story.waited_ticks,
+                    }
+                    for story in self._queue._waiting
+                ],
+                "inFlight": [
+                    {"storyId": story.story_id, "priority": story.priority,
+                     "tenantId": story.tenant_id}
+                    for story in self._queue._in_flight.values()
+                ],
+                "done": sorted(self._queue._done),
+                "agentBindings": dict(self._queue._agent_bindings),
+            },
             "tenants": [
                 {"tenantId": t.tenant_id, "root": str(t.root)}
                 for t in self._tenants._tenants.values()
@@ -437,10 +461,31 @@ def loop_status(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
     }
 
 
+def _ensure_runner_context(orch: OrchestraState, definition: Any) -> None:
+    """GP-009: a runner on a fresh process (after restart) has no
+    thread-local run context; resume rebuilt nothing and died with the
+    audit's -32603. Restore schemas/nodes from the persisted binding
+    before any resume/replay."""
+    runner = orch.runner
+    if not hasattr(runner._local, "schemas"):
+        runner._local.schemas = dict(PROGRESS_SCHEMA)
+    if not hasattr(runner._local, "nodes"):
+        runner._local.nodes = _stand_in_nodes(definition)
+    if definition.loop_id not in runner._exit_checks:
+        from meridian_core.runtime.state import LoopState
+
+        def _visited(state: LoopState, _definition=definition) -> bool:
+            progress = set(state.get("progress") or [])
+            return all(n in progress for n in _definition.body_graph)
+
+        runner.with_exit_check(definition, _visited)
+
+
 def loop_resume(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
     orch = _state(server)
     _require(params, "loopId")
     handle = orch._handles[str(params["loopId"])]
+    _ensure_runner_context(orch, handle.definition)
     finished = orch.runner.resume(handle)
     orch._handles[str(params["loopId"])] = finished
     orch.persist()
@@ -451,6 +496,7 @@ def loop_replay(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
     orch = _state(server)
     _require(params, "loopId", "stateOverrides")
     handle = orch._handles[str(params["loopId"])]
+    _ensure_runner_context(orch, handle.definition)
     fork = orch.runner.replay(handle, state_overrides=params["stateOverrides"])
     orch.persist()
     return {"forkRunId": fork.run_id, "status": fork.result["status"]}
@@ -551,7 +597,11 @@ def memory_retrieve(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]
     )
     return {
         "included": [
-            {"entryId": e.entry_id, "subject": e.subject, "digest": e.entry_id}
+            {
+                "entryId": e.entry_id,
+                "subject": e.subject,
+                "digest": hashlib.sha256(e.content.encode("utf-8")).hexdigest(),
+            }
             for e in result.included
         ],
         "cut": list(result.cut),
@@ -871,6 +921,7 @@ def queue_enqueue(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
 def queue_tick(server: Any, params: Mapping[str, Any]) -> Mapping[str, Any]:
     orch = _state(server)
     admitted = orch._queue.tick()
+    orch.persist()  # GP-010: admissions are durable before the response
     return {"admitted": [s.story_id for s in admitted]}
 
 
