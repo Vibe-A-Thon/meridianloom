@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   WorkbenchExecute,
   WorkbenchSnapshot,
-} from '../../../../shared/ts/workbench';
+} from '../../../shared/ts/workbench';
 import { WebviewRpcClient } from '../rpc/client';
 import { makeHost } from '../test/host-harness';
 import { RuntimeStudio } from './RuntimeStudio';
@@ -52,6 +52,12 @@ function mount(execute: WorkbenchExecute) {
       ready
       workspaceDir="/repo/ws"
       enabledTiers={['flight-recorder', 'governor', 'orchestra']}
+      sessions={{
+        status: 'ready',
+        data: { sessions: [], warnings: [] },
+        error: undefined,
+        refresh: () => {},
+      }}
       controller={c}
     />,
   );
