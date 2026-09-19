@@ -31,7 +31,7 @@ from meridian_core.simulation.scenarios import all_scenarios  # noqa: E402
 
 # Methods safe to probe against a live production sidecar (read-only).
 READ_METHODS = {
-    "ledger.query", "ledger.verify", "gate.status", "loop.status",
+    "ledger.query", "ledger.verify", "gate.status",
     "steer/status", "adapters/discover",
 }
 
