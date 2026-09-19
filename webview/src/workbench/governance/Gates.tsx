@@ -1,0 +1,131 @@
+import { useState } from 'react';
+import type { GateEvaluateResult, GateStatusResult, RolesCheckResult } from '../../../../shared/ts/bus-types';
+import { EnforcementBadge } from '../../components/EnforcementBadge';
+import { useEnforcementPoints } from '../../hooks/useEnforcementPoints';
+import { useRpcQuery } from '../../hooks/useRpcQuery';
+import { Confirm, Field, GovernanceNotice, JsonDetail, Notice, Page, Panel, QueryFeedback, Result, canGovern, parseObject, useAction, type GovernanceProps } from './common';
+import s from './governance.module.css';
+
+export function Gates(props: GovernanceProps) {
+  const { client, ready, enabledTiers } = props;
+  const connected = ready && enabledTiers.includes('governor');
+  const profiles = useRpcQuery(connected ? client : undefined, 'gate.profiles', {});
+  // FR-M42-11: every control on this page states where it binds. Fetched
+  // from the sidecar rather than written into the markup, because a
+  // hand-written sentence about a boundary drifts from the code that
+  // implements it — which is exactly what happened before MV1-T03.
+  const enforcement = useEnforcementPoints(ready ? client : undefined);
+  const history = useRpcQuery(connected ? client : undefined, 'ledger.query', { actionType: 'gate', limit: 100 });
+  const action = useAction(client);
+  const [story, setStory] = useState(''); const [gate, setGate] = useState('verify');
+  const [packet, setPacket] = useState('{\n  "evidence": []\n}');
+  const [evaluation, setEvaluation] = useState<GateEvaluateResult>();
+  const [subject, setSubject] = useState(''); const [commit, setCommit] = useState('');
+  const [role, setRole] = useState(''); const [status, setStatus] = useState<GateStatusResult>(); const [checkedCommit, setCheckedCommit] = useState('');
+  const [confirm, setConfirm] = useState<'approve' | 'halt'>(); const [reason, setReason] = useState('');
+  const [filter, setFilter] = useState('');
+  const validTarget = subject.trim() && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(commit.trim());
+  const checkStatus = async (preserveMessage = false) => {
+    const result = await action.run('gate.status', { subject: subject.trim(), ...(commit.trim() ? { commit: commit.trim() } : {}) }, { preserveMessage });
+    if (result) { setStatus(result); setCheckedCommit(commit.trim()); }
+  };
+  return <Page title="Decisions that deserve your attention." eyebrow="GOVERNANCE / GATE ROOM" description="Inspect the criteria, provenance, and exact commit before recording a consequential decision." actions={<button onClick={() => props.onNavigate('decisions')}>Routine decision stream</button>}>
+    <GovernanceNotice props={props} /><Result action={action} />
+    <Panel title="Evaluate a policy gate" action={<button onClick={profiles.refresh} disabled={!connected}>Refresh policy</button>}>
+      {enforcement.data && <EnforcementBadge declaration={enforcement.lookup('policy_refusal')} />}
+      <QueryFeedback query={profiles} connected={connected} />
+      {profiles.data?.failClosed && <p role="alert" className={s.error}>Policy failed closed: {profiles.data.errors.join(' · ')}</p>}
+      <form className={s.form} onSubmit={event => { event.preventDefault(); try { const parsed = parseObject(packet); void action.run('gate.evaluate', { storyId: story.trim(), gate, packet: parsed }).then(result => { if (result) { setEvaluation(result); history.refresh(); } }); } catch (cause) { action.setError(String(cause)); } }}>
+        <div className={s.row}><Field label="Story ID"><input required value={story} onChange={event => setStory(event.target.value)} /></Field><Field label="Policy profile"><select value={gate} onChange={event => setGate(event.target.value)}>{profiles.data?.profiles.length ? profiles.data.profiles.map(profile => <option key={profile.name} value={profile.name}>{profile.name} — {profile.description}</option>) : <option value="verify">verify</option>}</select></Field></div>
+        <Field label="Evidence packet (JSON)" hint="An evaluation records the supplied evidence and policy verdict in the ledger. Claims in this packet are supplied evidence, not independently executed tests."><textarea rows={7} value={packet} onChange={event => setPacket(event.target.value)} spellCheck={false} /></Field>
+        <div className={s.actions}><button className={s.primary} disabled={!canGovern(props) || action.busy || !story.trim() || profiles.data?.failClosed}>Evaluate and record</button><span className={s.muted}>{profiles.data?.policyVersion ?? 'Policy not loaded'}</span></div>
+      </form>
+      {evaluation && <section aria-label="Gate evaluation"><h3><span className={s.badge} data-state={evaluation.decision}>{evaluation.decision}</span> {evaluation.profile}</h3><p className={s.muted}>Policy {evaluation.policyVersion}{evaluation.failClosed ? ' · Failed closed' : ''}</p><ul className={s.criteria}>{evaluation.criteria.map(criterion => <li key={criterion.id}><span className={s.badge} data-state={criterion.passed ? 'pass' : 'block'}>{criterion.passed ? 'Pass' : 'Block'}</span><div><strong>{criterion.id}</strong><p>{criterion.reason}</p><small>{criterion.kind}</small></div></li>)}</ul>{evaluation.reasons.map((reason, index) => <p className={s.error} key={index}>{reason}</p>)}</section>}
+    </Panel>
+    <section className={`${s.panel} ${s.critical}`}><div className={s.panelHeading}><h2>Commit-bound human approval</h2></div><Notice>Approval is bound to the full head digest and the host-resolved human identity. A changed head requires a new approval. This action records approval; it does not merge a pull request.</Notice>
+      {/*
+        Two declarations, deliberately, because this control has two halves
+        and they bind in different places. The approval is recorded and
+        checked in Meridian; the SCM-side check that would stop a developer
+        who never installed Meridian is refused until a platform team
+        configures it (D37), so it reports its effective sidecar point
+        rather than the scm one it is written for. Showing only the first
+        would overstate the control; showing only the second would hide
+        what does work.
+      */}
+      {enforcement.data && <div className={s.row}>
+        <EnforcementBadge declaration={enforcement.lookup('merge_gate')} />
+        <EnforcementBadge declaration={enforcement.lookup('scm_merge_check')} verbose />
+      </div>}
+      <form className={s.form} onSubmit={event => { event.preventDefault(); void checkStatus(); }}>
+        <div className={s.row}><Field label="Branch or PR subject"><input placeholder="pr:owner/repository#42" required value={subject} onChange={event => { setSubject(event.target.value); setStatus(undefined); }} /></Field><Field label="Full head commit"><input value={commit} onChange={event => { setCommit(event.target.value); setStatus(undefined); }} placeholder="40 or 64 character commit digest" /></Field></div>
+        <Field label="Approval role (optional)" hint="The role pack validates this role. Leaving this blank uses its configured default."><input value={role} onChange={event => setRole(event.target.value)} /></Field>
+        <div className={s.actions}><button disabled={!connected || action.busy || !subject.trim()}>Inspect approval requirements</button><button type="button" className={s.primary} disabled={!canGovern(props) || action.busy || !validTarget || !status || status.subject !== subject.trim() || checkedCommit !== commit.trim() || status.halted} onClick={() => setConfirm('approve')}>Review approval</button><button type="button" disabled={!canGovern(props) || action.busy || !subject.trim()} onClick={() => setConfirm('halt')}>Halt this subject</button></div>
+      </form>
+      {status && <div className={s.card}><h3>{status.status === 'approved' ? 'Approval requirements satisfied' : 'Approval is blocked'}</h3><p>{status.approvalsReceived ?? 0} of {status.requiredApprovals ?? 1} distinct approvals recorded{status.halted ? ' · Governance halt is active' : ''}.</p>{status.missing.map((reason, index) => <p key={index}>{reason}</p>)}{status.hygieneWarnings?.map((warning, index) => <p key={index} className={s.notice}>{warning}</p>)}{status.approver && <p>Last approver: {status.approver.name} · {status.approver.email} · Ledger #{status.approvalSequence}</p>}</div>}
+    </section>
+    <Panel title="Recorded gate history" action={<button disabled={!connected} onClick={history.refresh}>Refresh history</button>}><Field label="Filter gate history"><input value={filter} onChange={event => setFilter(event.target.value)} placeholder="Story, actor, or decision" /></Field><QueryFeedback query={history} connected={connected} />{history.data?.entries.length === 0 && <p className={s.empty}>No recorded gate evaluations yet.</p>}<div className={s.list}>{history.data?.entries.filter(entry => JSON.stringify(entry).toLowerCase().includes(filter.toLowerCase())).map(entry => <div className={s.card} key={entry.sequence}><h3>#{entry.sequence} · {entry.storyId} <span className={s.badge}>{entry.decision ?? 'Recorded'}</span></h3><p>{entry.actorId} · {entry.vendor} · {entry.observationConfidence} observation · {entry.timestamp}</p><p>{entry.observationConfidence === 'inferred' ? 'Inferred attribution describes what Meridian observed, not what the agent reported.' : 'Inspect the source record before relying on the attribution.'}</p><JsonDetail title="Provenance and policy record" value={entry} /></div>)}</div></Panel>
+    {confirm && <Confirm title={confirm === 'approve' ? 'Record this human approval?' : 'Halt this merge subject?'} description={confirm === 'approve' ? 'The host will resolve your identity and enforce role, separation-of-duties, and distinct-approver requirements.' : 'This records a durable governance halt. No resume endpoint is currently exposed; resolve the halt through the governance operator.'} onClose={() => setConfirm(undefined)} busy={action.busy} error={action.error} label={confirm === 'approve' ? 'Record approval' : 'Record halt'} onConfirm={() => {
+      if (confirm === 'approve') void action.run('gate.approve', { subject: subject.trim(), commit: commit.trim(), ...(role.trim() ? { role: role.trim() } : {}), ...(story.trim() ? { storyId: story.trim() } : {}) }).then(result => { if (result) { action.setMessage(`Approval recorded by ${result.approver.name} at ledger #${result.sequence}.`); setConfirm(undefined); void checkStatus(true); } });
+      else if (reason.trim()) void action.run('gate.halt', { scope: 'merge', subject: subject.trim(), reason: reason.trim() }).then(result => { if (result) { setConfirm(undefined); action.setMessage(`Halt recorded at ledger #${result.sequence}: ${result.warning ?? result.actions.map(item => item.detail).join('; ')}`); void checkStatus(true); } });
+      else action.setError('Enter a reason for the halt.');
+    }}><pre className={s.pre}>Subject: {subject.trim()}{'\n'}Head: {commit.trim() || '(all heads)'}{'\n'}Role: {role.trim() || 'Policy default'}</pre>{confirm === 'halt' && <Field label="Halt reason"><textarea value={reason} onChange={event => setReason(event.target.value)} required /></Field>}</Confirm>}
+  </Page>;
+}
+
+/**
+ * Revoking a signing identity (NFR-36 / AC-46).
+ *
+ * The control an operator reaches for when someone leaves under a cloud or a
+ * key is compromised. It is destructive in the way that matters: the
+ * revocation is ledger-recorded, binds immediately in-process, and approvals
+ * that identity already gave stop counting at the next gate execution. So it
+ * asks first, and the confirmation states both of those consequences rather
+ * than the usual "are you sure".
+ */
+function IdentityRevocation(props: GovernanceProps) {
+  const connected = props.ready && props.enabledTiers.includes('governor');
+  const action = useAction(props.client);
+  const [email, setEmail] = useState('');
+  const [reason, setReason] = useState('');
+  const [confirm, setConfirm] = useState(false);
+  return <Panel title="Revoke a signing identity">
+    <form className={s.form} onSubmit={event => { event.preventDefault(); if (email.trim() && reason.trim()) setConfirm(true); }}>
+      <div className={s.row}>
+        <Field label="Identity (email)" hint="The lookup key every governance check uses.">
+          <input required type="email" value={email} placeholder="person@acme.com" onChange={event => setEmail(event.target.value)} />
+        </Field>
+        <Field label="Reason" hint="Recorded in the ledger beside the revocation.">
+          <input required value={reason} placeholder="Left the organisation" onChange={event => setReason(event.target.value)} />
+        </Field>
+      </div>
+      <div className={s.actions}><button className={s.primary} disabled={!connected || action.busy}>Revoke identity</button></div>
+    </form>
+    <Notice>Revocation is recorded in the ledger and binds from the moment that row commits. It does not delete anything the identity already signed — that history stays, and stays attributable.</Notice>
+    {confirm && <Confirm title={`Revoke ${email}?`} description="This is recorded in the ledger and takes effect immediately." onClose={() => setConfirm(false)} busy={action.busy} error={action.error} label="Revoke identity" onConfirm={() => void action.run('identity.revoke', { email: email.trim(), reason: reason.trim() }).then(result => { if (result) { setConfirm(false); setEmail(''); setReason(''); } })}>
+      <p>Approvals this identity has already given stop counting when a gate is next executed — including approvals recorded before this moment.</p>
+      <p>Their recorded history is not removed and remains attributable. This cannot be undone from this screen.</p>
+    </Confirm>}
+  </Panel>;
+}
+
+export function Approvals(props: GovernanceProps) {
+  const connected = props.ready && props.enabledTiers.includes('governor');
+  const roles = useRpcQuery(connected ? props.client : undefined, 'roles/list', {});
+  const ledger = useRpcQuery(connected ? props.client : undefined, 'ledger.query', { limit: 200 });
+  const action = useAction(props.client);
+  const [role, setRole] = useState('Approver'); const [holder, setHolder] = useState('Governor');
+  const [to, setTo] = useState(''); const [days, setDays] = useState('1');
+  const [check, setCheck] = useState<RolesCheckResult>(); const [confirm, setConfirm] = useState(false);
+  const [permission, setPermission] = useState<'approve' | 'halt' | 'policy-change' | 'delegate' | 'export-audit'>('approve');
+  const permissions = ['approve', 'halt', 'policy-change', 'delegate', 'export-audit'] as const;
+  return <Page title="Human authority, made explicit." eyebrow="GOVERNANCE / ROLES & APPROVALS" description="See which roles can decide, explain separation of duties, and delegate approval rights with a defined expiry." actions={<button onClick={() => props.onNavigate('gates')}>Open Gate Room</button>}>
+    <GovernanceNotice props={props} /><Result action={action} />
+    <Panel title="Role and permission matrix" action={<button disabled={!connected} onClick={roles.refresh}>Refresh policy</button>}><QueryFeedback query={roles} connected={connected} />{roles.data && <><p className={s.muted}>Policy {roles.data.policyVersion} · {roles.data.source} · Default role {roles.data.defaultRole ?? 'Unavailable'}</p>{roles.data.failClosed && <p className={s.error} role="alert">Role policy failed closed: {roles.data.errors.join(' · ')}</p>}<div className={s.tableWrap} tabIndex={0} aria-label="Scrollable data table"><table className={s.table}><thead><tr><th scope="col">Role</th>{permissions.map(permission => <th scope="col" key={permission}>{permission}</th>)}</tr></thead><tbody>{roles.data.roles.map(role => <tr key={role.name}><th scope="row">{role.name}<p className={s.muted}>{role.description}</p></th>{permissions.map(permission => <td key={permission}>{(Array.isArray(role.permissions) ? role.permissions as string[] : [role.permissions] as string[]).includes(permission) ? 'Allowed' : 'Denied'}</td>)}</tr>)}</tbody></table></div><Notice>{roles.data.approvals.soD?.forbidSelfApproval ? 'Separation of duties: the person who ingested a change cannot approve it.' : 'Check the role pack for separation-of-duties rules.'} Permissions shown here come from the policy pack; this view does not grant a role to the current user.</Notice><JsonDetail title="Approval thresholds and hygiene rules" value={{ approvals: roles.data.approvals, hygiene: roles.data.hygiene, delegation: roles.data.delegation }} /></>}</Panel>
+    <div className={s.row}><Panel title="Check a role action"><form className={s.form} onSubmit={event => { event.preventDefault(); void action.run('roles/check', { role, action: permission }).then(result => { if (result) setCheck(result); }); }}><Field label="Role to check"><input required value={role} onChange={event => { setRole(event.target.value); setCheck(undefined); }} /></Field><Field label="Action"><select value={permission} onChange={event => { setPermission(event.target.value as typeof permission); setCheck(undefined); }}>{permissions.map(value => <option key={value}>{value}</option>)}</select></Field><button disabled={!connected || action.busy}>Check permission</button>{check && <p role="status" className={check.permitted ? s.success : s.error}>{check.permitted ? 'Permitted' : 'Denied'} · {check.reason}</p>}</form></Panel>
+    <Panel title="Delegate approval rights"><form className={s.form} onSubmit={event => { event.preventDefault(); setConfirm(true); }}><Field label="Recipient"><input required type="text" value={to} onChange={event => setTo(event.target.value)} placeholder="Named principal or email" /></Field><div className={s.row}><Field label="Your holder role"><input required value={holder} onChange={event => setHolder(event.target.value)} /></Field><Field label="Expiry in days"><input type="number" min="1" max={roles.data?.delegation.maxTtlDays ?? 30} required value={days} onChange={event => setDays(event.target.value)} /></Field></div><p className={s.muted}>Delegated role: {role}. The host resolves the delegator identity and validates authority, chain depth, expiry, and cycles.</p><button className={s.primary} disabled={!canGovern(props) || action.busy || roles.data?.failClosed}>Review delegation</button></form></Panel></div>
+    <Panel title="Approval and delegation history"><QueryFeedback query={ledger} connected={connected} /><div className={s.list}>{ledger.data?.entries.filter(entry => /approv|delegat/.test(entry.actionType)).map(entry => <div className={s.card} key={entry.sequence}><h3>#{entry.sequence} · {entry.actionType}</h3><p>{entry.humanActor ?? entry.actorId} · {entry.humanRole ?? 'Role in source record'} · {entry.timestamp}</p><JsonDetail title="Inspect recorded event" value={entry} /></div>)}</div>{ledger.data && !ledger.data.entries.some(entry => /approv|delegat/.test(entry.actionType)) && <p className={s.empty}>No approvals or delegations in the latest 200 ledger entries.</p>}<Notice>History shows recorded events; a delegation may have expired. The backend validates whether rights are active when they are used. Session authentication and role-pack editing remain host configuration.</Notice></Panel>
+    {confirm && <Confirm title="Delegate this approval right?" description="This creates a ledger-recorded grant for a named principal. Review the exact role and expiry before continuing." busy={action.busy} error={action.error} onClose={() => setConfirm(false)} label="Record delegation" onConfirm={() => { void action.run('roles/delegate', { to: to.trim(), role: role.trim(), holderRole: holder.trim(), ttlDays: Number(days) }).then(result => { if (result) { setConfirm(false); action.setMessage(`Delegated ${result.delegation.role} to ${result.delegation.to} until ${result.delegation.expiresAt}; ledger #${result.sequence}.`); ledger.refresh(); } }); }}><pre className={s.pre}>Recipient: {to}{'\n'}Approval role: {role}{'\n'}Holder role: {holder}{'\n'}Duration: {days} day(s)</pre></Confirm>}
+    <IdentityRevocation {...props} />
+  </Page>;
+}

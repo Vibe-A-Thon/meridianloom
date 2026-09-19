@@ -1,0 +1,52 @@
+.badge {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--ml-space-1) var(--ml-space-2);
+  border-radius: var(--ml-r-thread);
+  border-left: 3px solid var(--ml-text-tertiary);
+  background: var(--ml-ground-card);
+  font: var(--ml-t-small);
+  line-height: 1.35;
+  max-width: 42ch;
+}
+
+/*
+ * Deliberately not green, and deliberately not a tick.
+ *
+ * A tick reads as "this is fine" at a glance, and the whole point of this
+ * badge is that the reader takes in *where* the control binds rather than
+ * whether we approve of it. The strongest visual state here is "stated
+ * clearly", never "reassuring" (SEC-32 — a control must not be presented
+ * as enforced at a boundary where it is not, and a green tick presents
+ * exactly that whatever the words beside it say).
+ */
+.enforced {
+  border-left-color: var(--ml-accent);
+}
+
+.advisory {
+  border-left-color: var(--ml-dye-meta);
+  background: var(--ml-ground-raised);
+}
+
+/*
+ * A control that reached the screen with no declaration. Louder than either
+ * real state, because it is a defect in the calling surface and should look
+ * like one rather than blending in.
+ */
+.undeclared {
+  border-left-color: var(--ml-halt);
+  background: var(--ml-ground-raised);
+  color: var(--ml-text-primary);
+  font-weight: 600;
+}
+
+.point {
+  color: var(--ml-text-primary);
+  font-weight: 600;
+}
+
+.meaning {
+  color: var(--ml-text-tertiary);
+}

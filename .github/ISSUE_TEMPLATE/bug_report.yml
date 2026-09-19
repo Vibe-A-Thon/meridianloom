@@ -1,0 +1,76 @@
+name: Bug report
+description: Something in Meridian Loom did not do what it said it would.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before anything else: run **Meridian Loom: Doctor** from the command
+        palette and click **Copy diagnostics**. That one paste answers most of
+        what we would otherwise have to ask you for.
+
+        It contains the doctor report, your VS Code and platform versions, and
+        the enabled tiers. It contains **no credentials, no ledger contents and
+        no workspace path** — check it before pasting if you would rather be
+        sure.
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Paste the output of Doctor → Copy diagnostics.
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: |
+        If the interface stated something that turned out not to be true, say
+        so explicitly — a surface that claims more than it does is treated as a
+        higher-severity bug here than a feature that is missing.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Agents tab
+        2. …
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part
+      options:
+        - Agents, skills, instructions or SDLC phases
+        - Deliverables and runs
+        - Integrations
+        - Evidence and the ledger
+        - Trust and spend measurement
+        - Governance, gates and approvals
+        - Startup, the sidecar or the doctor
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: agent
+    attributes:
+      label: Which agent, if the problem involves one
+      description: |
+        The executable and version — Meridian runs agents you install rather
+        than bundling them, so the agent's own behaviour is often the answer.

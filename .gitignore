@@ -1,0 +1,33 @@
+/.codemap
+/.codetwin
+node_modules/
+extension/dist/
+/dist/*.vsix
+# Release artefacts generated beside the VSIX by `npm run package` (MV4-T08).
+# They describe a local build, and the VSIX they describe is not committed, so
+# a tracked checksum or bill of materials would be a claim about an artefact
+# nobody else holds. They are published with the package, by the CI release
+# upload, which is the only place a reviewer can check them against it.
+/dist/*.vsix.sha256
+/dist/*.cdx.json
+__pycache__/
+*.pyc
+/extension/sidecar/
+/verifier/target/
+webview/dist/
+extension/webview-dist/
+/extension/policy/
+/.meridian/workbench/
+!webview/index.html
+
+# Gradle's build cache inside the analytical test fixture. It is regenerated
+# by every run that touches that fixture, so tracking it produces a permanent
+# stream of binary diffs that mean nothing.
+core/tests/fixtures/**/.gradle/
+
+# Evaluator docs staged into the VSIX at package time (see scripts/package-extension.mjs).
+/extension/docs/
+
+# Licence signing keys: the private half must never be committed.
+*.private.key
+*.private.pem

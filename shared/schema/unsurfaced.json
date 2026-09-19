@@ -1,0 +1,112 @@
+{
+  "$id": "unsurfaced.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "FR-M46-01/02 + AC-43 (status.md G-02): the reviewed declaration of registry RPC methods that have no interface consumer. scripts/check-surface-coverage.mjs fails on any orphan not declared here. Entry schema: { method, reason, reviewed: YYYY-MM-DD, mustSurface?: boolean }. `mustSurface: true` marks an instrument that MUST gain an interface consumer — the check keeps failing until one exists (blocking gate, AC-43). Entries without `mustSurface` declare the method unsurfaced-yet-acceptable; `reason` names the phase that will surface it or states that none is planned by design (FR-M46-01).",
+  "entries": [
+    {
+      "method": "trust/score",
+      "reason": "G-02 differentiating instrument. MUST be surfaced in the Calibration & Trust screen (10.37) by the parallel GUI session; phase N1 Workstream E GUI. Blocked on the check until consumed.",
+      "reviewed": "2026-09-09",
+      "mustSurface": true
+    },
+    {
+      "method": "trust/scoreDecomposition",
+      "reason": "G-02: the per-component breakdown of trust/score shown beside it (10.37). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+      "reviewed": "2026-09-09",
+      "mustSurface": true
+    },
+    {
+      "method": "trust/reasonDistribution",
+      "reason": "G-02: E-GR-03 rejection-reason distribution per agent (10.37). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+      "reviewed": "2026-09-09",
+      "mustSurface": true
+    },
+    {
+      "method": "trust/compareAgents",
+      "reason": "G-02: same-story agent-vs-agent comparison (E-AW-04). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+      "reviewed": "2026-09-09",
+      "mustSurface": true
+    },
+    {
+      "method": "trust/jcurve",
+      "reason": "G-02: the adoption J-curve instrument from the product thesis (10.37). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+      "reviewed": "2026-09-09",
+      "mustSurface": true
+    },
+    {
+      "method": "trust/tokenmaxxing",
+      "reason": "G-02: tokenmaxxing detector over spend series (10.37). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+      "reviewed": "2026-09-09",
+      "mustSurface": true
+    },
+    {
+      "method": "trust/doraExport",
+      "reason": "G-02: DORA four-keys export in OTLP-friendly JSON (10.37 / Delivery Evidence). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+      "reviewed": "2026-09-09",
+      "mustSurface": true
+    },
+    {
+      "method": "spend/series",
+      "reason": "G-02: the Cross-Vendor Spend panel currently recomputes a simpler view from ledger.query and must consume spend/series instead (AMD-M39 provenance classes, FR-M45-03). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+      "reviewed": "2026-09-09",
+      "mustSurface": true
+    },
+    {
+      "method": "spend/forecast",
+      "reason": "G-02: spend forecasting (disabled today at the 1,000-row ceiling; surfaces with the FR-M41-08 truncation disclosure). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+      "reviewed": "2026-09-09",
+      "mustSurface": true
+    },
+    {
+      "method": "spend/pricing",
+      "reason": "G-02: pricing/provenance-class figures for spend (FR-M45-03/04). Phase N1 Workstream E GUI. Blocked on the check until consumed.",
+      "reviewed": "2026-09-09",
+      "mustSurface": true
+    },
+    {
+      "method": "observe/captureEvidence",
+      "reason": "N1 volatile-evidence capture (FR-M44-11/12, NFR-37). Phase N1 GUI (evidence-capture affordance on the external-agent surfaces); not one of the G-02 named instruments, so not gate-blocking.",
+      "reviewed": "2026-09-09"
+    },
+    {
+      "method": "hook/pending",
+      "reason": "Internal pending-commit linkage keyed by staged content hash; surfaced indirectly through the hook install/status flow (hook/install, hook/status). No direct interface consumer planned by design.",
+      "reviewed": "2026-09-09"
+    },
+    {
+      "method": "trust.summary",
+      "reason": "governor.trust aggregate, explicitly a stub RPC in the registry ('Stub RPC until it lands'). Phase N1 GUI trust dashboard, or folded into the trust/score + trust/scoreDecomposition surface once those land; revisit at the G-02 gate review. (Dotted name is the registered wire name per tiers.json/methods.json.)",
+      "reviewed": "2026-09-09"
+    },
+    {
+      "method": "loop.start",
+      "reason": "Orchestra-tier stub: the registry carries not-yet-built tiers with stub RPC names so the tiering mechanism is proven before the features land (tiers.json). Phase Orchestra (FR-M46-17 go/no-go).",
+      "reviewed": "2026-09-09"
+    },
+    {
+      "method": "loop.stop",
+      "reason": "Orchestra-tier stub; see loop.start. Phase Orchestra.",
+      "reviewed": "2026-09-09"
+    },
+    {
+      "method": "loop.status",
+      "reason": "Orchestra-tier stub; see loop.start. Phase Orchestra.",
+      "reviewed": "2026-09-09"
+    },
+    {
+      "method": "licence/status",
+      "reason": "Base-tier licence inspection is implemented in the sidecar but has no UI consumer yet; surface through the edition/licence settings flow before Premium release.",
+      "reviewed": "2026-09-19"
+    },
+    {
+      "method": "licence/install",
+      "reason": "Base-tier licence installation is implemented in the sidecar but has no UI consumer yet; surface through the edition/licence settings flow before Premium release.",
+      "reviewed": "2026-09-19"
+    },
+    {
+      "method": "licence/remove",
+      "reason": "Base-tier licence removal is implemented in the sidecar but has no UI consumer yet; surface through the edition/licence settings flow before Premium release.",
+      "reviewed": "2026-09-19"
+    }
+  ]
+}

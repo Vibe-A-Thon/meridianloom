@@ -1,0 +1,74 @@
+# Rework reason taxonomy (E-GR-03; FR-M37-02) — F1 Workstream B task 14.
+#
+# FR-M37-02 requires every rejection to carry a reason from "the taxonomy
+# (E-GR-03)"; no document in docs/spec/ defines E-GR-03's member list, so
+# the taxonomy is defined HERE — a real, versioned, git-backed policy file
+# reviewed like governance.yaml. A workspace overrides it at
+# .meridian/policy/rework-reasons.yaml (first readable file wins).
+#
+# Classification is fail-closed (core/meridian_core/rejection/taxonomy.py):
+# an absent, blank or unrecognised reason never yields an unclassified
+# record — it stamps the default class (other) and carries the caller's
+# raw input as a free-text note. Detection-derived rejections cannot know
+# WHY a human rejected a change; their note says exactly that.
+#
+# agent-conflict is the FR-M35-07 multi-agent conflict class — distinct
+# from every human-rejection reason so reason distributions never conflate
+# the two.
+
+version: 1
+
+#: The fail-closed class for unclassified input. Must be a class id below.
+default: other
+
+classes:
+  - id: wrong-requirement
+    label: Wrong requirement
+    description: >
+      The change implements the wrong requirement or a misread one — the
+      ticket, acceptance criteria or intent were misunderstood.
+
+  - id: incorrect-implementation
+    label: Incorrect implementation
+    description: >
+      The requirement was right but the code is wrong — logic errors,
+      broken edge cases, does not do what it claims.
+
+  - id: style-convention
+    label: Style / convention
+    aliases: [style/convention]
+    description: >
+      Violates the team's coding standards, naming, formatting or
+      repository conventions.
+
+  - id: missing-tests
+    label: Missing tests
+    description: >
+      Rejected for absent or inadequate test coverage of the change.
+
+  - id: security-concern
+    label: Security concern
+    description: >
+      Raises a security issue — vulnerable dependency, secret handling,
+      injection surface, insecure default.
+
+  - id: agent-conflict
+    label: Agent conflict
+    description: >
+      Two agents' changes conflict on the same story (FR-M35-07). A
+      distinct class from human rejection — recorded by the conflict
+      detector, not by review.
+
+  - id: obsolete-superseded
+    label: Obsolete / superseded
+    aliases: [obsolete/superseded]
+    description: >
+      The change was overtaken by events — a newer PR, a re-scoped ticket
+      or a replaced approach made it dead on arrival.
+
+  - id: other
+    label: Other
+    description: >
+      Catch-all for reasons outside the classes above. Requires a
+      free-text note — an unexplained "other" is not allowed.
+    requiresNote: true

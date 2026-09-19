@@ -1,0 +1,36 @@
+# SDLC phase set — Requirements_Final.md §6, decision D8.
+#
+# The PhaseSet provider (meridian_core.phases) reads this pack; the
+# workspace override is .meridian/policy/phases.yaml (first readable
+# wins). No code anywhere hard-codes the phase count, names or colours
+# (banned pattern 24): screens, loops and engine phase tags all read
+# the provider. Release/Operate are plans-only per D7.
+version: 1
+phases:
+  - key: intake
+    name: Intake and Analysis
+    order: 0
+  - key: design
+    name: Architecture and Design
+    order: 1
+  - key: plan
+    name: Planning and Decomposition
+    order: 2
+  - key: build
+    name: Implementation
+    order: 3
+  - key: verify
+    name: Verification
+    order: 4
+  - key: security
+    name: Security and Compliance
+    order: 5
+  - key: review
+    name: Review and Integration
+    order: 6
+  - key: release
+    name: Release
+    order: 7
+  - key: operate
+    name: Operate and Maintain
+    order: 8

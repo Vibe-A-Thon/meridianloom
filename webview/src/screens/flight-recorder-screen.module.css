@@ -1,0 +1,25 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-5);
+  flex: 1;
+}
+
+/* gaps_guix §3 10.45 layout: Weave | This Session over Any Line | Export. */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--ml-space-6);
+  align-items: start;
+}
+
+.grid > :nth-child(3),
+.grid > :nth-child(4) {
+  grid-column: auto;
+}
+
+@media (max-width: 800px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

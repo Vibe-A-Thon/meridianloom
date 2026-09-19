@@ -1,0 +1,23 @@
+{
+  "studyId": null,
+  "preregistration": {
+    "registeredAt": null,
+    "thresholdsDigest": null,
+    "firstStoryMeasuredAt": null
+  },
+  "allocation": [],
+  "exclusions": [],
+  "configuration": [],
+  "armA": { "method": null, "rejectionRate": {} },
+  "baselineChangeFailureRate": { "rate": null, "method": null },
+  "adjudications": [],
+  "reviewTime": { "method": null, "armA": [], "armC": [] },
+  "hygieneDetermination": { "systematicRubberStamping": null, "reviewer": null, "basis": null },
+  "provenanceQueries": { "method": null, "weeks": [] },
+  "trustDecisionChanges": { "method": null, "instances": [] },
+  "retention": { "originalTesters": null, "stillUsingAtWeek8": null, "method": null },
+  "orchestraCase": { "determination": null, "taskClass": null, "evidence": null },
+  "acceptedChangeCost": { "method": null },
+  "regressions30Day": [],
+  "firstValue": { "sessions": [], "reviewTasks": [] }
+}

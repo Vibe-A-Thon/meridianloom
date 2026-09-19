@@ -1,0 +1,19 @@
+# Story metadata pack (FR-M26-03 attribution, FR-M39-01) — F1 Workstream F task 26.
+#
+# Declarative, versioned, git-backed — the same conventions as the other
+# policy packs. The workspace overrides this file at
+# .meridian/policy/stories.yaml (first readable file wins).
+#
+# The ledger records vendor/model/agent/story directly; team and cost
+# centre are story metadata (FR-M26-03: cost attributable to team,
+# project, client and cost centre via story metadata, exportable for
+# chargeback). The spend surfaces resolve them through this table.
+#
+# A "*" entry is the default for stories with no explicit row (a team
+# default, for instance); a story with no evidence here lands in the
+# "unknown" bucket — dimensions with no recorded evidence are unknown,
+# never fabricated.
+
+version: 1
+
+stories: {}

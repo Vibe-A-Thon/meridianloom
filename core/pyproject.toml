@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meridian-core"
+version = "0.0.1"
+description = "Meridian Loom sidecar: framed JSON-RPC 2.0 over stdio (FR-M3-01)."
+requires-python = ">=3.11"
+dependencies = [
+    # Approved pinned dependency for ledger cryptography: Ed25519 tree-head
+    # signing (FR-M10-04) and AES-GCM blob encryption (FR-M10-07). Python's
+    # stdlib has neither. NEVER use this (or anything else) for model calls.
+    "cryptography==49.0.0",
+    # Approved pinned dependency for structural parsing (FR-M33-02 subset,
+    # F0 Workstream C task 14): tree-sitter line→symbol mapping so a
+    # provenance answer names the enclosing function/class. Deterministic
+    # parsing only — NEVER used for model calls (FR-M36-07).
+    "tree-sitter==0.25.1",
+    "tree-sitter-java==0.23.5",
+    "tree-sitter-python==0.25.0",
+    # Approved pinned dependency for declarative policy-pack parsing
+    # (FR-M12-01, F1 Workstream B): governance packs load through
+    # yaml.safe_load only. Deterministic structural parsing — NEVER used
+    # for model calls (FR-M36-07).
+    "PyYAML==6.0.2",
+    # Approved pinned dependency for engine-side output validation
+    # (FR-M33-04/05, F3 M33 slice 3): model output is validated against
+    # the class's JSON Schema before it takes effect. Deterministic
+    # validation only — NEVER used for model calls (FR-M36-07).
+    "jsonschema==4.26.0",
+    # Approved pinned dependency for the loop runtime (FR-M4-01..11, D1):
+    # LangGraph executes the loop body graph and the SQLite checkpointer
+    # (langgraph-checkpoint-sqlite) gives durable per-node checkpoints
+    # (FR-M4-05). Wrapped behind the LoopRunner interface in
+    # meridian_core.runtime so it stays substitutable (D1). Orchestration
+    # — bounds, ledger entries, gates, replay tagging — is Meridian code.
+    # NEVER used for model calls (FR-M36-07).
+    "langgraph==1.0.8",
+    "langgraph-checkpoint-sqlite==3.1.1",
+]
+
+[project.optional-dependencies]
+# pytest-xdist is what makes the suite runnable in practice. Much of it spawns
+# real git and sidecar subprocesses, so a serial run is ~1h45m on eight cores,
+# long enough that people stop running it, which is how every stale claim in
+# this repository happened. Each xdist worker is its own process with its own
+# tmp dirs, so the parallelism is isolated by construction rather than by hoping.
+dev = ["pytest>=8", "pytest-xdist>=3.5"]
+
+[tool.setuptools.packages.find]
+include = ["meridian_core*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Fixture corpora under tests/fixtures/ contain intentionally-named test
+# files (e.g. coverage-mapping fixtures like test_payments.py); they are
+# capability inputs, not suite members.
+norecursedirs = ["tests/fixtures"]
+# Makes `python -m pytest core/tests` from the repo root work as well as
+# `cd core && python -m pytest -q`: pytest resolves this file as rootdir
+# config and puts core/ (and the generated bus types) on sys.path.
+pythonpath = [".", "../shared/py"]
+markers = [
+    # Anything whose verdict depends on wall-clock time, which means anything
+    # a busy machine can make lie. CI runs these in a job of their own that is
+    # deliberately serial, where a timing failure means what it says. Budgets,
+    # and also the AC-08 teardown deadline: it is a correctness assertion, but
+    # it is asserted with a stopwatch, so it belongs with the stopwatches.
+    "perf: verdict depends on wall-clock timing; run serially, never under -n auto",
+    # Measured, not guessed: every test carrying this appeared in the
+    # --durations of a full run. This is a local inner-loop tier — CI runs the
+    # slow tests on every push, because a check that only some people run is
+    # the failure mode this project already had once.
+    "slow: minutes, not seconds (real git repos, 100k corpora); skip locally with -m 'not slow'",
+]

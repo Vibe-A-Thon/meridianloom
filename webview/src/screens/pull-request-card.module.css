@@ -1,0 +1,150 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-3);
+  padding: var(--ml-panel-padding);
+  border-radius: var(--ml-r-panel);
+  background: var(--ml-ground-card);
+  border: 1px solid var(--ml-hairline);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ml-space-3);
+  flex-wrap: wrap;
+}
+
+.head h2 {
+  margin: 0 0 var(--ml-space-1);
+  font: var(--ml-t-h3);
+}
+
+.muted {
+  margin: 0;
+  color: var(--ml-text-tertiary);
+  font: var(--ml-t-small);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-2);
+  max-width: 52ch;
+}
+
+.label {
+  font: var(--ml-t-small);
+  color: var(--ml-text-secondary);
+}
+
+.input {
+  font: var(--ml-t-body);
+  font-family: var(--ml-font-data);
+  color: var(--ml-text-primary);
+  background: var(--ml-ground-raised);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-r-thread);
+  padding: var(--ml-space-2);
+}
+
+.primary {
+  align-self: flex-start;
+  font-weight: 600;
+}
+
+.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.error {
+  margin: 0;
+  padding: var(--ml-space-2);
+  border-left: 3px solid var(--ml-halt);
+  background: var(--ml-ground-raised);
+  color: var(--ml-text-primary);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-3);
+}
+
+/*
+ * H7: the finding leads. It is set as prose rather than as a status chip
+ * because a chip is a label and this is an instruction — the reader has to
+ * know what to do, not what state the thing is in.
+ */
+.finding {
+  margin: 0;
+  padding: var(--ml-space-3);
+  border-left: 3px solid var(--ml-accent);
+  background: var(--ml-ground-raised);
+  color: var(--ml-text-primary);
+  font: var(--ml-t-body);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: minmax(10ch, 18ch) 1fr;
+  gap: var(--ml-space-2) var(--ml-space-3);
+  margin: 0;
+}
+
+.facts dt {
+  font: var(--ml-t-small);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ml-text-tertiary);
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--ml-text-primary);
+}
+
+.risk {
+  text-transform: uppercase;
+  font: var(--ml-t-small);
+  letter-spacing: 0.06em;
+  padding: 0 var(--ml-space-1);
+  border-radius: var(--ml-r-thread);
+  border: 1px solid currentColor;
+}
+
+/*
+ * Not a green/amber/red traffic light. `unknown` is deliberately not neutral
+ * grey-and-quiet: an unmeasured risk is a gap, and rendering it the same as
+ * a measured low would let it pass as reassurance.
+ */
+.risk[data-level='low'] {
+  color: var(--ml-dye-approved);
+}
+
+.risk[data-level='raised'] {
+  color: var(--ml-dye-attention);
+}
+
+.risk[data-level='high'] {
+  color: var(--ml-dye-rework);
+}
+
+.risk[data-level='unknown'] {
+  color: var(--ml-dye-meta);
+  border-style: dashed;
+}
+
+/* The stale-head warning is the one thing on this card that is an alarm. */
+.stale {
+  color: var(--ml-dye-rework);
+}
+
+@media (max-width: 560px) {
+  .facts {
+    grid-template-columns: 1fr;
+    gap: var(--ml-space-1);
+  }
+}

@@ -1,0 +1,64 @@
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ml-space-2);
+  padding: var(--ml-space-4);
+  border-radius: var(--ml-r-panel);
+  color: var(--ml-text-secondary);
+  font: var(--ml-t-body);
+  max-width: 72ch;
+}
+
+.title {
+  margin: 0;
+  font: var(--ml-t-h3);
+  color: var(--ml-text-primary);
+}
+
+.detail {
+  margin: 0;
+}
+
+/* Banned pattern 7: no spinners — loading is thread-tension on the
+   relevant threads. Four vertical threads flexing at staggered rhythms. */
+.tension {
+  display: flex;
+  gap: 6px;
+  height: 18px;
+  align-items: stretch;
+}
+.thread {
+  width: 2px;
+  border-radius: var(--ml-r-thread);
+  background: var(--ml-dye-idle);
+  transform-origin: center;
+  animation: tension 1.4s ease-in-out infinite;
+}
+.thread:nth-child(2) { animation-delay: 0.18s; }
+.thread:nth-child(3) { animation-delay: 0.36s; }
+.thread:nth-child(4) { animation-delay: 0.54s; }
+
+@keyframes tension {
+  0%, 100% { transform: scaleY(0.55); opacity: 0.5; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+/* §8.4 reduced motion: threads hold their tension, nothing pulses. */
+@media (prefers-reduced-motion: reduce) {
+  .thread {
+    animation: none;
+    transform: scaleY(0.8);
+  }
+}
+
+/* X-14: each degraded state has its own surface. Sidecar-down says so in
+   words, with the recovery action — never "Something went wrong." */
+.error {
+  box-shadow: inset 3px 0 0 var(--ml-dye-attention);
+  background: var(--ml-ground-raised);
+}
+
+.empty {
+  border: 1px dashed var(--ml-hairline);
+}

@@ -1,0 +1,119 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-3);
+  min-width: 0;
+}
+
+.heading {
+  margin: 0;
+  font: var(--ml-t-h2);
+}
+
+.noRepo {
+  margin: 0;
+  font: var(--ml-t-body);
+  color: var(--ml-text-secondary);
+  max-width: 72ch;
+}
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ml-space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-1);
+}
+
+.lineField {
+  width: 8ch;
+}
+
+.label {
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+}
+
+.input {
+  font: var(--ml-t-data);
+  color: var(--ml-text-primary);
+  background: var(--ml-ground-raised);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-r-thread);
+  padding: var(--ml-cell-padding);
+}
+
+.button {
+  font: var(--ml-t-ui);
+  color: var(--ml-accent-ink, #fff);
+  background: var(--ml-accent, var(--ml-dye-working-dim));
+  border: 1px solid var(--ml-dye-working);
+  border-radius: var(--ml-r-panel);
+  padding: var(--ml-cell-padding);
+  cursor: pointer;
+}
+
+.button:disabled {
+  color: var(--ml-text-disabled);
+  background: var(--ml-ground-raised);
+  border-color: var(--ml-hairline);
+  cursor: default;
+}
+
+.answer {
+  padding: var(--ml-space-3);
+  background: var(--ml-ground-raised);
+  border-radius: var(--ml-r-panel);
+}
+
+.answerTitle {
+  margin: 0 0 var(--ml-space-2);
+  font: var(--ml-t-data);
+  color: var(--ml-text-primary);
+  word-break: break-word;
+}
+
+.answerLine {
+  color: var(--ml-text-secondary);
+}
+
+.inferredBadge {
+  margin: 0 0 var(--ml-space-3);
+  padding: var(--ml-space-2) var(--ml-space-3);
+  border: 1px solid var(--ml-dye-attention-dim);
+  border-left: 3px solid var(--ml-dye-attention);
+  border-radius: var(--ml-r-thread);
+  font: var(--ml-t-small);
+  color: var(--ml-text-primary);
+  max-width: 72ch;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--ml-space-2) var(--ml-space-4);
+  margin: 0;
+}
+
+.facts dt {
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+}
+
+.facts dd {
+  margin: 0;
+  font: var(--ml-t-body);
+  color: var(--ml-text-primary);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.factSource {
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+}

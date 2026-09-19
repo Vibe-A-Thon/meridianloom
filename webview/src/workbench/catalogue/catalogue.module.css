@@ -1,0 +1,651 @@
+/* Shared surface for the Agents, Skills, Instructions and Phases tabs.
+   Every colour is a token so all seven themes and the high-contrast mode
+   follow without a second stylesheet. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-4, 16px);
+  padding: var(--ml-panel-padding, 20px);
+  max-width: 1400px;
+}
+.pageHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ml-space-4, 16px);
+  flex-wrap: wrap;
+}
+.pageTitle {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  color: var(--ml-text-primary, inherit);
+}
+.pageBlurb {
+  margin: 4px 0 0;
+  color: var(--ml-text-secondary, #8b8b8b);
+  font-size: 0.875rem;
+  max-width: 68ch;
+}
+.pageActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.panel {
+  border: 1px solid var(--ml-hairline, #2a2a2a);
+  border-radius: var(--ml-r-panel, 10px);
+  background: var(--ml-ground-card, #17181b);
+  padding: var(--ml-panel-padding, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.panelHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.panelTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.panelHint {
+  margin: 3px 0 0;
+  color: var(--ml-text-secondary, #8b8b8b);
+  font-size: 0.8125rem;
+  max-width: 76ch;
+}
+
+/* --- layout ------------------------------------------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.three {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+@media (max-width: 860px) {
+  .split,
+  .three {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- cards -------------------------------------------------------------- */
+
+.card {
+  border: 1px solid var(--ml-hairline, #2a2a2a);
+  border-radius: var(--ml-r-panel, 10px);
+  background: var(--ml-ground-raised, #1c1d21);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cardName {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.cardMeta {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  color: var(--ml-text-secondary, #8b8b8b);
+  font-family: var(--ml-font-data, ui-monospace, monospace);
+}
+.cardBody {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ml-text-secondary, #9a9a9a);
+  line-height: 1.5;
+}
+.cardActions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+/* --- chips and tags ----------------------------------------------------- */
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--ml-hairline, #2a2a2a);
+  background: transparent;
+  color: var(--ml-text-secondary, #9a9a9a);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.chip:hover:not(:disabled) {
+  border-color: var(--ml-accent, #a3e635);
+}
+.chip {
+  transition:
+    border-color var(--ml-motion-fast) var(--ml-ease-out),
+    background var(--ml-motion-fast) var(--ml-ease-out),
+    transform var(--ml-motion-fast) var(--ml-ease-spring);
+}
+.chip:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.chip[aria-pressed="true"] {
+  /* Selected carries a mark and a border weight, not colour alone. The hue,
+     where one is supplied, identifies *which* thing is selected — it is never
+     what tells you that something is. */
+  border-color: var(--chip-accent, var(--ml-accent, #a3e635));
+  background: color-mix(
+    in srgb,
+    var(--chip-accent, var(--ml-accent)) 14%,
+    transparent
+  );
+  border-width: 2px;
+  padding: 3px 9px;
+  color: var(--ml-text-primary, #ededed);
+  background: var(--ml-accent-secondary, rgba(163, 230, 53, 0.1));
+  font-weight: 560;
+}
+.chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.chipMark {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+.chipEmpty {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ml-text-secondary, #8b8b8b);
+  font-style: italic;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.tag_neutral {
+  background: var(--ml-ground-deepest, #101114);
+  color: var(--ml-text-secondary, #9a9a9a);
+  border-color: var(--ml-hairline, #2a2a2a);
+}
+.tag_active {
+  background: var(--ml-dye-approved-dim, rgba(80, 200, 120, 0.14));
+  color: var(--ml-dye-approved, #50c878);
+  border-color: var(--ml-dye-approved, #50c878);
+}
+.tag_learning {
+  background: var(--ml-dye-meta-dim, rgba(190, 140, 220, 0.14));
+  color: var(--ml-dye-meta, #be8cdc);
+  border-color: var(--ml-dye-meta, #be8cdc);
+}
+.tag_warn {
+  background: var(--ml-dye-attention-dim, rgba(230, 180, 60, 0.14));
+  color: var(--ml-dye-attention, #e6b43c);
+  border-color: var(--ml-dye-attention, #e6b43c);
+}
+
+/* --- toolbar and fields ------------------------------------------------- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 240px;
+  min-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid var(--ml-hairline, #2a2a2a);
+  border-radius: var(--ml-r-panel, 8px);
+  background: var(--ml-ground-deepest, #101114);
+  color: var(--ml-text-secondary, #8b8b8b);
+}
+.search input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--ml-text-primary, inherit);
+  font: inherit;
+  outline: none;
+  min-width: 0;
+}
+.toolbarRight {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.8125rem;
+  min-width: 0;
+}
+.fieldLabel {
+  font-weight: 560;
+  color: var(--ml-text-primary, inherit);
+}
+.fieldHint {
+  color: var(--ml-text-secondary, #8b8b8b);
+  font-size: 0.75rem;
+}
+.field input,
+.field select,
+.field textarea {
+  padding: 7px 10px;
+  border-radius: var(--ml-r-panel, 8px);
+  border: 1px solid var(--ml-hairline, #2a2a2a);
+  background: var(--ml-ground-deepest, #101114);
+  color: var(--ml-text-primary, inherit);
+  font: inherit;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.field textarea {
+  resize: vertical;
+  min-height: 120px;
+  font-family: var(--ml-font-data, ui-monospace, monospace);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  outline: 2px solid var(--ml-accent, #a3e635);
+  outline-offset: 1px;
+}
+
+/* --- buttons ------------------------------------------------------------ */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* A-03: 28px minimum hit target. */
+  min-height: 28px;
+  padding: 5px 12px;
+  border-radius: var(--ml-r-panel, 8px);
+  border: 1px solid var(--ml-hairline, #2a2a2a);
+  background: var(--ml-ground-raised, #1c1d21);
+  color: var(--ml-text-primary, inherit);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.button:hover:not(:disabled) {
+  border-color: var(--ml-accent, #a3e635);
+}
+.button:focus-visible {
+  outline: 2px solid var(--ml-accent, #a3e635);
+  outline-offset: 1px;
+}
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.button_primary {
+  background: var(--ml-accent, #a3e635);
+  color: var(--ml-accent-ink, #10130a);
+  border-color: var(--ml-accent, #a3e635);
+  font-weight: 600;
+}
+.button_danger {
+  color: var(--ml-dye-rework, #d9534f);
+  border-color: var(--ml-dye-rework, #d9534f);
+}
+.button_quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ml-text-secondary, #9a9a9a);
+}
+.button_quiet:hover:not(:disabled) {
+  border-color: var(--ml-hairline, #2a2a2a);
+}
+
+/* --- states ------------------------------------------------------------- */
+
+.empty {
+  border: 1px dashed var(--ml-hairline, #2a2a2a);
+  border-radius: var(--ml-r-panel, 10px);
+  padding: 28px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.emptyTitle {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.emptyBody {
+  margin: 0;
+  color: var(--ml-text-secondary, #8b8b8b);
+  font-size: 0.8125rem;
+  max-width: 60ch;
+  line-height: 1.55;
+}
+.emptyAction {
+  margin-top: 4px;
+}
+
+.notice {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--ml-r-panel, 8px);
+  font-size: 0.8125rem;
+  border: 1px solid transparent;
+}
+.notice_error {
+  color: var(--ml-dye-rework, #d9534f);
+  border-color: var(--ml-dye-rework, #d9534f);
+  background: var(--ml-dye-rework-dim, rgba(217, 83, 79, 0.1));
+}
+.notice_success {
+  color: var(--ml-dye-approved, #50c878);
+  border-color: var(--ml-dye-approved, #50c878);
+  background: var(--ml-dye-approved-dim, rgba(80, 200, 120, 0.1));
+}
+.notice_info {
+  color: var(--ml-text-secondary, #9a9a9a);
+  border-color: var(--ml-hairline, #2a2a2a);
+  background: var(--ml-ground-deepest, #101114);
+}
+.error {
+  margin: 0;
+  color: var(--ml-dye-rework, #d9534f);
+  font-size: 0.8125rem;
+}
+
+/* --- dialog ------------------------------------------------------------- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 40;
+}
+.dialog {
+  width: min(560px, 100%);
+  max-height: 85vh;
+  overflow: auto;
+  background: var(--ml-ground-card, #17181b);
+  border: 1px solid var(--ml-hairline, #2a2a2a);
+  border-radius: var(--ml-r-panel, 12px);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--ml-elev-3, 0 18px 48px rgba(0, 0, 0, 0.45));
+}
+.dialogWide {
+  width: min(900px, 100%);
+}
+.dialogTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 620;
+}
+.dialogBody {
+  font-size: 0.875rem;
+  color: var(--ml-text-secondary, #9a9a9a);
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.code {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--ml-r-panel, 8px);
+  background: var(--ml-ground-deepest, #101114);
+  border: 1px solid var(--ml-hairline, #2a2a2a);
+  font-family: var(--ml-font-data, ui-monospace, monospace);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 220px;
+  overflow: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Run history: a selectable list, and the static variant used for the
+   steering timeline where the row is a record rather than a control. */
+.runList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 520px;
+  overflow: auto;
+}
+.runItem,
+.runItemStatic {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--ml-hairline, #2a2a2a);
+  border-radius: var(--ml-r-panel, 8px);
+  background: var(--ml-ground-raised, transparent);
+  color: inherit;
+  font: inherit;
+}
+.runItem {
+  cursor: pointer;
+}
+.runItem:hover {
+  border-color: var(--ml-border, #3a3a3a);
+}
+.runItem:focus-visible {
+  outline: 2px solid var(--ml-accent, #7aa2f7);
+  outline-offset: 2px;
+}
+/* The selected run carries a left rule and a heavier border, not colour
+   alone, so the selection survives a monochrome or high-contrast theme. */
+.runItem[aria-current="true"] {
+  border-color: var(--ml-accent, #7aa2f7);
+  box-shadow: inset 3px 0 0 0 var(--ml-accent, #7aa2f7);
+}
+.runItemHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* ——— colour pass ——————————————————————————————————————————————————————
+   A card can carry an identity colour through --card-accent: a rule down the
+   left edge and a faint wash from the top-left corner. The wash never sits
+   behind body text at an opacity that costs contrast, and the rule is what
+   actually identifies the card. */
+.card {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform var(--ml-motion-fast) var(--ml-ease-out),
+    border-color var(--ml-motion-fast) var(--ml-ease-out),
+    box-shadow var(--ml-motion-fast) var(--ml-ease-out);
+}
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--card-accent, transparent);
+}
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 100% at 0% 0%,
+    color-mix(in srgb, var(--card-accent, transparent) 14%, transparent),
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity var(--ml-motion-med) var(--ml-ease-out);
+}
+.card:hover::after {
+  opacity: 1;
+}
+.card:hover {
+  border-color: var(--ml-border);
+  box-shadow: var(--ml-elev-2);
+}
+.cardCompact {
+  gap: 6px;
+}
+
+.catalogueGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.catalogueHeading {
+  margin: 0;
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ml-text-tertiary);
+}
+
+/* ——— result table ——— */
+.tableWrap {
+  /* Wide result sets scroll inside the panel; the page never scrolls sideways. */
+  overflow-x: auto;
+  border: 1px solid var(--ml-hairline);
+  border-radius: var(--ml-r-panel);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+.table th,
+.table td {
+  padding: var(--ml-cell-padding);
+  text-align: left;
+  border-bottom: 1px solid var(--ml-hairline);
+  white-space: nowrap;
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.table th {
+  position: sticky;
+  top: 0;
+  background: var(--ml-ground-raised);
+  color: var(--ml-text-tertiary);
+  font-weight: 600;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+.table tbody tr:hover td {
+  background: var(--ml-ground-raised);
+}
+.table a {
+  color: var(--ml-accent);
+}
+.tableState {
+  width: 1%;
+  text-align: center;
+}
+
+/* ——— entrance ————————————————————————————————————————————————————————
+   One shared entrance, opacity and transform only. It is a 0ms no-op when the
+   reduce-motion switch has zeroed the duration tokens. */
+@keyframes ml-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.page > * {
+  animation: ml-rise var(--ml-motion-med) var(--ml-ease-out) both;
+}
+
+/* A panel can name its subject with a colour rule along its top edge. Used by
+   the phase board, where the hue is the phase's identity everywhere it
+   appears, and never as the only thing carrying that meaning. */
+.panelAccent {
+  border-top: 2px solid var(--panel-accent, var(--ml-accent));
+}

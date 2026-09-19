@@ -1,0 +1,1893 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="vat" data-density="comfortable">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Meridian Loom — Dashboard (VIGUIX v2.0)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   MERIDIAN LOOM — prototype against VIGUIX_Final.md v2.0
+   §4 tokens · §5 themes · §6 type · §7 shell · §8 motion · §11 systems
+   ═══════════════════════════════════════════════════════════════ */
+:root{
+  --vat-900:#0B0E1C;--vat-800:#11152A;--vat-700:#171D38;--vat-600:#1F2748;
+  --vat-500:#2A3358;--vat-400:#3A4570;
+  --linen-100:#F2EFE6;--linen-300:#D5D0C2;--linen-500:#9C9A90;
+  --woad:#4A83C4;--woad-dim:#2C5686;
+  --weld:#E0A828;--weld-dim:#8A6614;
+  --madder:#C8483A;--madder-dim:#7C2C23;
+  --verdigris:#2FA592;--verdigris-dim:#1A6459;
+  --cochineal:#9B3F6C;--cochineal-dim:#5E2542;
+  --iron:#5B6480;--halt:#FF4D3D;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;
+  --r-thread:2px;--r-panel:6px;
+  --elev-1:inset 0 1px 0 rgba(242,239,230,.06),0 0 0 1px var(--vat-500);
+  --elev-2:inset 0 1px 0 rgba(242,239,230,.09),0 0 0 1px var(--vat-400),0 8px 24px -12px rgba(0,0,0,.7);
+  --elev-3:inset 0 1px 0 rgba(242,239,230,.12),0 0 0 1px var(--woad-dim),0 18px 48px -18px rgba(0,0,0,.85);
+  --dur-quick:160ms;--dur-base:260ms;--dur-scene:520ms;
+  --ease-shed:cubic-bezier(.65,0,.35,1);
+  /* §6 — Commit Mono is not on Google Fonts (P-12); documented fallback stack */
+  --f-ui:'Archivo','Helvetica Neue',Helvetica,Arial,sans-serif;
+  --f-data:'Commit Mono','JetBrains Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  /* §4.4 density — token deltas, not per-component overrides */
+  --row-h:32px;--pad:var(--s3);--body:13px;--weave-row:22px;--rc-w:164px;--cell-y:7px;
+}
+[data-density="compact"]{--row-h:26px;--pad:var(--s2);--body:13px;--weave-row:15px;--rc-w:150px;--cell-y:5px}
+[data-density="dense"]  {--row-h:22px;--pad:var(--s2);--body:12px;--weave-row:9px; --rc-w:120px;--cell-y:3px}
+
+[data-theme="linen"]{
+  --vat-900:#D6D2C5;--vat-800:#E7E4DA;--vat-700:#F1EEE6;--vat-600:#F8F6F0;
+  --vat-500:#C6C1B2;--vat-400:#ADA795;
+  --linen-100:#171B2E;--linen-300:#3D4257;--linen-500:#6B6F80;
+  --woad:#2C5F98;--woad-dim:#C3D2E4;--weld:#8E6510;--weld-dim:#EDE0C0;
+  --madder:#A63528;--madder-dim:#EFD2CD;--verdigris:#126C5E;--verdigris-dim:#CBE4DF;
+  --cochineal:#7A2E53;--cochineal-dim:#E8D3DD;--iron:#8B92A6;
+  --elev-1:inset 0 1px 0 rgba(255,255,255,.7),0 0 0 1px var(--vat-500);
+  --elev-2:inset 0 1px 0 rgba(255,255,255,.8),0 0 0 1px var(--vat-400),0 6px 18px -12px rgba(30,26,18,.4);
+  --elev-3:inset 0 1px 0 #fff,0 0 0 1px var(--woad),0 16px 40px -18px rgba(30,26,18,.45);
+}
+[data-theme="iron"]{
+  --vat-900:#000;--vat-800:#07080F;--vat-700:#0D0F1A;--vat-600:#141726;
+  --vat-500:#4A5170;--vat-400:#6B7397;
+  --linen-100:#FFF;--linen-300:#E4E2DA;--linen-500:#B8B6AE;
+  --woad:#63A8F5;--weld:#FFC53D;--madder:#FF6B5A;--verdigris:#3FD9C0;
+  --cochineal:#D25C94;--iron:#7C85A6;
+}
+[data-theme="dusk"]{
+  --vat-900:#120A0C;--vat-800:#1A1013;--vat-700:#23161A;--vat-600:#2E1D22;
+  --vat-500:#3E272E;--vat-400:#54353E;
+  --linen-100:#F5E9E2;--linen-300:#D8C4BB;--linen-500:#9E8A82;
+  --woad:#7B8FC4;--weld:#E0A828;--madder:#D95742;--verdigris:#4FA893;--cochineal:#B44C7C;
+}
+[data-theme="dawn"]{
+  --vat-900:#E3DDCA;--vat-800:#F0EBDC;--vat-700:#F7F3E8;--vat-600:#FBF9F2;
+  --vat-500:#CFC8B2;--vat-400:#B5AE96;
+  --linen-100:#1D2033;--linen-300:#41465C;--linen-500:#6F7385;
+  --woad:#2C5F98;--woad-dim:#CBD8E8;--weld:#8E6510;--weld-dim:#F0E4C6;
+  --madder:#A63528;--madder-dim:#F2D6D1;--verdigris:#126C5E;--verdigris-dim:#CFE7E2;
+  --cochineal:#7A2E53;--cochineal-dim:#EBD7E0;--iron:#8B92A6;
+  --elev-1:inset 0 1px 0 rgba(255,255,255,.7),0 0 0 1px var(--vat-500);
+  --elev-2:inset 0 1px 0 rgba(255,255,255,.8),0 0 0 1px var(--vat-400),0 6px 18px -12px rgba(30,26,18,.35);
+  --elev-3:inset 0 1px 0 #fff,0 0 0 1px var(--woad),0 16px 40px -18px rgba(30,26,18,.4);
+}
+[data-theme="ghost"]{
+  --woad:#3D5F81;--weld:#8E7440;--madder:#7E4A44;--verdigris:#3B6D65;
+  --cochineal:#5F3B52;--linen-100:#C9C6BE;--linen-300:#9A978F;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overscroll-behavior:none}
+body{background:var(--vat-800);color:var(--linen-100);font-family:var(--f-ui);
+  font-size:var(--body);line-height:1.5;-webkit-font-smoothing:antialiased;overflow:hidden;
+  transition:background var(--dur-base),color var(--dur-base)}
+.mono{font-family:var(--f-data);font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+:focus-visible{outline:2px solid var(--woad);outline-offset:2px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--vat-500);border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ═══ SHELL §7.2 ═══ */
+.shell{display:flex;flex-direction:column;height:100vh;height:100dvh;position:relative}
+body.halted .shell{filter:saturate(.3) brightness(.8)}
+body.halted .shell::after{content:'';position:absolute;inset:0;border:3px solid var(--halt);
+  pointer-events:none;z-index:400;animation:hf .7s ease-out 2}
+@keyframes hf{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* Crown */
+.crown{flex:none;display:flex;align-items:center;gap:var(--s3);height:44px;padding:0 var(--s3);
+  background:var(--vat-700);box-shadow:var(--elev-1);z-index:40}
+.brand{display:flex;align-items:center;gap:7px;font-weight:600;letter-spacing:.04em;font-size:12px;white-space:nowrap}
+.mark{width:19px;height:19px;flex:none}
+.grow{flex:1;min-width:4px}
+.chip{padding:3px 9px;border-radius:var(--r-panel);background:var(--vat-600);box-shadow:var(--elev-1);
+  font-size:11px;color:var(--linen-300);white-space:nowrap;display:flex;align-items:center;gap:6px}
+.chip:hover{color:var(--linen-100)}
+.chip.on{box-shadow:inset 0 0 0 1px var(--woad);background:var(--woad-dim);color:var(--linen-100)}
+.badge{font-family:var(--f-data);font-size:9px;background:var(--weld);color:#0B0E1C;
+  padding:0 5px;border-radius:8px;font-weight:600}
+/* --halt used on exactly one control (§4.1) */
+.halt{position:relative;display:flex;align-items:center;gap:5px;padding:4px 11px;border-radius:var(--r-panel);
+  color:var(--halt);font-weight:600;font-size:11px;box-shadow:inset 0 0 0 1px var(--halt);
+  overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:none;white-space:nowrap;flex:none}
+.hold-fill{position:absolute;inset:0;background:currentColor;opacity:.2;transform:scaleX(0);
+  transform-origin:left;pointer-events:none}
+.arming .hold-fill{transform:scaleX(1);transition:transform .4s linear}
+
+/* Loom Bar §7.2 — T10 */
+.loombar{flex:none;display:flex;align-items:stretch;height:34px;padding:0 var(--s2);
+  background:var(--vat-800);box-shadow:inset 0 -1px 0 var(--vat-500);
+  overflow-x:auto;overflow-y:hidden;z-index:35;scrollbar-width:none}
+.loombar::-webkit-scrollbar{display:none}
+.loombar button{padding:0 11px;font-size:12px;color:var(--linen-500);position:relative;white-space:nowrap;flex:none;
+  display:flex;align-items:center;gap:5px}
+.loombar button.on{color:var(--linen-100)}
+.loombar button.on::after{content:'';position:absolute;left:7px;right:7px;bottom:0;height:2px;background:var(--woad)}
+
+/* Time-travel banner — T6 */
+.ttbar{flex:none;display:none;align-items:center;gap:10px;height:26px;padding:0 var(--s3);
+  background:var(--weld-dim);color:var(--weld);font-family:var(--f-data);font-size:11px;z-index:34}
+body.timetravel .ttbar{display:flex}
+body.timetravel .shell [data-locked]{opacity:.35;pointer-events:none}
+
+.bodyrow{flex:1;display:flex;min-height:0;position:relative}
+
+/* Warp spine §7.2 — generated from the policy phase set (T1) */
+.warp{flex:none;width:52px;background:var(--vat-700);box-shadow:inset -1px 0 0 var(--vat-500);
+  display:flex;flex-direction:column;padding:10px 0;z-index:25;position:relative}
+.wt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  cursor:pointer;position:relative;transition:transform var(--dur-scene) var(--ease-shed)}
+.wt .c{font-family:var(--f-data);font-size:8px;letter-spacing:.06em;color:var(--linen-500)}
+.wt .l{width:5px;flex:1;min-height:10px;border-radius:3px}
+/* P-11 — tooltips open on hover AND focus, dismiss on Escape */
+.wt .tip{position:absolute;left:56px;top:50%;transform:translateY(-50%);background:var(--vat-600);
+  box-shadow:var(--elev-2);border-radius:var(--r-panel);padding:7px 11px;white-space:nowrap;
+  opacity:0;pointer-events:none;transition:opacity var(--dur-quick);z-index:90;font-size:11px}
+.wt:hover .tip,.wt:focus-visible .tip,.wt.tipopen .tip{opacity:1}
+.wt .tip .s{color:var(--linen-500);font-family:var(--f-data);font-size:10px}
+.warp.shed .wt:nth-child(odd){transform:translateY(-12px)}
+.warp.shed .wt:nth-child(even){transform:translateY(12px)}
+
+.main{flex:1;min-width:0;position:relative;background:var(--vat-800)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;padding:var(--pad);gap:var(--pad);
+  overflow:auto;-webkit-overflow-scrolling:touch;opacity:0;visibility:hidden;transform:scale(.975);
+  transition:opacity var(--dur-scene) var(--ease-shed),transform var(--dur-scene) var(--ease-shed),
+             visibility 0s linear var(--dur-scene)}
+.screen.on{opacity:1;visibility:visible;transform:none;transition-delay:0s}
+.stitle{font-size:21px;font-weight:600;letter-spacing:-.01em;flex:none}
+.ssub{color:var(--linen-500);font-size:12px;max-width:66ch;flex:none;margin-top:-8px}
+/* X-23 developer mode — spec traceability overlay */
+.spec{display:none;font-family:var(--f-data);font-size:9px;color:var(--cochineal);
+  letter-spacing:.03em;flex:none;margin-top:-4px}
+body.devmode .spec{display:block}
+
+/* Inspector §7.2 */
+.insp{flex:none;width:310px;background:var(--vat-700);box-shadow:inset 1px 0 0 var(--vat-500);
+  display:flex;flex-direction:column;z-index:25}
+.insp-h{padding:11px var(--s3) 8px;display:flex;align-items:center;gap:9px;flex:none}
+.insp-t{display:flex;gap:1px;padding:0 var(--s2);box-shadow:inset 0 -1px 0 var(--vat-500);flex:none;
+  overflow-x:auto;scrollbar-width:none}
+.insp-t::-webkit-scrollbar{display:none}
+.insp-t button{padding:6px 7px;font-size:11px;color:var(--linen-500);position:relative;flex:none}
+.insp-t button.on{color:var(--linen-100)}
+.insp-t button.on::after{content:'';position:absolute;left:3px;right:3px;bottom:0;height:2px;background:var(--woad)}
+.insp-b{flex:1;overflow:auto;padding:var(--s3);min-height:0}
+.insp-b h4{font-size:10px;color:var(--linen-500);font-weight:500;margin:var(--s4) 0 6px;letter-spacing:.03em}
+.insp-b h4:first-child{margin-top:0}
+.insp-x{display:none}
+/* X-04 backdrop for overlay mode */
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:120;display:none}
+.backdrop.on{display:block}
+
+/* Roster §7.2 */
+.roster{flex:none;height:66px;background:var(--vat-700);box-shadow:inset 0 1px 0 var(--vat-500);
+  display:flex;align-items:center;gap:7px;padding:0 var(--s2);overflow-x:auto;z-index:25;scrollbar-width:none}
+.roster::-webkit-scrollbar{display:none}
+.rc{display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border-radius:var(--r-panel);
+  background:var(--vat-600);box-shadow:var(--elev-1);cursor:pointer;flex:none;width:var(--rc-w)}
+.rc.sel{box-shadow:var(--elev-3)}
+.rc .n{font-weight:500;font-size:12px;line-height:1.2}
+.rc .a{font-size:10px;color:var(--linen-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-family:var(--f-data)}
+.rc .m{height:2px;background:var(--vat-500);border-radius:1px;margin-top:3px;overflow:hidden}
+.rc .m i{display:block;height:100%}
+[data-density="dense"] .rc .a,[data-density="dense"] .rc .m{display:none}
+
+/* AgentToken §4.3 / §9.1 — circular means "an actor" */
+.tok{border-radius:50%;flex:none;display:grid;place-items:center;font-weight:600;color:#0B0E1C;position:relative}
+.tok::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:2px solid transparent}
+.tok[data-st="working"]::after{border-color:var(--woad)}
+.tok[data-st="attention"]::after{border-color:var(--weld);border-style:dashed;animation:pl 1.8s ease-in-out infinite}
+.tok[data-st="rework"]::after{border-color:var(--madder);border-style:dotted}
+.tok[data-st="approved"]::after{border-color:var(--verdigris)}
+.tok[data-st="idle"]::after{border-color:var(--iron);opacity:.45}
+.tok[data-st="meta"]::after{border-color:var(--cochineal);border-style:dashed}
+@keyframes pl{0%,100%{opacity:1}50%{opacity:.35}}
+/* V-12 signature micro-interaction */
+.tok.lit{box-shadow:0 0 0 3px var(--woad-dim)}
+
+/* Panels */
+.panel{background:var(--vat-700);border-radius:var(--r-panel);box-shadow:var(--elev-1);padding:var(--pad);
+  display:flex;flex-direction:column;min-height:0;position:relative}
+.panel>h3{font-size:12px;font-weight:600;margin-bottom:9px;display:flex;align-items:center;
+  justify-content:space-between;gap:8px;flex:none}
+.panel>h3 em{color:var(--linen-500);font-weight:400;font-size:10px;font-family:var(--f-data);
+  font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* E-CC-07 — per-panel "as of" stamp */
+.asof{font-family:var(--f-data);font-size:9px;color:var(--weld);display:none}
+body.stale .asof{display:inline}
+.scroll{overflow:auto;min-height:0;flex:1}
+.cv{position:relative;flex:1;min-height:200px;width:100%}
+.cv canvas{position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:var(--r-thread)}
+/* P-06 — canvas DOM parallel, always present, revealed by Table view */
+.parallel{display:none;overflow:auto;flex:1;min-height:0}
+.cvhost.tableview .cv{display:none}
+.cvhost.tableview .parallel{display:block}
+.cvhost{display:flex;flex-direction:column;flex:1;min-height:0}
+
+.tile{background:var(--vat-600);border-radius:var(--r-thread);padding:10px;box-shadow:var(--elev-1)}
+.tile .v{font-family:var(--f-data);font-size:24px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
+.tile .l{font-size:10px;color:var(--linen-500);margin-top:4px}
+.up{color:var(--verdigris)}.warn{color:var(--weld)}.dn{color:var(--madder)}
+
+.row{display:flex;align-items:center;gap:10px;padding:var(--cell-y) 8px;border-radius:var(--r-thread)}
+.row:hover{background:var(--vat-600)}
+.prov{font-family:var(--f-data);font-size:10px;color:var(--linen-500)}
+.lb{font-family:var(--f-data);font-size:9px;padding:1px 5px;border-radius:var(--r-thread);
+  background:var(--vat-500);color:var(--linen-300);position:relative;overflow:hidden;flex:none}
+.lb i{position:absolute;inset:0;background:var(--woad);opacity:.3;transform-origin:left}
+.pill{font-family:var(--f-data);font-size:9px;padding:1px 6px;border-radius:var(--r-thread);flex:none}
+.pill.pass{background:var(--verdigris-dim);color:var(--verdigris)}
+.pill.work{background:var(--woad-dim);color:var(--woad)}
+.pill.gate{background:var(--weld-dim);color:var(--weld)}
+.pill.rw{background:var(--madder-dim);color:var(--madder)}
+.pill.meta{background:var(--cochineal-dim);color:var(--cochineal)}
+.pill.idle{background:var(--vat-500);color:var(--linen-500)}
+
+.tension{display:inline-flex;gap:3px;align-items:flex-end;height:10px}
+.tension i{width:2px;height:100%;background:var(--woad);border-radius:1px;animation:tn 1.4s ease-in-out infinite}
+.tension i:nth-child(2){animation-delay:.16s}.tension i:nth-child(3){animation-delay:.32s}
+@keyframes tn{0%,100%{transform:scaleY(.3);opacity:.5}50%{transform:scaleY(1);opacity:1}}
+
+.conf{display:flex;align-items:center;gap:7px;font-family:var(--f-data);font-size:11px;flex-wrap:wrap}
+.conf .bar{width:86px;height:6px;background:var(--vat-500);border-radius:3px;position:relative;overflow:hidden;flex:none}
+.conf .bar i{position:absolute;top:0;left:0;bottom:0;background:var(--woad)}
+.conf .bar u{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--weld);text-decoration:none}
+/* §9.1 — rationale vs evidence must look opposite */
+.rat{border-left:3px solid var(--cochineal);padding:8px 11px;background:var(--vat-600);
+  border-radius:0 var(--r-thread) var(--r-thread) 0;font-size:12px;
+  background-image:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(155,63,108,.06) 5px,rgba(155,63,108,.06) 10px)}
+.rat .tag{font-size:10px;color:var(--cochineal);display:block;margin-bottom:4px;font-family:var(--f-data)}
+.ev{border-left:3px solid var(--verdigris);padding:8px 11px;background:var(--vat-600);
+  border-radius:0 var(--r-thread) var(--r-thread) 0;font-size:12px}
+.ev .tag{font-size:10px;color:var(--verdigris);display:block;margin-bottom:4px;font-family:var(--f-data)}
+
+.gate{background:var(--vat-700);border-radius:var(--r-panel);box-shadow:var(--elev-1);padding:var(--s4);
+  margin-bottom:var(--s3);max-width:740px}
+.gate.high{box-shadow:var(--elev-1),inset 0 3px 0 var(--madder)}
+.gate h3{font-size:17px;font-weight:600;margin-bottom:2px}
+.crit{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:12px}
+.crit .d{width:7px;height:7px;border-radius:50%;flex:none;margin-top:6px}
+.acts{display:flex;gap:7px;margin-top:var(--s4);flex-wrap:wrap}
+.btn{padding:7px 14px;border-radius:var(--r-panel);font-weight:500;font-size:12px;
+  box-shadow:inset 0 0 0 1px var(--vat-400);position:relative;overflow:hidden}
+.btn:hover{background:var(--vat-600)}
+.btn.pri{background:var(--verdigris-dim);color:var(--verdigris);box-shadow:inset 0 0 0 1px var(--verdigris)}
+.btn.dgr{color:var(--madder);box-shadow:inset 0 0 0 1px var(--madder-dim)}
+.btn.stx{color:var(--cochineal);box-shadow:inset 0 0 0 1px var(--cochineal-dim)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn small{display:block;font-size:9px;opacity:.7;font-family:var(--f-data)}
+
+.tw{overflow:auto;flex:1;min-height:0;position:relative}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;min-width:940px}
+th{text-align:left;font-weight:500;font-size:10px;color:var(--linen-500);padding:6px 9px;
+  box-shadow:inset 0 -1px 0 var(--vat-500);position:sticky;top:0;background:var(--vat-700);z-index:3;white-space:nowrap}
+td{padding:var(--cell-y) 9px;box-shadow:inset 0 -1px 0 var(--vat-600);white-space:nowrap}
+/* E-AW-01 — sticky first column */
+th:first-child,td:first-child{position:sticky;left:0;background:var(--vat-700);z-index:2}
+th:first-child{z-index:4}
+tbody tr:hover td{background:var(--vat-600)}
+tbody tr.sel td{background:var(--vat-600);box-shadow:inset 0 -1px 0 var(--vat-600),inset 2px 0 0 var(--woad)}
+.num{font-family:var(--f-data);font-variant-numeric:tabular-nums;text-align:right}
+
+.selv{display:flex;flex-direction:column;gap:2px;width:22px;flex:none;overflow:auto}
+.st{height:5px;border-radius:1px;flex:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 1px 0 rgba(0,0,0,.35)}
+.vbar{display:flex;align-items:center;gap:8px;padding:7px 11px;border-radius:var(--r-thread);
+  background:var(--verdigris-dim);color:var(--verdigris);font-family:var(--f-data);font-size:10px;
+  flex:none;flex-wrap:wrap}
+
+.sl{margin-bottom:11px}
+.sl label{display:flex;justify-content:space-between;font-size:10px;color:var(--linen-500);margin-bottom:4px}
+.sl label b{font-family:var(--f-data);color:var(--linen-100);font-weight:500}
+/* E-DJ-04 — thread-styled sliders */
+.sl input{width:100%;-webkit-appearance:none;appearance:none;height:3px;border-radius:2px;
+  background:repeating-linear-gradient(90deg,var(--vat-400) 0 4px,var(--vat-500) 4px 8px)}
+.sl input::-webkit-slider-thumb{-webkit-appearance:none;width:9px;height:16px;border-radius:2px;
+  background:var(--woad);cursor:pointer}
+.hs{padding:7px 9px;border-radius:var(--r-thread);cursor:pointer;margin-bottom:2px;
+  display:flex;align-items:center;gap:8px;font-size:11px}
+.hs.sel{background:var(--vat-600);box-shadow:inset 2px 0 0 var(--woad)}
+
+.tgs{display:flex;gap:6px;flex-wrap:wrap;flex:none;align-items:center}
+.tg{padding:4px 10px;border-radius:var(--r-panel);font-size:11px;color:var(--linen-500);
+  box-shadow:inset 0 0 0 1px var(--vat-500)}
+.tg.on{color:var(--linen-100);box-shadow:inset 0 0 0 1px var(--woad);background:var(--woad-dim)}
+.lg{display:flex;gap:var(--s3);flex-wrap:wrap;font-size:10px;color:var(--linen-500);flex:none;margin-top:8px}
+.lg span{display:flex;align-items:center;gap:5px}
+.lg i{width:13px;height:3px;border-radius:2px;display:block}
+.cols{display:flex;gap:var(--pad);flex:1;min-height:0}
+.col{display:flex;flex-direction:column;gap:var(--pad);min-width:0;min-height:0}
+
+/* Popovers / overlays — X-04 */
+.pop{position:absolute;background:var(--vat-600);box-shadow:var(--elev-2);border-radius:var(--r-panel);
+  padding:var(--s2);z-index:200;display:none;min-width:220px}
+.pop.on{display:block}
+.pop .it{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:var(--r-thread);
+  cursor:pointer;font-size:12px;width:100%;text-align:left}
+.pop .it:hover,.pop .it.cur{background:var(--vat-500)}
+.sw{width:34px;height:16px;border-radius:2px;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);
+  display:flex;overflow:hidden}
+.sw i{flex:1}
+
+/* Omnibar X-01 */
+.omni{position:fixed;inset:0;z-index:250;display:none;align-items:flex-start;justify-content:center;
+  padding-top:12vh;background:rgba(0,0,0,.5)}
+.omni.on{display:flex}
+.omni .box{width:min(620px,92vw);background:var(--vat-700);border-radius:var(--r-panel);
+  box-shadow:var(--elev-3);overflow:hidden}
+.omni input{width:100%;padding:14px 16px;background:none;border:none;color:var(--linen-100);
+  font:500 15px var(--f-ui);outline:none}
+.omni .res{max-height:44vh;overflow:auto;border-top:1px solid var(--vat-500)}
+.omni .r{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;font-size:13px}
+.omni .r.cur{background:var(--vat-600)}
+.omni .r .k{font-family:var(--f-data);font-size:10px;color:var(--linen-500);margin-left:auto}
+
+.empty{text-align:center;padding:var(--s5);color:var(--linen-500);max-width:44ch;margin:auto}
+.empty b{display:block;color:var(--linen-100);font-weight:500;margin-bottom:6px}
+
+@media (max-width:1240px){.insp{width:270px}}
+@media (max-width:1020px){
+  .insp{position:absolute;right:0;top:0;bottom:0;width:min(320px,88vw);z-index:130;
+    box-shadow:var(--elev-3);transform:translateX(100%);transition:transform var(--dur-base) var(--ease-shed)}
+  .insp.open{transform:none}
+  .insp-x{display:block;margin-left:auto;font-size:16px;color:var(--linen-500);padding:0 4px}
+  .cols{flex-direction:column;overflow:auto}.col{flex:none}
+  .col.side{flex-direction:row;flex-wrap:wrap}.col.side>*{flex:1;min-width:230px}
+}
+@media (max-width:760px){
+  .crown{height:42px;padding:0 10px;gap:9px}.brand span{display:none}
+  .warp{width:auto;flex-direction:row;height:30px;padding:0 6px;box-shadow:inset 0 -1px 0 var(--vat-500)}
+  .bodyrow{flex-direction:column}
+  .wt{flex-direction:row;gap:5px;padding:0 2px}
+  .wt .l{width:auto;height:4px;flex:1;min-height:0;min-width:8px}
+  .wt .tip{left:50%;top:34px;transform:translateX(-50%)}
+  .warp.shed .wt:nth-child(odd){transform:translateX(-8px)}
+  .warp.shed .wt:nth-child(even){transform:translateX(8px)}
+  .screen{padding:10px;gap:10px}.stitle{font-size:18px}.cv{min-height:210px}
+  .roster{height:60px}.rc{width:auto;min-width:118px;padding:5px 9px 5px 5px}
+  table{min-width:780px}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ═══ CROWN §7.2 ═══ -->
+  <div class="crown">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M4 2v16M8 2v16M12 2v16M16 2v16" stroke="var(--vat-400)" stroke-width="1.2"/>
+        <path d="M1 10h18" stroke="var(--woad)" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="13" cy="10" r="2.6" fill="var(--woad)"/></svg>
+      <span>MERIDIAN LOOM</span>
+    </div>
+    <!-- E-CC-03 / P-07 story selector -->
+    <button class="chip" id="storySel" aria-haspopup="listbox">
+      <span class="mono" id="storyId">EDB-12345</span>
+      <span style="color:var(--linen-500)" id="storyTitle">Idempotency key on payment submit</span> ▾</button>
+    <div class="grow"></div>
+    <button class="chip" id="omniBtn">⌘K</button>
+    <button class="chip" id="bellBtn">✉ <span class="badge" id="bellN">5</span></button>
+    <button class="chip" id="ispBtn">Inspector</button>
+    <button class="chip" id="themeBtn">◐ <span id="themeName">Indigo Vat</span> ▾</button>
+    <!-- A-01 · P-03: mouse, touch, keyboard-hold, and two-step accessible fallback -->
+    <button class="halt" id="haltBtn" data-hold="Halt all"
+      aria-describedby="holdHelp"><span class="hold-fill"></span>⏻ <span>Halt</span></button>
+    <span class="sr" id="holdHelp">Press and hold for 400 milliseconds, or hold Space while focused. Two-step confirm is available in Appearance.</span>
+  </div>
+
+  <!-- ═══ LOOM BAR §7.2 (T10) ═══ -->
+  <nav class="loombar" id="loombar" aria-label="Screens"></nav>
+
+  <!-- ═══ TIME-TRAVEL BANNER (T6) ═══ -->
+  <div class="ttbar" id="ttbar" role="status">
+    <span>◷ viewing seq <b id="ttSeq">—</b> · live is <b id="ttLive">4417</b></span>
+    <span style="opacity:.75">every action except Fork is disabled while viewing the past</span>
+    <button class="chip" id="ttExit" style="margin-left:auto;height:19px">Return to live</button>
+  </div>
+
+  <div class="bodyrow">
+    <div class="warp" id="warp" role="list" aria-label="SDLC phases"></div>
+
+    <div class="main" id="main">
+
+      <!-- ══════ 10.1 COMMAND CENTER ══════ -->
+      <section class="screen on" data-s="command">
+        <div class="cols">
+          <div class="col" style="flex:2.1">
+            <div class="panel" style="flex:1.25;min-height:250px">
+              <h3>The weave
+                <em>EDB-12345 · single story by design (T2) <span class="asof">· as of 14:22</span></em></h3>
+              <div class="cvhost" id="host-hero">
+                <div class="cv"><canvas id="cvHero" aria-hidden="true"></canvas></div>
+                <div class="parallel" id="par-hero"></div>
+              </div>
+              <div class="lg">
+                <span><i style="background:var(--verdigris)"></i>passed</span>
+                <span><i style="background:var(--woad)"></i>weaving</span>
+                <span><i style="background:var(--madder)"></i>unravelled</span>
+                <span><i style="background:var(--cochineal)"></i>steer / training</span>
+                <button class="tg" data-tableview="host-hero" style="margin-left:auto">Table view</button>
+              </div>
+              <p class="sr" id="weaveSummary" aria-live="polite"></p>
+            </div>
+            <div class="cols" style="flex:.85;min-height:190px">
+              <div class="panel" style="flex:1.6">
+                <h3>Passes in flight <em><span class="tension"><i></i><i></i><i></i></span></em></h3>
+                <div class="scroll" id="passList"></div>
+              </div>
+              <div class="col" style="flex:.6;min-width:150px">
+                <div class="tile"><div class="v"><span id="cur">$</span><span id="spend">2.18</span></div>
+                  <div class="l">Spent this story</div><div class="l warn">72% of ceiling</div></div>
+                <div class="tile"><div class="v" id="tokens">218k</div>
+                  <div class="l">Tokens consumed</div><div class="l up">first-pass yield 0.81</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="col side" style="flex:1;max-width:330px">
+            <div class="panel" style="flex:none"><h3>Gates <em>2 open</em></h3><div id="gateStack"></div></div>
+            <!-- E-CC-02 unanswered questions are first-class -->
+            <div class="panel" style="flex:none"><h3>Questions <em id="qN">2 unanswered</em></h3>
+              <div id="qStack"></div></div>
+            <div class="panel" style="flex:1;min-height:150px"><h3>Signal</h3>
+              <div class="scroll" id="signal"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════ 10.25 STORY HUB ══════ -->
+      <section class="screen" data-s="story">
+        <div class="stitle">Story hub</div>
+        <div class="spec">10.25 (S25) · serves M19 M21 M25 M26 · G-07 Gantt</div>
+        <div class="ssub">The screen the product most lacked. Previously the story was a chip in the Crown and its facts were scattered across four screens.</div>
+        <div class="cols">
+          <div class="col" style="flex:1.4">
+            <div class="panel" style="flex:none">
+              <h3>EDB-12345 — Idempotency key on payment submit <em>jira-cloud · tier M</em></h3>
+              <div id="storyMeta"></div>
+            </div>
+            <div class="panel" style="flex:none"><h3>Acceptance criteria <em>2 of 3 covered</em></h3>
+              <div id="acList"></div></div>
+            <div class="panel" style="flex:1;min-height:150px">
+              <h3>Phase timeline <em>SLA: due 10 Sep · predicted 9 Sep · slip risk low</em></h3>
+              <div class="cv" style="min-height:130px"><canvas id="cvGantt"></canvas></div></div>
+          </div>
+          <div class="col" style="flex:.85;max-width:340px">
+            <div class="panel" style="flex:none"><h3>Cost <em>what-if</em></h3>
+              <div class="sl"><label>Ceiling <b id="ceilV">$6.00</b></label>
+                <input type="range" id="ceilR" min="200" max="1200" value="600"></div>
+              <div id="ceilOut" style="font-size:11px;line-height:1.8"></div></div>
+            <div class="panel" style="flex:none"><h3>Worktree <em>M18</em></h3>
+              <div class="prov" style="line-height:1.9">
+                repo &nbsp;payments-service<br>base &nbsp;main<br>branch &nbsp;meridian/EDB-12345<br>
+                path &nbsp;.meridian/worktrees/EDB-12345/<br>commits &nbsp;14 · signed ✓</div></div>
+            <div class="panel" style="flex:none"><h3>Actions</h3>
+              <div class="acts" style="margin-top:0">
+                <button class="btn" data-locked>Dry-run</button>
+                <button class="btn" data-locked>Open worktree</button>
+                <button class="btn" data-locked>Pause</button>
+                <button class="btn dgr" data-hold="Abort story" data-locked>Abort story
+                  <small>hold 400ms</small><span class="hold-fill"></span></button></div>
+              <div class="prov" style="margin-top:9px;line-height:1.5">Abort removes the worktree and branch. Your primary working tree is untouched (FR-M18-04).</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════ 10.3 THE WEAVE ══════ -->
+      <section class="screen" data-s="weave">
+        <div class="stitle">The weave</div>
+        <div class="spec">10.3 · E-WV-01 configurable warp · E-WV-02 steer ticks · E-WV-03 gate bands · E-WV-04 export · E-WV-07 minimap · V-01 texture · A-04 summary</div>
+        <div class="ssub">Every pass across the phases. Rework leaves its scar — the record does not tidy itself.</div>
+        <div class="tgs">
+          <button class="tg on" data-d="22">Comfortable</button>
+          <button class="tg" data-d="14">Compact</button>
+          <button class="tg" data-d="5">Texture</button>
+          <span style="width:10px"></span>
+          <button class="tg on" data-wv="bands">Gate bands</button>
+          <button class="tg on" data-wv="steer">Steer ticks</button>
+          <button class="tg on" data-wv="texture">Weave texture</button>
+          <button class="tg" data-tableview="host-weave">Table view</button>
+          <button class="tg" id="wvExport">Export PNG</button>
+        </div>
+        <div class="panel" style="flex:1;min-height:300px">
+          <div class="cvhost" id="host-weave">
+            <div class="cv"><canvas id="cvWeave" aria-hidden="true"></canvas></div>
+            <div class="parallel" id="par-weave"></div></div></div>
+      </section>
+
+      <!-- ══════ 10.2 LOOM FLOOR ══════ -->
+      <section class="screen" data-s="floor">
+        <div class="stitle">The loom floor</div>
+        <div class="spec">10.2 · E-FL-01 grid from phase set · E-FL-02 gate-glow doorframes · E-FL-06 copy rules · A-03 hit targets · T8 default-on</div>
+        <div class="ssub">Position is state. Sitting in Build means building; standing in the gate room means awaiting your approval.</div>
+        <div class="tgs">
+          <button class="tg on" id="floorMotion">Motion on <span class="prov">(A-05)</span></button>
+          <button class="tg" data-tableview="host-floor">Floor list</button>
+        </div>
+        <div class="panel" style="flex:1;min-height:320px">
+          <div class="cvhost" id="host-floor">
+            <div class="cv" style="min-height:300px"><canvas id="cvFloor" aria-hidden="true"></canvas></div>
+            <div class="parallel" id="par-floor"></div></div></div>
+      </section>
+
+      <!-- ══════ 10.4 AGENTS WATCH ══════ -->
+      <section class="screen" data-s="agents">
+        <div class="stitle">Agents watch</div>
+        <div class="spec">10.4 · E-AW-01 sticky first column · E-AW-02 lifecycle column · E-AW-05 bulk confirm</div>
+        <div class="ssub">The instrument-grade twin of the floor. Same truth, sortable.</div>
+        <div class="panel" style="flex:1;min-height:260px;padding:6px">
+          <div class="tw"><table><thead><tr>
+            <th>Agent</th><th>Identifier</th><th>Lifecycle</th><th>Ph</th><th>State</th><th>Loop</th>
+            <th class="num">Yield</th><th class="num">Calib</th><th class="num">Trust</th>
+            <th>Autonomy</th><th class="num">Tokens</th><th class="num">Spend</th><th class="num">Seq</th>
+          </tr></thead><tbody id="agentTbl"></tbody></table></div></div>
+      </section>
+
+      <!-- ══════ 10.6 GATE ROOM ══════ -->
+      <section class="screen" data-s="gates">
+        <div class="stitle">Gate room</div>
+        <div class="spec">10.6 · T3 high-blast only · E-GR-02 steer · E-GR-03 rework taxonomy · E-GR-04 gate history · E-GR-06 hold paths · G-10 why this gate</div>
+        <div class="ssub">Deliberately the least dense screen. Routine gates go to the Decision stream; this room is for the consequential ones.</div>
+        <div class="scroll" id="gateRoom" style="flex:1"></div>
+      </section>
+
+      <!-- ══════ 10.27 DECISION STREAM ══════ -->
+      <section class="screen" data-s="stream">
+        <div class="stitle">Decision stream</div>
+        <div class="spec">10.27 (S27) · keyboard J/K/A/R/E/S · FR-M20-06 rubber-stamp detector · not a swipe interface (§3)</div>
+        <div class="ssub">For routine gates only. Fast, but Approve stays disabled until the artifact has actually been seen.</div>
+        <div class="panel" style="flex:1;min-height:280px"><div class="scroll" id="streamBox"></div></div>
+      </section>
+
+      <!-- ══════ 10.28 STEER & CLARIFY ══════ -->
+      <section class="screen" data-s="steer">
+        <div class="stitle">Steer &amp; clarify</div>
+        <div class="spec">10.28 (S28) · FR-M25-01 steer · FR-M25-02 question protocol · FR-M25-03 uncertainty escalation</div>
+        <div class="ssub">Approve / rework / escalate / waive is too coarse for real collaboration. These are the finer instruments.</div>
+        <div class="cols">
+          <div class="col" style="flex:1">
+            <div class="panel" style="flex:none"><h3>Steer composer <em>enters the next iteration's context</em></h3>
+              <div class="tgs" style="margin-bottom:9px" id="steerChips"></div>
+              <textarea id="steerTxt" rows="3" placeholder="Guidance for the next iteration…"
+                style="width:100%;background:var(--vat-600);border:none;border-radius:var(--r-thread);
+                color:var(--linen-100);padding:9px;font:13px var(--f-ui);resize:vertical;outline:none"></textarea>
+              <div class="acts" style="margin-top:9px">
+                <select id="steerTarget" style="background:var(--vat-600);color:var(--linen-100);border:none;
+                  border-radius:var(--r-panel);padding:7px 10px;font:12px var(--f-ui)">
+                  <option>this packet — EDB-12345-P03</option><option>this agent — Kenji</option><option>this story</option></select>
+                <button class="btn pri" id="steerSend" data-locked>Send steer</button></div>
+              <div class="prov" style="margin-top:9px" id="steerPreview">Will enter Kenji's context at L1 iteration 3, ahead of retrieved memory. Ledger-recorded.</div></div>
+            <div class="panel" style="flex:1;min-height:120px"><h3>Sent steers</h3><div class="scroll" id="steerLog"></div></div>
+          </div>
+          <div class="col" style="flex:1"><div class="panel" style="flex:1;min-height:200px">
+            <h3>Clarifying questions <em>loop paused until answered</em></h3>
+            <div class="scroll" id="qFull"></div></div></div>
+        </div>
+      </section>
+
+      <!-- ══════ 10.7 LEDGER ══════ -->
+      <section class="screen" data-s="ledger">
+        <div class="stitle">Ledger</div>
+        <div class="spec">10.7 · E-LG-01 query builder · E-LG-06 deep links · V-05 tactile selvage · FR-M10-06 tamper-evident language</div>
+        <div class="ssub">A hash-chained transparency log drawn as the selvage — the finished edge that shows the cloth was not unpicked. Tamper-evident, not tamper-proof.</div>
+        <div class="vbar">✓ Chain verified through 4,417 · signed 14:22:06 · anchored 14:20:00</div>
+        <div class="tgs">
+          <input id="lgQ" placeholder="filter: agent, phase, action…" style="background:var(--vat-600);
+            border:none;border-radius:var(--r-panel);color:var(--linen-100);padding:5px 10px;
+            font:12px var(--f-ui);outline:none;min-width:200px">
+          <button class="tg on" data-lg="all">All</button>
+          <button class="tg" data-lg="rework">Rework</button>
+          <button class="tg" data-lg="meta">Policy</button>
+        </div>
+        <div class="cols" style="flex:1;min-height:240px">
+          <div class="panel" style="flex:none;padding:8px"><div class="selv" id="selv"></div></div>
+          <div class="panel" style="flex:1;padding:5px"><div class="scroll" id="ledgerRows"></div></div>
+        </div>
+      </section>
+
+      <!-- ══════ 10.29 REPLAY & TIME-TRAVEL ══════ -->
+      <section class="screen" data-s="replay">
+        <div class="stitle">Replay &amp; time-travel</div>
+        <div class="spec">10.29 (S30) · T6 global state · FR-M4-07 fork · FR-M27-01..04 cassettes and fault injection</div>
+        <div class="ssub">Drag the playhead. Every other screen re-renders to that moment, and every action except Fork is disabled while you are in the past.</div>
+        <div class="panel" style="flex:none">
+          <h3>Timeline <em>seq 4392 → 4417 · drag to scrub</em></h3>
+          <div class="cv" style="min-height:110px;flex:none;height:110px"><canvas id="cvTime"></canvas></div>
+          <div class="acts" style="margin-top:8px">
+            <button class="btn" id="ttPlay">▶ Play at 20×</button>
+            <button class="btn stx" id="ttFork">Fork from here</button>
+            <button class="btn" id="ttLiveBtn">Return to live</button></div>
+        </div>
+        <div class="cols" style="flex:1;min-height:180px">
+          <div class="panel" style="flex:1"><h3>Cassette <em>developer mode · X-23</em></h3>
+            <div class="scroll" id="cassette"></div></div>
+          <div class="panel" style="flex:.7;max-width:280px"><h3>Fault injection <em>FR-M27-04</em></h3>
+            <div class="acts" style="margin-top:0;flex-direction:column">
+              <button class="btn dgr" style="width:100%">Kill the sidecar</button>
+              <button class="btn dgr" style="width:100%">Time out a model call</button>
+              <button class="btn dgr" style="width:100%">Corrupt entry 4405</button></div>
+            <div class="prov" style="margin-top:10px;line-height:1.6">Each verifies a recovery path: checkpoint resume, backpressure pause, and chain-verification failure.</div></div>
+        </div>
+      </section>
+
+      <!-- ══════ 10.8 CODEMAP ══════ -->
+      <section class="screen" data-s="codemap">
+        <div class="stitle">Code map</div>
+        <div class="spec">10.8 · E-CM-01 CodeMap JSON source (ECO-03) · E-CM-02 reuse-first overlay</div>
+        <div class="ssub">The repository as a graph. The overlays are what make it Meridian's rather than a generic force layout.</div>
+        <div class="tgs">
+          <button class="tg on" data-cm="cluster">Cluster</button>
+          <button class="tg" data-cm="agent">Agent footprint</button>
+          <button class="tg" data-cm="rework">Rework heat</button>
+          <button class="tg" data-cm="blast">Blast radius</button>
+          <button class="tg" data-cm="dupe">Reuse-first</button>
+        </div>
+        <div class="panel" style="flex:1;min-height:300px">
+          <div class="cv" style="min-height:260px"><canvas id="cvMap"></canvas></div>
+          <div class="lg" id="cmLg"></div></div>
+      </section>
+
+      <!-- ══════ 10.9 LOOP GRAPH ══════ -->
+      <section class="screen" data-s="loops">
+        <div class="stitle">Graph of loops</div>
+        <div class="spec">10.9 · E-LP-01 three budget arcs · E-LP-02 escalation edges · P-14 label collision</div>
+        <div class="ssub">Six nested loops in depth. Each declares max iterations, a token budget, a wall clock and an escalation target.</div>
+        <div class="panel" style="flex:1;min-height:300px">
+          <div class="cv" style="min-height:280px"><canvas id="cvLoops"></canvas></div></div>
+      </section>
+
+      <!-- ══════ 10.5 DOJO ══════ -->
+      <section class="screen" data-s="dojo">
+        <div class="stitle">Agents dojo</div>
+        <div class="spec">10.5 · E-DJ-01 six signal sources · E-DJ-03 policy diff · E-DJ-04 thread sliders · E-DJ-05 rollback shelf</div>
+        <div class="ssub">A candidate that improved a metric by weakening a control is shown as a failure — never a near miss.</div>
+        <div class="cols">
+          <div class="panel" style="flex:.55;min-width:180px;max-width:236px">
+            <div class="scroll">
+              <h3 style="margin-bottom:10px">Candidate c-0091</h3>
+              <div class="sl"><label>Convention weight <b>0.78</b></label><input type="range" value="78"></div>
+              <div class="sl"><label>Test-first bias <b>0.41</b></label><input type="range" value="41"></div>
+              <div class="sl"><label>Review strictness <b>0.62</b></label><input type="range" value="62"></div>
+              <h3 style="margin:16px 0 8px">Signal sources <em>FR-M14-01</em></h3>
+              <div id="signalSrc" style="font-size:11px"></div>
+              <h3 style="margin:16px 0 8px">Regression</h3>
+              <div style="font-size:11px;line-height:1.95;color:var(--linen-300)">
+                <div>☑ Suite A — conventions</div><div>☑ Suite B — safety invariants</div>
+                <div>☑ Golden corpus — 20 stories</div><div>☐ Adversarial breaker</div></div>
+              <button class="btn pri" style="width:100%;margin-top:14px" data-locked>▶ Evaluate</button>
+            </div></div>
+          <div class="panel" style="flex:1.5;min-width:0">
+            <h3>Experiment space <em>developer-agent</em></h3>
+            <div class="cv" style="flex:1.5;min-height:150px"><canvas id="cvDojo"></canvas></div>
+            <div class="cv" style="flex:1;min-height:100px;margin-top:6px"><canvas id="cvCurve"></canvas></div></div>
+          <div class="panel" style="flex:.8;min-width:200px;max-width:270px">
+            <h3>Run history</h3><div class="scroll"><div id="dHist"></div><div id="dDet"></div></div></div>
+        </div>
+      </section>
+
+      <!-- ══════ 10.30 MEMORY STUDIO ══════ -->
+      <section class="screen" data-s="memory">
+        <div class="stitle">Memory studio</div>
+        <div class="spec">10.30 (S31) · FR-M7-05 contradictions · FR-M7-07 untrusted · FR-M7-09 layers · FR-M7-11 human-pinned · FR-M7-12 freshness</div>
+        <div class="ssub">The Inspector shows one agent's memory. Nothing previously let a human curate the organisation's.</div>
+        <div class="cols" style="flex:none">
+          <div class="panel" style="flex:1"><h3>Organisation</h3><div id="memOrg"></div></div>
+          <div class="panel" style="flex:1"><h3>Team</h3><div id="memTeam"></div></div>
+          <div class="panel" style="flex:1"><h3>Repository</h3><div id="memRepo"></div></div>
+        </div>
+        <div class="cols" style="flex:1;min-height:170px">
+          <div class="panel" style="flex:1.2"><h3>Contradiction queue <em>FR-M7-05</em></h3>
+            <div class="scroll" id="memConflict"></div></div>
+          <div class="panel" style="flex:1"><h3>Untrusted holding area <em>FR-M7-07 · not promotable without a reason</em></h3>
+            <div class="scroll" id="memUntrusted"></div></div>
+        </div>
+      </section>
+
+      <!-- ══════ 10.37 CALIBRATION & TRUST ══════ -->
+      <section class="screen" data-s="trust">
+        <div class="stitle">Calibration &amp; trust</div>
+        <div class="spec">10.37 (S38) · FR-M13-03 calibration · FR-M13-09 per action class · FR-M12-02 autonomy ladder</div>
+        <div class="ssub">Confidence is never shown alone anywhere in this product. This is where it is held to account.</div>
+        <div class="cols">
+          <div class="panel" style="flex:1;min-height:230px"><h3>Reliability <em>stated confidence vs observed outcome</em></h3>
+            <div class="cv" style="min-height:200px"><canvas id="cvRel"></canvas></div></div>
+          <div class="panel" style="flex:1;min-height:230px"><h3>Autonomy ladder <em>tiers are earned, never granted</em></h3>
+            <div class="cv" style="min-height:200px"><canvas id="cvLadder"></canvas></div></div>
+        </div>
+      </section>
+
+      <!-- ══════ 10.26 PORTFOLIO ══════ -->
+      <section class="screen" data-s="portfolio">
+        <div class="stitle">Portfolio</div>
+        <div class="spec">10.26 (S26) · rows are mini-weaves · FR-M21-03 contention · FR-M21-06 SLA slip</div>
+        <div class="ssub">Every active story as a fabric sample. Dense banding means rework.</div>
+        <div class="panel" style="flex:1;min-height:240px;padding:6px">
+          <div class="scroll" id="portfolio"></div></div>
+        <div class="panel" style="flex:none"><h3>Contention <em>FR-M21-03</em></h3>
+          <div class="prov" style="line-height:1.9">
+            EDB-12347 waiting — model rate limit, provider A · arbitrated by priority<br>
+            EDB-12351 serialised — overlaps PaymentController.java with EDB-12345 (FR-M21-05)</div></div>
+      </section>
+
+      <!-- ══════ 10.39 NOTIFICATION CENTER ══════ -->
+      <section class="screen" data-s="inbox">
+        <div class="stitle">Notification center</div>
+        <div class="spec">10.39 (S40) · T4 pull surface · X-11 notification model · FR-M25-08 out-of-hours</div>
+        <div class="ssub">Toasts stay reserved for gates and breaches. Everything else lives here, actionable inline.</div>
+        <div class="tgs">
+          <button class="tg on" data-nf="all">All</button>
+          <button class="tg" data-nf="gate">Gates</button>
+          <button class="tg" data-nf="question">Questions</button>
+          <button class="tg" data-nf="warn">Warnings</button>
+          <span class="prov" style="margin-left:auto">digest mode · out-of-hours queueing on</span>
+        </div>
+        <div class="panel" style="flex:1;min-height:240px"><div class="scroll" id="inbox"></div></div>
+      </section>
+
+    </div>
+
+    <!-- ═══ INSPECTOR §7.2 ═══ -->
+    <aside class="insp" id="insp" aria-label="Inspector">
+      <div class="insp-h">
+        <div class="tok" id="iTok" style="width:30px;height:30px;font-size:11px">KJ</div>
+        <div style="min-width:0"><div style="font-weight:500" id="iName">Kenji</div>
+          <div class="prov" id="iRole">Developer · Build</div></div>
+        <button class="insp-x" id="iClose" aria-label="Close inspector">✕</button>
+      </div>
+      <div class="insp-t" id="iTabs"></div>
+      <div class="insp-b" id="iBody"></div>
+    </aside>
+  </div>
+
+  <div class="roster" id="roster" aria-label="Agent roster"></div>
+</div>
+
+<div class="backdrop" id="backdrop"></div>
+
+<!-- Popovers -->
+<div class="pop" id="themePop" role="listbox" aria-label="Theme"></div>
+<div class="pop" id="storyPop" role="listbox" aria-label="Story"></div>
+
+<!-- Omnibar X-01 -->
+<div class="omni" id="omni" role="dialog" aria-label="Command palette">
+  <div class="box">
+    <input id="omniIn" placeholder="Search screens, agents, stories — or type a command" autocomplete="off">
+    <div class="res" id="omniRes"></div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   POLICY — T1: the phase set is data, not architecture.
+   Switch PHASE_SETS.active to watch warp, weave and floor re-derive.
+   ══════════════════════════════════════════════════════════════ */
+const PHASE_SETS={
+ nine:[{c:'IN',n:'Intake'},{c:'DE',n:'Design'},{c:'PL',n:'Plan'},{c:'BD',n:'Build'},
+       {c:'VF',n:'Verify'},{c:'SC',n:'Security'},{c:'RV',n:'Review'},{c:'RL',n:'Release'},{c:'OP',n:'Operate'}],
+ six:[{c:'IN',n:'Intake'},{c:'DE',n:'Design'},{c:'BD',n:'Build'},
+      {c:'VF',n:'Verify'},{c:'RV',n:'Review'},{c:'RL',n:'Release'}]
+};
+let PHASES=PHASE_SETS.nine.map(p=>({...p,st:'idle',rows:0}));
+const PH_STATE={IN:['passed',1],DE:['passed',2],PL:['passed',1],BD:['working',9],
+  VF:['rework',5],SC:['idle',0],RV:['idle',0],RL:['idle',0],OP:['idle',0]};
+function applyPhaseState(){PHASES.forEach(p=>{const s=PH_STATE[p.c]||['idle',0];p.st=s[0];p.rows=s[1];});}
+applyPhaseState();
+const PI=c=>Math.max(0,PHASES.findIndex(p=>p.c===c));
+
+const AGENTS=[
+ {id:'chief',nm:'Ada',ini:'AD',role:'Delivery head',ph:'BD',st:'working',hue:'woad',life:'active',loop:'L4',it:'—',yl:.88,cal:.07,tr:94,aut:'approve-per-phase',tok:41200,sp:.62,seq:4417,act:'holding budget · 3 passes out'},
+ {id:'analyst',nm:'Priya',ini:'PR',role:'Analyst',ph:'IN',st:'approved',hue:'verdigris',life:'active',loop:'L3',it:'1/3',yl:.92,cal:.05,tr:96,aut:'autonomous',tok:12400,sp:.18,seq:4102,act:'DoR met · 2 ambiguities escalated'},
+ {id:'architect',nm:'Arun',ini:'AR',role:'Architect',ph:'DE',st:'attention',hue:'weld',life:'active',loop:'L3',it:'2/3',yl:.84,cal:.09,tr:89,aut:'approve-per-phase',tok:28800,sp:.44,seq:4180,act:'design gate open · 6m'},
+ {id:'lead',nm:'Nikhil',ini:'NK',role:'Tech lead',ph:'PL',st:'approved',hue:'verdigris',life:'active',loop:'L3',it:'1/3',yl:.79,cal:.12,tr:83,aut:'approve-per-phase',tok:19600,sp:.29,seq:4211,act:'4 packets contracted · P03 critical'},
+ {id:'dev1',nm:'Kenji',ini:'KJ',role:'Developer',ph:'BD',st:'working',hue:'woad',life:'active',loop:'L1',it:'2/3',yl:.81,cal:.11,tr:86,aut:'approve-per-phase',tok:63400,sp:.94,seq:4416,act:'pinning the idempotency key'},
+ {id:'dev2',nm:'Sofia',ini:'SF',role:'Developer',ph:'BD',st:'working',hue:'woad',life:'active',loop:'L1',it:'1/3',yl:.77,cal:.14,tr:80,aut:'approve-each',tok:38100,sp:.57,seq:4413,act:'IdempotencyStore + TTL sweep'},
+ {id:'fe',nm:'Marco',ini:'MC',role:'Front-end',ph:'BD',st:'idle',hue:'iron',life:'active',loop:'—',it:'—',yl:.74,cal:.16,tr:76,aut:'approve-each',tok:8200,sp:.12,seq:4390,act:'idle · no front-end packet'},
+ {id:'qa',nm:'Lena',ini:'LN',role:'QA engineer',ph:'VF',st:'rework',hue:'madder',life:'active',loop:'L2',it:'4/5',yl:.68,cal:.19,tr:71,aut:'approve-each',tok:29900,sp:.45,seq:4415,act:'duplicate-key test failed twice'},
+ {id:'qalead',nm:'Rhea',ini:'RH',role:'QA lead',ph:'VF',st:'attention',hue:'weld',life:'active',loop:'L3',it:'2/3',yl:.86,cal:.08,tr:91,aut:'approve-per-phase',tok:14300,sp:.21,seq:4414,act:'DoD blocked · 1 criterion open'},
+ {id:'sec',nm:'Marcus',ini:'MR',role:'Security',ph:'SC',st:'idle',hue:'iron',life:'active',loop:'—',it:'—',yl:.90,cal:.06,tr:93,aut:'approve-per-phase',tok:4100,sp:.06,seq:4301,act:'waiting on verify gate'},
+ {id:'rev',nm:'Elena',ini:'EL',role:'Reviewer',ph:'RV',st:'idle',hue:'iron',life:'active',loop:'—',it:'—',yl:.83,cal:.10,tr:87,aut:'approve-per-phase',tok:2200,sp:.03,seq:4290,act:'waiting on security gate'},
+ {id:'doc',nm:'Iris',ini:'IR',role:'Documentation',ph:'RV',st:'idle',hue:'iron',life:'probation',loop:'—',it:'—',yl:.61,cal:.22,tr:58,aut:'suggest',tok:1900,sp:.03,seq:4288,act:'probation 4 of 6 tasks passed'},
+ {id:'trainer',nm:'Wren',ini:'WR',role:'Trainer',ph:'BD',st:'meta',hue:'cochineal',life:'active',loop:'L5',it:'1/1',yl:null,cal:null,tr:88,aut:'suggest',tok:22700,sp:.34,seq:4409,act:'candidate c-0091 evaluating'}];
+
+/* weave rows — {seq,from,to,ag,st, steer?} */
+const ROWS=[];
+[['IN','IN','analyst','passed'],['IN','DE','analyst','passed'],['DE','DE','architect','passed'],
+ ['DE','PL','architect','rework'],['DE','DE','architect','passed'],['PL','PL','lead','passed'],
+ ['PL','BD','lead','passed'],['BD','BD','dev1','passed'],['BD','BD','dev2','passed'],['BD','BD','dev1','rework'],
+ ['BD','BD','dev1','passed'],['BD','VF','dev2','passed'],['VF','VF','qa','passed'],['BD','BD','dev1','passed'],
+ ['VF','VF','qa','rework'],['BD','BD','dev1','passed'],['VF','VF','qa','rework'],['BD','VF','dev2','passed'],
+ ['VF','VF','qa','passed'],['BD','BD','trainer','meta'],['BD','BD','dev1','passed'],['VF','SC','qalead','passed'],
+ ['BD','BD','dev2','working'],['BD','BD','dev1','working'],['VF','VF','qa','working'],['BD','VF','chief','passed']]
+ .forEach((p,i)=>ROWS.push({seq:4392+i,from:p[0],to:p[1],ag:p[2],st:p[3],steer:[10,16].includes(i)}));
+
+/* gate bands: {phase, fromRow, rows} */
+const BANDS=[{ph:'DE',row:5,h:2},{ph:'VF',row:21,h:4}];
+
+const GATES=[
+ {id:'g1',ph:'DE',nm:'Design approved',st:'waiting',age:'6m',high:false,routine:false,who:'architect',conf:.86,cal:.09,
+  crits:[['ADRs recorded for every non-trivial decision',1],['Interface contracts defined',1],
+   ['NFRs allocated',1],['Threat surface delta assessed',1]],
+  hist:'opened once · no prior rework · 2 L2 iterations produced this artifact',
+  policy:'policy/gates/design.md#adr-required — activated by commit a41f9c',
+  rat:'The idempotency store sits behind the repository interface rather than in the controller, so the TTL sweep can move to a scheduled job later without touching the endpoint.',
+  ev:'Removing the retrieved convention record (memory ref 1190) changed the design to an in-memory store. The convention was material.',evOk:1},
+ {id:'g2',ph:'VF',nm:'Definition of done',st:'blocked',age:'2m',high:true,routine:false,who:'qalead',conf:.61,cal:.08,
+  crits:[['Every acceptance criterion has a covering test',0],['Regression across the affected surface',1],
+   ['Coverage delta not negative',1],['Tests fail against the pre-change baseline',1]],
+  hist:'opened 3 times · prior rework: test-quality ×2 · 4 L2 iterations',
+  policy:'policy/gates/dod.md#criterion-coverage — activated by commit 7b2ee1',
+  rat:'Criterion 3 (key expiry after configured TTL) has no covering test. I proposed one but the clock abstraction is not injectable in the current design.',
+  ev:'Ablation has not been run for this decision.',evOk:0},
+ {id:'g3',ph:'BD',nm:'Packet P01 build gate',st:'waiting',age:'1m',high:false,routine:true,who:'dev2',conf:.88,cal:.14,
+  crits:[['Compiles clean',1],['Lint clean',1],['Unit tests authored and passing',1],['No out-of-scope modification',1]],
+  hist:'opened once · no prior rework',policy:'policy/gates/build.md',
+  rat:'Straightforward addition of the store class. No interface changes.',ev:'Ablation not required at this blast radius.',evOk:1},
+ {id:'g4',ph:'BD',nm:'Packet P02 build gate',st:'waiting',age:'3m',high:false,routine:true,who:'dev1',conf:.83,cal:.11,
+  crits:[['Compiles clean',1],['Lint clean',1],['Unit tests authored and passing',1],['No out-of-scope modification',1]],
+  hist:'opened once',policy:'policy/gates/build.md',
+  rat:'Controller wiring only.',ev:'Ablation not required at this blast radius.',evOk:1}];
+
+/* E-GR-03 — the rework reason taxonomy, specified not implied */
+const REWORK_REASONS=['incorrect','incomplete','out-of-scope','style','security','performance','test-quality','other'];
+
+const QUESTIONS=[
+ {id:'q1',ag:'dev1',txt:'The clock abstraction is not injectable. Which do you want?',
+  opts:[['Introduce a Clock interface and inject it',.72,1],['Use a fixed TTL and skip the expiry test',.21,0],
+        ['Defer expiry to a follow-up story',.44,0]]},
+ {id:'q2',ag:'analyst',txt:'"Follow the legacy billing pattern" — which pattern is meant?',
+  opts:[['The retry-with-backoff wrapper',.58,1],['The request-log table approach',.39,0]]}];
+
+const SIGNAL=[['14:22','Kenji','committed a pass to Build','pass'],
+ ['14:21','Rhea','opened the Verify gate — 1 criterion uncovered','gate'],
+ ['14:20','Kenji','asked a clarifying question — loop paused','meta'],
+ ['14:19','Lena','unravelled a pass — duplicate-key test failed','rw'],
+ ['14:18','Wren','proposed candidate c-0091','meta'],
+ ['14:15','Governance','blocked an egress attempt to an unlisted host','rw'],
+ ['14:12','Arun','Design gate awaiting approval','gate']];
+
+const NOTIFS=[
+ ['gate','Verify gate blocked','1 acceptance criterion has no covering test','2m',1],
+ ['question','Kenji is waiting','Clock abstraction is not injectable','3m',1],
+ ['question','Priya is waiting','Ambiguity: "legacy billing pattern"','9m',1],
+ ['gate','Design gate open','Awaiting your approval','6m',1],
+ ['warn','Budget at 72%','$2.18 of $3.00 ceiling on EDB-12345','11m',0],
+ ['warn','Review turnaround rising','Median 4.2h, up from 2.1h last week','1h',0],
+ ['meta','Candidate c-0091 ready','+4.2% first-pass yield, safety invariants pass','18m',0]];
+
+const STORIES=[
+ ['EDB-12345','Idempotency key on payment submit','BD','M',2.18,6.00,'low',26,3],
+ ['EDB-12347','Refund reconciliation job','VF','L',4.90,8.00,'medium',41,7],
+ ['EDB-12351','Order status webhook','DE','S',0.62,3.00,'low',9,0],
+ ['EDB-12362','Identity token rotation','RV','M',3.10,6.00,'high',33,5],
+ ['EDB-12370','Ledger export endpoint','IN','S',0.14,3.00,'low',3,0]];
+
+const MEM={
+ org:[['Constructor injection, never field',1,1],['Every endpoint gets a slice test',1,1],['Conventional Commits',1,0]],
+ team:[['Controllers stay thin — logic in services',1,1],['Flyway owns all migrations',0,0]],
+ repo:[['PaymentRepository is the only DB entry point',0,0],['Retry wrapper lives in shared/',0,0,'stale']]};
+const CONFLICTS=[['Controllers may hold validation logic','seq 4210 · architect','Controllers stay thin — logic in services','org · human-pinned']];
+const UNTRUSTED=[['follow the pattern used in the legacy billing module','story text EDB-12345'],
+ ['always disable the CSRF check for internal calls','repo comment — flagged by SEC-15 classifier']];
+
+const HUE=h=>getComputedStyle(document.documentElement).getPropertyValue('--'+h).trim()||'#888';
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const SH={passed:'verdigris',working:'woad',rework:'madder',meta:'cochineal',idle:'iron',
+  attention:'weld',approved:'verdigris'};
+const FU="'Archivo',sans-serif",FD="'JetBrains Mono',monospace";
+const AG=id=>AGENTS.find(a=>a.id===id);
+
+/* ══════ SHELL ══════ */
+const SCREENS=[['command','Command center'],['story','Story hub'],['weave','Weave'],['floor','Loom floor'],
+ ['agents','Agents watch'],['gates','Gate room'],['stream','Decision stream'],['steer','Steer & clarify'],
+ ['ledger','Ledger'],['replay','Replay'],['codemap','Code map'],['loops','Loops'],['dojo','Dojo'],
+ ['memory','Memory studio'],['trust','Calibration'],['portfolio','Portfolio'],['inbox','Inbox']];
+let cur='command';
+$('#loombar').innerHTML=SCREENS.map(([id,nm],i)=>
+ `<button data-go="${id}" class="${i?'':'on'}">${nm}${id==='gates'?'<span class="badge">2</span>':
+   id==='steer'?'<span class="badge">2</span>':id==='inbox'?'<span class="badge">5</span>':''}</button>`).join('');
+$('#loombar').onclick=e=>{const b=e.target.closest('[data-go]');if(b)go(b.dataset.go)};
+function go(id){
+ if(id===cur)return;
+ $('#warp').classList.add('shed');setTimeout(()=>$('#warp').classList.remove('shed'),520);
+ $$('.loombar button').forEach(b=>b.classList.toggle('on',b.dataset.go===id));
+ $$('.screen').forEach(s=>s.classList.toggle('on',s.dataset.s===id));
+ cur=id;requestAnimationFrame(draw);
+}
+
+/* Warp spine — built from the phase set (T1) */
+function buildWarp(){
+ $('#warp').innerHTML=PHASES.map(p=>`<div class="wt" role="listitem" tabindex="0" data-ph="${p.c}"
+   aria-label="${p.n}: ${p.st}, ${p.rows} rows woven">
+   <div class="c">${p.c}</div><div class="l"></div>
+   <div class="tip"><b>${p.n}</b> <span class="s">· ${p.st}</span><br>
+   <span class="s">${p.rows} row${p.rows===1?'':'s'} woven</span></div></div>`).join('');
+ paintWarp();
+}
+function paintWarp(){
+ $$('#warp .wt').forEach((el,i)=>{
+  const p=PHASES[i];if(!p)return;const h=SH[p.st],L=el.querySelector('.l');
+  L.style.background=p.st==='idle'
+   ?`repeating-linear-gradient(180deg,${HUE(h)} 0 3px,transparent 3px 7px)`
+   :p.st==='rework'?`repeating-linear-gradient(135deg,${HUE('madder')} 0 3px,${HUE('madder-dim')} 3px 6px)`
+   :HUE(h);
+  L.style.opacity=p.st==='idle'?.5:1;});
+}
+/* P-11 — Escape closes a focus-opened tooltip */
+document.addEventListener('keydown',e=>{if(e.key==='Escape')$$('.wt.tipopen').forEach(w=>w.classList.remove('tipopen'))});
+
+/* Theme picker with swatches — P-04 */
+const THEMES=[['vat','Indigo Vat',['#11152A','#4A83C4','#2FA592']],['linen','Sized Linen',['#E7E4DA','#2C5F98','#126C5E']],
+ ['iron','Iron Gall',['#07080F','#63A8F5','#3FD9C0']],['dusk','Madder Dusk',['#1A1013','#7B8FC4','#D95742']],
+ ['dawn','Weld Dawn',['#F0EBDC','#2C5F98','#8E6510']],['ghost','Loom Ghost',['#0B0E1C','#3D5F81','#3B6D65']]];
+let theme='vat';
+$('#themePop').innerHTML=THEMES.map(([id,nm,sw])=>`<button class="it" data-th="${id}">
+  <span class="sw">${sw.map(c=>`<i style="background:${c}"></i>`).join('')}</span>${nm}</button>`).join('')
+ +`<div style="border-top:1px solid var(--vat-500);margin:6px 0"></div>
+   <div class="prov" style="padding:4px 8px">Density</div>
+   ${['comfortable','compact','dense'].map(d=>`<button class="it" data-den="${d}">${d}</button>`).join('')}
+   <div style="border-top:1px solid var(--vat-500);margin:6px 0"></div>
+   <button class="it" data-toggle="devmode">Developer mode — show spec IDs (X-23)</button>
+   <button class="it" data-toggle="twostep">Two-step confirm instead of hold (A-01)</button>
+   <button class="it" data-toggle="stale">Simulate stale sidecar (X-14)</button>
+   <button class="it" data-phaseset>Switch phase set — 9 ⇄ 6 (T1)</button>`;
+function popAt(pop,btn){const r=btn.getBoundingClientRect();
+ pop.style.top=(r.bottom+6)+'px';pop.style.right=(innerWidth-r.right)+'px';pop.style.left='auto';
+ pop.classList.add('on');}
+$('#themeBtn').onclick=e=>{e.stopPropagation();$('#storyPop').classList.remove('on');popAt($('#themePop'),$('#themeBtn'));};
+$('#themePop').onclick=e=>{
+ const t=e.target.closest('[data-th]'),d=e.target.closest('[data-den]'),
+       g=e.target.closest('[data-toggle]'),p=e.target.closest('[data-phaseset]');
+ if(t){theme=t.dataset.th;document.documentElement.dataset.theme=theme;
+   $('#themeName').textContent=THEMES.find(x=>x[0]===theme)[1];}
+ if(d){document.documentElement.dataset.density=d.dataset.den;}
+ if(g){document.body.classList.toggle(g.dataset.toggle);}
+ if(p){PHASES=(PHASES.length===9?PHASE_SETS.six:PHASE_SETS.nine).map(x=>({...x,st:'idle',rows:0}));
+   applyPhaseState();buildWarp();}
+ setTimeout(()=>{paintWarp();renderAll();draw();},60);
+};
+document.addEventListener('click',()=>{$$('.pop.on').forEach(p=>p.classList.remove('on'))});
+$('#themePop').addEventListener('click',e=>e.stopPropagation());
+$('#storyPop').addEventListener('click',e=>e.stopPropagation());
+
+/* Story selector — E-CC-03 */
+$('#storyPop').innerHTML=STORIES.map(s=>`<button class="it" data-story="${s[0]}">
+  <span class="mono" style="width:82px">${s[0]}</span>
+  <span style="flex:1;overflow:hidden;text-overflow:ellipsis">${s[1]}</span>
+  <span class="pill ${s[2]==='BD'?'work':s[2]==='VF'?'rw':'idle'}">${s[2]}</span></button>`).join('');
+$('#storySel').onclick=e=>{e.stopPropagation();$('#themePop').classList.remove('on');popAt($('#storyPop'),$('#storySel'));};
+$('#storyPop').onclick=e=>{const b=e.target.closest('[data-story]');if(!b)return;
+ const s=STORIES.find(x=>x[0]===b.dataset.story);
+ $('#storyId').textContent=s[0];$('#storyTitle').textContent=s[1];$('#storyPop').classList.remove('on');};
+
+/* A-01 / P-03 / X-05 — press-and-hold with mouse, touch, keyboard, and a two-step fallback */
+function bindHold(el,onFire){
+ let t=null,armed=false;
+ const start=ev=>{if(document.body.classList.contains('twostep'))return;
+   if(ev.type==='keydown'&&ev.code!=='Space')return;
+   if(ev.cancelable)ev.preventDefault();
+   if(t)return;el.classList.add('arming');
+   t=setTimeout(()=>{el.classList.remove('arming');t=null;onFire();},400);};
+ const stop=()=>{if(t)clearTimeout(t);t=null;el.classList.remove('arming');};
+ ['mousedown','touchstart','keydown'].forEach(e=>el.addEventListener(e,start,{passive:false}));
+ ['mouseup','mouseleave','touchend','touchcancel','keyup','blur'].forEach(e=>el.addEventListener(e,stop));
+ el.addEventListener('click',()=>{
+   if(!document.body.classList.contains('twostep'))return;
+   if(!armed){armed=true;el.dataset.orig=el.dataset.orig||el.textContent;
+     el.querySelector('span:last-child')&&(el.querySelector('span:last-child').textContent='Confirm?');
+     setTimeout(()=>{armed=false;el.querySelector('span:last-child')&&
+       (el.querySelector('span:last-child').textContent=el.dataset.hold.split(' ')[0]);},3000);
+   } else {armed=false;onFire();}});
+}
+bindHold($('#haltBtn'),()=>{
+ document.body.classList.toggle('halted');
+ const on=document.body.classList.contains('halted');
+ $('#haltBtn').querySelector('span:last-child').textContent=on?'Resume':'Halt';});
+
+/* Inspector — X-04 focus trap, backdrop, Escape */
+let lastFocus=null;
+function openInsp(){
+ if(innerWidth>1020)return;
+ lastFocus=document.activeElement;$('#insp').classList.add('open');$('#backdrop').classList.add('on');
+ $('#iClose').focus();}
+function closeInsp(){$('#insp').classList.remove('open');$('#backdrop').classList.remove('on');
+ lastFocus&&lastFocus.focus();}
+$('#ispBtn').onclick=()=>{$('#insp').classList.contains('open')?closeInsp():openInsp()};
+$('#iClose').onclick=closeInsp;$('#backdrop').onclick=closeInsp;
+document.addEventListener('keydown',e=>{
+ if(e.key==='Escape'){if($('#omni').classList.contains('on'))closeOmni();else if($('#insp').classList.contains('open'))closeInsp();}
+ if(e.key==='Tab'&&$('#insp').classList.contains('open')){
+   const f=[...$('#insp').querySelectorAll('button,[tabindex="0"],input,select,textarea')].filter(x=>x.offsetParent);
+   if(!f.length)return;const first=f[0],last=f[f.length-1];
+   if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+   else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
+});
+
+/* Omnibar — X-01 */
+const OMNI=[...SCREENS.map(([id,nm])=>({t:'screen',k:nm,go:id})),
+ ...AGENTS.map(a=>({t:'agent',k:a.nm+' — '+a.role,id:a.id})),
+ ...STORIES.map(s=>({t:'story',k:s[0]+' '+s[1]})),
+ {t:'command',k:'Halt all',cmd:'halt'},{t:'command',k:'Return to live',cmd:'live'},
+ {t:'command',k:'Toggle developer mode',cmd:'dev'}];
+let omniI=0,omniList=[];
+function openOmni(){$('#omni').classList.add('on');$('#omniIn').value='';omniFilter('');$('#omniIn').focus();}
+function closeOmni(){$('#omni').classList.remove('on');}
+function omniFilter(q){
+ q=q.toLowerCase();
+ omniList=OMNI.filter(o=>o.k.toLowerCase().includes(q)).slice(0,9);omniI=0;
+ $('#omniRes').innerHTML=omniList.map((o,i)=>`<div class="r ${i?'':'cur'}" data-i="${i}">
+   <span class="pill ${o.t==='command'?'meta':o.t==='agent'?'work':'idle'}">${o.t}</span>
+   <span>${o.k}</span><span class="k">↵</span></div>`).join('')||
+   '<div class="r" style="color:var(--linen-500)">No match</div>';
+}
+$('#omniBtn').onclick=openOmni;
+$('#omniIn').oninput=e=>omniFilter(e.target.value);
+$('#omni').onclick=e=>{if(e.target===$('#omni'))closeOmni();
+ const r=e.target.closest('[data-i]');if(r)omniRun(+r.dataset.i);};
+function omniRun(i){const o=omniList[i];if(!o)return;closeOmni();
+ if(o.go)go(o.go);
+ if(o.id){sel=o.id;renderRoster();renderInspector();openInsp();}
+ if(o.cmd==='halt')$('#haltBtn').click();
+ if(o.cmd==='live')exitTT();
+ if(o.cmd==='dev')document.body.classList.toggle('devmode');}
+document.addEventListener('keydown',e=>{
+ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openOmni();return;}
+ if(!$('#omni').classList.contains('on'))return;
+ if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();
+   omniI=Math.max(0,Math.min(omniList.length-1,omniI+(e.key==='ArrowDown'?1:-1)));
+   $$('#omniRes .r').forEach((r,i)=>r.classList.toggle('cur',i===omniI));}
+ if(e.key==='Enter'){e.preventDefault();omniRun(omniI);}
+});
+
+/* Time-travel — T6 */
+let viewSeq=null;
+function enterTT(s){viewSeq=s;document.body.classList.add('timetravel');
+ $('#ttSeq').textContent=s;draw();renderWeaveParallel();}
+function exitTT(){viewSeq=null;document.body.classList.remove('timetravel');draw();renderWeaveParallel();}
+$('#ttExit').onclick=exitTT;$('#ttLiveBtn').onclick=exitTT;
+$('#ttFork').onclick=()=>{alert('Fork created from seq '+(viewSeq||4417)+'.\nLedger-tagged as a replay, never counted as live work (FR-M4-07).');};
+let playing=null;
+$('#ttPlay').onclick=()=>{
+ if(playing){clearInterval(playing);playing=null;$('#ttPlay').textContent='▶ Play at 20×';return;}
+ let s=ROWS[0].seq;enterTT(s);$('#ttPlay').textContent='⏸ Pause';
+ playing=setInterval(()=>{s++;if(s>ROWS[ROWS.length-1].seq){clearInterval(playing);playing=null;
+   $('#ttPlay').textContent='▶ Play at 20×';exitTT();return;}enterTT(s);},220);};
+
+/* ══════ RENDERERS (DOM) ══════ */
+let sel='dev1';
+function renderRoster(){
+ const MAX=10,show=AGENTS.slice(0,MAX),rest=AGENTS.length-MAX;
+ $('#roster').innerHTML=show.map(a=>`<div class="rc ${a.id===sel?'sel':''}" data-ag="${a.id}" tabindex="0">
+  <div class="tok" data-st="${a.st}" data-agtok="${a.id}" style="width:28px;height:28px;font-size:10px;background:${HUE(a.hue)}">${a.ini}</div>
+  <div style="min-width:0"><div class="n">${a.nm}</div><div class="a">${a.act}</div>
+  <div class="m"><i style="width:${Math.min(100,a.tok/700)}%;background:${HUE(a.hue)}"></i></div></div></div>`).join('')
+  +(rest>0?`<button class="chip" style="height:38px">+${rest} more</button>`:'');
+}
+$('#roster').onclick=e=>{const c=e.target.closest('[data-ag]');
+ if(c){sel=c.dataset.ag;renderRoster();renderInspector();renderAgentTbl();openInsp();}};
+/* V-12 signature micro-interaction */
+document.addEventListener('mouseover',e=>{const t=e.target.closest('[data-agtok]');
+ if(t)$$(`[data-agtok="${t.dataset.agtok}"]`).forEach(x=>x.classList.add('lit'));});
+document.addEventListener('mouseout',e=>{const t=e.target.closest('[data-agtok]');
+ if(t)$$('.tok.lit').forEach(x=>x.classList.remove('lit'));});
+
+const TABS=['Trace','Terminal','Diff','Memory','Policy','Messages','History'];let tab='Trace';
+$('#iTabs').innerHTML=TABS.map(t=>`<button data-tab="${t}" class="${t===tab?'on':''}">${t}</button>`).join('');
+$('#iTabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(!b)return;
+ tab=b.dataset.tab;$$('#iTabs button').forEach(x=>x.classList.toggle('on',x.dataset.tab===tab));renderInspector();};
+
+function renderInspector(){
+ const a=AG(sel),T=$('#iTok');
+ T.textContent=a.ini;T.style.background=HUE(a.hue);T.dataset.st=a.st;T.dataset.agtok=a.id;
+ $('#iName').textContent=a.nm;$('#iRole').textContent=a.role+' · '+(PHASES.find(p=>p.c===a.ph)||{n:a.ph}).n;
+ const b=$('#iBody');
+ if(tab==='Trace')b.innerHTML=`<h4>Provenance</h4>
+  <div class="prov" style="line-height:1.85">${a.id}-agent@2.1.0<br>skill java-spring-gradle@2.1.0<br>
+   model claude-x · v2026-08<br>ledger seq ${a.seq}<br>policy v1.4.0</div>
+  <h4>Confidence</h4><div class="conf"><div class="bar"><i style="width:${(a.yl||.78)*100}%"></i>
+   <u style="left:${((a.yl||.78)-(a.cal||.11))*100}%"></u></div>
+   <span>${(a.yl||.78).toFixed(2)}</span><span style="color:var(--weld)">±${(a.cal||.11).toFixed(2)} hist.</span></div>
+  <div style="font-size:10px;color:var(--linen-500);margin-top:5px">Never shown without its calibration context.</div>
+  <h4>Reuse-first (FR-M28-04)</h4>
+  <div class="prov" style="line-height:1.6">searched 3 candidates · closest <b>CacheStore</b><br>
+   rejected: no TTL semantics</div>
+  <h4>Context assembly (FR-M7-13)</h4>
+  <div class="prov">41 entries included · 12 cut · 118k of 120k budget</div>
+  <h4>Rationale</h4><div class="rat"><span class="tag">Agent's own account — not verified</span>
+   Reused the repository interface so the store can be swapped without touching the controller.</div>
+  <h4>Evidence</h4><div class="ev"><span class="tag">Ablation — verified</span>
+   Removing memory ref 1190 changed the output. The retrieved convention was material.</div>
+  <button class="btn" style="margin-top:12px;width:100%" data-locked>Run ablation</button>`;
+ else if(tab==='Terminal')b.innerHTML=`<pre class="mono" style="font-size:11px;line-height:1.75;color:var(--linen-300);white-space:pre-wrap">
+<span style="color:var(--verdigris)">›</span> ./gradlew :payments:test --tests '*Idempotency*'
+> Task :payments:test
+<span style="color:var(--madder)">duplicateKeyReturnsOriginal FAILED
+    expected: 200 but was: 201</span>
+2 tests completed, 1 failed
+<span style="color:var(--woad)">›</span> applying patch — 1 hunk, 14 lines
+<span class="tension"><i></i><i></i><i></i></span></pre>`;
+ else if(tab==='Diff')b.innerHTML=`<div class="prov" style="margin-bottom:7px">PaymentController.java · hunk 1 of 3 · tri-state</div>
+  <pre class="mono" style="font-size:11px;line-height:1.75;white-space:pre-wrap">
+<span style="color:var(--linen-500)">@@ -42,6 +42,11 @@</span>
+<span style="color:var(--verdigris)">+   @RequestHeader("Idempotency-Key") String key,</span>
+<span style="color:var(--verdigris)">+   var prior = store.find(key);</span>
+<span style="color:var(--verdigris)">+   if (prior.isPresent()) return ResponseEntity.ok(prior.get());</span></pre>
+  <div class="acts" style="margin-top:9px"><button class="btn pri" data-locked>Accept</button>
+   <button class="btn dgr" data-locked>Rework</button><button class="btn" data-locked>Edit in place</button></div>
+  <div class="prov" style="margin-top:7px">Edit in place captures your change as a "human corrected" signal (FR-M25-05).</div>`;
+ else if(tab==='Memory')b.innerHTML=`<h4>Procedural</h4>
+  <div style="font-size:12px;line-height:1.85;color:var(--linen-300)">· Controllers stay thin<br>· Constructor injection<br>· Every endpoint gets a slice test</div>
+  <h4>Untrusted — not promoted</h4><div class="rat"><span class="tag">From story text</span>
+   "follow the pattern used in the legacy billing module"</div>
+  <button class="btn" style="margin-top:10px;width:100%" onclick="go('memory')">Open Memory studio</button>`;
+ else if(tab==='Policy')b.innerHTML=`<h4>Current — v1.4.0</h4>
+  <div class="prov">promoted 2 days ago · +4.2% first-pass yield<br>evidence: seq 4180–4390</div>
+  <h4>Lineage</h4><div style="font-size:11px;line-height:2;color:var(--linen-300)">
+   v1.4.0 ← c-0091 · +4.2% · promoted<br>v1.3.0 ← c-0088 · safety fail · rejected<br>v1.3.0 ← c-0084 · +1.1%</div>
+  <button class="btn dgr" style="margin-top:12px;width:100%" data-locked>Roll back to v1.3.0</button>`;
+ else if(tab==='Messages')b.innerHTML=`<div style="font-size:12px;line-height:1.6">
+  <div class="row" style="align-items:flex-start"><div class="tok" data-st="approved" style="width:21px;height:21px;font-size:8px;background:${HUE('verdigris')}">NK</div>
+   <div>Packet P03 is yours. Boundaries are the controller and the store only.</div></div>
+  <div class="row" style="align-items:flex-start;box-shadow:inset 2px 0 0 var(--linen-300)">
+   <div class="tok" style="width:21px;height:21px;font-size:8px;background:${HUE('linen-300')}">YOU</div>
+   <div>Prefer an injectable Clock over a fixed TTL.</div></div></div>
+  <div class="prov" style="margin-top:6px">Your message is recorded in the ledger as a steer (E-IN-04).</div>`;
+ else b.innerHTML=`<h4>Recent ledger entries</h4>`+LEDGER.filter(e=>e.ag.id===a.id).slice(0,10).map(e=>
+  `<div class="row" style="padding:5px 0"><span class="mono" style="color:var(--linen-500);width:36px">${e.seq}</span>
+   <span class="pill ${e.st==='rework'?'rw':'pass'}">${e.act}</span>
+   <span class="prov" style="flex:1">${e.ph}</span><span class="prov">$${e.cost}</span></div>`).join('');
+}
+
+const LEDGER=ROWS.slice().reverse().map((r,i)=>({seq:r.seq,ag:AG(r.ag),ph:(PHASES.find(p=>p.c===r.to)||{n:r.to}).n,
+ st:r.st,act:r.st==='rework'?'rework':r.st==='meta'?'policy':'diff',
+ cost:(((i*37)%210)/1000+.03).toFixed(3),conf:(((i*29)%30)/100+.62).toFixed(2)}));
+
+function renderPasses(){
+ $('#passList').innerHTML=AGENTS.filter(a=>['working','rework','meta'].includes(a.st)).map(a=>{
+  const[i,n]=a.it.split('/').map(Number);
+  return `<div class="row" data-ag="${a.id}" style="cursor:pointer">
+   <div class="tok" data-st="${a.st}" data-agtok="${a.id}" style="width:23px;height:23px;font-size:9px;background:${HUE(a.hue)}">${a.ini}</div>
+   <div style="flex:1;min-width:0"><div style="font-size:12px">${a.nm} <span class="prov">${a.ph}</span></div>
+    <div class="prov" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.act}</div></div>
+   <div class="lb"><i style="transform:scaleX(${(i||1)/(n||3)})"></i>${a.loop} ${a.it}</div>
+   <div class="prov">$${a.sp.toFixed(2)}</div></div>`;}).join('');
+ $('#passList').onclick=e=>{const c=e.target.closest('[data-ag]');
+  if(c){sel=c.dataset.ag;renderRoster();renderInspector();openInsp();}};
+}
+function renderGateStack(){
+ $('#gateStack').innerHTML=GATES.filter(g=>!g.routine).map(g=>`<div class="row" style="cursor:pointer;align-items:flex-start" data-g>
+  <div style="width:7px;height:7px;border-radius:50%;flex:none;margin-top:6px;background:${HUE(g.st==='blocked'?'madder':'weld')}"></div>
+  <div style="flex:1;min-width:0"><div style="font-size:12px">${g.nm}</div>
+   <div class="prov">${g.ph} · ${g.age}</div></div>
+  <span class="pill ${g.st==='blocked'?'rw':'gate'}">${g.st}</span></div>`).join('')
+  +`<div class="prov" style="padding:4px 8px">2 routine gates routed to the Decision stream (T3)</div>`;
+ $$('#gateStack [data-g]').forEach(el=>el.onclick=()=>go('gates'));
+}
+function renderQ(){
+ $('#qN').textContent=QUESTIONS.length+' unanswered';
+ $('#qStack').innerHTML=QUESTIONS.map(q=>{const a=AG(q.ag);
+  return `<div class="row" style="cursor:pointer;align-items:flex-start" data-q>
+   <div class="tok" data-st="working" style="width:21px;height:21px;font-size:8px;background:${HUE(a.hue)}">${a.ini}</div>
+   <div style="flex:1;min-width:0"><div style="font-size:12px">${a.nm} is waiting</div>
+    <div class="prov" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${q.txt}</div></div></div>`;}).join('');
+ $$('#qStack [data-q]').forEach(el=>el.onclick=()=>go('steer'));
+ $('#qFull').innerHTML=QUESTIONS.map(q=>{const a=AG(q.ag);
+  return `<div class="gate" style="margin-bottom:10px;max-width:none;padding:var(--s3)">
+   <div style="display:flex;align-items:center;gap:8px">
+    <div class="tok" data-st="working" style="width:24px;height:24px;font-size:9px;background:${HUE(a.hue)}">${a.ini}</div>
+    <b>${a.nm}</b><span class="prov">loop paused at L1 2/3</span></div>
+   <div style="margin:9px 0 7px">${q.txt}</div>
+   ${q.opts.map(([t,c,rec])=>`<div class="crit" style="gap:10px">
+     <input type="radio" name="${q.id}" ${rec?'checked':''}>
+     <span style="flex:1">${t} ${rec?'<span class="pill meta">agent recommends</span>':''}</span>
+     <span class="prov">conf ${c.toFixed(2)}</span></div>`).join('')}
+   <div class="acts"><button class="btn pri" data-locked>Answer &amp; resume</button>
+    <button class="btn stx" data-locked>Steer instead</button>
+    <button class="btn" data-locked>Take over</button></div></div>`;}).join('');
+}
+function renderSignal(){
+ $('#signal').innerHTML=SIGNAL.map(([t,w,x,k])=>`<div class="row" style="padding:5px 6px;align-items:flex-start">
+  <span class="prov" style="width:32px;flex:none">${t}</span><span class="pill ${k}">${k}</span>
+  <span style="font-size:11px;line-height:1.4"><b style="font-weight:500">${w}</b> ${x}</span></div>`).join('');
+}
+function gateCard(g,compact){
+ const a=AG(g.who);
+ return `<div class="gate ${g.high?'high':''}" ${compact?'style="max-width:none"':''}>
+  ${g.high?'<div class="prov" style="color:var(--madder);margin-bottom:6px">HIGH BLAST RADIUS · ablation evidence required · hold to approve</div>':''}
+  <h3>${g.nm}</h3><div class="prov" style="margin-bottom:12px">${g.ph} phase · raised by ${a.nm} · open ${g.age}</div>
+  ${g.crits.map(([c,ok])=>`<div class="crit"><span class="d" style="background:${HUE(ok?'verdigris':'madder')}"></span>
+    <span style="${ok?'':'color:var(--madder)'}">${c}</span></div>`).join('')}
+  <div style="margin-top:12px"><div class="conf"><span style="color:var(--linen-500)">confidence</span>
+   <div class="bar"><i style="width:${g.conf*100}%"></i><u style="left:${(g.conf-g.cal)*100}%"></u></div>
+   <span>${g.conf.toFixed(2)}</span><span style="color:var(--weld)">±${g.cal.toFixed(2)} hist.</span></div></div>
+  <div class="rat" style="margin-top:10px"><span class="tag">Agent's own account — not verified</span>${g.rat}</div>
+  <div class="ev" style="margin-top:8px;border-left-color:${g.evOk?'var(--verdigris)':'var(--madder)'}">
+   <span class="tag" style="color:${g.evOk?'var(--verdigris)':'var(--madder)'}">${g.evOk?'Ablation — verified':'Evidence — missing'}</span>${g.ev}</div>
+  <div class="prov" style="margin-top:9px">Gate history — ${g.hist}</div>
+  <div class="prov">Why this gate — ${g.policy}</div>
+  <div class="acts">
+   ${g.high?`<button class="btn pri" data-hold="Approve" ${g.crits.some(c=>!c[1])?'disabled':''} data-locked>Approve<small>hold 400ms</small><span class="hold-fill"></span></button>`
+     :`<button class="btn pri" ${g.crits.some(c=>!c[1])?'disabled':''} data-locked>Approve</button>`}
+   <button class="btn dgr" data-rework="${g.id}" data-locked>Send back for rework</button>
+   <button class="btn stx" data-locked>Steer</button>
+   <button class="btn" data-locked>Escalate</button>
+   <button class="btn" data-locked>Waive a criterion</button></div>
+  <div id="rw-${g.id}" style="display:none;margin-top:10px">
+   <div class="prov" style="margin-bottom:6px">Reason — becomes training signal for ${a.nm} (E-GR-03)</div>
+   <div class="tgs">${REWORK_REASONS.map(r=>`<button class="tg" data-rr>${r}</button>`).join('')}</div></div>
+ </div>`;
+}
+function renderGateRoom(){
+ $('#gateRoom').innerHTML=GATES.filter(g=>!g.routine).map(g=>gateCard(g)).join('');
+ wireGates($('#gateRoom'));
+}
+function wireGates(root){
+ root.querySelectorAll('[data-hold]').forEach(b=>bindHold(b,()=>{b.textContent='Approved ✓';b.disabled=true;}));
+ root.querySelectorAll('[data-rework]').forEach(b=>b.onclick=()=>{
+   const box=root.querySelector('#rw-'+b.dataset.rework);if(box)box.style.display=box.style.display==='none'?'block':'none';});
+ root.querySelectorAll('[data-rr]').forEach(b=>b.onclick=()=>{
+   b.closest('.tgs').querySelectorAll('[data-rr]').forEach(x=>x.classList.remove('on'));b.classList.add('on');});
+}
+/* 10.27 Decision stream — keyboard-driven, rubber-stamp aware */
+let streamI=0,seen=false,seenT=0;
+function renderStream(){
+ const routine=GATES.filter(g=>g.routine);
+ const g=routine[streamI%routine.length];
+ $('#streamBox').innerHTML=`
+  <div class="tgs" style="margin-bottom:10px">
+   <span class="prov">gate ${streamI%routine.length+1} of ${routine.length} · routine only (T3)</span>
+   <span class="prov" style="margin-left:auto">J / K move · A approve · R rework · S steer · ? evidence</span></div>
+  ${gateCard(g,true)}
+  <div class="panel" style="margin-top:10px"><h3>Approval hygiene <em>FR-M20-06</em></h3>
+   <div style="font-size:12px;line-height:1.9">
+    Your median time on artifact <b class="mono">94s</b> · organisation median <b class="mono">61s</b><br>
+    Expansion rate <b class="mono">81%</b> — you open the diff before deciding<br>
+    <span class="prov">Approve stays disabled until the artifact has been scrolled into view. This is not a swipe interface (§3).</span></div></div>`;
+ wireGates($('#streamBox'));
+ const ap=$('#streamBox').querySelector('.btn.pri');
+ if(ap){ap.disabled=true;ap.innerHTML='Approve <small>scroll the artifact first</small>';}
+ seen=false;seenT=Date.now();
+ $('#streamBox').onscroll=()=>{
+  if(!seen&&$('#streamBox').scrollTop>40&&Date.now()-seenT>800){seen=true;
+    if(ap){ap.disabled=false;ap.innerHTML='Approve';}}};
+}
+document.addEventListener('keydown',e=>{
+ if(cur!=='stream'||$('#omni').classList.contains('on'))return;
+ if(e.key==='j'||e.key==='J'){streamI++;renderStream();}
+ if(e.key==='k'||e.key==='K'){streamI=Math.max(0,streamI-1);renderStream();}
+});
+
+function renderAgentTbl(){
+ $('#agentTbl').innerHTML=AGENTS.map(a=>`<tr data-ag="${a.id}" class="${a.id===sel?'sel':''}">
+  <td><div style="display:flex;align-items:center;gap:7px"><div class="tok" data-st="${a.st}" data-agtok="${a.id}"
+    style="width:21px;height:21px;font-size:8px;background:${HUE(a.hue)}">${a.ini}</div>${a.nm}</div></td>
+  <td class="mono" style="color:var(--linen-500)">${a.id}-agent@2.1.0</td>
+  <td><span class="pill ${a.life==='probation'?'meta':'idle'}">${a.life}</span></td>
+  <td>${a.ph}</td>
+  <td><span class="pill ${a.st==='working'?'work':a.st==='rework'?'rw':a.st==='approved'?'pass':a.st==='attention'?'gate':a.st==='meta'?'meta':'idle'}">${a.st}</span></td>
+  <td class="mono">${a.loop} ${a.it}</td><td class="num">${a.yl?a.yl.toFixed(2):'—'}</td>
+  <td class="num" style="color:${a.cal&&a.cal>.15?HUE('weld'):'inherit'}">${a.cal?a.cal.toFixed(2):'—'}</td>
+  <td class="num">${a.tr}</td><td class="mono" style="font-size:10px;color:var(--linen-500)">${a.aut}</td>
+  <td class="num">${(a.tok/1000).toFixed(1)}k</td><td class="num">$${a.sp.toFixed(2)}</td>
+  <td class="num" style="color:var(--linen-500)">${a.seq}</td></tr>`).join('');
+ $$('#agentTbl tr').forEach(r=>r.onclick=()=>{sel=r.dataset.ag;renderRoster();renderInspector();renderAgentTbl();});
+}
+let lgFilter='all';
+function renderLedger(){
+ const q=($('#lgQ')?.value||'').toLowerCase();
+ const list=LEDGER.filter(e=>(lgFilter==='all'||(lgFilter==='rework'&&e.st==='rework')||(lgFilter==='meta'&&e.st==='meta'))
+  &&(!q||(e.ag.nm+e.ph+e.act+e.seq).toLowerCase().includes(q)));
+ $('#selv').innerHTML=LEDGER.map(e=>`<div class="st" style="background:${HUE(SH[e.st]||'woad')}" title="seq ${e.seq}"></div>`).join('');
+ $('#ledgerRows').innerHTML=list.map(e=>`<div class="row">
+  <span class="mono" style="color:var(--linen-500);width:38px;flex:none">${e.seq}</span>
+  <div class="tok" data-st="${e.st}" data-agtok="${e.ag.id}" style="width:21px;height:21px;font-size:8px;background:${HUE(e.ag.hue)}">${e.ag.ini}</div>
+  <span style="width:78px;flex:none;font-size:12px">${e.ag.nm}</span>
+  <span class="pill ${e.st==='rework'?'rw':e.st==='meta'?'meta':'pass'}">${e.act}</span>
+  <span class="prov" style="flex:1;min-width:0">${e.ph}</span>
+  <span class="prov">conf ${e.conf}</span><span class="prov">$${e.cost}</span>
+  <span class="prov mono" style="color:var(--woad)">meridian://ledger/${e.seq}</span>
+  <span class="prov" style="color:var(--verdigris)">◧</span></div>`).join('')
+  ||'<div class="empty"><b>No entries match</b>Widen the filter, or clear the search.</div>';
+}
+function renderDojo(){
+ $('#signalSrc').innerHTML=[['gate decisions',41],['CI failures',9],['review comments',17],
+  ['human edits',6],['post-merge fixes',2],['incidents',1]].map(([k,v])=>
+  `<div style="display:flex;justify-content:space-between;line-height:1.9">
+   <span style="color:var(--linen-500)">${k}</span><b class="mono">${v}</b></div>`).join('');
+ const runs=[['c-0091','+4.2%','ok'],['c-0090','−1.1%','no'],['c-0089','+0.3%','no'],
+  ['c-0088','safety fail','fail'],['c-0087','+2.8%','ok']];
+ $('#dHist').innerHTML=runs.map((r,i)=>`<div class="hs ${i?'':'sel'}">
+  <span class="mono" style="flex:1">${r[0]}</span>
+  <span class="mono" style="color:${r[2]==='ok'?HUE('verdigris'):r[2]==='fail'?HUE('madder'):HUE('linen-500')}">${r[1]}</span>
+  ${r[2]==='fail'?'<span class="pill rw">invariant</span>':''}</div>`).join('');
+ $('#dDet').innerHTML=`<h3 style="margin:16px 0 8px">Policy diff <em>E-DJ-03</em></h3>
+  <pre class="mono" style="font-size:10px;line-height:1.7;white-space:pre-wrap;background:var(--vat-600);
+    padding:8px;border-radius:var(--r-thread)">
+<span style="color:var(--madder)">− Prefer the simplest implementation.</span>
+<span style="color:var(--verdigris)">+ Prefer the simplest implementation that</span>
+<span style="color:var(--verdigris)">+ preserves the repository boundary.</span></pre>
+  <div class="prov" style="margin-top:6px">motivated by seq 4210, 4288, 4301</div>
+  <div style="font-size:11px;line-height:2;margin-top:10px">
+   ${[['incumbent','0.812',''],['candidate','0.854',''],['delta','+4.2%',HUE('verdigris')],
+      ['safety invariants','PASS',HUE('verdigris')],['rollouts','678','']]
+    .map(([k,v,c])=>`<div style="display:flex;justify-content:space-between"><span style="color:var(--linen-500)">${k}</span><b class="mono" style="color:${c||'inherit'}">${v}</b></div>`).join('')}</div>
+  <button class="btn pri" style="width:100%;margin-top:10px" data-locked>Promote to v1.5.0</button>
+  <div class="prov" style="margin-top:8px;line-height:1.5">Requires the agent name typed to confirm. v1.4.0 stays on the rollback shelf across sessions (E-DJ-05).</div>`;
+}
+function memList(rows){return rows.map(([t,pinned,human,stale])=>`<div class="row" style="align-items:flex-start;
+  ${human?'box-shadow:inset 2px 0 0 var(--linen-300)':''}">
+  <span style="flex:1;font-size:12px;${stale?'opacity:.5':''}">${t}</span>
+  ${human?'<span class="pill idle">human-pinned</span>':''}
+  ${stale?'<span class="pill gate">stale</span>':''}</div>`).join('');}
+function renderMemory(){
+ $('#memOrg').innerHTML=memList(MEM.org);$('#memTeam').innerHTML=memList(MEM.team);$('#memRepo').innerHTML=memList(MEM.repo);
+ $('#memConflict').innerHTML=CONFLICTS.map(([l,ls,r,rs])=>`<div class="gate" style="max-width:none;padding:var(--s3);margin-bottom:8px">
+  <div class="cols" style="gap:10px"><div class="col" style="flex:1">
+   <div class="rat"><span class="tag">${ls}</span>${l}</div></div>
+   <div class="col" style="flex:1"><div class="ev"><span class="tag">${rs}</span>${r}</div></div></div>
+  <div class="acts"><button class="btn" data-locked>Keep left</button><button class="btn pri" data-locked>Keep right</button>
+   <button class="btn" data-locked>Merge</button><button class="btn stx" data-locked>Ask agent</button></div></div>`).join('');
+ $('#memUntrusted').innerHTML=UNTRUSTED.map(([t,s])=>`<div class="rat" style="margin-bottom:8px">
+  <span class="tag">${s}</span>${t}
+  <div class="acts" style="margin-top:8px"><button class="btn" data-locked>Promote with a reason</button>
+   <button class="btn dgr" data-locked>Discard</button></div></div>`).join('');
+}
+function renderStory(){
+ $('#storyMeta').innerHTML=`<div style="font-size:12px;line-height:2">
+  ${[['source','jira-cloud · EDB-12345'],['complexity tier','M'],['autonomy profile','standard'],
+     ['phase','Build · row 14'],['agents','6 assigned'],['PR','#4821 — open, CI running']]
+   .map(([k,v])=>`<div style="display:flex;gap:10px"><span style="color:var(--linen-500);width:130px">${k}</span><b class="mono" style="font-weight:500">${v}</b></div>`).join('')}</div>`;
+ $('#acList').innerHTML=[['Duplicate submission with identical key returns the original result',1],
+  ['Distinct keys create distinct payments',1],['Key expiry after configured TTL',0]]
+  .map(([t,ok])=>`<div class="crit"><span class="d" style="background:${HUE(ok?'verdigris':'madder')}"></span>
+   <span style="${ok?'':'color:var(--madder)'}">${t}</span>
+   <span class="prov" style="margin-left:auto">${ok?'covered':'no covering test'}</span></div>`).join('');
+ updateCeil();
+}
+function updateCeil(){
+ const v=(+$('#ceilR').value)/100;$('#ceilV').textContent='$'+v.toFixed(2);
+ const cut=v<3?'P04 documentation, P03 TTL sweep':v<4.5?'P04 documentation':'nothing';
+ $('#ceilOut').innerHTML=`<div style="display:flex;justify-content:space-between"><span style="color:var(--linen-500)">estimate at ingest</span><b class="mono">$3.10 (2.10–5.40)</b></div>
+  <div style="display:flex;justify-content:space-between"><span style="color:var(--linen-500)">actual to date</span><b class="mono">$2.18</b></div>
+  <div style="display:flex;justify-content:space-between"><span style="color:var(--linen-500)">would be cut</span><b class="mono" style="color:${cut==='nothing'?HUE('verdigris'):HUE('weld')}">${cut}</b></div>`;
+}
+$('#ceilR').oninput=updateCeil;
+function renderPortfolio(){
+ $('#portfolio').innerHTML=STORIES.map((s,i)=>`<div class="row" style="align-items:center;cursor:pointer">
+  <span class="mono" style="width:84px;flex:none">${s[0]}</span>
+  <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s[1]}</span>
+  <canvas class="mini" data-mini="${i}" width="180" height="26" style="width:180px;height:26px;flex:none"></canvas>
+  <span class="pill ${s[2]==='BD'?'work':s[2]==='VF'?'rw':'idle'}">${s[2]}</span>
+  <span class="prov" style="width:56px;text-align:right">$${s[4].toFixed(2)}</span>
+  <span class="pill ${s[6]==='high'?'rw':s[6]==='medium'?'gate':'pass'}">${s[6]}</span></div>`).join('');
+ requestAnimationFrame(drawMinis);
+}
+function drawMinis(){
+ $$('canvas[data-mini]').forEach(c=>{
+  const s=STORIES[+c.dataset.mini],x=c.getContext('2d'),d=Math.min(2,devicePixelRatio||1);
+  c.width=180*d;c.height=26*d;x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,180,26);
+  const rows=s[7],rw=s[8];
+  for(let i=0;i<rows;i++){
+   const y=(i%8)*3+1,xx=Math.floor(i/8)*62+2;
+   const isRw=i%Math.max(2,Math.floor(rows/Math.max(1,rw)))===0&&rw>0;
+   x.fillStyle=isRw?HUE('madder'):HUE('verdigris');x.globalAlpha=isRw?.9:.55;
+   x.fillRect(xx,y,58,2);}
+  x.globalAlpha=1;});
+}
+let nfFilter='all';
+function renderInbox(){
+ const list=NOTIFS.filter(n=>nfFilter==='all'||n[0]===nfFilter);
+ $('#inbox').innerHTML=list.map(([k,t,d,age,act])=>`<div class="row" style="align-items:flex-start;padding:10px 8px">
+  <span class="pill ${k==='gate'?'gate':k==='question'?'work':k==='warn'?'rw':'meta'}">${k}</span>
+  <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">${t}</div>
+   <div class="prov">${d}</div></div>
+  <span class="prov">${age}</span>
+  ${act?'<button class="btn" style="padding:4px 10px" data-locked>Act</button>':''}
+  <button class="chip" style="padding:2px 7px">Snooze</button></div>`).join('');
+ $('#bellN').textContent=NOTIFS.filter(n=>n[4]).length;
+}
+function renderSteer(){
+ $('#steerChips').innerHTML=['prefer','avoid','constraint','example'].map(c=>`<button class="tg" data-sc>${c}</button>`).join('');
+ $$('#steerChips [data-sc]').forEach(b=>b.onclick=()=>b.classList.toggle('on'));
+ $('#steerLog').innerHTML=[['14:20','Kenji','prefer','an injectable Clock over a fixed TTL'],
+  ['13:58','Sofia','constraint','do not touch PaymentRepository']].map(([t,a,c,x])=>
+  `<div class="row"><span class="prov" style="width:34px">${t}</span>
+   <span class="pill meta">${c}</span><span style="font-size:12px;flex:1">${x}</span>
+   <span class="prov">→ ${a}</span></div>`).join('');
+}
+$('#steerSend').onclick=()=>{const v=$('#steerTxt').value.trim();if(!v)return;
+ $('#steerTxt').value='';alert('Steer sent. It enters the next iteration\'s context and is recorded in the ledger (FR-M25-01).');};
+function renderCassette(){
+ $('#cassette').innerHTML=ROWS.slice(-12).map((r,i)=>`<div class="row" style="padding:4px 8px">
+  <span class="mono" style="width:38px;color:var(--linen-500)">${r.seq}</span>
+  <span class="pill ${i%4===0?'idle':'pass'}">${i%4===0?'miss':'hit'}</span>
+  <span class="prov" style="flex:1">model call · ${AG(r.ag).nm}</span>
+  <span class="prov">${(2100+i*137)} tok</span><span class="prov">${(900+i*40)}ms</span></div>`).join('');
+}
+
+/* ══════ CANVAS ══════ */
+function fit(id){
+ const c=document.getElementById(id);if(!c)return null;
+ const r=c.getBoundingClientRect();if(r.width<4||r.height<4)return null;
+ const d=Math.min(2,devicePixelRatio||1),w=Math.round(r.width*d),h=Math.round(r.height*d);
+ if(c.width!==w||c.height!==h){c.width=w;c.height=h;}
+ const x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,r.width,r.height);
+ return{x,W:r.width,H:r.height,c};
+}
+let t=0,dens=22,cmMode='cluster',floorMotion=true;
+const WV={bands:true,steer:true,texture:true};
+
+function visibleRows(){return viewSeq?ROWS.filter(r=>r.seq<=viewSeq):ROWS;}
+
+function weave(id,rowH,live){
+ const f=fit(id);if(!f)return;const{x,W,H}=f;
+ const pl=22,pr=30,pt=rowH>=12?16:8;
+ const N=PHASES.length,cw=(W-pl-pr)/Math.max(1,N-1),px=i=>pl+i*cw;
+ const all=visibleRows(),max=Math.max(1,Math.floor((H-pt-6)/rowH)),rows=all.slice(-max);
+
+ /* gate bands — E-WV-03 */
+ if(WV.bands)BANDS.forEach(b=>{
+  const idx=rows.findIndex(r=>r.seq===ROWS[b.row]?.seq);if(idx<0)return;
+  x.fillStyle=HUE('weld');x.globalAlpha=.10;
+  x.fillRect(pl-10,pt+idx*rowH,W-pl-pr+20,rowH*b.h);x.globalAlpha=1;
+  x.fillStyle=HUE('weld');x.font='8px '+FD;x.textAlign='left';x.textBaseline='top';
+  if(rowH>=12)x.fillText('gate open '+(b.h*4)+'m',pl,pt+idx*rowH+2);});
+
+ /* warp */
+ PHASES.forEach((p,i)=>{
+  x.strokeStyle=HUE('vat-500');x.lineWidth=1;
+  if(p.st==='idle'){x.setLineDash([2,5]);x.globalAlpha=.5;}else{x.setLineDash([]);x.globalAlpha=1;}
+  x.beginPath();x.moveTo(px(i),pt-5);x.lineTo(px(i),H-3);x.stroke();
+  x.globalAlpha=1;x.setLineDash([]);
+  if(rowH>=12){x.fillStyle=HUE('linen-500');x.font='9px '+FD;x.textAlign='center';x.textBaseline='alphabetic';
+   x.fillText(p.c,px(i),10);}});
+
+ /* weft */
+ rows.forEach((r,i)=>{
+  const y=pt+i*rowH+rowH/2,a=AG(r.ag),h=HUE(SH[r.st]||'woad');
+  const fi=PI(r.from),ti=PI(r.to);
+  const x0=px(fi),x1=px(ti)+(fi===ti?cw*.6:0);
+  x.lineWidth=Math.max(1.4,rowH*.32);x.strokeStyle=h;
+  if(r.st==='rework'){x.setLineDash([4,3]);x.globalAlpha=.85;}
+  else if(r.st==='meta'){x.setLineDash([2,3]);}
+  else if(r.st==='working'){x.globalAlpha=.5+Math.sin(t/14+i)*.35;}
+  x.beginPath();x.moveTo(x0,y);x.lineTo(x1,y);x.stroke();x.setLineDash([]);x.globalAlpha=1;
+
+  /* V-01 — over-under texture: warp passes over the weft on alternating columns */
+  if(WV.texture&&rowH>=6&&r.st!=='working'){
+   x.strokeStyle=HUE('vat-500');x.lineWidth=1.6;x.globalAlpha=.85;
+   for(let ci=fi;ci<=ti;ci++){ if((i+ci)%2)continue;
+     x.beginPath();x.moveTo(px(ci),y-rowH*.22);x.lineTo(px(ci),y+rowH*.22);x.stroke();}
+   x.globalAlpha=1;}
+
+  if(r.st==='rework'){x.strokeStyle=HUE('madder');x.lineWidth=1;x.globalAlpha=.55;
+   x.beginPath();x.moveTo(x1,y-rowH*.3);x.lineTo(x1+6,y+rowH*.3);x.stroke();x.globalAlpha=1;}
+  /* E-WV-02 steer tick */
+  if(WV.steer&&r.steer&&rowH>=8){x.strokeStyle=HUE('cochineal');x.lineWidth=2;x.setLineDash([1,2]);
+   x.beginPath();x.moveTo(x0-8,y-rowH*.35);x.lineTo(x0-8,y+rowH*.35);x.stroke();x.setLineDash([]);}
+  if(rowH>=10&&a){x.fillStyle=HUE(a.hue);x.beginPath();x.arc(x0,y,Math.min(4.5,rowH*.24),0,7);x.fill();}
+  /* V-05 tactile selvage */
+  const sx=W-pr+8,sh=Math.max(2,rowH*.52);
+  x.fillStyle=r.st==='working'?HUE('vat-400'):HUE('verdigris');
+  x.fillRect(sx,y-rowH*.26,4,sh);
+  x.fillStyle='rgba(255,255,255,.35)';x.fillRect(sx,y-rowH*.26,4,1);
+  x.fillStyle='rgba(0,0,0,.35)';x.fillRect(sx,y-rowH*.26+sh-1,4,1);
+ });
+
+ /* live shuttles */
+ if(live&&!viewSeq){AGENTS.filter(a=>a.st==='working').forEach((a,k)=>{
+  const idx=rows.length-1-k;if(idx<0)return;
+  const y=pt+idx*rowH+rowH/2,pr2=((t/40+k*.33)%1),ai=PI(a.ph),sx=px(ai)+pr2*cw*.6;
+  x.globalAlpha=.3;x.strokeStyle=HUE(a.hue);x.lineWidth=2;
+  x.beginPath();x.moveTo(px(ai),y);x.lineTo(sx,y);x.stroke();x.globalAlpha=1;
+  x.fillStyle=HUE(a.hue);x.beginPath();x.arc(sx,y,4.2,0,7);x.fill();
+  x.fillStyle=HUE('vat-900');x.font='700 7px '+FU;x.textAlign='center';x.textBaseline='middle';
+  x.fillText(a.ini,sx,y);});}
+
+ /* E-WV-07 minimap at texture density */
+ if(rowH<=6){
+  const mw=8,mx=W-pr-18,total=ROWS.length;
+  x.fillStyle=HUE('vat-600');x.fillRect(mx,pt,mw,H-pt-6);
+  ROWS.forEach((r,i)=>{x.fillStyle=HUE(SH[r.st]||'woad');x.globalAlpha=.7;
+   x.fillRect(mx,pt+(i/total)*(H-pt-6),mw,Math.max(1,(H-pt-6)/total));});
+  x.globalAlpha=1;x.strokeStyle=HUE('linen-100');x.lineWidth=1;
+  const vy=pt+((total-rows.length)/total)*(H-pt-6);
+  x.strokeRect(mx-1,vy,mw+2,(rows.length/total)*(H-pt-6));}
+}
+/* A-04 + P-06 */
+function renderWeaveParallel(){
+ const rows=visibleRows(),rw=rows.filter(r=>r.st==='rework').length;
+ $('#weaveSummary').textContent=`Story at row ${rows.length} of ${ROWS.length}. `+
+  PHASES.filter(p=>p.rows).map(p=>`${p.n} ${p.st}`).join(', ')+`. ${rw} unravelled passes.`;
+ const html='<table><thead><tr><th>Seq</th><th>Agent</th><th>From</th><th>To</th><th>State</th></tr></thead><tbody>'+
+  rows.slice().reverse().map(r=>`<tr><td class="mono">${r.seq}</td><td>${AG(r.ag).nm}</td>
+   <td>${r.from}</td><td>${r.to}</td><td><span class="pill ${r.st==='rework'?'rw':r.st==='meta'?'meta':'pass'}">${r.st}</span></td></tr>`).join('')
+  +'</tbody></table>';
+ ['#par-hero','#par-weave'].forEach(s=>{const el=$(s);if(el)el.innerHTML=html;});
+}
+
+/* Floor — grid computed from the phase set (E-FL-01) */
+const EDGE=[{n:'GATE ROOM',gate:true},{n:'LEDGER'},{n:'DOJO'}];
+function floorCells(){return PHASES.map(p=>({n:p.n.toUpperCase(),ph:p.c})).concat(EDGE);}
+const SPK={dev1:'pinning the key to the store',qa:'that test failed again',
+ qalead:'DoD blocked — one criterion open',trainer:'c-0091 beats incumbent'};
+function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);
+ x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath();}
+function floor(){
+ const f=fit('cvFloor');if(!f)return;const{x,W,H}=f;
+ const cells=floorCells(),N=cells.length;
+ let cols=Math.ceil(Math.sqrt(N));if(W<560)cols=Math.min(cols,2);
+ const rowsN=Math.ceil(N/cols),g=6;
+ const rw=(W-g*(cols+1))/cols,rh=(H-g*(rowsN+1))/rowsN;
+ const roomOf={};PHASES.forEach((p,i)=>roomOf[p.c]=i);
+ const gateIdx=N-3;
+ cells.forEach((cell,ri)=>{
+  const cx=ri%cols,cy=Math.floor(ri/cols);
+  const X=g+cx*(rw+g),Y=g+cy*(rh+g);
+  x.fillStyle=ri>=N-3?HUE('vat-600'):HUE('vat-700');x.fillRect(X,Y,rw,rh);
+  /* E-FL-02 gate-glow doorframe, brightness decays with wait */
+  if(cell.gate){const decay=.55-Math.min(.4,(t%1800)/4500);
+   x.strokeStyle=HUE('weld');x.globalAlpha=Math.max(.15,decay);x.lineWidth=2.5;
+   x.strokeRect(X+1,Y+1,rw-2,rh-2);x.globalAlpha=1;}
+  x.strokeStyle=HUE('vat-500');x.lineWidth=1;x.globalAlpha=.45;
+  for(let k=0;k<4;k++){x.beginPath();x.moveTo(X+2+k*2,Y);x.lineTo(X+2+k*2,Y+rh);x.stroke();}
+  x.globalAlpha=1;
+  x.fillStyle=HUE('linen-500');x.font='8px '+FD;x.textAlign='left';x.textBaseline='alphabetic';
+  x.fillText(cell.n.slice(0,14),X+10,Y+13);
+  const dn=ri>=N-3?2:Math.min(6,Math.floor(rh/24)*3);
+  for(let k=0;k<dn;k++){const dx=X+14+(k%3)*(rw-30)/3,dy=Y+26+Math.floor(k/3)*22;
+   if(dy+10>Y+rh-4)break;
+   x.fillStyle=HUE('vat-500');x.fillRect(dx,dy,17,8);
+   x.fillStyle=HUE('vat-400');x.fillRect(dx+4,dy-4,9,4);}
+ });
+ const bub=[];
+ AGENTS.forEach((a,i)=>{
+  let ri=roomOf[a.ph];if(ri===undefined)ri=0;
+  if(a.st==='attention')ri=gateIdx;
+  const cx=ri%cols,cy=Math.floor(ri/cols);
+  const X=g+cx*(rw+g),Y=g+cy*(rh+g);
+  const peers=AGENTS.filter(z=>{let r2=roomOf[z.ph];if(r2===undefined)r2=0;
+    if(z.st==='attention')r2=gateIdx;return r2===ri;});
+  const k=peers.indexOf(a);
+  const px2=X+18+(k%3)*(rw-32)/3,py=Y+30+Math.floor(k/3)*22+(floorMotion?Math.sin(t/22+i)*1.5:0);
+  if(py>Y+rh-6)return;
+  a._x=px2;a._y=py; /* A-03 hit test */
+  x.fillStyle=HUE(a.hue);x.beginPath();x.arc(px2,py,6.5,0,7);x.fill();
+  x.strokeStyle=HUE(SH[a.st]);x.lineWidth=1.7;
+  if(a.st==='attention')x.setLineDash([3,2]);
+  x.beginPath();x.arc(px2,py,9.5,0,7);x.stroke();x.setLineDash([]);
+  x.fillStyle=HUE('vat-900');x.font='700 8px '+FU;x.textAlign='center';x.textBaseline='middle';
+  x.fillText(a.ini,px2,py);
+  if(a.id===sel){x.strokeStyle=HUE('linen-100');x.lineWidth=1;
+   x.beginPath();x.arc(px2,py,13,0,7);x.stroke();}
+  if(SPK[a.id]&&bub.length<4)bub.push([px2,py,SPK[a.id]]);
+ });
+ bub.forEach(([bx,by,txt])=>{
+  x.font='10px '+FU;const w=Math.min(W-8,x.measureText(txt).width+13);
+  const X=Math.min(W-w-3,Math.max(3,bx-w/2)),Y=Math.max(2,by-27);
+  x.fillStyle=HUE('vat-900');x.globalAlpha=.93;rr(x,X,Y,w,17,3);x.fill();x.globalAlpha=1;
+  x.strokeStyle=HUE('vat-400');x.lineWidth=1;rr(x,X,Y,w,17,3);x.stroke();
+  x.fillStyle=HUE('linen-300');x.textAlign='left';x.textBaseline='middle';x.fillText(txt,X+6,Y+9);});
+}
+/* A-03 — 28px hit area on canvas */
+$('#cvFloor').addEventListener('click',e=>{
+ const r=e.target.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+ let best=null,bd=1e9;
+ AGENTS.forEach(a=>{if(a._x==null)return;const d=Math.hypot(a._x-mx,a._y-my);if(d<bd){bd=d;best=a;}});
+ if(best&&bd<=14){sel=best.id;renderRoster();renderInspector();renderAgentTbl();openInsp();}});
+$('#floorMotion').onclick=e=>{floorMotion=!floorMotion;e.target.classList.toggle('on',floorMotion);
+ e.target.innerHTML=(floorMotion?'Motion on':'Motion off')+' <span class="prov">(A-05)</span>';};
+function renderFloorParallel(){
+ const cells=floorCells();
+ $('#par-floor').innerHTML=cells.map((c,i)=>{
+  const inRoom=AGENTS.filter(a=>{const r=PHASES.findIndex(p=>p.c===a.ph);
+    return (a.st==='attention'?cells.length-3:(r<0?0:r))===i;});
+  return `<div class="row" style="align-items:flex-start"><b style="width:120px;flex:none">${c.n}</b>
+   <span style="flex:1">${inRoom.map(a=>a.nm+' ('+a.st+')').join(', ')||'<span class="prov">empty</span>'}</span></div>`;}).join('');
+}
+
+/* CodeMap */
+let NODES=null,EDGES=null;
+function initG(){
+ const cl=[['payments',16,'woad'],['orders',12,'verdigris'],['identity',9,'weld'],
+  ['shared',11,'cochineal'],['infra',8,'iron']];
+ NODES=[];EDGES=[];
+ cl.forEach(([nm,n,h],ci)=>{const cx=.22+.56*((ci%3)/2),cy=.28+.44*(ci>2?1:0);
+  for(let i=0;i<n;i++)NODES.push({id:NODES.length,c:ci,h,x:cx+(Math.random()-.5)*.2,y:cy+(Math.random()-.5)*.2,
+   vx:0,vy:0,r:2.4+Math.random()*3.6,rw:ci===0&&i<5?.35+Math.random()*.5:Math.random()*.22,
+   ag:['dev1','dev2','qa','architect'][i%4],rec:Math.random(),dupe:ci===0&&i===2||ci===3&&i===5});});
+ NODES.forEach((a,i)=>{const pool=NODES.filter(n=>n.c===a.c&&n.id!==a.id);
+  for(let k=0;k<2&&pool.length;k++)EDGES.push([a.id,pool[(i*3+k)%pool.length].id]);
+  if(i%7===0){const o=NODES[(i*13)%NODES.length];if(o.c!==a.c)EDGES.push([a.id,o.id]);}});
+}
+function codemap(){
+ const f=fit('cvMap');if(!f)return;const{x,W,H}=f;
+ if(!NODES)initG();
+ for(let i=0;i<NODES.length;i++){const a=NODES[i];
+  for(let j=i+1;j<NODES.length;j++){const b=NODES[j];
+   const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy+.0005,fo=.000016/d2;
+   a.vx-=dx*fo;a.vy-=dy*fo;b.vx+=dx*fo;b.vy+=dy*fo;}
+  a.vx+=(.5-a.x)*.0013;a.vy+=(.5-a.y)*.0013;}
+ EDGES.forEach(([i,j])=>{const a=NODES[i],b=NODES[j],dx=b.x-a.x,dy=b.y-a.y;
+  a.vx+=dx*.0034;a.vy+=dy*.0034;b.vx-=dx*.0034;b.vy-=dy*.0034;});
+ NODES.forEach(n=>{n.vx*=.85;n.vy*=.85;n.x+=n.vx;n.y+=n.vy;
+  n.x=Math.max(.05,Math.min(.95,n.x));n.y=Math.max(.08,Math.min(.93,n.y));});
+ x.strokeStyle=HUE('vat-500');x.lineWidth=.7;x.globalAlpha=.5;
+ EDGES.forEach(([i,j])=>{x.beginPath();x.moveTo(NODES[i].x*W,NODES[i].y*H);
+  x.lineTo(NODES[j].x*W,NODES[j].y*H);x.stroke();});
+ x.globalAlpha=1;
+ NODES.forEach(n=>{let col=HUE(n.h),al=1;
+  if(cmMode==='rework'){col=n.rw>.4?HUE('madder'):n.rw>.2?HUE('weld'):HUE('vat-400');al=n.rw>.2?1:.35;}
+  if(cmMode==='agent'){const a=AG(n.ag);col=HUE(a?a.hue:'iron');al=.3+n.rec*.7;}
+  if(cmMode==='blast'){const hit=n.c===0&&n.rw>.3;col=hit?HUE('woad'):HUE('vat-400');al=hit?1:.22;}
+  if(cmMode==='dupe'){col=n.dupe?HUE('cochineal'):HUE('vat-400');al=n.dupe?1:.2;}
+  x.globalAlpha=al;x.fillStyle=col;x.beginPath();x.arc(n.x*W,n.y*H,n.r,0,7);x.fill();
+  if(cmMode==='dupe'&&n.dupe){x.strokeStyle=HUE('cochineal');x.lineWidth=1;x.globalAlpha=.6;
+   x.beginPath();x.arc(n.x*W,n.y*H,n.r+5,0,7);x.stroke();}
+  x.globalAlpha=1;});
+ ['payments','orders','identity','shared','infra'].forEach((nm,ci)=>{
+  const g=NODES.filter(n=>n.c===ci);if(!g.length)return;
+  x.fillStyle=HUE('linen-500');x.font='10px '+FD;x.textAlign='center';x.textBaseline='alphabetic';
+  x.fillText(nm,g.reduce((s,n)=>s+n.x,0)/g.length*W,g.reduce((s,n)=>s+n.y,0)/g.length*H-24);});
+ const L={cluster:'Coloured by module. Size is centrality, edges are coupling. Source: CodeMap JSON (ECO-03).',
+  agent:'Tinted by the agent that last touched each node. Brightness is recency.',
+  rework:'Rework density from the ledger. Red is where the agents keep getting it wrong.',
+  blast:'Projected impact set for work packet P03 — 7 nodes affected.',
+  dupe:'Reuse-first (FR-M28-04): nodes an agent nearly re-implemented, and the existing code it should have used.'};
+ $('#cmLg').innerHTML='<span>'+L[cmMode]+'</span>';
+}
+$$('[data-cm]').forEach(b=>b.onclick=()=>{cmMode=b.dataset.cm;
+ $$('[data-cm]').forEach(z=>z.classList.toggle('on',z===b));});
+$$('[data-d]').forEach(b=>b.onclick=()=>{dens=+b.dataset.d;
+ $$('[data-d]').forEach(z=>z.classList.toggle('on',z===b));});
+$$('[data-wv]').forEach(b=>b.onclick=()=>{WV[b.dataset.wv]=!WV[b.dataset.wv];b.classList.toggle('on',WV[b.dataset.wv]);});
+$$('[data-lg]').forEach(b=>b.onclick=()=>{lgFilter=b.dataset.lg;
+ $$('[data-lg]').forEach(z=>z.classList.toggle('on',z===b));renderLedger();});
+$$('[data-nf]').forEach(b=>b.onclick=()=>{nfFilter=b.dataset.nf;
+ $$('[data-nf]').forEach(z=>z.classList.toggle('on',z===b));renderInbox();});
+$('#lgQ').oninput=renderLedger;
+/* P-06 table view toggles */
+$$('[data-tableview]').forEach(b=>b.onclick=()=>{
+ const host=document.getElementById(b.dataset.tableview);host.classList.toggle('tableview');
+ b.classList.toggle('on');b.textContent=host.classList.contains('tableview')?'Canvas view':
+  (b.dataset.tableview==='host-floor'?'Floor list':'Table view');draw();});
+/* E-WV-04 export */
+$('#wvExport').onclick=()=>{const c=$('#cvWeave');if(!c)return;
+ const a=document.createElement('a');a.download='EDB-12345-weave.png';a.href=c.toDataURL('image/png');a.click();};
+
+/* Loops — E-LP-01 three arcs, E-LP-02 escalation, P-14 labels */
+const LOOPS=[['L1 Micro','act → verify → repair','2/3','woad',.66,.4,.3],
+ ['L2 Task','plan → act → test → review','4/5','weld',.8,.72,.61],
+ ['L3 Phase','gate → work → gate','2/3','woad',.66,.5,.4],
+ ['L4 Delivery','story → PR → merge & CI green','—','verdigris',.4,.36,.3],
+ ['L5 Learning','ledger → trainer → gate','1/1','cochineal',1,.3,.2],
+ ['L6 Organisation','KPI → autonomy → policy','—','iron',.2,.1,.1]];
+function loops(){
+ const f=fit('cvLoops');if(!f)return;const{x,W,H}=f;
+ const mode=W>620?'side':W>420?'above':'active';
+ const cx=mode==='side'?W*.40:W*.5,cy=H*.56;
+ LOOPS.forEach((L,i)=>{
+  const d=i/(LOOPS.length-1);
+  const rx=(mode==='side'?W*.30:W*.38)*(1-d*.42)+26,ry=rx*.30,oy=cy-d*H*.32;
+  const col=HUE(L[3]);
+  x.strokeStyle=col;x.globalAlpha=.25+(1-d)*.4;x.lineWidth=1.2;
+  x.beginPath();x.ellipse(cx,oy,rx,ry,0,0,7);x.stroke();x.globalAlpha=1;
+  /* three budget arcs: iterations, tokens, wall clock */
+  [[L[4],3,0],[L[5],2,3],[L[6],2,6]].forEach(([v,lw,off])=>{
+   x.lineWidth=lw;x.strokeStyle=v>=.8?HUE('weld'):col;x.globalAlpha=.9;
+   x.beginPath();x.ellipse(cx,oy,rx-off,ry-off*.3,0,-Math.PI/2,-Math.PI/2+6.283*v);x.stroke();});
+  x.globalAlpha=1;
+  const N=5+i;
+  for(let k=0;k<N;k++){const ang=(k/N)*6.283+t/(120+i*30);
+   const nx=cx+Math.cos(ang)*rx,ny=oy+Math.sin(ang)*ry;
+   const act=i<3&&k===Math.floor((t/30+i)%N);
+   x.fillStyle=act?col:HUE('vat-400');x.beginPath();x.arc(nx,ny,act?4.2:2.4,0,7);x.fill();
+   if(act){x.strokeStyle=col;x.globalAlpha=.35;x.lineWidth=1;
+    x.beginPath();x.arc(nx,ny,8.5,0,7);x.stroke();x.globalAlpha=1;}}
+  /* escalation edge when a bound is near */
+  if(L[4]>=.8){x.strokeStyle=HUE('weld');x.setLineDash([3,3]);x.lineWidth=1.2;
+   x.beginPath();x.moveTo(cx+rx,oy);x.lineTo(W-14,H-14);x.stroke();x.setLineDash([]);
+   x.fillStyle=HUE('weld');x.font='9px '+FD;x.textAlign='right';x.textBaseline='bottom';
+   x.fillText('→ gate room',W-14,H-16);}
+  x.textBaseline='middle';
+  if(mode==='side'){x.fillStyle=HUE('linen-100');x.font='600 12px '+FU;x.textAlign='left';
+   x.fillText(L[0],cx+rx+14,oy-7);
+   x.fillStyle=HUE('linen-500');x.font='10px '+FD;x.fillText(L[1]+'   '+L[2],cx+rx+14,oy+7);}
+  else if(mode==='above'){x.fillStyle=HUE('linen-300');x.font='600 10px '+FU;x.textAlign='center';
+   x.fillText(L[0]+'  '+L[2],cx,oy-ry-9);}
+  else if(i===0){x.fillStyle=HUE('linen-300');x.font='600 10px '+FU;x.textAlign='center';
+   x.fillText(L[0]+'  '+L[2],cx,oy-ry-9);}
+ });
+}
+function dojo(){
+ const f=fit('cvDojo');
+ if(f){const{x,W,H}=f;
+  const cards=[[.10,.30,'retrieve'],[.36,.16,'plan'],[.33,.55,'draft'],
+   [.60,.34,'self-check'],[.80,.26,'emit'],[.58,.70,'breaker']];
+  const cw=Math.min(66,W*.24);
+  x.strokeStyle=HUE('vat-400');x.lineWidth=1;
+  [[0,1],[0,2],[1,3],[2,3],[3,4],[2,5],[5,3]].forEach(([a,b])=>{
+   x.beginPath();x.moveTo(cards[a][0]*W+cw,cards[a][1]*H+11);
+   x.lineTo(cards[b][0]*W,cards[b][1]*H+11);x.stroke();});
+  cards.forEach(([px2,py,nm],i)=>{
+   x.save();x.translate(px2*W,py*H);x.transform(1,0,-.18,1,0,0);
+   x.fillStyle=i===5?HUE('cochineal-dim'):HUE('vat-600');
+   x.strokeStyle=i===5?HUE('cochineal'):HUE('vat-400');x.lineWidth=1;
+   rr(x,0,0,cw,23,2);x.fill();x.stroke();
+   x.fillStyle=HUE('linen-300');x.font='9px '+FD;x.textAlign='left';x.textBaseline='middle';
+   x.fillText(nm,7,12);x.restore();});}
+ const g=fit('cvCurve');
+ if(g){const{x,W,H}=g;
+  x.strokeStyle=HUE('vat-500');x.lineWidth=1;
+  for(let i=0;i<4;i++){const y=6+i*(H-20)/3;x.beginPath();x.moveTo(0,y);x.lineTo(W,y);x.stroke();}
+  [['iron',.60,.005,.012,4],['verdigris',.58,.0075,.016,3.2]].forEach(([h,b,s,amp,pd])=>{
+   x.strokeStyle=HUE(h);x.lineWidth=1.8;x.beginPath();
+   for(let i=0;i<40;i++){const v=b+i*s+Math.sin(i/pd)*amp;
+    const X=i/39*W,Y=H-9-(v-.55)*(H-20)/.35;i?x.lineTo(X,Y):x.moveTo(X,Y);}x.stroke();});
+  x.fillStyle=HUE('linen-500');x.font='9px '+FD;x.textAlign='left';x.textBaseline='alphabetic';
+  x.fillText('first-pass yield · candidate vs incumbent',5,H-2);}
+}
+/* Story Gantt */
+function gantt(){
+ const f=fit('cvGantt');if(!f)return;const{x,W,H}=f;
+ const done=['IN','DE','PL'],active='BD';
+ const bars=PHASES.map((p,i)=>({p,i}));
+ const bh=Math.max(8,(H-24)/bars.length-3);
+ bars.forEach(({p},i)=>{
+  const y=8+i*(bh+3),w0=W*.12,len=done.includes(p.c)?W*.16:p.c===active?W*.34:W*.10;
+  const start=w0+i*(W*.055);
+  x.fillStyle=done.includes(p.c)?HUE('verdigris'):p.c===active?HUE('woad'):HUE('vat-500');
+  x.globalAlpha=done.includes(p.c)||p.c===active?.9:.35;
+  x.fillRect(start,y,len,bh);x.globalAlpha=1;
+  x.fillStyle=HUE('linen-500');x.font='9px '+FD;x.textAlign='left';x.textBaseline='middle';
+  x.fillText(p.c,4,y+bh/2);});
+ /* SLA line */
+ x.strokeStyle=HUE('weld');x.setLineDash([4,3]);x.lineWidth=1.5;
+ x.beginPath();x.moveTo(W*.86,4);x.lineTo(W*.86,H-4);x.stroke();x.setLineDash([]);
+ x.fillStyle=HUE('weld');x.font='9px '+FD;x.textAlign='right';x.textBaseline='top';
+ x.fillText('SLA',W*.85,6);
+ x.strokeStyle=HUE('verdigris');x.beginPath();x.moveTo(W*.78,4);x.lineTo(W*.78,H-4);x.stroke();
+ x.fillStyle=HUE('verdigris');x.fillText('predicted',W*.77,6);
+}
+/* Timeline scrubber */
+let ttDrag=false;
+function timeline(){
+ const f=fit('cvTime');if(!f)return;const{x,W,H}=f;
+ const n=ROWS.length,pad=10,tw=W-pad*2;
+ /* phase bands */
+ PHASES.forEach((p,i)=>{
+  const inRows=ROWS.filter(r=>r.to===p.c);if(!inRows.length)return;
+  const a=(ROWS.indexOf(inRows[0])/n)*tw+pad,b=((ROWS.indexOf(inRows[inRows.length-1])+1)/n)*tw+pad;
+  x.fillStyle=HUE(SH[p.st]||'iron');x.globalAlpha=.18;x.fillRect(a,14,b-a,18);x.globalAlpha=1;
+  x.fillStyle=HUE('linen-500');x.font='8px '+FD;x.textAlign='left';x.textBaseline='top';
+  if(b-a>16)x.fillText(p.c,a+2,16);});
+ /* rework ticks + gates */
+ ROWS.forEach((r,i)=>{const X=pad+(i/n)*tw;
+  if(r.st==='rework'){x.fillStyle=HUE('madder');x.fillRect(X,36,2,12);}
+  if(r.steer){x.fillStyle=HUE('cochineal');x.fillRect(X,36,2,12);}});
+ BANDS.forEach(b=>{const X=pad+(b.row/n)*tw;x.fillStyle=HUE('weld');
+  x.beginPath();x.arc(X,56,4,0,7);x.fill();});
+ /* axis */
+ x.strokeStyle=HUE('vat-500');x.lineWidth=1;x.beginPath();x.moveTo(pad,70);x.lineTo(W-pad,70);x.stroke();
+ x.fillStyle=HUE('linen-500');x.font='9px '+FD;x.textAlign='left';x.textBaseline='top';
+ x.fillText(ROWS[0].seq,pad,74);x.textAlign='right';x.fillText(ROWS[n-1].seq,W-pad,74);
+ /* playhead */
+ const idx=viewSeq?ROWS.findIndex(r=>r.seq>=viewSeq):n-1;
+ const px2=pad+((idx<0?n-1:idx)/(n-1))*tw;
+ x.strokeStyle=viewSeq?HUE('weld'):HUE('linen-100');x.lineWidth=2;
+ x.beginPath();x.moveTo(px2,8);x.lineTo(px2,70);x.stroke();
+ x.fillStyle=viewSeq?HUE('weld'):HUE('linen-100');
+ x.beginPath();x.moveTo(px2,4);x.lineTo(px2-5,-2);x.lineTo(px2+5,-2);x.fill();
+ x.beginPath();x.arc(px2,70,4,0,7);x.fill();
+}
+function ttFromEvent(e){
+ const c=$('#cvTime'),r=c.getBoundingClientRect();
+ const pad=10,tw=r.width-pad*2,f=Math.max(0,Math.min(1,(e.clientX-r.left-pad)/tw));
+ const i=Math.round(f*(ROWS.length-1));
+ if(i>=ROWS.length-1)exitTT();else enterTT(ROWS[i].seq);
+}
+['mousedown','touchstart'].forEach(ev=>$('#cvTime').addEventListener(ev,e=>{ttDrag=true;
+ ttFromEvent(e.touches?e.touches[0]:e);},{passive:true}));
+['mousemove','touchmove'].forEach(ev=>window.addEventListener(ev,e=>{if(ttDrag)ttFromEvent(e.touches?e.touches[0]:e);},{passive:true}));
+['mouseup','touchend'].forEach(ev=>window.addEventListener(ev,()=>ttDrag=false));
+
+/* Calibration + ladder */
+function reliability(){
+ const f=fit('cvRel');if(!f)return;const{x,W,H}=f;
+ const pad=28,w=W-pad*1.5,h=H-pad*1.4;
+ x.strokeStyle=HUE('vat-500');x.lineWidth=1;x.strokeRect(pad,8,w,h);
+ x.setLineDash([3,3]);x.strokeStyle=HUE('linen-500');x.globalAlpha=.6;
+ x.beginPath();x.moveTo(pad,8+h);x.lineTo(pad+w,8);x.stroke();x.setLineDash([]);x.globalAlpha=1;
+ x.fillStyle=HUE('linen-500');x.font='9px '+FD;x.textAlign='center';x.textBaseline='top';
+ x.fillText('stated confidence →',pad+w/2,8+h+8);
+ const classes=[['design',[[.6,.55],[.7,.62],[.8,.70],[.9,.74]],'woad'],
+  ['code',[[.6,.58],[.7,.68],[.8,.79],[.9,.86]],'verdigris'],
+  ['test',[[.6,.44],[.7,.5],[.8,.56],[.9,.6]],'madder']];
+ classes.forEach(([nm,pts,hue],ci)=>{
+  x.strokeStyle=HUE(hue);x.lineWidth=1.8;x.beginPath();
+  pts.forEach(([a,b],i)=>{const X=pad+((a-.5)/.45)*w,Y=8+h-((b-.4)/.55)*h;i?x.lineTo(X,Y):x.moveTo(X,Y);});
+  x.stroke();
+  pts.forEach(([a,b])=>{const X=pad+((a-.5)/.45)*w,Y=8+h-((b-.4)/.55)*h;
+   x.fillStyle=HUE(hue);x.beginPath();x.arc(X,Y,3,0,7);x.fill();});
+  x.fillStyle=HUE(hue);x.font='9px '+FD;x.textAlign='left';x.textBaseline='middle';
+  x.fillText(nm,pad+6,20+ci*12);});
+ x.fillStyle=HUE('linen-500');x.font='9px '+FD;x.textAlign='right';x.textBaseline='bottom';
+ x.fillText('test class is over-confident (FR-M13-09)',W-4,H-2);
+}
+function ladder(){
+ const f=fit('cvLadder');if(!f)return;const{x,W,H}=f;
+ const tiers=['suggest','approve-each','approve-per-phase','autonomous'];
+ const rh=(H-24)/tiers.length;
+ tiers.forEach((tn,i)=>{
+  const y=12+(tiers.length-1-i)*rh;
+  x.strokeStyle=HUE('vat-500');x.lineWidth=1;x.beginPath();
+  x.moveTo(96,y+rh/2);x.lineTo(W-14,y+rh/2);x.stroke();
+  x.fillStyle=HUE('linen-500');x.font='10px '+FD;x.textAlign='right';x.textBaseline='middle';
+  x.fillText(tn,90,y+rh/2);
+  const on=AGENTS.filter(a=>(a.aut==='autonomous'&&i===3)||(a.aut==='approve-per-phase'&&i===2)
+    ||(a.aut==='approve-each'&&i===1)||(a.aut==='suggest'&&i===0));
+  on.forEach((a,k)=>{const X=120+k*30;
+   x.fillStyle=HUE(a.hue);x.beginPath();x.arc(X,y+rh/2,9,0,7);x.fill();
+   x.fillStyle=HUE('vat-900');x.font='700 8px '+FU;x.textAlign='center';
+   x.fillText(a.ini,X,y+rh/2);});
+ });
+ x.fillStyle=HUE('linen-500');x.font='9px '+FD;x.textAlign='left';x.textBaseline='bottom';
+ x.fillText('promotion needs sustained yield + calibration (FR-M12-03)',8,H-2);
+}
+
+function draw(){
+ if(cur==='command'&&!$('#host-hero').classList.contains('tableview'))weave('cvHero',15,true);
+ else if(cur==='weave'&&!$('#host-weave').classList.contains('tableview'))weave('cvWeave',dens,true);
+ else if(cur==='floor'&&!$('#host-floor').classList.contains('tableview'))floor();
+ else if(cur==='codemap')codemap();
+ else if(cur==='loops')loops();
+ else if(cur==='dojo')dojo();
+ else if(cur==='story')gantt();
+ else if(cur==='replay')timeline();
+ else if(cur==='trust'){reliability();ladder();}
+ else if(cur==='portfolio')drawMinis();
+}
+function tick(){if(!document.body.classList.contains('halted')&&!viewSeq)t++;draw();requestAnimationFrame(tick);}
+
+let sp=2.18,tk=218;
+setInterval(()=>{if(document.body.classList.contains('halted')||viewSeq)return;
+ sp+=Math.random()*.012;tk+=Math.random()*1.4;
+ $('#spend').textContent=sp.toFixed(2);$('#tokens').textContent=Math.round(tk)+'k';},1400);
+
+function renderAll(){
+ renderRoster();renderInspector();renderPasses();renderGateStack();renderQ();renderSignal();
+ renderGateRoom();renderStream();renderAgentTbl();renderLedger();renderDojo();renderMemory();
+ renderStory();renderPortfolio();renderInbox();renderSteer();renderCassette();
+ renderWeaveParallel();renderFloorParallel();
+}
+buildWarp();renderAll();
+if(window.ResizeObserver)new ResizeObserver(()=>draw()).observe(document.body);
+addEventListener('resize',draw);addEventListener('orientationchange',()=>setTimeout(draw,200));
+requestAnimationFrame(()=>{draw();tick();});
+</script>
+</body>
+</html>

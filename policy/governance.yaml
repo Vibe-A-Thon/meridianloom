@@ -1,0 +1,126 @@
+# Governance policy pack (FR-M12-01, FR-M12-08) — F1 Workstream B task 9.
+#
+# Declarative, versioned, git-backed (FR-M12-01). The engine parses this
+# file fail-closed: any schema error blocks EVERY gate evaluation — a
+# malformed policy never opens a gate. A workspace overrides it at
+# .meridian/policy/governance.yaml (first readable file wins).
+#
+# FR-M12-08 sections: coding standards references, gate criteria (profiles
+# of machine-checkable predicates, FR-M12-09), budget ceilings, egress
+# allow-lists, permitted tools, tier thresholds — plus protectedBranches
+# (FR-M12-05) and the F1-A4 ACP permission allow-list as one section
+# (acpPermissions; the extension host keeps consuming the dedicated
+# policy/acp-permissions.yaml unchanged).
+#
+# Criterion kinds: requiredFields | testEvidence | securityScan |
+# humanApproval. A packet/PR payload passes a profile only when EVERY
+# criterion passes; human judgement is the fallback, not the default
+# (FR-M12-09).
+
+version: 2
+
+# References to the team's coding standards (URIs or repo-relative paths).
+codingStandards:
+  - docs/spec/Requirements_Final.md
+
+# Outbound destinations agent work may touch (FR-M12-08 egress allow-list).
+egressAllowlist:
+  - pypi.org
+  - github.com
+
+# Tools a packet's work may invoke.
+permittedTools:
+  - git
+  - pytest
+  - npm
+
+# Budget ceilings (FR-M12-08); enforced by the spend surfaces (F1 workstream F).
+# usdPerAgent: cumulative ceiling per agent (FR-M39-02 — a hosted agent is
+# paused at a checkpoint on breach; an observed agent is warned, which is
+# all observation can honestly do, FR-M35-06).
+# usdPerStory: cumulative ceiling per story.
+# usdPerMonth: monthly budget per team; the forecast alert fires when the
+# month-to-date actual or the projection crosses it (FR-M39-03).
+budgetCeilings:
+  usdPerAgent: 50
+  usdPerStory: 25
+  usdPerMonth: 200
+
+# Autonomy-tier promotion thresholds (FR-M12-03/04 land v1.x).
+tierThresholds:
+  firstPassYield: 0.85
+  minSamples: 20
+  maxCalibrationError: 0.12
+
+# FR-M41-06: the attribution-coverage floor for every trust metric. The
+# attributed share (agent + human, per the three-state rule of
+# FR-M41-04) of a metric's population must reach this ratio or the metric
+# reads insufficient_coverage and shows no value — a metric over a
+# population it cannot attribute is not evidence (P25). A workspace
+# overrides it in .meridian/policy/governance.yaml like every pack value.
+attributionCoverageFloor: 0.8
+
+# The F1-A4 ACP permission allow-list as one section of the general pack —
+# same shape policy/acp-permissions.yaml carries for the extension host.
+acpPermissions:
+  adapters:
+    '*':
+      probation: [read, search]
+      active: [read, search, edit, execute]
+
+# FR-M12-05: merges into these branches require recorded human approval.
+protectedBranches:
+  - main
+  - master
+
+# FR-M42-05 (N2-T07): identity assurance the gate requires of approvers.
+# false (the default) accepts a locally asserted git identity — recorded as
+# "asserted", never silently upgraded to "verified". true refuses an
+# asserted identity with the level named: a git name/email SHALL NEVER
+# satisfy a policy requiring a verified approver. Per-branch overrides ride
+# a mapping:
+#   requiresVerifiedIdentity:
+#     default: false
+#     branches: {main: true}
+requiresVerifiedIdentity: false
+
+# Gate profiles: DoR/DoD as machine-checkable criteria (FR-M12-09).
+profiles:
+  ready:
+    description: Definition of Ready — the packet is reviewable at all.
+    criteria:
+      - id: ready-fields
+        kind: requiredFields
+        fields: [storyId, branch, headCommit]
+
+  verify:
+    description: Build verification — the packet's tests pass.
+    criteria:
+      - id: ready-fields
+        kind: requiredFields
+        fields: [storyId, branch, headCommit]
+      - id: tests-pass
+        kind: testEvidence
+
+  security:
+    description: Security gate — the packet's security scan is clean.
+    criteria:
+      - id: ready-fields
+        kind: requiredFields
+        fields: [storyId, branch, headCommit]
+      - id: scan-clean
+        kind: securityScan
+
+  review:
+    description: Definition of Done — tests, scan, and a recorded human approval.
+    criteria:
+      - id: ready-fields
+        kind: requiredFields
+        fields: [storyId, branch, headCommit]
+      - id: tests-pass
+        kind: testEvidence
+      - id: scan-clean
+        kind: securityScan
+      - id: lead-approval
+        kind: humanApproval
+        roles: [lead, maintainer]

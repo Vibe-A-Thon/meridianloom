@@ -1,0 +1,34 @@
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ml-space-1);
+  padding: 1px var(--ml-space-2);
+  border-radius: var(--ml-r-thread);
+  box-shadow: inset 0 0 0 1px var(--ml-hairline);
+  font: var(--ml-t-small);
+  color: var(--ml-text-secondary);
+  white-space: nowrap;
+}
+
+/* Prebuilt / custom / bridged differ by a shape prefix, never by colour
+   alone (banned pattern 16). */
+.shape {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: var(--ml-r-thread);
+  border: 1px solid var(--ml-dye-idle);
+}
+.shapePrebuilt {
+  background: var(--ml-dye-idle);
+}
+.shapeCustom {
+  background: linear-gradient(to top, var(--ml-dye-idle) 50%, transparent 50%);
+}
+.shapeBridged {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--ml-dye-idle) 0 2px,
+    transparent 2px 4px
+  );
+}

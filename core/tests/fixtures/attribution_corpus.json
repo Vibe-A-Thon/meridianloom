@@ -1,0 +1,2070 @@
+{
+  "version": 1,
+  "vocabularyVersion": 1,
+  "contractVersion": "attrib-provenance/v1",
+  "seed": 41,
+  "installedAt": "2025-01-01T00:00:00Z",
+  "size": 206,
+  "spans": [
+    {
+      "id": "span-0001",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "agent work\n\nCo-Authored-By: Cursor <cursor@anysphere.inc>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0002",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "agent work\n\nCo-Authored-By: GitHub Copilot <copilot@github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0003",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "agent work\n\nCo-Authored-By: Devin <devin-ai-integration[bot]@users.noreply.github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0004",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "agent work\n\nCo-Authored-By: Devin <devin-ai-integration[bot]@users.noreply.github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0005",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "agent work\n\nCo-Authored-By: Codex <codex@openai.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0006",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "agent work\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0007",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "agent work\n\nCo-Authored-By: Pair Agent <pair-agent@example.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0008",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "agent work\n\nCo-Authored-By: Codex <codex@openai.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0009",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "agent work\n\nCo-Authored-By: GitHub Copilot <copilot@github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0010",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "agent work\n\nCo-Authored-By: GitHub Copilot <copilot@github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0011",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "agent work\n\nCo-Authored-By: Pair Agent <pair-agent@example.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0012",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "agent work\n\nCo-Authored-By: Devin <devin-ai-integration[bot]@users.noreply.github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0013",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "agent work\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0014",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "agent work\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0015",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "agent work\n\nCo-Authored-By: Cursor <cursor@anysphere.inc>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0016",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "agent work\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0017",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "agent work\n\nCo-Authored-By: Pair Agent <pair-agent@example.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0018",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "agent work\n\nCo-Authored-By: GitHub Copilot <copilot@github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0019",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "agent work\n\nCo-Authored-By: Pair Agent <pair-agent@example.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0020",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "agent work\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0021",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "agent work\n\nCo-Authored-By: GitHub Copilot <copilot@github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0022",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "agent work\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0023",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "agent work\n\nCo-Authored-By: Cursor <cursor@anysphere.inc>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0024",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "agent work\n\nCo-Authored-By: Devin <devin-ai-integration[bot]@users.noreply.github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0025",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "agent work\n\nCo-Authored-By: Devin <devin-ai-integration[bot]@users.noreply.github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0026",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "agent work\n\nCo-Authored-By: GitHub Copilot <copilot@github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0027",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "agent work\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0028",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "agent work\n\nCo-Authored-By: Codex <codex@openai.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0029",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "agent work\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0030",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "agent work\n\nCo-Authored-By: Codex <codex@openai.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0031",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "agent work\n\nCo-Authored-By: Pair Agent <pair-agent@example.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0032",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "agent work\n\nCo-Authored-By: Codex <codex@openai.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0033",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "agent work\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0034",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "agent work\n\nCo-Authored-By: GitHub Copilot <copilot@github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0035",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "agent work\n\nCo-Authored-By: Codex <codex@openai.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0036",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "agent work\n\nCo-Authored-By: Codex <codex@openai.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0037",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "agent work\n\nCo-Authored-By: Pair Agent <pair-agent@example.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0038",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "agent work\n\nCo-Authored-By: Devin <devin-ai-integration[bot]@users.noreply.github.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0039",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "agent work\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0040",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "agent work\n\nCo-Authored-By: Cursor <cursor@anysphere.inc>\n",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0041",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "old agent work\n\nCo-Authored-By: GitHub Copilot <copilot@github.com>\n",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0042",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "old agent work\n\nCo-Authored-By: Pair Agent <pair-agent@example.com>\n",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0043",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "old agent work\n\nCo-Authored-By: Pair Agent <pair-agent@example.com>\n",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0044",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "old agent work\n\nCo-Authored-By: Pair Agent <pair-agent@example.com>\n",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0045",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "old agent work\n\nCo-Authored-By: Codex <codex@openai.com>\n",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0046",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "old agent work\n\nCo-Authored-By: Devin <devin-ai-integration[bot]@users.noreply.github.com>\n",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0047",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "old agent work\n\nCo-Authored-By: Codex <codex@openai.com>\n",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0048",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "old agent work\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0049",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "old agent work\n\nCo-Authored-By: GitHub Copilot <copilot@github.com>\n",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0050",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "old agent work\n\nCo-Authored-By: Cursor <cursor@anysphere.inc>\n",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0051",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "old agent work\n\nCo-Authored-By: Pair Agent <pair-agent@example.com>\n",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0052",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "old agent work\n\nCo-Authored-By: Codex <codex@openai.com>\n",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0053",
+      "authorName": "copilot[bot]",
+      "authorEmail": "copilot@github.com",
+      "message": "review follow-ups",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0054",
+      "authorName": "anthropic-claude[bot]",
+      "authorEmail": "noreply@anthropic.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0055",
+      "authorName": "cursor-agent[bot]",
+      "authorEmail": "cursor@cursor.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0056",
+      "authorName": "cursor-agent[bot]",
+      "authorEmail": "cursor@cursor.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0057",
+      "authorName": "openai-codex[bot]",
+      "authorEmail": "codex@openai.com",
+      "message": "review follow-ups",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0058",
+      "authorName": "openai-codex[bot]",
+      "authorEmail": "codex@openai.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0059",
+      "authorName": "anthropic-claude[bot]",
+      "authorEmail": "noreply@anthropic.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0060",
+      "authorName": "anthropic-claude[bot]",
+      "authorEmail": "noreply@anthropic.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0061",
+      "authorName": "copilot[bot]",
+      "authorEmail": "copilot@github.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0062",
+      "authorName": "anthropic-claude[bot]",
+      "authorEmail": "noreply@anthropic.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0063",
+      "authorName": "anthropic-claude[bot]",
+      "authorEmail": "noreply@anthropic.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0064",
+      "authorName": "anthropic-claude[bot]",
+      "authorEmail": "noreply@anthropic.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0065",
+      "authorName": "anthropic-claude[bot]",
+      "authorEmail": "noreply@anthropic.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0066",
+      "authorName": "cursor-agent[bot]",
+      "authorEmail": "cursor@cursor.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0067",
+      "authorName": "anthropic-claude[bot]",
+      "authorEmail": "noreply@anthropic.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0068",
+      "authorName": "copilot[bot]",
+      "authorEmail": "copilot@github.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0069",
+      "authorName": "anthropic-claude[bot]",
+      "authorEmail": "noreply@anthropic.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0070",
+      "authorName": "openai-codex[bot]",
+      "authorEmail": "codex@openai.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "agent",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0071",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "review follow-ups",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0072",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0073",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0074",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0075",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0076",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0077",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0078",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0079",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0080",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "review follow-ups",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0081",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0082",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0083",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0084",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "review follow-ups",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0085",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0086",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "review follow-ups",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0087",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0088",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0089",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0090",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0091",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0092",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0093",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0094",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0095",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0096",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0097",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0098",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0099",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0100",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "review follow-ups",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0101",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0102",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0103",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0104",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0105",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0106",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0107",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0108",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0109",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0110",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0111",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0112",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0113",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0114",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0115",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0116",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0117",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0118",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0119",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0120",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "document the envelope semantics",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0121",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0122",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "review follow-ups",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0123",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "review follow-ups",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0124",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0125",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "review follow-ups",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0126",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "review follow-ups",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0127",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0128",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0129",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "document the envelope semantics",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0130",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0131",
+      "authorName": "Roberta Botkin",
+      "authorEmail": "roberta@example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0132",
+      "authorName": "Devin Hester",
+      "authorEmail": "devin@example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0133",
+      "authorName": "Claude Martin",
+      "authorEmail": "claude@example.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0134",
+      "authorName": "Claude Martin",
+      "authorEmail": "claude@example.com",
+      "message": "review follow-ups",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0135",
+      "authorName": "Devin Hester",
+      "authorEmail": "devin@example.com",
+      "message": "review follow-ups",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0136",
+      "authorName": "Devin Hester",
+      "authorEmail": "devin@example.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0137",
+      "authorName": "Copeland Young",
+      "authorEmail": "copilot.young@example.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0138",
+      "authorName": "Roberta Botkin",
+      "authorEmail": "roberta@example.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0139",
+      "authorName": "Claude Martin",
+      "authorEmail": "claude@example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0140",
+      "authorName": "Devin Hester",
+      "authorEmail": "devin@example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0141",
+      "authorName": "Devin Hester",
+      "authorEmail": "devin@example.com",
+      "message": "review follow-ups",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0142",
+      "authorName": "Copeland Young",
+      "authorEmail": "copilot.young@example.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "human",
+      "expectedConfidence": "observed"
+    },
+    {
+      "id": "span-0143",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "run gofmt",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0144",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "prettier sweep",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0145",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "chore(tools): run isort",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0146",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "lint: whitespace-only",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0147",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "lint: whitespace-only",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0148",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "Reformat sources",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0149",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "run gofmt",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0150",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "lint: whitespace-only",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0151",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "Reformat sources",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0152",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "style: format",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0153",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "style: format",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0154",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "style: format",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0155",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "chore: run black",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0156",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "run gofmt",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0157",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "lint: whitespace-only",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0158",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "Reformat sources",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0159",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "Squashed commit of the following:\n\ncommit a1\ncommit b2",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0160",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "Squashed commit of the following:\n\ncommit a1\ncommit b2",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0161",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "Paydown the tech-debt list (#87)",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0162",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "Paydown the tech-debt list (#87)",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0163",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "Squashed commit of the following:\n\ncommit a1\ncommit b2",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0164",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "Paydown the tech-debt list (#87)",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0165",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "Feature branch work (#142)",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0166",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "Feature branch work (#142)",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0167",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "Squashed commit of the following:\n\ncommit a1\ncommit b2",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0168",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "Feature branch work (#142)",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0169",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "Paydown the tech-debt list (#87)",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0170",
+      "authorName": "Dana D",
+      "authorEmail": "dana.d@example.net",
+      "message": "Squashed commit of the following:\n\ncommit a1\ncommit b2",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0171",
+      "authorName": "Alice A",
+      "authorEmail": "alice@example.com",
+      "message": "Squashed commit of the following:\n\ncommit a1\ncommit b2",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0172",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "Squashed commit of the following:\n\ncommit a1\ncommit b2",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0173",
+      "authorName": "dependabot[bot]",
+      "authorEmail": "dependabot@dependabot.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0174",
+      "authorName": "speedbot[bot]",
+      "authorEmail": "speedbot@bots.example.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0175",
+      "authorName": "buildomat[bot]",
+      "authorEmail": "buildomat@ci.example.org",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0176",
+      "authorName": "dependabot[bot]",
+      "authorEmail": "dependabot@dependabot.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0177",
+      "authorName": "buildomat[bot]",
+      "authorEmail": "buildomat@ci.example.org",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0178",
+      "authorName": "buildomat[bot]",
+      "authorEmail": "buildomat@ci.example.org",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0179",
+      "authorName": "speedbot[bot]",
+      "authorEmail": "speedbot@bots.example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0180",
+      "authorName": "dependabot[bot]",
+      "authorEmail": "dependabot@dependabot.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0181",
+      "authorName": "dependabot[bot]",
+      "authorEmail": "dependabot@dependabot.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0182",
+      "authorName": "dependabot[bot]",
+      "authorEmail": "dependabot@dependabot.com",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0183",
+      "authorName": "speedbot[bot]",
+      "authorEmail": "speedbot@bots.example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0184",
+      "authorName": "buildomat[bot]",
+      "authorEmail": "buildomat@ci.example.org",
+      "message": "fix the off-by-one in the pager",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0185",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0186",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0187",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0188",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0189",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0190",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0191",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0192",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2023-06-15T09:30:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "inferred"
+    },
+    {
+      "id": "span-0193",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0194",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0195",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0196",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0197",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0198",
+      "authorName": "unknown",
+      "authorEmail": "",
+      "message": "",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": false,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0199",
+      "authorName": "openai-codex[bot]",
+      "authorEmail": "codex@openai.com",
+      "message": "document the envelope semantics",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": true,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0200",
+      "authorName": "anthropic-claude[bot]",
+      "authorEmail": "noreply@anthropic.com",
+      "message": "review follow-ups",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": true,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0201",
+      "authorName": "cursor-agent[bot]",
+      "authorEmail": "cursor@cursor.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": true,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0202",
+      "authorName": "copilot[bot]",
+      "authorEmail": "copilot@github.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": true,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0203",
+      "authorName": "Bob B",
+      "authorEmail": "bob@example.com",
+      "message": "hand-tuned fixture timestamps",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": true,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0204",
+      "authorName": "openai-codex[bot]",
+      "authorEmail": "codex@openai.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": true,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0205",
+      "authorName": "Erik E",
+      "authorEmail": "erik@corp.example.com",
+      "message": "add retry backoff to the connector",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": true,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    },
+    {
+      "id": "span-0206",
+      "authorName": "Carol C",
+      "authorEmail": "carol@example.org",
+      "message": "review follow-ups",
+      "authorTime": "2025-06-20T14:45:00+00:00",
+      "excluded": true,
+      "expectedState": "unattributed",
+      "expectedConfidence": "unknown"
+    }
+  ]
+}

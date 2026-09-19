@@ -1,0 +1,223 @@
+# Action-class catalogue (Requirements_Final.md §7.10; FR-M33-01; D16).
+#
+# The single normative classification of every agent action the engine can be
+# asked to perform. Each class is one of:
+#
+#   deterministic — a Python capability (FR-M33-02) owns the whole action;
+#                   a model call for the class is structurally refused
+#                   (FR-M8-15) unless `escalateIf` names the condition.
+#   assisted      — the engine does the substantive work and hands the model
+#                   a bounded, schema-typed gap (FR-M33-04).
+#   generative    — the engine cannot do the work; every model output is
+#                   validated against `validate` before it takes effect
+#                   (FR-M33-05).
+#
+# D16: this file IS the catalogue. Reclassification (FR-M33-10) is a reviewed
+# change to this file — a policy PR — never a runtime decision.
+#
+# A workspace overrides it at .meridian/policy/action-classes.yaml (first
+# readable file wins, same convention as the governance/pricing packs).
+
+version: 1
+
+actionClasses:
+
+  # --- deterministic (FR-M33-02 capabilities own these end to end) ---------
+
+  parse:
+    mode: deterministic
+    capability: structural_parse
+    engine: tree-sitter
+    schema: ParsedFile
+    rationale: >-
+      Syntax trees, structural edits and hunk extraction are pure functions of
+      file bytes and the grammar; a model adds latency, cost and drift for zero
+      gain (FR-M28-02, FR-M28-05).
+
+  resolve_symbol:
+    mode: deterministic
+    capability: symbol_resolution
+    engine: lsp
+    schema: SymbolGraph
+    rationale: >-
+      Definition/references come from the language server over the indexed
+      graph; the answer is either exact or the index is wrong, in which case a
+      model hallucinating references is strictly worse (FR-M28-01).
+
+  run_tests:
+    mode: deterministic
+    capability: tool_runner
+    engine: tool-layer
+    schema: ToolRunResult
+    rationale: >-
+      Builds, tests, linters and scanners execute as pinned tools in the
+      sandbox; the pass/fail signal is ground truth and must not be paraphrased
+      (FR-M33-02, SEC-14 records denials at the same boundary).
+
+  scaffold:
+    mode: deterministic
+    capability: template_scaffold
+    engine: skill-templates
+    schema: ScaffoldResult
+    rationale: >-
+      Skill-pack templates are versioned, digest-pinned artefacts; rendering
+      them is substitution, not invention (FR-M6-01, FR-M33-02).
+
+  classify_migration:
+    mode: deterministic
+    capability: migration_classifier
+    engine: rules
+    schema: MigrationClassification
+    rationale: >-
+      Dependency, licence and migration-reversibility classification is a
+      lookup over curated rules plus manifests; learned/rules extends the rule
+      set, not the need for a model (FR-M33-02, FR-M33-06).
+
+  blast_radius:
+    mode: deterministic
+    capability: graph_blast_radius
+    engine: graph
+    schema: BlastRadius
+    rationale: >-
+      Reachability over the dependency graph is a graph query; it must be
+      exact and replay-identical because gates and ablations consume it
+      (FR-M33-02, FR-M13-09).
+
+  decompose_packets:
+    mode: deterministic
+    capability: graph_decompose
+    engine: graph
+    escalateIf: cyclic_or_ambiguous
+    schema: WorkPackets
+    rationale: >-
+      Packet decomposition from the dependency graph is a topological
+      partition. A cycle or genuine ambiguity is the ONLY permitted escalation
+      condition, and it must be named here to be reachable (FR-M33-03).
+
+  estimate_cost:
+    mode: deterministic
+    capability: ledger_cost_estimate
+    engine: ledger-history
+    schema: CostEstimate
+    rationale: >-
+      Cost estimation reads recorded ledger history and the pricing pack;
+      unknown means no rate exists, never a model guess (FR-M26-01,
+      FR-M39-04).
+
+  map_coverage:
+    mode: deterministic
+    capability: coverage_mapping
+    engine: rules
+    schema: CoverageMap
+    rationale: >-
+      Coverage-to-criteria mapping is token overlap between acceptance
+      criteria text and parsed test names, scored with fixed thresholds;
+      the classification is a pure function of the two inputs
+      (FR-M33-02, FR-M33-06).
+
+  apply_patch:
+    mode: deterministic
+    capability: diff_patch
+    engine: diff
+    schema: PatchResult
+    rationale: >-
+      Unified diff production and hunk application are pure functions over
+      text; a hunk that does not match is a named rejection in the result,
+      never silently dropped (FR-M33-02, FR-M25-04).
+
+  hunk_edit:
+    mode: deterministic
+    capability: hunk_edit
+    engine: hunks
+    schema: HunkEditResult
+    rationale: >-
+      Edits to large files are hunk-scoped — only the target hunks are
+      loaded, never the whole file — and generated or binary files are
+      refused with the path named before any byte is touched
+      (FR-M28-05, FR-M28-07).
+
+  # --- assisted (engine does the work; model fills a bounded gap) ----------
+
+  detect_ambiguity:
+    mode: assisted
+    deterministicFirst: rule_ambiguity
+    gap: propose resolution
+    schema: AmbiguityProposal
+    engine: rules
+    rationale: >-
+      Rule-based detection finds the candidate ambiguities deterministically;
+      only the resolution proposal crosses to the model, schema-validated on
+      return (FR-M33-04).
+
+  draft_adr:
+    mode: assisted
+    deterministicFirst: outline_draft
+    gap: prose sections
+    schema: ADR
+    engine: templates
+    rationale: >-
+      The ADR outline, decision records, options table and consequences are
+      assembled from structured inputs; the model writes bounded prose
+      sections only, and rationale stays labelled unverified (FR-M13-02).
+
+  name_tests:
+    mode: assisted
+    deterministicFirst: convention_rules
+    gap: candidate names within conventions
+    schema: TestNames
+    engine: rules
+    rationale: >-
+      learned/rules conventions bound the name space; the model proposes
+      candidates inside it and the engine validates every one against the
+      conventions before accepting (FR-M33-04, FR-M33-06).
+
+  # --- generative (engine cannot help; output validated before effect) -----
+
+  implement:
+    mode: generative
+    validate: [syntax, types, tests, conventions, scope]
+    schema: Patch
+    engine: none
+    rationale: >-
+      Novel implementation is the model's job, but no output takes effect
+      until every validator in `validate` passes; failure is rework, not a
+      result (FR-M33-05).
+
+  design_novel:
+    mode: generative
+    validate: [adr_schema, nfr_allocation]
+    schema: DesignDoc
+    engine: none
+    rationale: >-
+      Novel design needs synthesis the engine does not do; the engine still
+      enforces the ADR schema and that every NFR has an allocated owner
+      (FR-M33-05, FR-M13-03).
+
+  clarify:
+    mode: generative
+    validate: [question_schema]
+    schema: ClarifyingQuestion
+    engine: none
+    rationale: >-
+      Asking the human a well-formed clarifying question is generative, but
+      the question must fit the schema and cite what is blocked until it is
+      answered (FR-M25-02).
+
+  rationale:
+    mode: generative
+    validate: [label_unverified]
+    schema: Rationale
+    engine: none
+    rationale: >-
+      Explanation text is generative by nature; every rationale produced is
+      labelled unverified and no gate may pass on an explanation
+      (FR-M13-02, FR-M13-04).
+
+ceilings:
+  llm_dependency_ratio_max: 0.35   # per story; breach escalates (NFR-25)
+  # FR-M33-09: model-call ceilings, independent of the token budget. A
+  # breach stops further model calls for the class (or globally) and is
+  # recorded — the engine escalates rather than proceeds.
+  model_calls:
+    global: 40
+    per_class: {implement: 8, design_novel: 4, clarify: 6, rationale: 6}

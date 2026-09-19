@@ -1,0 +1,69 @@
+{
+  "keyboard": "passed",
+  "results": [
+    {
+      "label": "Overview / Indigo Vat",
+      "violations": []
+    },
+    {
+      "label": "Agent studio / Indigo Vat",
+      "violations": []
+    },
+    {
+      "label": "Agent editor / Indigo Vat",
+      "violations": []
+    },
+    {
+      "label": "Deliverables / Indigo Vat",
+      "violations": []
+    },
+    {
+      "label": "Learning dojo / Indigo Vat",
+      "violations": []
+    },
+    {
+      "label": "Evidence / Indigo Vat",
+      "violations": []
+    },
+    {
+      "label": "Runtime / Indigo Vat",
+      "violations": []
+    },
+    {
+      "label": "Workspace guide / Indigo Vat",
+      "violations": []
+    },
+    {
+      "label": "Settings / Indigo Vat",
+      "violations": []
+    },
+    {
+      "label": "Settings / Sized Linen",
+      "violations": []
+    },
+    {
+      "label": "Overview / Sized Linen",
+      "violations": []
+    },
+    {
+      "label": "Overview / mobile / Sized Linen",
+      "violations": []
+    },
+    {
+      "label": "Overview / Iron Gall",
+      "violations": []
+    },
+    {
+      "label": "Overview / Madder Dusk",
+      "violations": []
+    },
+    {
+      "label": "Overview / Weld Dawn",
+      "violations": []
+    },
+    {
+      "label": "Overview / Loom Ghost",
+      "violations": []
+    }
+  ]
+}

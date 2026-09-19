@@ -1,0 +1,60 @@
+# Human roles and approval mechanics (FR-M20-02…08; F1 Workstream C task 16).
+#
+# The role pack: which roles exist, which gate actions each may perform,
+# how many distinct approvers a protected branch needs (N-of-M,
+# FR-M20-04), separation of duties (FR-M20-03), delegation bounds
+# (FR-M20-05) and the approval-hygiene thresholds (FR-M20-06) that surface
+# rubber-stamping warnings in the gate status payload.
+#
+# Parsing is fail-closed: a malformed file refuses every role check. When
+# NO roles.yaml exists, the sidecar's built-in default (same five roles,
+# SoD on, N-of-M empty, delegation 2-deep/30-day, these hygiene floors)
+# applies — role granularity activates by this file, it never gates the
+# merge pass by existing. A workspace overrides this file at
+# .meridian/policy/roles.yaml.
+
+version: 1
+
+# The role gate.approve checks when the caller passes no explicit role.
+defaultRole: approver
+
+roles:
+  engineer:
+    description: Authors and proposes changes; never approves gates.
+    permissions: []
+  reviewer:
+    description: Reviews agent and external work; may approve merge gates.
+    permissions: [approve]
+  approver:
+    description: Accountable human approver for protected branches.
+    permissions: [approve, delegate]
+  governor:
+    description: Runs governance; the only role that changes policy or promotes autonomy tiers and trainer candidates (FR-M20-07).
+    permissions: [approve, halt, policy-change, delegate]
+  auditor:
+    description: Read-only across the ledger; exports audit bundles (FR-M20-08).
+    permissions: [export-audit]
+    readOnly: true
+
+approvals:
+  # N-of-M (FR-M20-04): protected branch -> required count of DISTINCT
+  # recorded approvers. Branches absent here need one approver.
+  nOfM: {}
+
+soD:
+  # FR-M20-03: the identity that ingested a change SHALL NOT approve its
+  # merge gate alone.
+  forbidSelfApproval: true
+
+delegation:
+  # FR-M20-05: approval rights may be delegated with expiry; chains are
+  # bounded and cycles refused.
+  maxChainDepth: 2
+  maxTtlDays: 30
+
+hygiene:
+  # FR-M20-06: rubber-stamping signals surfaced as gate-status warnings
+  # (advisory; the F2 measurement hook).
+  approveLatencyFloorSeconds: 30
+  bulkWindowMinutes: 10
+  bulkMinCount: 3

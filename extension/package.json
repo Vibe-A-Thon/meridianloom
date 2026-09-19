@@ -1,0 +1,310 @@
+{
+  "name": "meridian-loom",
+  "displayName": "Meridian Loom",
+  "description": "A governed organisation of AI agents inside VS Code.",
+  "icon": "media/icon.png",
+  "version": "0.1.0",
+  "publisher": "meridianloom",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Other",
+    "Testing"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Meridian runs a workspace Python sidecar and configured agent executables. Trust the workspace to enable it."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Meridian requires a filesystem workspace and Git."
+    }
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:meridianLoom.workbench"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "meridian-loom",
+          "title": "Meridian Loom",
+          "icon": "media/meridian.svg"
+        }
+      ]
+    },
+    "views": {
+      "meridian-loom": [
+        {
+          "type": "webview",
+          "id": "meridianLoom.workbench",
+          "name": "Meridian Loom"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "meridianLoom.open",
+        "title": "Open Workbench",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.ingestStory",
+        "title": "Ingest Story",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.openRecorder",
+        "title": "Open Recorder",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.inspectSource",
+        "title": "Inspect Source Provenance",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.installSkill",
+        "title": "Install Skill",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.onboardAgent",
+        "title": "Onboard Agent",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.exportAgent",
+        "title": "Export Agent",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.importAgent",
+        "title": "Import Agent",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.verifyChain",
+        "title": "Verify Chain",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.haltAll",
+        "title": "Halt All",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.steer",
+        "title": "Steer",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.dryRun",
+        "title": "Dry Run",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.startRun",
+        "title": "Start Run",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.abortStory",
+        "title": "Abort Story",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.openWorktree",
+        "title": "Open Story Worktree in New Window",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.doctor",
+        "title": "Doctor",
+        "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.installHook",
+        "title": "Provenance Hook (Install / Remove)",
+        "category": "Meridian Loom"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "meridian.ingestStory",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "command": "meridian.installSkill",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "command": "meridian.onboardAgent",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "command": "meridian.exportAgent",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "command": "meridian.importAgent",
+          "when": "meridian.tiers.orchestra"
+        },
+        {
+          "command": "meridian.haltAll",
+          "when": "meridian.tiers.governor"
+        },
+        {
+          "command": "meridian.steer",
+          "when": "meridian.tiers.governor"
+        },
+        {
+          "command": "meridian.dryRun",
+          "when": "meridian.tiers.governor"
+        },
+        {
+          "command": "meridian.startRun",
+          "when": "meridian.tiers.governor"
+        },
+        {
+          "command": "meridian.abortStory",
+          "when": "meridian.tiers.governor"
+        },
+        {
+          "command": "meridian.openWorktree",
+          "when": "meridian.tiers.governor"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Meridian Loom",
+      "properties": {
+        "meridian.python.interpreterPath": {
+          "type": "string",
+          "default": "",
+          "description": "Python interpreter for the Meridian Core sidecar (>= 3.11). Empty resolves via the Python extension, then python3/python on PATH (FR-M3-05)."
+        },
+        "meridian.tiers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "flight-recorder",
+              "governor",
+              "orchestra"
+            ]
+          },
+          "default": [
+            "flight-recorder"
+          ],
+          "description": "Enabled product tiers (FR-M36-05). Flight Recorder is the base tier and is always on. Enabling Governor or Orchestra is a settings change only \u2014 no reinstall; disabling a tier leaves the tiers below fully functional (G5)."
+        },
+        "meridian.rejectionWindowDays": {
+          "type": "number",
+          "default": 7,
+          "minimum": 1,
+          "maximum": 3650,
+          "description": "FR-M37-01 (F0 Workstream F): a change rewritten by a later commit within this many days of its own commit date counts as rejected (reason replaced_within_window); removal after the window is evolution, not rejection. Reverts and force-amends are unconditional. Passed to trust/detectRejections as windowDays."
+        },
+        "meridian.greenfieldNewFileRatio": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0.01,
+          "maximum": 1,
+          "description": "FR-M37-06 (F0 Workstream F): a story/session is greenfield when its new-file ratio (files added / files added + modified) is at or above this threshold. Passed to trust/classify and trust/rejectionRate as newFileRatioThreshold."
+        },
+        "meridian.greenfieldMaxMedianAgeDays": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 36500,
+          "description": "FR-M37-06 (F0 Workstream F): a story/session is greenfield when the median age of the code it touched (per-line git history age) is below this many days. Passed to trust/classify and trust/rejectionRate as maxMedianAgeDays."
+        },
+        "meridian.identityProvider": {
+          "type": "string",
+          "enum": [
+            "git",
+            "oidc"
+          ],
+          "default": "git",
+          "description": "FR-M20-01 (D9; F1 Workstream C): the human identity source of record the sidecar resolves approver/halting/ingesting identity through. \"git\" (default) reads user.name/user.email from the workspace repository \u2014 assurance local, never verified. \"oidc\" is the enterprise SSO/OIDC provider (verified assurance); contracted stub until the enterprise tier lands. Provisioned to the sidecar over the handshake."
+        },
+        "meridian.editor.provenance": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Git provenance hovers and the source inspector CodeLens. Edited working copies do not inherit committed line authorship."
+        },
+        "meridianLoom.surface": {
+          "type": "string",
+          "enum": [
+            "editor",
+            "sidebar"
+          ],
+          "enumDescriptions": [
+            "Open the workbench as an editor tab. The phase board, agent roster and ledger get editor width.",
+            "Render the workbench inside the Activity Bar rail, as it was before."
+          ],
+          "default": "editor",
+          "description": "Where the Meridian Loom workbench renders. Selecting it in the Activity Bar opens it either way."
+        },
+        "meridian.sidecar.handshakeTimeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 1000,
+          "maximum": 600000,
+          "description": "How long the Meridian sidecar may take to answer its first handshake, in milliseconds. Raise it if a first launch times out on a slow machine \u2014 a cold start on Windows reads the whole sidecar past the antivirus. Out-of-range values fall back to the default."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node22 --external:vscode --sourcemap --outfile=dist/extension.js && esbuild src/mcp/main.ts --bundle --platform=node --format=cjs --target=node22 --external:vscode --sourcemap --outfile=dist/mcp/mcp-server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run && npm run typecheck",
+    "vscode:prepublish": "npm run build",
+    "package": "node ../scripts/package-extension.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/vscode": "1.95.0",
+    "@vscode/vsce": "3.2.2",
+    "esbuild": "0.24.2",
+    "typescript": "5.6.3",
+    "vitest": "2.1.9"
+  },
+  "dependencies": {
+    "@zed-industries/agent-client-protocol": "0.4.5",
+    "yaml": "2.9.0"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "acp",
+    "agent-client-protocol",
+    "governance",
+    "audit",
+    "provenance",
+    "sdlc",
+    "devops",
+    "claude"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Vibe-A-Thon/meridianloom.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Vibe-A-Thon/meridianloom/issues"
+  },
+  "homepage": "https://github.com/Vibe-A-Thon/meridianloom#readme",
+  "qna": false
+}

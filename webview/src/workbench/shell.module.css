@@ -1,0 +1,420 @@
+/* The single-page tab shell.
+
+   This surface lives in the VS Code side bar, which the user can drag from
+   about 250px to most of the window. Every rule here has to hold across that
+   whole range, so the layout is a column with two scrolling rows of tabs and
+   one scrolling body — never a fixed sidebar, which would eat a third of a
+   narrow panel and leave the actual work in a gutter.
+
+   Colours are tokens only, so all seven themes, the three densities and the
+   high-contrast mode follow without a second stylesheet. */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+  background: var(--ml-ground-canvas, #0b0c0e);
+  color: var(--ml-text-primary, #e7e7e7);
+  font-family: var(--ml-font-ui, system-ui, sans-serif);
+  font-size: var(--ml-body-size, 13px);
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  z-index: 20;
+  padding: 8px 12px;
+  background: var(--ml-accent, #7aa2f7);
+  color: var(--ml-accent-ink, #08090b);
+  border-radius: var(--ml-r-panel, 8px);
+}
+.skip:focus {
+  left: 8px;
+  top: 8px;
+}
+
+/* ---------- masthead ---------- */
+
+/* The masthead and tab bar float over the scrolling body, so they are the one
+   place translucency earns its cost: it keeps the page feeling continuous
+   while the content moves under it. Dense data never gets this treatment.
+   The iron-gall theme zeroes --ml-glass-blur, so maximum contrast opts out. */
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px var(--ml-panel-padding, 16px);
+  border-bottom: 1px solid var(--ml-glass-border);
+  background: var(--ml-glass-strong);
+  backdrop-filter: blur(var(--ml-glass-blur)) saturate(140%);
+  box-shadow: inset 0 1px 0 var(--ml-glass-sheen);
+  flex-wrap: wrap;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-right: auto;
+}
+.brandMark {
+  width: 22px;
+  height: 24px;
+  flex: none;
+  color: var(--ml-accent, #7aa2f7);
+}
+.brandText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.brandText strong {
+  font-size: 0.875rem;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.brandText small {
+  font-size: 0.6875rem;
+  color: var(--ml-text-tertiary, #7a7a7a);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mastheadActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* A-03: 28px is the floor for a hit target on this surface. */
+  min-width: 28px;
+  min-height: 28px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--ml-r-panel, 8px);
+  background: transparent;
+  color: var(--ml-text-secondary, #a0a0a0);
+  cursor: pointer;
+}
+.iconButton:hover {
+  background: var(--ml-ground-raised, #16171a);
+  color: var(--ml-text-primary, #e7e7e7);
+}
+.iconButton:focus-visible {
+  outline: 2px solid var(--ml-accent, #7aa2f7);
+  outline-offset: 1px;
+}
+.iconButton[aria-pressed="true"] {
+  border-color: var(--ml-accent, #7aa2f7);
+  color: var(--ml-text-primary, #e7e7e7);
+}
+
+.searchButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--ml-hairline, #232427);
+  border-radius: var(--ml-r-panel, 8px);
+  background: var(--ml-ground-raised, #16171a);
+  color: var(--ml-text-secondary, #a0a0a0);
+  font: inherit;
+  cursor: pointer;
+}
+.searchButton:hover {
+  border-color: var(--ml-border, #33343a);
+}
+.searchButton kbd {
+  font-family: var(--ml-font-data, ui-monospace, monospace);
+  font-size: 0.6875rem;
+  color: var(--ml-text-tertiary, #7a7a7a);
+}
+/* Below ~420px the label goes and the magnifier carries the meaning. */
+@media (max-width: 520px) {
+  .searchButton span {
+    display: none;
+  }
+  .searchButton kbd {
+    display: none;
+  }
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.6875rem;
+  color: var(--ml-text-tertiary, #7a7a7a);
+  white-space: nowrap;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ml-dye-approved, #5bbf87);
+  flex: none;
+}
+.dotWaiting {
+  background: var(--ml-dye-attention, #e0b155);
+}
+.dotError {
+  background: var(--ml-dye-rework, #e06c6c);
+}
+.notificationDot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ml-dye-attention, #e0b155);
+}
+.bell {
+  position: relative;
+}
+
+/* ---------- tab bar ---------- */
+
+.tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 var(--ml-panel-padding, 16px);
+  border-bottom: 1px solid var(--ml-glass-border);
+  background: var(--ml-glass-bg);
+  backdrop-filter: blur(var(--ml-glass-blur)) saturate(140%);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.tabs::-webkit-scrollbar {
+  height: 4px;
+}
+.tabs::-webkit-scrollbar-thumb {
+  background: var(--ml-hairline, #232427);
+  border-radius: 2px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 11px;
+  min-height: 34px;
+  border: none;
+  /* The selected tab is marked by a rule *and* by text weight, never by
+     colour alone — the indicator has to survive a monochrome theme. */
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ml-text-secondary, #a0a0a0);
+  font: inherit;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--ml-text-primary, #e7e7e7);
+}
+.tab:focus-visible {
+  outline: 2px solid var(--ml-accent, #7aa2f7);
+  outline-offset: -2px;
+}
+.tab {
+  transition:
+    color var(--ml-motion-fast) var(--ml-ease-out),
+    border-color var(--ml-motion-med) var(--ml-ease-out);
+}
+.tab[aria-current="page"] {
+  color: var(--ml-text-primary, #e7e7e7);
+  border-bottom-color: var(--ml-accent, #7aa2f7);
+  font-weight: 620;
+}
+/* A faint glow under the selected tab, so the current section is findable in
+   peripheral vision without the label having to shout. */
+.tab[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 8px -2px 8px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--ml-accent);
+  opacity: 0.28;
+  filter: blur(8px);
+  pointer-events: none;
+}
+.tab {
+  position: relative;
+}
+.tabCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--ml-ground-raised, #16171a);
+  border: 1px solid var(--ml-hairline, #232427);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+}
+.tabLock {
+  font-size: 0.625rem;
+  color: var(--ml-text-tertiary, #7a7a7a);
+}
+/* A hairline between tab groups, so a fourteen-tab row still reads as
+   four sections rather than one undifferentiated strip. */
+.groupEdge {
+  margin-left: 8px;
+  padding-left: 10px;
+  border-left: 1px solid var(--ml-hairline, #232427);
+}
+
+/* ---------- sub-view row ---------- */
+
+.subtabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px var(--ml-panel-padding, 16px);
+  border-bottom: 1px solid var(--ml-hairline, #232427);
+  background: var(--ml-ground-raised, #101114);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.subtab {
+  padding: 4px 10px;
+  min-height: 26px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ml-text-secondary, #a0a0a0);
+  font: inherit;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.subtab:hover {
+  border-color: var(--ml-hairline, #232427);
+  color: var(--ml-text-primary, #e7e7e7);
+}
+.subtab:focus-visible {
+  outline: 2px solid var(--ml-accent, #7aa2f7);
+  outline-offset: 1px;
+}
+.subtab[aria-current="page"] {
+  background: var(--ml-ground-card, #1a1b1f);
+  border-color: var(--ml-accent, #7aa2f7);
+  color: var(--ml-text-primary, #e7e7e7);
+  font-weight: 600;
+}
+
+/* ---------- banners ---------- */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px var(--ml-panel-padding, 16px);
+  border-bottom: 1px solid var(--ml-hairline, #232427);
+  background: var(--ml-dye-attention-dim, rgba(224, 177, 85, 0.12));
+  color: var(--ml-text-primary, #e7e7e7);
+  font-size: 0.75rem;
+}
+.bannerError {
+  background: var(--ml-dye-rework-dim, rgba(224, 108, 108, 0.12));
+}
+.bannerPreview {
+  background: var(--ml-dye-meta-dim, rgba(150, 130, 220, 0.14));
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.linkButton {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--ml-accent, #7aa2f7);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 22px;
+}
+
+/* ---------- body ---------- */
+
+.main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--ml-wash), var(--ml-ground-canvas);
+  background-attachment: local, local;
+}
+/* Panels below the fold are not painted until they scroll near it. On a tab
+   with thirty cards this is the difference between a smooth scroll and a
+   stuttering one. */
+.main > * > section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+.main:focus {
+  outline: none;
+}
+
+.locked {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  margin: var(--ml-panel-padding, 16px);
+  padding: 20px;
+  border: 1px dashed var(--ml-border, #33343a);
+  border-radius: var(--ml-r-panel, 10px);
+  max-width: 70ch;
+}
+.locked h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.locked p {
+  margin: 0;
+  color: var(--ml-text-secondary, #a0a0a0);
+  font-size: 0.8125rem;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px var(--ml-panel-padding, 16px);
+  border-top: 1px solid var(--ml-hairline, #232427);
+  color: var(--ml-text-tertiary, #7a7a7a);
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

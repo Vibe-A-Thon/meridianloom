@@ -1,0 +1,232 @@
+/* Data-visualisation primitives.
+
+   Every colour is a token. Every animation is transform, opacity or
+   stroke-dashoffset only, so nothing here triggers layout, and all of them
+   collapse to nothing when --ml-motion-* is zeroed by the reduce-motion
+   switch in tokens.css. */
+
+.spark {
+  display: block;
+  overflow: visible;
+}
+.sparkEmpty {
+  display: inline-block;
+  min-width: 2ch;
+  color: var(--ml-text-tertiary);
+  font-family: var(--ml-font-data);
+  font-size: 0.75rem;
+}
+
+.ring {
+  display: block;
+  flex: none;
+}
+.ringValue {
+  transition: stroke-dashoffset var(--ml-motion-slow) var(--ml-ease-out);
+}
+.ringText {
+  font: 600 11px/1 var(--ml-font-data);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.stackTrack {
+  display: flex;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ml-ground-deepest);
+  box-shadow: inset 0 0 0 1px var(--ml-hairline);
+}
+.stackSegment {
+  display: block;
+  height: 100%;
+  transition: width var(--ml-motion-slow) var(--ml-ease-out);
+}
+/* Segments meet edge to edge, so a hairline keeps two similar hues apart. */
+.stackSegment + .stackSegment {
+  box-shadow: inset 1px 0 0 var(--ml-ground-canvas);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.6875rem;
+  color: var(--ml-text-secondary);
+}
+.legendItem strong {
+  color: var(--ml-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.legendSwatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+.legendEmpty {
+  margin: 0;
+  color: var(--ml-text-tertiary);
+  font-size: 0.75rem;
+}
+
+.heat {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.heatCell {
+  width: 10px;
+  height: 14px;
+  border-radius: 2px;
+  flex: none;
+}
+/* Each state carries a different fill *treatment* as well as a hue, so the
+   strip is still readable in greyscale or with a colour-vision deficiency. */
+.heat_ok {
+  background: var(--ml-signal-ok);
+}
+.heat_warn {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--ml-signal-warn) 0 3px,
+    transparent 3px 6px
+  );
+  box-shadow: inset 0 0 0 1px var(--ml-signal-warn);
+}
+.heat_fail {
+  background: var(--ml-signal-fail);
+  box-shadow: inset 0 0 0 2px var(--ml-ground-canvas);
+}
+.heat_idle {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--ml-signal-idle);
+}
+.heat_accent {
+  background: var(--ml-accent);
+}
+
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.meterHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.6875rem;
+  color: var(--ml-text-secondary);
+}
+.meterHead strong {
+  color: var(--ml-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.meterTrack {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ml-ground-deepest);
+  box-shadow: inset 0 0 0 1px var(--ml-hairline);
+  overflow: hidden;
+}
+.meterFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width var(--ml-motion-slow) var(--ml-ease-out);
+}
+
+.dot {
+  font-size: 0.625rem;
+  line-height: 1;
+  flex: none;
+}
+.dot_ok {
+  color: var(--ml-signal-ok);
+}
+.dot_warn {
+  color: var(--ml-signal-warn);
+}
+.dot_fail {
+  color: var(--ml-signal-fail);
+}
+.dot_idle {
+  color: var(--ml-signal-idle);
+}
+.dot_accent {
+  color: var(--ml-accent);
+}
+
+/* ——— stat card ——— */
+
+.stat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px 12px 16px;
+  border: 1px solid var(--ml-hairline);
+  border-radius: var(--ml-r-panel);
+  background: var(--ml-ground-card);
+  overflow: hidden;
+  min-width: 0;
+}
+/* The accent is a rule down the left edge rather than a tinted background:
+   it identifies the card without ever sitting behind its text. */
+.stat::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--stat-accent, var(--ml-accent));
+  opacity: 0.9;
+}
+.statButton {
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition:
+    transform var(--ml-motion-fast) var(--ml-ease-out),
+    border-color var(--ml-motion-fast) var(--ml-ease-out);
+}
+.statButton:hover {
+  border-color: var(--ml-border);
+  transform: translateY(-1px);
+}
+.statButton:focus-visible {
+  outline: 2px solid var(--ml-accent);
+  outline-offset: 2px;
+}
+.statLabel {
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ml-text-tertiary);
+}
+.statValue {
+  font: var(--ml-t-data-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--ml-text-primary);
+  line-height: 1.05;
+}
+.statHint {
+  font-size: 0.75rem;
+  color: var(--ml-text-secondary);
+}
+.statVisual {
+  display: block;
+  margin-top: 6px;
+}

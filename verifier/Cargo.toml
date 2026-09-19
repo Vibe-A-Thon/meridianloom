@@ -1,0 +1,15 @@
+[package]
+name = "meridian-verify"
+version = "0.1.0"
+edition = "2021"
+description = "Open reference verifier for Meridian audit bundles (FR-M36-06, NFR-31, SEC-29) — the Rust twin of verifier/verify.py"
+license = "Apache-2.0"
+
+[dependencies]
+# Pinned small deps (justified in docs/open-ledger-spec/): SHA-256 (sha2),
+# Ed25519 verification (ed25519-dalek), JSON parsing (serde_json). All
+# verification logic — canonical JSON with CPython float repr, RFC 6962
+# Merkle proofs, strict base64 — is implemented in this crate, not delegated.
+serde_json = "=1.0.149"
+sha2 = "=0.10.9"
+ed25519-dalek = "=2.2.0"

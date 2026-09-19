@@ -1,0 +1,71 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-4);
+  padding: var(--ml-panel-padding);
+}
+
+.header h2 {
+  margin: 0 0 var(--ml-space-1);
+  font: var(--ml-t-h2);
+}
+
+.muted {
+  margin: 0;
+  color: var(--ml-text-tertiary);
+  font: var(--ml-t-small);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-2);
+  max-width: 62ch;
+}
+
+.label {
+  font: var(--ml-t-small);
+  color: var(--ml-text-secondary);
+}
+
+.intent {
+  font: var(--ml-t-body);
+  font-family: var(--ml-font-ui);
+  color: var(--ml-text-primary);
+  background: var(--ml-ground-raised);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-r-thread);
+  padding: var(--ml-space-2);
+  resize: vertical;
+}
+
+.primary {
+  align-self: flex-start;
+  font-weight: 600;
+}
+
+.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.error {
+  margin: 0;
+  padding: var(--ml-space-2);
+  border-left: 3px solid var(--ml-halt);
+  background: var(--ml-ground-raised);
+  color: var(--ml-text-primary);
+}
+
+/*
+ * A started run is reported, not celebrated. It is the beginning of work
+ * that still has to pass its gates, and dressing it as success would be the
+ * screen taking a view on an outcome nobody has yet.
+ */
+.started {
+  margin: 0;
+  padding: var(--ml-space-2);
+  border-left: 3px solid var(--ml-dye-working);
+  background: var(--ml-ground-raised);
+  color: var(--ml-text-primary);
+}

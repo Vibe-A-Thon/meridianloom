@@ -1,0 +1,61 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.crown {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ml-space-3);
+  padding: var(--ml-space-3) var(--ml-panel-padding);
+  border-bottom: 1px solid var(--ml-hairline);
+  background: var(--ml-ground-raised);
+}
+
+.title {
+  margin: 0;
+  font: var(--ml-t-h3);
+}
+
+.subtitle {
+  margin: 0;
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+}
+
+/* §7.2 Loom Bar — generated from the registry (X-28), badges only where
+   the spec allows them (never here in F0). */
+.loomBar {
+  display: flex;
+  gap: 2px;
+  padding: 0 var(--ml-panel-padding);
+  border-bottom: 1px solid var(--ml-hairline);
+  background: var(--ml-ground-canvas);
+}
+
+.loomTab {
+  font: var(--ml-t-ui);
+  color: var(--ml-text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--ml-space-2) var(--ml-space-3);
+  cursor: pointer;
+}
+
+.loomTab:hover {
+  color: var(--ml-text-primary);
+}
+
+.loomTabActive {
+  color: var(--ml-text-primary);
+  border-bottom-color: var(--ml-dye-working);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--ml-space-5) var(--ml-panel-padding);
+}

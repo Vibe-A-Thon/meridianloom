@@ -1,0 +1,24 @@
+# Reviewer — prebuilt Meridian adapter (§6.10 roster, M31).
+# Governance facet of the adapter manifest (§7.9). ACP transport is
+# host-side; this folder carries policy, skills, instructions, learning.
+id: reviewer
+version: "1.0.0"
+role: reviewer
+acp: true
+bridge: null
+permittedTools: ["repo_read"]
+trainable:
+  policy: false
+  rules: true
+  memory: true
+  skills: false
+  calibration: true
+actionClasses:
+  plan: "assisted"
+  review: "assisted"
+  diff: "assisted"
+  test_run: "deterministic"
+  note: "deterministic"
+  approval: "assisted"
+dependencies: ["qa-lead"]
+digest: "sha256:14d78181a664ca221964c4312e2dfa237a0f0a712b0efe26e264c38173a1cf28"

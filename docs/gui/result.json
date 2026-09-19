@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "checks": [
+    "desktop render",
+    "agent creation",
+    "activation",
+    "deactivation to Learning",
+    "memory review",
+    "draft creation without execution",
+    "keyboard palette",
+    "light theme",
+    "mobile overflow",
+    "mobile navigation"
+  ],
+  "errors": []
+}

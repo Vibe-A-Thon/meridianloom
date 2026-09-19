@@ -1,0 +1,23 @@
+# Qa Engineer — prebuilt Meridian adapter (§6.10 roster, M31).
+# Governance facet of the adapter manifest (§7.9). ACP transport is
+# host-side; this folder carries policy, skills, instructions, learning.
+id: qa-engineer
+version: "1.0.0"
+role: qa_engineer
+acp: true
+bridge: null
+permittedTools: ["repo_read", "test"]
+trainable:
+  policy: false
+  rules: true
+  memory: true
+  skills: false
+  calibration: true
+actionClasses:
+  plan: "assisted"
+  review: "assisted"
+  diff: "assisted"
+  test_run: "deterministic"
+  note: "deterministic"
+dependencies: ["developer"]
+digest: "sha256:5c248a2d61779856a703742cd0e97319ad0a163e71a840f5062f286aa199c26d"

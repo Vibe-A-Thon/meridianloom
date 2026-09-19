@@ -1,0 +1,39 @@
+/* X-30 provenance card — absolute over the wrapped row, token-styled. */
+.wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--ml-space-3);
+  min-width: 0;
+  border-radius: var(--ml-r-thread);
+  outline-offset: -2px;
+}
+
+.card {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: var(--ml-space-3);
+  min-width: 240px;
+  max-width: 320px;
+  padding: var(--ml-space-3);
+  background: var(--ml-ground-card);
+  border-radius: var(--ml-r-panel);
+  box-shadow: var(--ml-elev-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-2);
+}
+
+.subject {
+  margin: 0;
+  font: var(--ml-t-data);
+  color: var(--ml-text-primary);
+  word-break: break-word;
+}
+
+.line {
+  margin: 0;
+  font: var(--ml-t-small);
+  color: var(--ml-text-secondary);
+}

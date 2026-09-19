@@ -1,0 +1,23 @@
+# Qa Lead — prebuilt Meridian adapter (§6.10 roster, M31).
+# Governance facet of the adapter manifest (§7.9). ACP transport is
+# host-side; this folder carries policy, skills, instructions, learning.
+id: qa-lead
+version: "1.0.0"
+role: qa_lead
+acp: true
+bridge: null
+permittedTools: ["repo_read", "test", "static_analysis"]
+trainable:
+  policy: false
+  rules: true
+  memory: true
+  skills: false
+  calibration: true
+actionClasses:
+  plan: "assisted"
+  review: "assisted"
+  diff: "assisted"
+  test_run: "deterministic"
+  note: "deterministic"
+dependencies: ["qa-engineer"]
+digest: "sha256:9f48c13f9638c943edf46288c079b24032963779a3f7af92e9c01977eacd64a5"

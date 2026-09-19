@@ -1,0 +1,106 @@
+[
+  {
+    "url": "https://api.github.com/repos/acme/payments/pulls/41",
+    "number": 41,
+    "title": "Add retry logic to the payment gateway client",
+    "state": "open",
+    "user": {
+      "login": "copilot-swe-agent",
+      "id": 19872456,
+      "type": "User",
+      "site_admin": false
+    },
+    "author_association": "CONTRIBUTOR",
+    "head": {
+      "ref": "copilot/add-retry-logic",
+      "repo": {
+        "full_name": "acme/payments"
+      }
+    },
+    "base": {
+      "ref": "main"
+    },
+    "created_at": "2025-09-20T11:58:04Z",
+    "updated_at": "2025-09-20T12:04:31Z",
+    "merged_at": null,
+    "html_url": "https://github.com/acme/payments/pull/41"
+  },
+  {
+    "url": "https://api.github.com/repos/acme/payments/pulls/40",
+    "number": 40,
+    "title": "Refactor settlement batching",
+    "state": "closed",
+    "user": {
+      "login": "github-copilot[bot]",
+      "id": 198620848,
+      "type": "Bot",
+      "site_admin": false
+    },
+    "author_association": "NONE",
+    "head": {
+      "ref": "copilot/refactor-settlement-batching",
+      "repo": {
+        "full_name": "acme/payments"
+      }
+    },
+    "base": {
+      "ref": "main"
+    },
+    "created_at": "2025-09-20T12:02:55Z",
+    "updated_at": "2025-09-20T12:06:02Z",
+    "merged_at": "2025-09-20T12:06:02Z",
+    "html_url": "https://github.com/acme/payments/pull/40"
+  },
+  {
+    "url": "https://api.github.com/repos/acme/payments/pulls/39",
+    "number": 39,
+    "title": "Fix timezone handling in reports",
+    "state": "open",
+    "user": {
+      "login": "sindhu",
+      "id": 1234567,
+      "type": "User",
+      "site_admin": false
+    },
+    "author_association": "MEMBER",
+    "head": {
+      "ref": "fix/report-timezones",
+      "repo": {
+        "full_name": "acme/payments"
+      }
+    },
+    "base": {
+      "ref": "main"
+    },
+    "created_at": "2025-09-20T11:30:00Z",
+    "updated_at": "2025-09-20T11:31:12Z",
+    "merged_at": null,
+    "html_url": "https://github.com/acme/payments/pull/39"
+  },
+  {
+    "url": "https://api.github.com/repos/acme/payments/pulls/38",
+    "number": 38,
+    "title": "Sweep stale feature flags",
+    "state": "open",
+    "user": {
+      "login": "copilot-sweeper",
+      "id": 201132436,
+      "type": "User",
+      "site_admin": false
+    },
+    "author_association": "CONTRIBUTOR",
+    "head": {
+      "ref": "copilot/sweep-stale-feature-flags",
+      "repo": {
+        "full_name": "acme/payments"
+      }
+    },
+    "base": {
+      "ref": "main"
+    },
+    "created_at": "2025-09-19T22:00:00Z",
+    "updated_at": "2025-09-19T22:05:00Z",
+    "merged_at": null,
+    "html_url": "https://github.com/acme/payments/pull/38"
+  }
+]

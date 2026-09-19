@@ -1,0 +1,81 @@
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-3);
+  padding: var(--ml-space-4);
+  border-radius: var(--ml-r-thread);
+  background: var(--ml-ground-card);
+  border: 1px solid var(--ml-hairline);
+  max-width: 62ch;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ml-space-2);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-1);
+  padding-top: var(--ml-space-2);
+  border-top: 1px solid var(--ml-hairline);
+}
+
+.block h3 {
+  margin: 0;
+  font: var(--ml-t-small);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ml-text-tertiary);
+}
+
+.block ul {
+  margin: 0;
+  padding-left: var(--ml-space-4);
+}
+
+.muted {
+  color: var(--ml-text-tertiary);
+  font: var(--ml-t-small);
+}
+
+/*
+ * Not styled as an error, because it is not one — it is the dialog telling
+ * the reader what is still unsettled. An incomplete preflight is a normal
+ * state of a run that is not ready, and dressing it in alarm colours would
+ * teach people to dismiss it.
+ */
+.blocked {
+  padding: var(--ml-space-2);
+  border-left: 3px solid var(--ml-dye-attention);
+  background: var(--ml-ground-raised);
+  color: var(--ml-text-primary);
+  font: var(--ml-t-small);
+}
+
+.error {
+  padding: var(--ml-space-2);
+  border-left: 3px solid var(--ml-halt);
+  background: var(--ml-ground-raised);
+  color: var(--ml-text-primary);
+}
+
+.actions {
+  display: flex;
+  gap: var(--ml-space-2);
+  justify-content: flex-end;
+  padding-top: var(--ml-space-2);
+  border-top: 1px solid var(--ml-hairline);
+}
+
+.primary {
+  font-weight: 600;
+}
+
+.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

@@ -1,0 +1,81 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-3);
+}
+
+.heading {
+  margin: 0;
+  font: var(--ml-t-h2);
+}
+
+.copy {
+  margin: 0;
+  font: var(--ml-t-body);
+  color: var(--ml-text-secondary);
+  max-width: 72ch;
+}
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ml-space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ml-space-1);
+}
+
+.label {
+  font: var(--ml-t-small);
+  color: var(--ml-text-tertiary);
+}
+
+.input {
+  font: var(--ml-t-data);
+  color: var(--ml-text-primary);
+  background: var(--ml-ground-raised);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-r-thread);
+  padding: var(--ml-cell-padding);
+  width: 12ch;
+}
+
+.button {
+  font: var(--ml-t-ui);
+  color: var(--ml-accent-ink, #fff);
+  background: var(--ml-accent, var(--ml-dye-working-dim));
+  border: 1px solid var(--ml-dye-working);
+  border-radius: var(--ml-r-panel);
+  padding: var(--ml-cell-padding);
+  cursor: pointer;
+}
+
+.button:disabled {
+  color: var(--ml-text-disabled);
+  background: var(--ml-ground-raised);
+  border-color: var(--ml-hairline);
+  cursor: default;
+}
+
+.done {
+  padding: var(--ml-space-3);
+  background: var(--ml-ground-raised);
+  border-left: 3px solid var(--ml-dye-approved);
+  border-radius: var(--ml-r-thread);
+}
+
+.doneLine {
+  margin: 0;
+  font: var(--ml-t-body);
+  color: var(--ml-text-primary);
+}
+
+.doneMeta {
+  margin: var(--ml-space-1) 0 0;
+  font: var(--ml-t-small);
+  color: var(--ml-text-secondary);
+}

@@ -1,0 +1,47 @@
+# Pricing pack (FR-M39-04, D12) — F1 Workstream F task 29.
+#
+# Declarative, versioned, git-backed — the same conventions as the other
+# policy packs (policy/governance.yaml, policy/roles.yaml). The workspace
+# overrides this file at .meridian/policy/pricing.yaml (first readable
+# file wins).
+#
+# Every rate here is config, never code: recorded tokens × rate = cost,
+# so the cross-vendor bill is predictable before it arrives. The Flight
+# Recorder tier makes no model calls and has no usage-based cost; the
+# Governor and Orchestra tiers report their own model spend in the same
+# ledger as everyone else's, priced from this table like any vendor.
+#
+# Rates are USD per MILLION tokens (D12: USD default, configurable via
+# the currency key), split by direction. A vendor of "*" is a wildcard
+# entry matched by model id alone — useful when the ledger's vendor tag
+# varies but the model id is stable.
+#
+# A model with no row here prices as "unknown", never a fabricated rate:
+# the spend surfaces report recorded costUsd and leave estimated cost
+# null rather than invent a number.
+
+version: 1
+currency: USD
+
+models:
+  meridian:
+    meridian-governor:
+      tokensInPerMillion: 0.0
+      tokensOutPerMillion: 0.0
+  anthropic:
+    claude-opus-4-1:
+      tokensInPerMillion: 15.0
+      tokensOutPerMillion: 75.0
+    claude-sonnet-4-5:
+      tokensInPerMillion: 3.0
+      tokensOutPerMillion: 15.0
+    claude-haiku-4-5:
+      tokensInPerMillion: 1.0
+      tokensOutPerMillion: 5.0
+  openai:
+    gpt-5:
+      tokensInPerMillion: 1.25
+      tokensOutPerMillion: 10.0
+    gpt-5-mini:
+      tokensInPerMillion: 0.25
+      tokensOutPerMillion: 2.0
