@@ -21,7 +21,7 @@
     "notices": "node scripts/generate-notices.mjs",
     "check:notices": "node scripts/generate-notices.mjs --check",
     "check:golden": "python scripts/check_golden.py",
-    "check:parity": "python scripts/check_scenario_parity.py",
+    "check:parity": "node scripts/generate-bus-types.mjs && python -m pip install -e ./core[dev] && python scripts/check_scenario_parity.py",
     "check:telemetry": "node scripts/check-no-telemetry.mjs"
   }
 }

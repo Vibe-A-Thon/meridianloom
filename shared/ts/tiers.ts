@@ -106,6 +106,9 @@ export const COMMAND_TIERS: Record<string, TierName> = {
   'meridian.openWorktree': 'governor',
   'meridian.doctor': 'flight-recorder',
   'meridian.installHook': 'flight-recorder',
+  // Licensing lives in the base tier: a locked feature must always be able to
+  // point at the way to unlock it.
+  'meridian.licence': 'flight-recorder',
 };
 
 /**

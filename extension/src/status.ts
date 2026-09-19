@@ -28,6 +28,15 @@ export class SidecarStatusBar {
       `Resolved via: ${resolution.source}`;
   }
 
+  /** Add the licence edition to the tooltip (the text stays unchanged so the
+   * status bar never grows into a billboard). */
+  showEdition(edition: string): void {
+    const base = typeof this.item.tooltip === 'string' ? this.item.tooltip : '';
+    if (!base.includes('\nEdition: ')) {
+      this.item.tooltip = `${base}\nEdition: ${edition}`;
+    }
+  }
+
   showFailed(reason: string): void {
     this.item.text = '$(error) Meridian: failed';
     this.item.tooltip = reason;

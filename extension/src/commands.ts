@@ -16,6 +16,7 @@ import type {
 } from '../../shared/ts/bus-types';
 import { isCommandEnabled, tierLockMessage } from '../../shared/ts/tiers';
 import { renderDoctorReport } from './doctor';
+import { runLicenceCommand, type LicenceDeps } from './licence';
 
 /**
  * FR-M1-03 (F0 subset per gaps_implementation.md §F0): `meridian.openRecorder`
@@ -48,11 +49,14 @@ export const COMMANDS = [
   { id: 'meridian.openWorktree', title: 'Open Story Worktree in New Window' },
   { id: 'meridian.doctor', title: 'Doctor' },
   { id: 'meridian.installHook', title: 'Provenance Hook (Install / Remove)' },
+  // Premium licence: status, install, machine fingerprint, remove. Base tier
+  // and always registered — the way to *unlock* a tier can never sit behind it.
+  { id: 'meridian.licence', title: 'Licence (Status / Install / Remove)' },
 ] as const;
 
 export type CommandId = (typeof COMMANDS)[number]['id'];
 
-export interface CommandDeps {
+export interface CommandDeps extends LicenceDeps {
   /**
    * Opens the workbench on its configured surface. The Activity Bar reaches
    * it without a command; this is the palette and keybinding route, and the
@@ -161,6 +165,10 @@ async function runCommand(id: CommandId, deps: CommandDeps, args: unknown[] = []
   }
   if (id === 'meridian.installHook') {
     await runHookCommand(deps);
+    return;
+  }
+  if (id === 'meridian.licence') {
+    await runLicenceCommand(deps);
     return;
   }
   if (id === 'meridian.abortStory') {

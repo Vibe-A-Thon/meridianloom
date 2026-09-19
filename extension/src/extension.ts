@@ -7,6 +7,12 @@ import { TIERS, type MethodMap, type TierName } from '../../shared/ts/bus-types'
 import { normalizeEnabledTiers, TIER_CONTEXT_KEYS } from '../../shared/ts/tiers';
 import { registerCommands } from './commands';
 import { runDoctor } from './doctor';
+import {
+  createLicenceNotifier,
+  describeEdition,
+  installLicenceFlow,
+  type LicenceDeps,
+} from './licence';
 import { handleGateHaltNotification } from './governance/gate-halt';
 import {
   handleSpendCeilingNotification,
@@ -54,6 +60,55 @@ function runRequest<M extends keyof MethodMap>(
       : params;
   return client.request(method, withRepo, new AbortController().signal);
 }
+
+/**
+ * Premium licence plumbing. The sidecar is the single authority (it verifies
+ * the licence and refuses Premium RPCs without one); these are thin
+ * pass-throughs plus the explanation shown when a Premium call is refused.
+ */
+type LicenceMethod = 'licence/status' | 'licence/install' | 'licence/remove';
+function licenceRequest<M extends LicenceMethod>(
+  method: M,
+  params: MethodMap[M]['params'],
+): Promise<MethodMap[M]['result']> {
+  const client = supervisor?.currentClient;
+  if (!client) {
+    return Promise.reject(new Error('sidecar is not connected'));
+  }
+  return client.request(method, params, new AbortController().signal);
+}
+
+let extensionRoot: string | undefined;
+
+/** Open the LICENSING.md that ships inside the VSIX, as a Markdown preview. */
+async function openLicensingGuide(): Promise<void> {
+  const file = extensionRoot ? path.join(extensionRoot, 'docs', 'LICENSING.md') : undefined;
+  if (file) {
+    try {
+      const uri = vscode.Uri.file(file);
+      await vscode.workspace.fs.stat(uri);
+      await vscode.commands.executeCommand('markdown.showPreview', uri);
+      return;
+    } catch {
+      // fall through to the message below
+    }
+  }
+  void vscode.window.showInformationMessage(
+    'Meridian Loom licensing guide: see LICENSING.md in the Meridian Loom repository or the docs folder of the extension.',
+  );
+}
+
+const licenceCommandDeps: LicenceDeps = {
+  licenceStatus: (params) => licenceRequest('licence/status', params ?? {}),
+  licenceInstall: (params) => licenceRequest('licence/install', params),
+  licenceRemove: (params) => licenceRequest('licence/remove', params),
+  openLicensingGuide,
+};
+
+const notifyLicenceRequired = createLicenceNotifier({
+  install: () => installLicenceFlow(licenceCommandDeps),
+  openGuide: openLicensingGuide,
+});
 
 /** FR-M39-02/D33: pause-pending state for hosted sessions that breached a spend ceiling. */
 const spendCeilingPauses = new SpendCeilingPauseTracker();
@@ -152,6 +207,7 @@ function onConfigurationChanged(event: vscode.ConfigurationChangeEvent): void {
  * stack so the extension host thread is never blocked.
  */
 export function activate(context: vscode.ExtensionContext): void {
+  extensionRoot = context.extensionPath;
   const generation = ++runtimeGeneration;
   const initialWorkspace = workspaceDir();
   workbench = new WorkbenchService({
@@ -328,6 +384,7 @@ export function activate(context: vscode.ExtensionContext): void {
       runPreflight: (params) => runRequest('run/preflight', params),
       runStart: (params) => runRequest('run/start', params),
       runCancel: (params) => runRequest('run/cancel', params),
+      ...licenceCommandDeps,
     }),
     vscode.workspace.onDidChangeConfiguration(onConfigurationChanged),
   );
@@ -420,6 +477,9 @@ export async function startRuntime(context: vscode.ExtensionContext, generation 
             ? { handshakeTimeoutMs: readHandshakeTimeoutMs() }
             : {}),
           onStderr: (line) => console.debug('[sidecar]', line),
+          // A Premium method refused for want of a licence explains itself
+          // once per session and offers to install one.
+          onLicenceRequired: notifyLicenceRequired,
         }),
       onError: (message) => {
         statusBar.showFailed(message);
@@ -445,7 +505,14 @@ export async function startRuntime(context: vscode.ExtensionContext, generation 
     });
     const started = supervisor;
     await started.start();
-    if (current() && supervisor === started && started.isRunning) statusBar.showReady(interpreter);
+    if (current() && supervisor === started && started.isRunning) {
+      statusBar.showReady(interpreter);
+      // Show which edition is active. Best effort: a failure here must never
+      // make a working sidecar look broken.
+      void licenceRequest('licence/status', {})
+        .then((status) => statusBar.showEdition(describeEdition(status)))
+        .catch(() => undefined);
+    }
   } catch (error) {
     if (!current()) return;
     // supervisor.start() failures are already surfaced via onError; layout

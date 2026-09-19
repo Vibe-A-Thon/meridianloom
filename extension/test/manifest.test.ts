@@ -64,6 +64,8 @@ describe('extension manifest', () => {
       'meridian.doctor',
       // F0 Workstream E (FR-M36-03, D23): opt-in commit-msg trailer hook.
       'meridian.installHook',
+      // Premium licence (Community is free; Premium unlocks with a key).
+      'meridian.licence',
       // F1 Workstream A task 5 (FR-M18-08): open a story worktree in a new window.
       'meridian.openWorktree',
       // MV2 (FR-M40-01/02): the command-palette door into run initiation.

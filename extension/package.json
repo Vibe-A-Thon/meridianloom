@@ -136,6 +136,11 @@
         "command": "meridian.installHook",
         "title": "Provenance Hook (Install / Remove)",
         "category": "Meridian Loom"
+      },
+      {
+        "command": "meridian.licence",
+        "title": "Licence (Status / Install / Remove)",
+        "category": "Meridian Loom"
       }
     ],
     "menus": {

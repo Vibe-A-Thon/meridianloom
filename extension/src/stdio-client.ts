@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import {
+  ErrorCode,
   PROTOCOL_VERSION,
   type ErrorObject,
   type HandshakeResult,
@@ -34,7 +35,48 @@ export { PROTOCOL_VERSION };
  */
 export const DEFAULT_HANDSHAKE_TIMEOUT_MS = 30_000;
 
+/**
+ * Third-party telemetry must not ride in on the editor's environment.
+ *
+ * The sidecar depends on LangGraph, which brings LangSmith: when its variables
+ * are set (LANGSMITH_TRACING=true + an API key — the normal setup for anyone who
+ * uses LangSmith elsewhere) every graph run is uploaded to LangChain's cloud.
+ * VS Code hands its whole environment to extensions, so a variable exported for
+ * an unrelated project used to reach the sidecar and exfiltrate loop state
+ * (audit CLD-C01, reproduced). The sidecar scrubs the same families itself on
+ * import; doing it here too means the values never reach the process at all.
+ */
+export const SCRUBBED_ENV_PREFIXES = ['LANGSMITH_', 'LANGCHAIN_', 'LANGGRAPH_'] as const;
+export const FORCED_OFF_ENV: Readonly<Record<string, string>> = {
+  LANGSMITH_TRACING: 'false',
+  LANGSMITH_TRACING_V2: 'false',
+  LANGCHAIN_TRACING: 'false',
+  LANGCHAIN_TRACING_V2: 'false',
+  OTEL_SDK_DISABLED: 'true',
+};
+
+/** `base` and `extra` merged, minus telemetry variables, plus the off-switches. */
+export function sidecarEnvironment(
+  base: NodeJS.ProcessEnv,
+  extra: NodeJS.ProcessEnv = {},
+): NodeJS.ProcessEnv {
+  const merged: NodeJS.ProcessEnv = {};
+  for (const source of [base, extra]) {
+    for (const [key, value] of Object.entries(source)) {
+      // Case-insensitive: Windows environment names are.
+      const upper = key.toUpperCase();
+      if (SCRUBBED_ENV_PREFIXES.some((prefix) => upper.startsWith(prefix))) continue;
+      merged[key] = value;
+    }
+  }
+  return { ...merged, ...FORCED_OFF_ENV };
+}
+
 export interface StdioSidecarOptions {
+  /** Called when the sidecar refuses a Premium method for want of a licence
+   * (LICENCE_REQUIRED). The host uses it to explain and offer to install one;
+   * the request still rejects normally. */
+  onLicenceRequired?: (data: unknown) => void;
   /** Interpreter command (already resolved; FR-M3-05). */
   command: string;
   /** Package root containing the meridian_core package. */
@@ -122,11 +164,10 @@ export class StdioSidecarClient extends EventEmitter implements SidecarClient {
       command: this.options.command,
       args: this.options.args ?? ['-m', 'meridian_core'],
       cwd: this.options.cwd,
-      env: {
-        ...process.env,
+      env: sidecarEnvironment(process.env, {
         MERIDIAN_PARENT_PID: String(process.pid),
         ...this.options.env,
-      },
+      }),
     };
     let child: ChildProcessLike;
     try {
@@ -332,6 +373,13 @@ export class StdioSidecarClient extends EventEmitter implements SidecarClient {
       if (frame.error) {
         const error = new Error(frame.error.message);
         Object.assign(error, { code: frame.error.code, data: frame.error.data });
+        if (frame.error.code === ErrorCode.LICENCE_REQUIRED) {
+          try {
+            this.options.onLicenceRequired?.(frame.error.data);
+          } catch {
+            // Presentation must never turn a refusal into a different failure.
+          }
+        }
         entry.reject(error);
       } else {
         entry.resolve(frame.result);
