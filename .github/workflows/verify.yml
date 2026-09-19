@@ -305,7 +305,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npm run build
+      # package-extension builds the webview and vsce's prepublish builds the
+      # host, so a separate build here would compile both halves twice.
       - run: npm run package
       # MP7: the checkout is not the artefact. This asserts that every step
       # DEMO.md tells a presenter to take is backed by something inside the
