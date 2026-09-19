@@ -21,6 +21,7 @@ Zero model calls.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import tarfile
@@ -47,7 +48,13 @@ from meridian_core.tools.surface import SandboxConfig, run_in_sandbox
 
 AGENT_CARD = "agent-card.json"
 SIGNATURE_FILE = "signature.json"
+CONTENT_MANIFEST = "content-manifest.json"
 PACKAGE_SUFFIX = ".meridian-agent.zip"
+
+#: Archive preflight budgets (GP-004): refused before any write.
+MAX_MEMBERS = 500
+MAX_TOTAL_BYTES = 64 * 1024 * 1024
+MAX_MEMBER_BYTES = 8 * 1024 * 1024
 
 #: FR-M16-03: excluded from export, always.
 EXCLUDED_DIRS = ("learned/episodic", ".git")
@@ -132,7 +139,32 @@ def export_package(
         "excluded": excluded,
         "format": "meridian-agent/1",
     }
-    card_bytes = json.dumps(card, indent=2, sort_keys=True).encode("utf-8")
+    # GP-003: the signature must authenticate the CONTENTS, not only the
+    # card. A content manifest covers every member's path, byte length
+    # and digest, and the card commits to the manifest's digest — a
+    # substituted agent.py, an added member, or a removed digest fails
+    # verification before anything reaches the filesystem.
+    content_manifest = {
+        "version": 1,
+        "members": [
+            {
+                "path": rel,
+                "bytes": len(data),
+                "sha256": hashlib.sha256(data).hexdigest(),
+            }
+            for rel, data in members
+        ],
+    }
+    manifest_bytes = json.dumps(
+        content_manifest, indent=2, sort_keys=True
+    ).encode("utf-8")
+    card_signed = {
+        "agentCard": card["agentCard"],
+        "excluded": card["excluded"],
+        "format": card["format"],
+        "contentManifestSha256": hashlib.sha256(manifest_bytes).hexdigest(),
+    }
+    card_bytes = json.dumps(card_signed, indent=2, sort_keys=True).encode("utf-8")
     signature = signing_key.sign(card_bytes)
     public_key = signing_key.public_key().public_bytes_raw()
 
@@ -141,6 +173,7 @@ def export_package(
     with zipfile.ZipFile(package, "w", zipfile.ZIP_DEFLATED) as bundle:
         for rel, data in members:
             bundle.writestr(rel, data)
+        bundle.writestr(CONTENT_MANIFEST, manifest_bytes)
         bundle.writestr(AGENT_CARD, card_bytes)
         bundle.writestr(
             SIGNATURE_FILE,
@@ -242,21 +275,93 @@ def verify_package(package: Path, *, trusted_key: Ed25519PublicKey) -> Mapping[s
     return json.loads(card_bytes.decode("utf-8"))
 
 
+def _authenticate_members(package: Path, card: Mapping[str, Any]) -> None:
+    """GP-003/004 preflight, shared by the trust path and direct imports:
+    budgets, canonical containment, and authentication of EVERY member
+    against the signed content manifest. Raises before any write."""
+    with zipfile.ZipFile(package) as bundle:
+        names = bundle.namelist()
+        if len(names) > MAX_MEMBERS:
+            raise ImportRefusedError(
+                f"archive has {len(names)} members; the budget is {MAX_MEMBERS}"
+            )
+        total = 0
+        records: dict[str, tuple[int, str]] = {}
+        for info in bundle.infolist():
+            if info.file_size > MAX_MEMBER_BYTES:
+                raise ImportRefusedError(
+                    f"member {info.filename!r} exceeds the"
+                    f" {MAX_MEMBER_BYTES}-byte budget"
+                )
+            total += info.file_size
+            if total > MAX_TOTAL_BYTES:
+                raise ImportRefusedError("archive exceeds the total size budget")
+            if info.filename.startswith("/") or "\\" in info.filename:
+                raise ImportRefusedError(
+                    f"absolute or UNC member path: {info.filename!r}"
+                )
+            anchor = Path("anchor-root").resolve()
+            resolved = (anchor / info.filename).resolve()
+            try:
+                resolved.relative_to(anchor)
+            except ValueError:
+                raise ImportRefusedError(
+                    f"traversing member path: {info.filename!r}"
+                )
+            records[info.filename] = (
+                info.file_size,
+                hashlib.sha256(bundle.read(info.filename)).hexdigest(),
+            )
+        if CONTENT_MANIFEST not in records:
+            raise ImportRefusedError("package has no content manifest")
+        declared = json.loads(bundle.read(CONTENT_MANIFEST).decode("utf-8"))
+        expected = {
+            str(m["path"]): (int(m["bytes"]), str(m["sha256"]))
+            for m in declared.get("members", [])
+        }
+        actual_members = {
+            k: v
+            for k, v in records.items()
+            if k not in (CONTENT_MANIFEST, AGENT_CARD, SIGNATURE_FILE)
+        }
+        if set(expected) != set(actual_members):
+            raise ImportRefusedError(
+                "package members do not match the signed content manifest"
+                f" (added or removed:"
+                f" {sorted(set(actual_members) ^ set(expected))})"
+            )
+        for name, observed in actual_members.items():
+            if expected[name] != observed:
+                raise ImportRefusedError(
+                    f"member {name!r} does not match the signed manifest —"
+                    " the package contents were tampered with"
+                )
+        if card.get("contentManifestSha256") != hashlib.sha256(
+            bundle.read(CONTENT_MANIFEST)
+        ).hexdigest():
+            raise ImportRefusedError("card does not commit to the content manifest")
+
+
 def verify_package_trust(
     package: Path, *, trusted_fingerprints: set[str]
 ) -> Mapping[str, Any]:
-    """TASK-330: verify the package against its own embedded key and
-    require the signer's fingerprint to be explicitly trusted."""
+    """TASK-330 + GP-003/004: verify the package against its own embedded
+    key, require an explicitly trusted signer fingerprint, authenticate
+    EVERY member against the signed content manifest, and preflight the
+    whole archive (paths, budgets) BEFORE any byte reaches the filesystem.
+    Nothing is written until everything verifies."""
     card_bytes, public_key_hex = package_signature(package)
     if signer_fingerprint(public_key_hex) not in trusted_fingerprints:
         raise ImportRefusedError(
             "package signed by an untrusted fingerprint; record trust with"
             " an explicit human approval first (portability/trust)"
         )
-    return verify_package(
+    card = verify_package(
         package,
         trusted_key=Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key_hex)),
     )
+    _authenticate_members(package, card)
+    return card
 
 
 def diff_against_workspace(
@@ -295,6 +400,7 @@ def import_package(
     ``confirm=True``), refuse on missing tools, extract, admit to
     PROBATION."""
     card = verify_package(package, trusted_key=trusted_key)
+    _authenticate_members(package, card)
     if not confirm:
         raise ImportRefusedError(
             "FR-M16-04: import requires explicit confirmation after the"
@@ -310,23 +416,50 @@ def import_package(
             f" {sorted(missing)}"
         )
     target = destination_root / card["agentCard"]["id"]
-    target.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(package) as bundle:
-        for name in bundle.namelist():
-            if name in (AGENT_CARD, SIGNATURE_FILE):
-                continue
-            member = bundle.getinfo(name)
-            # Zip-slip guard: members must land inside the target.
-            dest = (target / name).resolve()
-            if not str(dest).startswith(str(target.resolve())):
-                raise ImportRefusedError(f"unsafe path in package: {name}")
-            if name.endswith("/"):
-                dest.mkdir(parents=True, exist_ok=True)
-            else:
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                dest.write_bytes(bundle.read(name))
-    adapter = registry.plug(target)
-    return adapter
+    # GP-004: stage outside the active adapter directory and publish only
+    # after validation admits the adapter — a failed or adversarial import
+    # leaves the destination AND its siblings unchanged.
+    import shutil
+    import tempfile
+
+    destination_root.mkdir(parents=True, exist_ok=True)
+    staged = Path(
+        tempfile.mkdtemp(prefix="meridian-import-", dir=str(destination_root))
+    )
+    try:
+        with zipfile.ZipFile(package) as bundle:
+            for name in bundle.namelist():
+                if name in (AGENT_CARD, SIGNATURE_FILE, CONTENT_MANIFEST):
+                    continue
+                dest = (staged / name).resolve()
+                try:
+                    dest.relative_to(staged.resolve())
+                except ValueError:
+                    raise ImportRefusedError(f"unsafe path in package: {name}")
+                if name.endswith("/"):
+                    dest.mkdir(parents=True, exist_ok=True)
+                else:
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(bundle.read(name))
+        adapter = registry.plug(staged)
+        if not adapter.valid:
+            raise ImportRefusedError(
+                f"staged adapter failed validation: {list(adapter.errors)}"
+            )
+        if target.exists():
+            backup = target.with_name(target.name + ".preimport-backup")
+            shutil.move(str(target), str(backup))
+            try:
+                shutil.move(str(staged), str(target))
+            except Exception:
+                shutil.move(str(backup), str(target))
+                raise
+            shutil.rmtree(backup, ignore_errors=True)
+        else:
+            shutil.move(str(staged), str(target))
+        return registry.plug(target)
+    finally:
+        shutil.rmtree(staged, ignore_errors=True)
 
 
 def run_upgrade_regression(
